@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+title: Julia Core
+message: >
+  If you use Julia Core in research or applications,
+  please cite this repository.
+authors:
+  - family-names: Zhang
+    given-names: Tony
+    orcid: https://orcid.org/0000-0000-0000-0000
+repository-code: https://github.com/tonychang925-dev/julia_core
+version: 0.1.0
+license: Apache-2.0
+date-released: 2026-08-01
+keywords:
+  - agent-os
+  - cognitive-agent
+  - context-management
+  - runtime-owned-identity
+  - provider-architecture
+abstract: >
+  Julia Core is a modular Agent Operating System with
+  Context OS, Memory OS, Persona Engine, and Domain Provider architecture.
+  It separates identity ownership from language models,
+  enabling persistent cognitive agents that survive model and provider migration.

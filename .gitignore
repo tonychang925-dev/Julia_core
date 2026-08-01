@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 *.egg-info/
 .DS_Store
+data/claude_diary/
+data/governed/
