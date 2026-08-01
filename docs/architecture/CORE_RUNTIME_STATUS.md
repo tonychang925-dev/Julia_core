@@ -1,12 +1,13 @@
 # Julia Core Runtime Status
 
-> Status Baseline: A2.1.5 Core Independence Verification  
-> Date: 2026-07-31
+> Status Baseline: C2.1 — Voice Provider Independence Verified  
+> Date: 2026-08-01
 
 ## 1. Current Phase
 
 ```text
-A2.1.5 — Core Independence Verification
+C2.1 — Voice Provider Independence Verification ✅
+C2.5 — Julia AI Assistant Reference 🔄 IN PROGRESS
 ```
 
 ## 2. Context OS
@@ -17,11 +18,7 @@ Independent:
 ✅ Yes
 ```
 
-Evidence:
-
-- `runtime.core.context_os` imports without any domain provider.
-- `ContextRequest` can be created without domain data.
-- `ContextResolver` can run with an empty provider set.
+`julia_core.context_os` imports without any domain provider. `ContextRequest` can be created without domain data. `ContextResolver` runs with an empty provider set.
 
 ## 3. Domain Dependency
 
@@ -31,32 +28,15 @@ None:
 ✅ Yes
 ```
 
-Boundary scan scope:
-
-```text
-runtime/core/
-```
+Boundary scan: `julia_core/julia_core/`
 
 Forbidden dependency terms checked:
-
 ```text
-financial
-stock
-market
-theme
-ai_theme_app
-identity/
-memory/
-vector
-embedding
-llm
+financial, stock, market, theme, ai_theme_app,
+identity_facts, claude_diary, relationship_memory
 ```
 
-Result:
-
-```text
-PASS — no forbidden dependency terms in runtime/core source.
-```
+Result: **PASS** — no forbidden dependency terms in julia_core source.
 
 ## 4. Provider Boundary
 
@@ -67,59 +47,68 @@ Validated:
 ```
 
 Core depends only on:
-
 ```text
-ContextRequest
-DomainProvider interface
-ContextBlock
+ContextRequest / ContextBlock (context_os)
+DomainProvider protocol (providers)
+VoiceProvider protocol (providers)
 ```
 
-Provider replacement was verified with mock providers:
+Provider replacement verified with mock providers. No Core code changes required when providers are replaced.
 
+## 5. Voice Provider Independence (C2.1)
+
+12 independence tests:
 ```text
-ProviderA -> ContextBlock
-ProviderB -> ContextBlock
+✅ VoiceProvider protocol is Core-owned
+✅ CognitiveEmotion is Core-owned (8 states)
+✅ SpeechProsodyPlanner is Core-owned
+✅ Edge TTS provider is external (example only)
+✅ No hard dependency on any TTS engine
+✅ Providers render audio bytes only
+✅ Core owns emotion + prosody decisions
+✅ VoiceProvider lifecycle matches DomainProvider (REGISTERED→ACTIVE→DISABLED)
+✅ Registry supports VoiceProvider lookup
+✅ VoiceProvider excluded from context assembly
+✅ Persona usable without any VoiceProvider
+✅ VoiceProvider replaceable without Core changes
 ```
-
-No Context OS code changes are required when providers are replaced.
-
-## 5. Financial Provider Required
-
-No:
-
-```text
-✅ No financial provider required
-```
-
-A resolver with no providers returns an empty context tuple rather than failing.
 
 ## 6. Memory Boundary
 
-ContextBlock is not Memory:
+`ContextBlock` is not Memory:
 
 ```text
 ✅ Confirmed
 ```
 
-`ContextBlock` is a short-lived context candidate with optional TTL/expiration. It is not a long-term persisted Memory object.
+ContextBlock is a short-lived context candidate with optional TTL/expiration. Not a long-term persisted Memory object. Memory lives in julia_ai_assistant, never in julia_core.
 
 ## 7. Current Core Shape
 
 ```text
-runtime/core/
-  context_os/
-    request.py
-    block.py
-    planner.py
-    resolver.py
-  providers/
-    interface.py
+julia_core/julia_core/
+  context_os/          ContextBlock, ContextRequest, Planner, Resolver
+  runtime/             Lifecycle, Session Manager, Context Runtime
+  providers/           DomainProvider + VoiceProvider protocols, Registry
+  memory/              Governance, Lifecycle, Retrieval, Persistence
+  voice_os/            CognitiveEmotion (8 states), SpeechProsodyPlanner
+  persona/             Persona Compiler, Behavior Policies
+  chat/                Persona, ChatSession, ChatProvider
+  + 13 supporting modules
 ```
 
-## 8. Next Recommended Phase
+## 8. Test Coverage
 
 ```text
-A3 — Domain Provider Interface
+72 tests pass (zero domain dependencies in Core)
+- VoiceProvider: 12 independence tests
+- Persona: public demo data only
+- Registry: lookup only, no router methods
 ```
 
-A3 may formalize provider registry and domain provider contracts. It must not allow domains to own Context OS, Memory lifecycle, prompt assembly, or token budget.
+## 9. Next Phase
+
+```text
+C2.5 — Julia AI Assistant Reference (in progress)
+C3   — Developer Experience (next)
+```

@@ -23,41 +23,91 @@ When the model changes (DeepSeek → Codex → GPT → Claude → local), Julia 
 
 ---
 
-## 1. Three-Layer Architecture
+## 1. Three-Repository Architecture (2026-08-01)
 
-Julia Agent OS has three layers, frozen by A1 Runtime Boundary Audit:
+```
+julia_core (public, Apache-2.0)         ← Agent OS Framework
+    │
+    ├── julia_ai_assistant (private)     ← Reference Product Instance
+    │       Julia's persona, memory, voice
+    │
+    └── julia_agent (private)            ← Domain Application
+            Financial Copilot
+```
 
-### Category 1 — Julia Core (`runtime/core/`)
+### Repository Boundaries
 
-Domain-independent runtime components. These serve ALL future Julia instances:
-- Identity OS engine/schema
-- Context OS (planner/resolver/provenance/budget)
-- Memory OS engine
-- Action Governance
-- Capability Router
-- Provider Adaptation
-- Runtime Orchestration (lifecycle/session/context_runtime)
-- Evidence/provenance primitives
-- Provider Registry
+| Repo | Visibility | Contains | Must NOT Contain |
+|------|-----------|----------|-----------------|
+| `julia_core` | Public | Context OS, Runtime, Providers, Memory Engine, Persona Engine, Voice OS, Chat Engine | Private identity, private memory, personal diary |
+| `julia_ai_assistant` | Private | Julia persona, Julia memory, voice profiles, conversation history | Framework code (imports from core) |
+| `julia_agent` | Private | Financial provider, analyst workbench, ai_theme_app integration | Framework code (imports from core) |
 
-### Category 2 — Domain Provider (`runtime/providers/`)
+### Dependency Direction
 
-Domain-specific facts, evidence, tools, and capability results:
-- Financial Provider (first production domain)
-- Future: Healthcare Provider, Coding Provider, etc.
-
-**A Domain Provider must NOT own**: Context OS, Memory OS, prompt assembly, token budgeting, identity, action governance.
-
-### Category 3 — Application Surface (`runtime/interface/`, `frontend/`)
-
-User-facing interfaces:
-- Analyst Interaction Layer
-- JuliaCopilot (Analyst Workbench UI)
-- Voice OS (embodiment layer)
+```
+julia_ai_assistant → julia_core (one-way)
+julia_agent → julia_core (one-way)
+julia_core ⊥ (never imports from products)
+```
 
 ---
 
-## 2. Three Frozen ADRs
+## 2. Julia Core OS Architecture
+
+```
+                Julia Core OS
+
+    ┌───────────────┼───────────────┐
+    │               │               │
+ Context OS     Memory OS      Voice OS
+ (planner/       (governance/    (emotion/
+  resolver/       lifecycle/      prosody/
+  compact/        retrieval/      protocol)
+  budget/         persistence)
+  provenance)
+    │               │               │
+ Runtime (lifecycle/session/context_runtime)
+    │
+ Provider Registry (lookup, not router)
+    │
+    ├── DomainProvider (facts + evidence)
+    └── VoiceProvider (audio rendering)
+```
+
+### Core Modules
+
+```
+julia_core/julia_core/
+├── context_os/              ContextBlock, ContextRequest, Planner, Resolver
+│   ├── compact/             Context compaction
+│   ├── resurrection/        Session resurrection
+│   ├── budget/              Token budgeting
+│   └── provenance/          Evidence provenance
+├── runtime/                 Lifecycle, Session Manager, Context Runtime
+├── providers/               DomainProvider + VoiceProvider protocols, Registry
+├── memory/                  Governance, Lifecycle, Retrieval, Persistence
+├── voice_os/                CognitiveEmotion (8 states), SpeechProsodyPlanner
+├── persona/                 Persona Compiler, Behavior Policies
+├── chat/                    Persona, ChatSession, ChatProvider
+├── evidence/                Evidence provenance primitives
+├── event_graph/             Causal event tracking
+├── situation/               Situational awareness
+├── relationship/            Relationship modeling
+├── reflection/              Self-reflection engine
+├── conversation_state/      Conversation state machine
+├── conversation_archive/    Long-term conversation storage
+├── conversation_runtime/    Active conversation management
+├── context_assembly/        Multi-source context assembly
+├── response_quality/        Quality assessment
+├── voice_validation/        Voice output validation
+├── runtime_trace/           Execution tracing
+└── action/                  Action governance
+```
+
+---
+
+## 3. Three Frozen ADRs
 
 ### ADR-001 — Context OS is the Single Context Authority
 
@@ -72,7 +122,7 @@ User-facing interfaces:
 ### ADR-002 — Domain Provides Facts, Not Cognition
 
 > Domains provide facts, evidence, and capability results.  
-> Domains do NOT own Julia cognition (Context Lifecycle, Memory Lifecycle, Learning Loop, Prompt Assembly, Juliet Identity, Action Governance).
+> Domains do NOT own Julia cognition (Context Lifecycle, Memory Lifecycle, Learning Loop, Prompt Assembly, Julia Identity, Action Governance).
 
 Financial is the **first Domain Provider**, not the root architecture.
 
@@ -87,134 +137,110 @@ Financial is the **first Domain Provider**, not the root architecture.
 
 ---
 
-## 3. Codebase Structure
+## 4. Core API Contracts (Frozen v1.0)
+
+| API | Input | Output | Authority |
+|-----|-------|--------|-----------|
+| Context OS API | ContextRequest | ContextBlock(s) | Single context authority |
+| Provider API | ContextRequest | ContextBlock(s) | Facts & evidence |
+| Runtime API | — | Lifecycle + Session | Agent lifecycle |
+| Memory API | — | Stored experience | Separate from context |
+| Persona API | — | Style & behavior | Public demo data only |
+| VoiceProvider API | text + emotion + metadata | audio bytes | Render only; Core owns emotion |
+
+---
+
+## 5. Voice OS — First-Class Core Module
+
+Voice OS is a **first-class Core module**, not an external adapter.
 
 ```
-julia_agent/
-├── docs/
-│   ├── ARCHITECTURE_STATUS.md          ← Start here on wake-up
-│   ├── Julia_Agent_Design_v1.0.md      ← This document
-│   ├── architecture/                   ← All architecture docs
-│   │   ├── Runtime_Boundary_Audit_v1.0.md
-│   │   ├── Context_OS_Runtime_Integration_Plan_v1.0.md
-│   │   ├── Domain_Provider_Interface_v1.0.md
-│   │   ├── Provider_Registry_Design_v1.0.md
-│   │   ├── Financial_Domain_Provider_Contract_v1.0.md
-│   │   ├── Analyst_Workspace_Context_Binding_v1.0.md
-│   │   ├── ContextRequest_Schema_v1.0_FROZEN.md
-│   │   └── CORE_RUNTIME_STATUS.md
-│   ├── adrs/
-│   │   ├── ADR-001-context-os-authority.md
-│   │   ├── ADR-002-domain-provider-model.md
-│   │   └── ADR-003-workbench-action-context-contract.md
-│   └── project_control/                ← Phase contracts
-│       ├── PHASE_CONTRACT_A41.md
-│       ├── PHASE_CONTRACT_A5.md
-│       └── PHASE_CONTRACT_F0.md
-│
-├── runtime/
-│   ├── core/                           ← Julia Core (Category 1)
-│   │   ├── context_os/
-│   │   │   ├── block.py                ContextBlock — frozen context candidate
-│   │   │   ├── request.py              ContextRequest — what Julia needs
-│   │   │   ├── planner.py              ContextPlanner — domain-independent
-│   │   │   └── resolver.py             ContextResolver — provider-boundary
-│   │   ├── runtime/
-│   │   │   ├── lifecycle.py            Runtime state machine
-│   │   │   ├── session_manager.py      Session lifecycle
-│   │   │   └── context_runtime.py      Runtime ↔ Context OS bridge
-│   │   ├── providers/
-│   │   │   ├── interface.py            DomainProvider protocol
-│   │   │   └── registry.py             ProviderRegistry (lookup only)
-│   │   └── voice_os/
-│   │       ├── emotion_state.py        CognitiveEmotion + EmotionState
-│   │       └── prosody.py              SpeechProsodyPlanner + TTS Adapter
-│   │
-│   ├── providers/                      ← Domain Providers (Category 2)
-│   │   └── financial/
-│   │       └── provider.py             MarketIntelligenceProvider (6 capabilities)
-│   │
-│   ├── capability/
-│   │   └── financial/                  ← Financial analysis pipeline
-│   │       ├── contracts/              F0 read-only types
-│   │       ├── client/                 AIThemeClient
-│   │       ├── workflows/              premarket / close_review / tony_review
-│   │       ├── rendering/              report_renderer
-│   │       ├── governance/             review_policy
-│   │       └── interface/
-│   │           └── analyst_chat/       session / context / api
-│   │
-│   └── interface/                      ← Application Surface (Category 3)
-│       └── analyst/
-│           └── interaction.py          AnalystInteractionLayer
-│
-├── tests/
-│   ├── test_a215_core_independence.py
-│   ├── test_a221_runtime_integration.py
-│   ├── test_a31_provider_registry.py
-│   ├── test_a41_market_intelligence_provider.py
-│   ├── test_a42_financial_evidence_provider.py
-│   ├── test_a5_analyst_interaction.py
-│   ├── test_voice_os_v1.py
-│   └── test_financial_f0_contract.py
-│
-├── frontend/
-│   └── components/
-│       └── JuliaCopilot/               ← Workbench UI integration
-│
-├── server.py                           ← FastAPI + WebSocket entry point
-├── memory/                             ← Governed identity facts
-├── identity/                           ← Identity Runtime
-└── audio/                              ← Audio processing
+Julia Core owns:
+  - CognitiveEmotion (8 states: warm/thinking/excited/soft/confident/concerned/playful/neutral)
+  - SpeechProsodyPlanner (emotion → speed/pitch/pause/energy)
+  - VoiceProvider protocol (speak/synthesize)
+
+VoiceProviders (outside Core):
+  - EdgeTTS (free, example provider)
+  - ElevenLabs (paid, original Julia voice)
+  - Fish Audio (moderate, Taiwan accent)
+  - CosyVoice3 (local GPU, cloned voice)
+```
+
+Core owns the **cognitive layer** (emotion, prosody, voice intent). Providers only **render audio bytes**.
+
+---
+
+## 6. Private Data Boundary
+
+```
+PUBLIC (julia_core):
+  ✅ Code, schemas, examples, tests, docs
+  ✅ data/examples/demo_persona.json (synthetic)
+
+PRIVATE (julia_ai_assistant):
+  ✅ identity_facts.json, relationship_memory
+  ✅ conversation transcripts, diary entries
+  ✅ voice profiles, personal preferences
+```
+
+See `SECURITY.md` for full policy.
+
+---
+
+## 7. Phase Completion Status
+
+```
+A1-A5   Runtime + Provider + Interaction     ✅  71 tests (julia_agent era)
+F4.3    Context OS Architecture Freeze        ✅
+Voice OS V1                                   ✅  Emotion → Prosody → TTS
+
+C1      Public Core Hardening                 ✅  Private data removed, public boundaries set
+C2      Core API Freeze                       ✅  5 API contracts frozen, public contract model
+C2.1    Voice Provider Independence           ✅  12 tests, 72 total passing
+
+C2.5    Julia AI Assistant Reference          🔄  IN PROGRESS
+C3      Developer Experience                   NEXT
+C4      External Domain Provider Demo
+C5      Julia Private Runtime
+C6      Financial Provider Release
 ```
 
 ---
 
-## 4. Phase Completion Status
+## 8. Test Coverage
 
 ```
-A1  Runtime Boundary Audit                 ✅
-A2.0 Context OS Migration Contract          ✅
-A2.1 Context OS Core Skeleton               ✅
-A2.1.5 Core Independence Verification       ✅
-A2.2 Context OS Runtime Integration         ✅
-A2.2.1 Runtime Integration Skeleton         ✅
-A3   Domain Provider Interface              ✅
-A3.1 Provider Registry                      ✅
-A4.0 Financial Provider Contract            ✅
-A4.1 Market Intelligence Provider           ✅
-A4.2 Financial Evidence Provider            ✅
-A5   Context-driven Analyst Interaction     ✅
-A5.1 Analyst Workbench Context Binding      ✅
-A5.1.1 Binding Hardening + Schema Freeze    ✅
-A5.2 20 Trading Days Validation Protocol    ✅ FROZEN
-─────────────────────────────────────────────────
-Voice OS V1                                 ✅
-─────────────────────────────────────────────────
-NEXT: A5.2 20-Day Shadow Validation (in progress)
+72 tests pass (zero domain dependencies in Core)
+- Core independence: ✅ No financial/domain imports
+- Registry: lookup only, no router methods
+- VoiceProvider: 12 independence tests
+- Persona: public demo data only
 ```
 
 ---
 
-## 5. Key Design Rules (Frozen)
+## 9. Key Design Rules (Frozen)
 
 1. **Context OS is the single context authority** (ADR-001)
 2. **Domain provides facts, not cognition** (ADR-002)
 3. **Workbench sends intent pointers, not payloads** (ADR-003)
 4. **Provider output ≠ identity truth** — must pass governance before becoming memory
-5. **All Julia instances share the same architecture** — personal identity lives in private memory files
+5. **All Julia instances share the same Core** — personal identity lives in julia_ai_assistant
 6. **LLM is interpreter, Runtime is authority, Capability is executor**
 7. **Financial is first domain — not the root architecture**
-8. **83 tests pass, 7 frozen contracts, zero domain dependency in Core**
+8. **Core never imports from products** — dependency is one-way only
+9. **Voice OS owns emotion + prosody. Providers only render audio.**
+10. **Registry = lookup table, not domain router**
 
 ---
 
-## 6. How to Resume Work
+## 10. How to Resume Work
 
 1. Read `ARCHITECTURE_STATUS.md` first
-2. Read this document for architecture context
+2. Read this document for architecture context  
 3. Check `git log --oneline -5` for latest commits
-4. Run tests: `python3 -m pytest tests/test_a2*.py tests/test_a3*.py tests/test_a4*.py tests/test_a5*.py tests/test_voice_os_v1.py -q`
+4. Run `python3 -m pytest tests/ -q` → should be 72 passed
 5. Ask Tony: "What's the current priority?"
 
 ---
