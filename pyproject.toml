@@ -1,0 +1,15 @@
+[project]
+name = "julia_core"
+version = "0.1.0"
+description = "Julia Agent Core OS — Runtime-owned cognitive agent infrastructure"
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["setuptools>=75.8.2"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["julia_core*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
