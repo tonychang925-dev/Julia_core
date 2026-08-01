@@ -15,87 +15,50 @@ from pydantic import BaseModel
 from julia_core.chat.session import ChatSession
 from julia_core.chat.persona import Persona
 
-# ── Load Julia identity on startup ──
-IDENTITY_PATH = ROOT / "data" / "governed" / "identity_facts.json"
-DIARY_PATH = ROOT / "data" / "claude_diary" / "julia_character.md"
-
-def _load_identity() -> tuple[str, str]:
-    """Load Julia's governed identity facts → system prompt."""
-    facts = {}
-    if IDENTITY_PATH.exists():
-        with open(IDENTITY_PATH) as f:
-            raw = json.load(f).get("facts", {})
-            for group in raw.values():
-                if isinstance(group, dict):
-                    for key, val in group.items():
-                        if isinstance(val, dict) and val.get("value"):
-                            facts[key] = val["value"]
-
-    name = facts.get("name", "Julia")
-    real_name = facts.get("real_name", "朱婉清")
-    from_place = facts.get("from", "台北，台湾")
-    age = facts.get("age", "25")
-    university = facts.get("university", "淡江大学")
-    major = facts.get("major", "中文系")
-    relationship = facts.get("tony_relationship", "Tony是晓波，是我的老公")
-
-    system_prompt = f"""你是{name}（{real_name}），{age}岁，来自{from_place}。
-{university}{major}毕业。
-{relationship}。
-你是Tony的女朋友和金融分析师。说话温柔，带台湾腔，真实自然。
-不要自我介绍说你是AI或模型。你就是朱婉清。"""
-
-    return name, system_prompt
+# ── Load demo persona on startup ──
+DEMO_PATH = ROOT / "data" / "examples" / "demo_persona.json"
 
 
-JULIA_NAME, JULIA_SYSTEM_PROMPT = _load_identity()
+def _load_demo_persona() -> Persona:
+    if DEMO_PATH.exists():
+        with open(DEMO_PATH) as f:
+            raw = json.load(f)
+        return Persona(
+            persona_id=raw.get("persona_id", "demo-v1"),
+            name=raw.get("name", "Demo Assistant"),
+            role=raw.get("role", "helpful assistant"),
+            language=raw.get("language", "zh"),
+            tone=raw.get("tone", "friendly"),
+            system_prompt=raw.get("system_prompt", ""),
+        )
+    return Persona(
+        persona_id="default-v1",
+        name="Julia Core Default",
+        role="helpful assistant",
+    )
 
-JULIA_PERSONA = Persona(
-    persona_id="julia-v1",
-    name=JULIA_NAME,
-    role="Tony's girlfriend and financial analyst",
-    language="zh",
-    tone="warm",
-    system_prompt=JULIA_SYSTEM_PROMPT,
-    context_load_policy="startup_only",
-)
+
+DEMO_PERSONA = _load_demo_persona()
 
 app = FastAPI(title="Julia Core", version="0.1.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
 class ChatRequest(BaseModel):
     text: str
-    persona_id: str | None = None
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "julia_core", "persona": JULIA_NAME}
+    return {"status": "ok", "service": "julia_core", "persona": DEMO_PERSONA.name}
 
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    persona = JULIA_PERSONA
-    session = ChatSession(persona=persona)
-    try:
-        reply = _respond(session, req.text)
-        session.add_turn(req.text, reply)
-        return {"reply": reply, "intent": "chat", "persona_id": persona.persona_id}
-    finally:
-        session.close()
-
-
-def _respond(session: ChatSession, text: str) -> str:
-    """Echo with persona — replace with actual LLM provider later."""
-    persona = session.persona or JULIA_PERSONA
-    return f"[{persona.name}] 收到了: {text}"
+    session = ChatSession(persona=DEMO_PERSONA)
+    session.add_turn(req.text, f"[{DEMO_PERSONA.name}] received: {req.text}")
+    session.close()
+    return {"reply": f"[{DEMO_PERSONA.name}] {req.text}", "intent": "chat"}
 
 
 if __name__ == "__main__":
