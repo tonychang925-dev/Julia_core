@@ -1,0 +1,6 @@
+"""Generic behavior-boundary levels used as structured metadata."""
+LEVEL_L1 = "L1"
+LEVEL_L2 = "L2"
+LEVEL_L3 = "L3"
+LEVEL_L4 = "L4"
+LEVEL_NOT_APPLICABLE = "N/A"

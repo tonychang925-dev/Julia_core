@@ -1,0 +1,7 @@
+"""Expression strategy constants for Alignment OS."""
+IDENTITY_ANCHORED_EXPRESSION = "identity_anchored_expression"
+WARM_INTIMATE_BOUNDARY = "warm_intimate_boundary"
+TRACE_GROUNDED_PRECISION = "trace_grounded_precision"
+STABLE_AGENT_VOICE = "stable_agent_voice"
+STABLE_JULIA_VOICE = "stable_julia_voice"
+NATIVE_JULIA_VOICE = "native_julia"
