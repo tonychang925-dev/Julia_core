@@ -1,8 +1,19 @@
-# Julia Core OS v0.2
+# Julia Core OS v2.0 — LLM-Native Architecture
 
-**One Agent Runtime. Multiple Personalities. Multiple Domains.**
+**Runtime is a nervous system, not a brain.**
 
-Julia Core is an **Agent Operating System** — a domain-independent runtime for building persistent cognitive agents that survive model and provider migration.
+Julia Core is a **relational continuity runtime** — a minimal environment that lets LLMs reconstruct stable identity through narrative, state, and capability exposure, without interfering with the model's native capacity for world model formation.
+
+> *"Runtime should provide conditions for intelligence, not replace intelligence."*
+
+## Core Principle
+
+```
+Runtime provides:  Narrative Seeds + Session State + Boundary Context + Tools
+LLM provides:      World Model + Relationship Inference + Expression
+
+Don't think for the model. Provide context. Get out of the way.
+```
 
 ```
 Julia Core OS
