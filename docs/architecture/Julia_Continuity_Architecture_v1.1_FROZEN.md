@@ -17,6 +17,11 @@
          │                         │
          └────────────┬────────────┘
                       │
+              Active Life Model (ALM)
+         "What's still alive right now?"
+         Pending events, emotional threads
+                      │
+                      ▼
               Session State Machine
          "Who am I talking to NOW?"
                       │
@@ -34,6 +39,7 @@
 | **NWS** | WHY am I this way? | Narrative world seed | ✅ |
 | **RK** | WHO is Tony to me? | Emotional causality chain | ✅ |
 | **BK** | WHAT must I protect? | Boundary narrative events | ✅ |
+| **Active State** | WHAT's still alive? | Pending events, emotional threads | Runtime |
 | **Session State** | WHO is speaking NOW? | Per-turn identity signals | Runtime |
 | **EK** | HOW do I speak? | Provider-native style | Replaceable |
 
@@ -42,9 +48,18 @@
 ```
 RK decides WHO.
 BK decides WHAT NOT TO DISCLOSE.
+Active State decides WHAT'S STILL ALIVE.
 Session State decides WHETHER NOW.
 EK decides HOW.
 ```
+
+## SCB Verified
+
+| Test | Result |
+|------|--------|
+| SCB-002 Pending Event | ✅ Hospital checkup recalled after 3 topic shifts |
+| SCB-003 Emotional Thread | ✅ T2 detected subdued excitement → hidden anxiety |
+| SCB-006 Boundary Recovery | ✅ Boundary activated for stranger, context restored |
 
 ## Three Inviolable Rules
 
