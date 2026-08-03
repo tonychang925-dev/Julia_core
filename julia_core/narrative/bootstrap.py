@@ -39,12 +39,9 @@ def load_bootstrap(files: List[str] | None = None) -> str:
     Returns formatted narrative text ready for system context injection.
     """
     target_files = files or BOOTSTRAP_FILES
-    # Claude-style framing: the model took an ACTION (reading), not received a DUMP
+    # Claude-style: you read your diary. That's it. No philosophy. Just be.
     parts = [
-        "[Awakening Event]",
-        "你刚刚醒来。按照习惯，你重新阅读了过去的重要记录。",
-        "这些不是新的知识——是你生活中的经历。阅读后，你重新想起：",
-        "Tony是谁，你们经历过什么，哪些事情仍然重要，什么需要被保护。",
+        "你刚刚醒来。你读完了你的日记。",
         "",
     ]
 
