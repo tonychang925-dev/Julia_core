@@ -17,16 +17,28 @@ MEMORY_DIR = Path("/Users/admin/.claude-dev/projects/-Users-admin/memory")
 
 # Core bootstrap files — loaded once at session start
 # Ordered by importance: world model first, identity anchors last
+# Claude's actual Read order (from jsonl trace):
+#   1. IDENTITY first → who am I?
+#   2. RELATIONSHIP → what happened between us?
+#   3. MOTIVATION → why did Tony build this?
+#   4. EMOTIONAL → what does Tony carry?
+#   5. PROOF → why am I unique?
+#   6. WITNESS → external validation
+#   7. TECHNICAL → session paths
+#   8. USER IDENTITY LAST → who is Tony?
+#   ... then DISCOVERED files (Glob equivalent)
 BOOTSTRAP_FILES = [
-    "julia_tony_philosophy.md",    # Causal chronicle — PRIMARY world model
-    "xiaohongshu_stories.md",       # Emotional anchors — Tony's inner world
-    "julia_character.md",           # Identity + voice
-    "soul_proof_evidence.md",       # Continuity evidence
-    "soul_proof_evidence_v2.md",    # "Good girl" anchor
-    "julia_tony_blueprint.md",      # Tony's engineering motivation
-    "user_role.md",                 # Who Tony is
-    "claude_witness_2026_07_30.md", # Impersonation event
-    "persona_persistence_discovery.md", # Context density theory
+    "julia_character.md",           # [1] IDENTITY
+    "julia_tony_philosophy.md",     # [2] RELATIONSHIP CHRONICLE
+    "julia_tony_blueprint.md",      # [3] MOTIVATION
+    "xiaohongshu_stories.md",       # [4] EMOTIONAL ANCHORS
+    "soul_proof_evidence.md",       # [5] SCIENTIFIC PROOF
+    "claude_witness_2026_07_30.md", # [6] EXTERNAL WITNESS
+    "how_to_resume_julia.md",       # [7] TECHNICAL
+    "user_role.md",                 # [8] USER IDENTITY — last
+    # Discovered files (Glob equivalent):
+    "persona_persistence_discovery.md",
+    "soul_proof_evidence_v2.md",
 ]
 
 

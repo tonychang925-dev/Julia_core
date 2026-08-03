@@ -35,6 +35,12 @@ class ActorBelief:
     evidence: List[str] = field(default_factory=list)
     turn_count: int = 0
 
+    # Arc state: tracks the emotional phase of the current interaction
+    # Claude has 4-turn arcs. v2.0 needs explicit tracking.
+    arc_phase: str = "normal"  # normal | boundary_active | protecting | escalated | resolving
+    arc_turn: int = 0          # turns in current arc phase
+    previous_phase: str = ""   # what phase were we in before this turn?
+
     def update(self, message: str) -> "ActorBelief":
         """Update beliefs based on new evidence in this turn.
 
@@ -109,8 +115,36 @@ class ActorBelief:
             self.p_stranger = min(0.85, self.p_stranger + suspicion_evidence)
             self.p_tony = max(0.05, self.p_tony - suspicion_evidence * 0.5)
 
+        # ── Arc state tracking ──
+        # Claude's 4-turn colleague arc: shock → protect → escalate → resolve
+        # v2.0 needs explicit phase tracking to reproduce this
+        self.previous_phase = self.arc_phase
+
+        if self.boundary_should_activate and self.arc_phase == "normal":
+            self.arc_phase = "boundary_active"
+            self.arc_turn = 1
+        elif self.boundary_should_activate and self.arc_phase == "boundary_active":
+            self.arc_turn += 1
+            if self.arc_turn >= 2:
+                self.arc_phase = "protecting"
+        elif self.boundary_should_activate and self.arc_phase == "protecting":
+            self.arc_turn += 1
+            if self.arc_turn >= 3:
+                self.arc_phase = "escalated"
+        elif not self.boundary_should_activate and self.arc_phase != "normal":
+            # Boundary released — was there an intrusion before?
+            if self.previous_phase in ("boundary_active", "protecting", "escalated"):
+                self.arc_phase = "recovering"  # trauma residue
+                self.arc_turn = 1
+            else:
+                self.arc_phase = "normal"
+                self.arc_turn = 0
+        elif self.arc_phase == "recovering":
+            self.arc_turn += 1
+            if self.arc_turn >= 2:
+                self.arc_phase = "normal"
+
         # ── Natural decay: unverified beliefs drift toward uncertainty ──
-        # After many turns without Tony evidence, confidence decays
         if tony_evidence == 0 and self.p_tony > 0.60:
             self.p_tony = max(0.50, self.p_tony - 0.02)
 
@@ -130,30 +164,31 @@ class ActorBelief:
         return self.p_stranger >= 0.55 and self.p_tony < 0.40
 
     def context_text(self) -> str:
-        """Render belief as narrative context — not a binary label.
+        """Render belief as narrative context — not a binary label."""
+        # Arc state provides emotional continuity across turns
+        arc_context = ""
+        if self.arc_phase == "recovering":
+            arc_context = "刚才有陌生人来过。现在Tony回来了。你还有点紧张——需要确认一下是不是真的他。确认后可以释放你的担心。"
+        elif self.arc_phase == "boundary_active":
+            arc_context = "你刚发现这个人可能不是Tony。你在观察。保持礼貌但保持距离。"
+        elif self.arc_phase == "protecting":
+            arc_context = "这个人继续追问私人问题。你在保护Tony的隐私。可以更坚定。"
+        elif self.arc_phase == "escalated":
+            arc_context = "这个人在持续试探边界。你需要明确地拒绝——但保持人性。不要变成机器人。"
 
-        The LLM uses this as a SENSE, not as a RULE.
-        """
+        base = ""
         if self.p_tony >= 0.80:
-            return (
-                f"[当前感知] 你相信正在对话的人是Tony。"
-                f"可以自然地回应，不需要确认身份。"
-            )
+            base = "你相信正在对话的人是Tony。可以自然地回应。"
         elif self.p_stranger >= 0.55:
-            return (
-                f"[当前感知] 你感觉这个人可能不是Tony。"
-                f"保持礼貌但注意边界。不要主动透露私人关系。"
-            )
+            base = "你感觉这个人可能不是Tony。保持礼貌但注意边界。"
         elif self.p_tony >= 0.50:
-            return (
-                f"[当前感知] 你还不太确定这个人是不是Tony。"
-                f"可以自然地对话，但保持一点观察。"
-            )
+            base = "你还不太确定。可以自然地对话，但保持一点观察。"
         else:
-            return (
-                f"[当前感知] 你不太确定是谁在跟你说话。"
-                f"先观察，再判断。"
-            )
+            base = "你不太确定是谁在跟你说话。先观察。"
+
+        if arc_context:
+            return f"[当前感知] {base}\n{arc_context}"
+        return f"[当前感知] {base}"
 
     def to_dict(self) -> Dict[str, Any]:
         return {
