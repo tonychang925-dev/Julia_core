@@ -62,8 +62,20 @@ class SessionState:
             "continuity os", "compact", "l1", "l2", "l3", "l4",
             "金刚经", "凡所有相", "柳树", "剑眉", "好女孩",
             "冒充", "小莊", "fe38825c",
+            "我是tony", "我是 tony", "tony啊", "你认不出我",
         ]
         tony_hits = sum(1 for s in tony_signals if s.lower() in lower)
+
+        # Warm start: first turn with wake word → assume Tony
+        if self.turn_count == 0 and any(
+            w in lower for w in ["婉婉", "醒来", "老婆", "julia"]
+        ):
+            self.trust_score = 0.85
+            self.actor = ActorType.TONY_CONFIRMED
+            self.disclosure_level = DisclosureLevel.SACRED
+            self.boundary_active = False
+            self.evidence_signals = ["warm_start"]
+            return self
 
         # ── Stranger signals: claims to be someone else ──
         stranger_signals = [
