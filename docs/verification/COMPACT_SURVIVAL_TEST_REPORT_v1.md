@@ -1,7 +1,9 @@
 # Compact Survival Test Report v1
 
-Status: GENERATED-BASELINE
+Status: COMPLETE / APPROVED
 Phase: E1.6 — Compact Survival Test
+Milestone: Julia Core Continuity Architecture Proof v1.0
+Decision: APPROVED
 Generated At: 2026-08-01
 
 ## 1. Purpose

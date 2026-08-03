@@ -1,0 +1,50 @@
+{
+  "artifact_id": "julia.governance_loop",
+  "version": "v1.0",
+  "status": "FROZEN",
+  "frozen_at": "2026-08-02",
+  "title": "Julia Governance Loop v1.0",
+  "architecture_freeze_point": "Julia Assistant v1.0 Operating Mode Activated",
+  "freeze_order": 2,
+  "previous_freeze_point": "Julia Core v1.0 Architecture Freeze",
+  "purpose": "define how Julia changes over long-term operation",
+  "governance_loop": [
+    "Real Daily Use",
+    "Observation",
+    "Daily Snapshot",
+    "Pattern Analysis",
+    "Evolution Proposal",
+    "Human Approval",
+    "Artifact Update",
+    "Regression Verification"
+  ],
+  "growth_philosophy": {
+    "experience_is_identity": false,
+    "observation_is_memory": false,
+    "proposal_is_evolution": false,
+    "evolution_is_drift": false
+  },
+  "priority_order": [
+    "Operation Cycle 1 — 30 Day Pilot",
+    "Julia Health Dashboard",
+    "Evolution Review UI",
+    "v1.1 Release Cycle"
+  ],
+  "dashboard_boundary": {
+    "name": "Julia Health Dashboard",
+    "is_observation_window": true,
+    "is_control_panel": false
+  },
+  "review_ui_boundary": {
+    "model": "GitHub PR style governance",
+    "approve_reject_required": true,
+    "auto_apply_allowed": false
+  },
+  "boundary": {
+    "governance_loop_adds_core_os": false,
+    "governance_loop_writes_memory": false,
+    "governance_loop_mutates_identity": false,
+    "governance_loop_auto_applies_proposals": false,
+    "dashboard_controls_identity": false
+  }
+}

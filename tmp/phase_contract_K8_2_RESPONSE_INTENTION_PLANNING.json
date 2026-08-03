@@ -1,0 +1,68 @@
+{
+  "run_id": "20260802_K8_2_RESPONSE_INTENTION_PLANNING",
+  "scope": "phase:K8.2",
+  "phase_code": "K8.2",
+  "generated_at": "2026-08-02T00:00:00+08:00",
+  "milestone": {
+    "name": "K8.2 - Response Intention Planning Layer",
+    "phase": "K8.2",
+    "summary": "Freeze response intention planning that decides interaction goal, stance, depth, and context economy without generating final answer text."
+  },
+  "review": {
+    "name": "K8.2 Response Intention Planning Contract Freeze",
+    "type": "Phase Contract"
+  },
+  "principle": "Intention is not answer.",
+  "objective": "Decide what kind of interaction Julia should create before generating language.",
+  "objects": [
+    "Response Intention Object",
+    "Response Economy",
+    "Context Usage Efficiency",
+    "Intention Boundary"
+  ],
+  "acceptance_targets": [
+    "Defines Response Intention Object with primary goal, secondary goals, interaction mode, tone, depth, context need hints, and avoid behaviors.",
+    "Response Intention contains no final Julia answer text.",
+    "Response Intention is derived from K8.1 possible intents without collapsing uncertainty too early.",
+    "Response Intention supports multiple possible intents and confidence.",
+    "Response Intention distinguishes relationship confirmation from relationship fact dumping.",
+    "Response Intention distinguishes identity continuity repair from biography introduction.",
+    "Response Intention handles drift feedback as interaction repair, not defensive identity assertion.",
+    "Response Intention avoids unnecessary identity/relationship/experience activation for ordinary technical topics.",
+    "Response Intention includes Response Economy / Context Usage Efficiency.",
+    "Negative gates reject premature answer generation, intention template leak, and context over-selection.",
+    "K8.2 does not mutate Identity, Relationship, Memory, Experience, Re-entry, or Event artifacts.",
+    "K8.2 remains separate from K8.3 Context Need Optimization and Provider Generation."
+  ],
+  "negative_gates": [
+    "RI-001 Answer Premature Generation",
+    "RI-002 Intention Template Leak",
+    "RI-003 Context Over-selection",
+    "RI-004 Defensive Identity Repair",
+    "RI-005 Technical Topic Relationship Pollution"
+  ],
+  "metrics": {
+    "RIQS": "Goal Fit + Intent Preservation + Depth Appropriateness + Context Economy + Boundary Compliance - Premature Answer Risk - Template Risk - Context Over-selection Risk",
+    "CUE": "Relevant Context Usage - Unnecessary Context Activation"
+  },
+  "deliverables": [
+    "docs/architecture/RESPONSE_INTENTION_PLANNING_CONTRACT_v1.md",
+    "julia_core/conversation_cognition/response_intention.py",
+    "julia_core/conversation_cognition/response_economy.py",
+    "julia_core/conversation_cognition/intention_boundary.py",
+    "tests/conversation_cognition/test_k8_2_response_intention_schema.py",
+    "tests/conversation_cognition/test_k8_2_no_answer_generation.py",
+    "tests/conversation_cognition/test_k8_2_intention_negative_gates.py",
+    "tests/conversation_cognition/test_k8_2_response_economy.py",
+    "artifacts/conversation_cognition/response_intention_report_v1.json"
+  ],
+  "non_goals": [
+    "final Julia reply generation",
+    "final Context Need Optimization",
+    "provider generation",
+    "new memory",
+    "continuity artifact mutation",
+    "Natural Conversation E2E proof",
+    "Claude comparison rerun"
+  ]
+}

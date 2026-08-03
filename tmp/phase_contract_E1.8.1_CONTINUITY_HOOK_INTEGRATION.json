@@ -1,0 +1,34 @@
+{
+  "phase_code": "E1.8.1",
+  "phase_name": "Continuity Hook Integration",
+  "parent_milestone": "E1.8 Runtime Continuity Integration",
+  "status": "COMPLETE",
+  "risk_level": "P0",
+  "generated_at": "2026-08-02",
+  "scope": "Runtime to Continuity hook only",
+  "acceptance_targets": [
+    "Runtime-owned lifecycle trigger represented in code",
+    "Runtime calls Continuity OS through explicit hook/interface",
+    "Continuity returns checked status without owning Runtime lifecycle",
+    "ExecutionTrace includes continuity.checked",
+    "ExecutionTrace includes continuity.checkpoint_found",
+    "No Context Reconstruction invoked",
+    "No Memory OS resolution invoked",
+    "No live provider call invoked"
+  ],
+  "required_trace_minimum": {
+    "runtime": "PASS",
+    "continuity": {
+      "checked": true,
+      "checkpoint_found": true,
+      "checkpoint_id": "checkpoint://julia/latest",
+      "decision_level": "L3_IDENTITY"
+    }
+  },
+  "non_goals": [
+    "No RecoveryPlan to Context Reconstruction integration",
+    "No Memory OS ProtectedMemoryRef resolution",
+    "No Alignment OS integration",
+    "No Provider execution"
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "run_id": "20260802_K8_0_CONVERSATION_COGNITION_ARCHITECTURE",
+  "scope": "phase:K8.0",
+  "phase_code": "K8.0",
+  "generated_at": "2026-08-02T00:00:00+08:00",
+  "milestone": {
+    "name": "K8.0 - Conversation Cognition Architecture Contract",
+    "phase": "K8.0",
+    "summary": "Freeze conversation cognition architecture that understands Tony's meaning before deciding response behavior."
+  },
+  "review": {
+    "name": "K8.0 Conversation Cognition Architecture Contract Freeze",
+    "type": "Phase Contract"
+  },
+  "principle": "Julia should understand what Tony means before deciding what to say.",
+  "inherited_principle": "State provides context. Cognition decides behavior. Provider generates language.",
+  "objects": [
+    "Conversation Understanding",
+    "Desired Response Function",
+    "Context Need Planning"
+  ],
+  "acceptance_targets": [
+    "Defines Conversation Understanding as separate from prompt engineering.",
+    "Defines Literal Meaning, Intent, Emotional Context, Relationship Context Interpretation, and Desired Response Function.",
+    "K8 output does not generate final response text.",
+    "K8 does not implement keyword-to-reply rules.",
+    "K8 distinguishes same literal input with different conversational intents.",
+    "K8 decides response depth before provider generation.",
+    "K8 decides how much identity/relationship/experience/re-entry/event context is needed.",
+    "K8 prevents archive dump, echo fallback, fixed opening, and architecture leakage.",
+    "K8 preserves provider responsibility for natural wording.",
+    "K8 inherits Primary Failure Gate: Architecture PASS + Behavior FAIL = FAIL.",
+    "K8 does not mutate Identity, Relationship, Memory, Experience, Re-entry State, or Event Assimilation artifacts.",
+    "K8 defines Natural Conversation E2E as a separate future validation gate."
+  ],
+  "metrics": {
+    "CCQS": "Literal Meaning Accuracy + Intent Alignment + Emotional Context Accuracy + Response Function Fit + Context Need Accuracy - Keyword Rule Risk - Template Risk"
+  },
+  "deliverables": [
+    "docs/architecture/CONVERSATION_COGNITION_ARCHITECTURE_CONTRACT_v1.md",
+    "julia_core/conversation_cognition/understanding.py",
+    "julia_core/conversation_cognition/response_function.py",
+    "julia_core/conversation_cognition/context_need.py",
+    "tests/conversation_cognition/test_k8_0_contract_schema.py",
+    "tests/conversation_cognition/test_k8_0_intent_disambiguation.py",
+    "tests/conversation_cognition/test_k8_0_response_function.py",
+    "tests/conversation_cognition/test_k8_0_no_keyword_reply_rules.py"
+  ],
+  "non_goals": [
+    "full runtime conversation implementation",
+    "final Julia response generation",
+    "new memory",
+    "continuity artifact mutation",
+    "Natural Conversation E2E proof",
+    "Claude comparison rerun"
+  ]
+}

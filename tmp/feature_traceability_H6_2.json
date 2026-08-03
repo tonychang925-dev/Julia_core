@@ -1,0 +1,14 @@
+{
+  "phase": "H6.2",
+  "gate_ready": true,
+  "tasks": [
+    {
+      "task_id": "H6.2-T01",
+      "requirement_ids": ["REQ-H6-REALITY-FEEDBACK-ANALYSIS"],
+      "acceptance_ids": ["ACPT-H6-201"],
+      "test_case_ids": ["H6-201", "H6-202", "H6-203", "H6-204", "H6-205", "H6-206", "H6-207"],
+      "test_commands": ["python -m unittest tests.h6.test_reality_feedback_analysis -q"]
+    }
+  ],
+  "gaps": []
+}

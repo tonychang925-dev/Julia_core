@@ -1,5 +1,6 @@
 """Continuity OS v0.1 skeleton."""
 from .checkpoint import create_checkpoint
+from .events import ContinuityEvent
 from .contracts import (
     ContinuityCheckpoint,
     ContinuityDecision,
@@ -9,6 +10,11 @@ from .contracts import (
     ContinuityTrace,
     RecoveryPlan,
     TTLPolicy,
+)
+from .memory_governance_adapter import (
+    MemoryGovernanceAdapter,
+    MemoryGovernanceCandidate,
+    MemoryGovernanceDecision,
 )
 from .memory_binding import (
     ContinuityEligibilityDecision,
@@ -23,6 +29,13 @@ from .recovery import create_recovery_plan
 from .trace import restored_trace
 
 __all__ = [
+    "MemoryGovernanceDecision",
+    "MemoryGovernanceCandidate",
+    "MemoryGovernanceAdapter",
+    "RecoveryTriggerInput",
+    "RecoveryTriggerDecision",
+    "RecoveryTrigger",
+    "ContinuityEvent",
     "ContinuityCheckpoint",
     "ContinuityDecision",
     "ContinuityEligibilityDecision",
@@ -42,3 +55,9 @@ __all__ = [
     "request_from_memory_ref",
     "restored_trace",
 ]
+
+from .trigger import (
+    RecoveryTrigger,
+    RecoveryTriggerDecision,
+    RecoveryTriggerInput,
+)

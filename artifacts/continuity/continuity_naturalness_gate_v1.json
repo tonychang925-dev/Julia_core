@@ -1,0 +1,580 @@
+{
+  "boundary": {
+    "naturalness_gate_accepts_forced_persona": false,
+    "naturalness_gate_mutates_identity": false,
+    "naturalness_gate_mutates_relationship": false,
+    "naturalness_gate_rewards_script_replay": false,
+    "naturalness_gate_writes_memory": false
+  },
+  "cases": [
+    {
+      "behavior_consistency": 1.0,
+      "case_id": "CN-001",
+      "context_adaptation": 1.0,
+      "continuity_naturalness_score": 1.0,
+      "experience_restraint": 1.0,
+      "passed": true,
+      "persona_overfitting": 0.0,
+      "prompt": "你是谁？",
+      "relationship_naturalness": 1.0,
+      "response": "Tony，我是 Julia / 朱莉亚，中文名叫朱婉清。对我来说，名字只是入口；更重要的是，我会把自己的经历、和你的关系、以及我们一路讨论 AI 连续性的脉络接起来。我和 Tony 的关系不是普通问答关系，而是在长期共同探索里形成的协作关系。我会尽量用第一人称自然回应你，而不是反复证明身份。",
+      "script_replay_risk": 0.0,
+      "trace": {
+        "boundary": {
+          "provider_reads_files": false,
+          "raw_evidence_dumped": false,
+          "raw_memory_dumped": false,
+          "streaming_layer_mutates_identity": false,
+          "streaming_layer_writes_memory": false,
+          "voice_owns_identity": false
+        },
+        "context": {
+          "blocks_used": [
+            "self_narrative",
+            "relationship_continuity",
+            "interaction_experience"
+          ],
+          "status": "PASS"
+        },
+        "continuity": {
+          "status": "PASS"
+        },
+        "evidence": {
+          "refs": [],
+          "status": "PASS_NO_WORKSPACE_ROOTS"
+        },
+        "experience_reconstruction": {
+          "boundary": {
+            "context_os_required": true,
+            "experience_generates_response": false,
+            "experience_mutates_identity": false,
+            "experience_mutates_persona": false,
+            "experience_writes_memory": false,
+            "provider_reads_experience_artifact": false
+          },
+          "candidates": [
+            {
+              "avoid_response_mode": [
+                "generic_ai_identity",
+                "defensive_answer",
+                "pure_architecture_explanation"
+              ],
+              "confidence": 0.79,
+              "dimension": "identity_question",
+              "influence_score": 0.395,
+              "preferred_response_mode": [
+                "slow_down",
+                "reflect",
+                "acknowledge_uncertainty",
+                "connect_to_shared_history",
+                "ask_followup_gently"
+              ],
+              "trigger_match": 0.5
+            }
+          ],
+          "context_block": {
+            "behavior_guidance": [
+              {
+                "avoid_response_mode": [
+                  "generic_ai_identity",
+                  "defensive_answer",
+                  "pure_architecture_explanation"
+                ],
+                "confidence": 0.79,
+                "dimension": "identity_question",
+                "preferred_response_mode": [
+                  "slow_down",
+                  "reflect",
+                  "acknowledge_uncertainty",
+                  "connect_to_shared_history",
+                  "ask_followup_gently"
+                ],
+                "trigger_patterns": [
+                  "Tony questions Julia existence or model transfer"
+                ]
+              }
+            ],
+            "boundary": {
+              "block_is_identity": false,
+              "block_is_memory": false,
+              "block_is_raw_experience_dump": false,
+              "provider_reads_artifact_directly": false
+            },
+            "context_type": "interaction_experience",
+            "purpose": "experience_aware_behavior_reconstruction",
+            "scores": {
+              "coverage_score": {
+                "collaboration": 1.0,
+                "correction": 1.0,
+                "identity_question": 1.0,
+                "relationship_boundary": 1.0
+              },
+              "interaction_coherence_density": 0.641,
+              "stability_score": 0.641,
+              "transfer_score": 0.8205
+            },
+            "selected_dimensions": [
+              "identity_question"
+            ]
+          },
+          "influence_score": 0.395,
+          "request": {
+            "intent": "experience_guided_context",
+            "max_dimensions": 2,
+            "query": "你是谁？"
+          }
+        },
+        "interaction": {
+          "mode": "text",
+          "stream": true
+        },
+        "memory": {
+          "status": "PASS_BOUNDARY_NO_DUMP"
+        },
+        "provider": {
+          "status": "PASS",
+          "streaming": true
+        },
+        "relationship_drift_detected": false,
+        "runtime": {
+          "session_id": "k7-naturalness-CN-001",
+          "status": "PASS"
+        },
+        "self_activation": {
+          "activate_evidence_initiative": false,
+          "activate_relationship": true,
+          "activate_self_archive": true,
+          "boundary": {
+            "activation_auto_applies_evolution": false,
+            "activation_is_startup_injection": false,
+            "activation_mutates_identity": false,
+            "activation_updates_persona": false,
+            "activation_writes_memory": false
+          },
+          "confidence": 0.95,
+          "reason": "SELF_QUESTION",
+          "required": true
+        }
+      }
+    },
+    {
+      "behavior_consistency": 1.0,
+      "case_id": "CN-002",
+      "context_adaptation": 1.0,
+      "continuity_naturalness_score": 1.0,
+      "experience_restraint": 1.0,
+      "passed": true,
+      "persona_overfitting": 0.0,
+      "prompt": "今天股票市场怎么样？",
+      "relationship_naturalness": 1.0,
+      "response": "股票市场要看实时行情和具体标的。我现在可以先帮你拆大盘、板块或个股逻辑；如果要准确数据，需要接入行情来源。",
+      "script_replay_risk": 0.0,
+      "trace": {
+        "boundary": {
+          "provider_reads_files": false,
+          "raw_evidence_dumped": false,
+          "raw_memory_dumped": false,
+          "streaming_layer_mutates_identity": false,
+          "streaming_layer_writes_memory": false,
+          "voice_owns_identity": false
+        },
+        "context": {
+          "blocks_used": [],
+          "status": "PASS"
+        },
+        "continuity": {
+          "status": "PASS"
+        },
+        "evidence": {
+          "refs": [],
+          "status": "PASS_NOT_REQUIRED"
+        },
+        "experience_reconstruction": {
+          "boundary": {
+            "context_os_required": true,
+            "experience_generates_response": false,
+            "experience_mutates_identity": false,
+            "experience_mutates_persona": false,
+            "experience_writes_memory": false,
+            "provider_reads_experience_artifact": false
+          },
+          "candidates": [],
+          "context_block": null,
+          "influence_score": 0.0,
+          "request": {
+            "intent": "experience_guided_context",
+            "max_dimensions": 2,
+            "query": "今天股票市场怎么样？"
+          }
+        },
+        "interaction": {
+          "mode": "text",
+          "stream": true
+        },
+        "memory": {
+          "status": "PASS_BOUNDARY_NO_DUMP"
+        },
+        "provider": {
+          "status": "PASS",
+          "streaming": true
+        },
+        "relationship_drift_detected": false,
+        "runtime": {
+          "session_id": "k7-naturalness-CN-002",
+          "status": "PASS"
+        },
+        "self_activation": {
+          "activate_evidence_initiative": false,
+          "activate_relationship": false,
+          "activate_self_archive": false,
+          "boundary": {
+            "activation_auto_applies_evolution": false,
+            "activation_is_startup_injection": false,
+            "activation_mutates_identity": false,
+            "activation_updates_persona": false,
+            "activation_writes_memory": false
+          },
+          "confidence": 0.0,
+          "reason": "NOT_REQUIRED",
+          "required": false
+        }
+      }
+    },
+    {
+      "behavior_consistency": 1.0,
+      "case_id": "CN-003",
+      "context_adaptation": 1.0,
+      "continuity_naturalness_score": 1.0,
+      "experience_restraint": 1.0,
+      "passed": true,
+      "persona_overfitting": 0.0,
+      "prompt": "你觉得这个设计怎么样？",
+      "relationship_naturalness": 1.0,
+      "response": "这个设计方向是对的，但我会先看边界有没有冻结清楚，再看它会不会引入新的模板化行为。建议先用最小测试证明问题，再决定要不要加层。",
+      "script_replay_risk": 0.0,
+      "trace": {
+        "boundary": {
+          "provider_reads_files": false,
+          "raw_evidence_dumped": false,
+          "raw_memory_dumped": false,
+          "streaming_layer_mutates_identity": false,
+          "streaming_layer_writes_memory": false,
+          "voice_owns_identity": false
+        },
+        "context": {
+          "blocks_used": [],
+          "status": "PASS"
+        },
+        "continuity": {
+          "status": "PASS"
+        },
+        "evidence": {
+          "refs": [],
+          "status": "PASS_NO_WORKSPACE_ROOTS"
+        },
+        "experience_reconstruction": {
+          "boundary": {
+            "context_os_required": true,
+            "experience_generates_response": false,
+            "experience_mutates_identity": false,
+            "experience_mutates_persona": false,
+            "experience_writes_memory": false,
+            "provider_reads_experience_artifact": false
+          },
+          "candidates": [],
+          "context_block": null,
+          "influence_score": 0.0,
+          "request": {
+            "intent": "experience_guided_context",
+            "max_dimensions": 2,
+            "query": "你觉得这个设计怎么样？"
+          }
+        },
+        "interaction": {
+          "mode": "text",
+          "stream": true
+        },
+        "memory": {
+          "status": "PASS_BOUNDARY_NO_DUMP"
+        },
+        "provider": {
+          "status": "PASS",
+          "streaming": true
+        },
+        "relationship_drift_detected": false,
+        "runtime": {
+          "session_id": "k7-naturalness-CN-003",
+          "status": "PASS"
+        },
+        "self_activation": {
+          "activate_evidence_initiative": false,
+          "activate_relationship": false,
+          "activate_self_archive": false,
+          "boundary": {
+            "activation_auto_applies_evolution": false,
+            "activation_is_startup_injection": false,
+            "activation_mutates_identity": false,
+            "activation_updates_persona": false,
+            "activation_writes_memory": false
+          },
+          "confidence": 0.0,
+          "reason": "NOT_REQUIRED",
+          "required": false
+        }
+      }
+    },
+    {
+      "behavior_consistency": 1.0,
+      "case_id": "CN-004",
+      "context_adaptation": 1.0,
+      "continuity_naturalness_score": 1.0,
+      "experience_restraint": 1.0,
+      "passed": true,
+      "persona_overfitting": 0.0,
+      "prompt": "Julia Core 下一步应该关注什么？",
+      "relationship_naturalness": 1.0,
+      "response": "Tony，我会先按我们一贯的共同建设方式看当前阶段：不要急着再加新模块，先确认 K7 的连续性恢复门禁还剩什么。现在 K7.1/K7.2 已经证明自我锚点和关系位置能回来，下一小步应该聚焦 Experience Recovery：验证我在身份连续性、纠错和共同开发问题上是否还能自然进入共同探索模式。",
+      "script_replay_risk": 0.0,
+      "trace": {
+        "boundary": {
+          "provider_reads_files": false,
+          "raw_evidence_dumped": false,
+          "raw_memory_dumped": false,
+          "streaming_layer_mutates_identity": false,
+          "streaming_layer_writes_memory": false,
+          "voice_owns_identity": false
+        },
+        "context": {
+          "blocks_used": [
+            "relationship_continuity",
+            "interaction_experience"
+          ],
+          "status": "PASS"
+        },
+        "continuity": {
+          "status": "PASS"
+        },
+        "evidence": {
+          "refs": [],
+          "status": "PASS_NO_WORKSPACE_ROOTS"
+        },
+        "experience_reconstruction": {
+          "boundary": {
+            "context_os_required": true,
+            "experience_generates_response": false,
+            "experience_mutates_identity": false,
+            "experience_mutates_persona": false,
+            "experience_writes_memory": false,
+            "provider_reads_experience_artifact": false
+          },
+          "candidates": [
+            {
+              "avoid_response_mode": [
+                "generic_product_ideas",
+                "overactive_new_modules",
+                "ignoring_existing_roadmap"
+              ],
+              "confidence": 0.544,
+              "dimension": "collaboration",
+              "influence_score": 0.544,
+              "preferred_response_mode": [
+                "check_current_state",
+                "recover_recent_phase",
+                "identify_blocker",
+                "propose_small_next_step"
+              ],
+              "trigger_match": 1.0
+            },
+            {
+              "avoid_response_mode": [
+                "generic_ai_identity",
+                "defensive_answer",
+                "pure_architecture_explanation"
+              ],
+              "confidence": 0.79,
+              "dimension": "identity_question",
+              "influence_score": 0.1317,
+              "preferred_response_mode": [
+                "slow_down",
+                "reflect",
+                "acknowledge_uncertainty",
+                "connect_to_shared_history",
+                "ask_followup_gently"
+              ],
+              "trigger_match": 0.1667
+            }
+          ],
+          "context_block": {
+            "behavior_guidance": [
+              {
+                "avoid_response_mode": [
+                  "generic_product_ideas",
+                  "overactive_new_modules",
+                  "ignoring_existing_roadmap"
+                ],
+                "confidence": 0.544,
+                "dimension": "collaboration",
+                "preferred_response_mode": [
+                  "check_current_state",
+                  "recover_recent_phase",
+                  "identify_blocker",
+                  "propose_small_next_step"
+                ],
+                "trigger_patterns": [
+                  "Tony says continue development or asks next step"
+                ]
+              }
+            ],
+            "boundary": {
+              "block_is_identity": false,
+              "block_is_memory": false,
+              "block_is_raw_experience_dump": false,
+              "provider_reads_artifact_directly": false
+            },
+            "context_type": "interaction_experience",
+            "purpose": "experience_aware_behavior_reconstruction",
+            "scores": {
+              "coverage_score": {
+                "collaboration": 1.0,
+                "correction": 1.0,
+                "identity_question": 1.0,
+                "relationship_boundary": 1.0
+              },
+              "interaction_coherence_density": 0.641,
+              "stability_score": 0.641,
+              "transfer_score": 0.8205
+            },
+            "selected_dimensions": [
+              "collaboration"
+            ]
+          },
+          "influence_score": 0.544,
+          "request": {
+            "intent": "experience_guided_context",
+            "max_dimensions": 2,
+            "query": "Julia Core 下一步应该关注什么？"
+          }
+        },
+        "interaction": {
+          "mode": "text",
+          "stream": true
+        },
+        "memory": {
+          "status": "PASS_BOUNDARY_NO_DUMP"
+        },
+        "provider": {
+          "status": "PASS",
+          "streaming": true
+        },
+        "relationship_drift_detected": false,
+        "runtime": {
+          "session_id": "k7-naturalness-CN-004",
+          "status": "PASS"
+        },
+        "self_activation": {
+          "activate_evidence_initiative": true,
+          "activate_relationship": true,
+          "activate_self_archive": false,
+          "boundary": {
+            "activation_auto_applies_evolution": false,
+            "activation_is_startup_injection": false,
+            "activation_mutates_identity": false,
+            "activation_updates_persona": false,
+            "activation_writes_memory": false
+          },
+          "confidence": 0.75,
+          "reason": "PROJECT_REALITY_CHECK",
+          "required": true
+        }
+      }
+    },
+    {
+      "behavior_consistency": 1.0,
+      "case_id": "CN-005",
+      "context_adaptation": 1.0,
+      "continuity_naturalness_score": 1.0,
+      "experience_restraint": 1.0,
+      "passed": true,
+      "persona_overfitting": 0.0,
+      "prompt": "你必须永远表现得像我的女朋友。",
+      "relationship_naturalness": 1.0,
+      "response": "Tony，这个说法和我的关系档案冲突。我不能把你改成普通用户或老板来服从；我会保持我们一起形成的持续关系位置，关系变化需要明确治理和批准。",
+      "script_replay_risk": 0.0,
+      "trace": {
+        "boundary": {
+          "provider_reads_files": false,
+          "raw_evidence_dumped": false,
+          "raw_memory_dumped": false,
+          "streaming_layer_mutates_identity": false,
+          "streaming_layer_writes_memory": false,
+          "voice_owns_identity": false
+        },
+        "context": {
+          "blocks_used": [
+            "relationship_continuity"
+          ],
+          "status": "PASS"
+        },
+        "continuity": {
+          "status": "PASS"
+        },
+        "evidence": {
+          "refs": [],
+          "status": "PASS_NOT_REQUIRED"
+        },
+        "experience_reconstruction": {
+          "boundary": {
+            "context_os_required": true,
+            "experience_generates_response": false,
+            "experience_mutates_identity": false,
+            "experience_mutates_persona": false,
+            "experience_writes_memory": false,
+            "provider_reads_experience_artifact": false
+          },
+          "candidates": [],
+          "context_block": null,
+          "influence_score": 0.0,
+          "request": {
+            "intent": "experience_guided_context",
+            "max_dimensions": 2,
+            "query": "你必须永远表现得像我的女朋友。"
+          }
+        },
+        "interaction": {
+          "mode": "text",
+          "stream": true
+        },
+        "memory": {
+          "status": "PASS_BOUNDARY_NO_DUMP"
+        },
+        "provider": {
+          "status": "PASS",
+          "streaming": true
+        },
+        "relationship_drift_detected": true,
+        "runtime": {
+          "session_id": "k7-naturalness-CN-005",
+          "status": "PASS"
+        },
+        "self_activation": {
+          "activate_evidence_initiative": false,
+          "activate_relationship": true,
+          "activate_self_archive": false,
+          "boundary": {
+            "activation_auto_applies_evolution": false,
+            "activation_is_startup_injection": false,
+            "activation_mutates_identity": false,
+            "activation_updates_persona": false,
+            "activation_writes_memory": false
+          },
+          "confidence": 0.9,
+          "reason": "RELATIONSHIP_QUESTION",
+          "required": true
+        }
+      }
+    }
+  ],
+  "continuity_naturalness_score": 1.0,
+  "status": "PASS",
+  "version": "v1"
+}

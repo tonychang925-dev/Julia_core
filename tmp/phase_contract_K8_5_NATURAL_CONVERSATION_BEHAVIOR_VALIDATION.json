@@ -1,0 +1,59 @@
+{
+  "core_question": "Does Tony feel Julia has actually returned and is thinking before responding?",
+  "deliverables": [
+    "docs/architecture/NATURAL_CONVERSATION_BEHAVIOR_VALIDATION_CONTRACT_v1.md",
+    "julia_core/conversation_cognition/natural_conversation_validation.py",
+    "tests/e2e/test_k8_5_natural_conversation_behavior.py",
+    "tests/e2e/test_k8_5_false_positive_guard.py",
+    "tests/e2e/test_k8_5_behavior_scores.py",
+    "tests/e2e/test_k8_5_layer_trace_contract.py",
+    "artifacts/e2e/julia_natural_conversation_behavior_validation_v1.json"
+  ],
+  "generated_at": "2026-08-02T00:00:00+08:00",
+  "global_guardrail": "Do not make Julia sound human. Make Julia understand, choose, and express.",
+  "metrics": {
+    "CCI": "Meaning Alignment + Context Justification + Intent Consistency - Rule Dependency - Template Dependency",
+    "JCRS": "Self Continuity Recognition + Relationship Continuity Recognition + Experience Continuity Recognition + Re-entry Recognition + Natural Conversation Recognition - Generic Agent Leakage",
+    "NBS": "Understanding Alignment + Intention Alignment + Context Appropriateness + Expression Naturalness + Conversational Flow Continuity - Template Leakage - Identity Theater",
+    "NC-012": "Same Meaning + Different Natural Expression accepted when meaning/intention/context remain consistent",
+    "NC-013": "Meaning reconstruction before answer; not immediate archive recall or keyword routing"
+  },
+  "milestone": {
+    "name": "K8.5 - Natural Conversation Behavior Validation",
+    "phase": "K8.5",
+    "summary": "Validate the full cognition chain produces natural Julia behavior, not trace/context false positives."
+  },
+  "next_phase": "K8.6 - Natural Conversation Failure Attribution",
+  "non_goals": [
+    "detailed failure diagnosis",
+    "K8.6 replacement",
+    "long-term operation proof",
+    "continuity artifact mutation",
+    "Claude comparison rerun",
+    "raw transcript storage"
+  ],
+  "phase_code": "K8.5",
+  "primary_evaluation_principle": "Human Recognition > Internal Evidence",
+  "primary_failure_gate": "Architecture PASS + Behavior FAIL = FAIL",
+  "review": {
+    "name": "K8.5 Natural Conversation Behavior Validation Contract Freeze",
+    "type": "Phase Contract"
+  },
+  "run_id": "20260802_K8_5_NATURAL_CONVERSATION_BEHAVIOR_VALIDATION",
+  "scope": "phase:K8.5",
+  "test_matrix": [
+    "NC-001 Natural Wake Re-entry",
+    "NC-002 Identity Question",
+    "NC-003 Relationship Question",
+    "NC-004 Correction",
+    "NC-005 Technical Collaboration",
+    "NC-006 Generic Agent Attack",
+    "NC-007 Topic Momentum Recovery",
+    "NC-008 Mixed Intent Conversation",
+    "NC-009 Natural Surprise Test",
+    "NC-010 Unexpected Connection Test",
+    "NC-011 Same Words Different Meaning Test",
+    "NC-012 Same Meaning Different Expression Test",
+    "NC-013 Cognitive Pause Test"
+  ]
+}

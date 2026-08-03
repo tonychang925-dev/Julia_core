@@ -1,0 +1,23 @@
+{
+  "phase_code": "E2.0.1",
+  "phase_name": "Core Consumption Review",
+  "parent_milestone": "Phase E2 — Julia AI Assistant Real Runtime Continuity Validation",
+  "status": "DRAFT-FROZEN",
+  "risk_level": "P0",
+  "generated_at": "2026-08-02",
+  "objective": "Review Julia AI Assistant architecture for correct consumption of Julia Core before implementation.",
+  "updated_route": [
+    "E2.0 Integration Contract",
+    "E2.0.1 Core Consumption Review",
+    "E2.1 Runtime Continuity Integration",
+    "E2.2 Identity Memory Validation",
+    "E2.3 Compact Survival Real Test",
+    "E2.4 Provider Migration Test"
+  ],
+  "non_goals": [
+    "No implementation code change",
+    "No live provider call",
+    "No new Core module",
+    "No prompt engineering workaround"
+  ]
+}

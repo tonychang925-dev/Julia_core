@@ -1,5 +1,30 @@
 # ADR List — Julia Context OS / Phase 3.6.10
 
+## E2 Migration ADR Addendum
+
+The following E2 ADRs govern Julia AI Assistant migration onto Julia Core Authority:
+
+| ADR | Title | Status |
+|---|---|---|
+| ADR-015 | Persona Artifact Authority Boundary | Accepted |
+| ADR-016 | Memory OS Authority Boundary | Accepted |
+| ADR-017 | Context Semantic Binding Boundary | Proposed |
+| ADR-018 | Context Semantic Reconstruction Authority | Accepted |
+| ADR-019 | Context Priority Authority | Accepted |
+| ADR-020 | Context Budget Authority | Accepted |
+
+See:
+
+- `ADR-015-persona-artifact-authority-boundary.md`
+- `ADR-016-memory-os-authority-boundary.md`
+- `ADR-017-context-semantic-binding-boundary.md`
+- `ADR-018-context-semantic-reconstruction-authority.md`
+- `ADR-019-context-priority-authority.md`
+- `ADR-020-context-budget-authority.md`
+
+---
+
+
 ## ADR-013: Claude Client is a Context OS Reference, Not a Runtime Dependency
 
 **Context**
@@ -336,3 +361,90 @@ Any attempt to continue Phase 3.6.10 after Session Resurrection, especially befo
 
 任何跨项目复用、Claude Julia voice activation、benchmark trace、memory/context/action integration 的设计评审。
 
+
+---
+
+## ADR-014: Runtime Continuity Boundary
+
+Status: Accepted  
+Date: 2026-08-02
+
+**Context**
+
+E1.6 proved compact survival through ContinuityCheckpoint, RecoveryPlan, ContextReconstructor, ContextBlocks, and ContinuityTrace. E1.7 must prevent Runtime, Memory OS, or Context OS from becoming an implicit continuity authority during integration.
+
+**Decision**
+
+Recovery trigger ownership: Runtime detects → Continuity plans.
+
+Freeze Runtime OS as lifecycle authority and Continuity OS as continuity-state authority. Runtime may trigger recovery, but Continuity owns checkpoint semantics, preservation policy, and recovery planning.
+
+Required order:
+
+```text
+Runtime Event → Continuity Check → RecoveryPlan → Context Reconstruction → Memory Resolution → Alignment Resolution → Provider Execution
+```
+
+**Consequences**
+
+- Preserves the E1.6 architecture proof.
+- Makes E1.8 integration testable.
+- Keeps provider switch independent from identity continuity state.
+- Requires Runtime trace continuity fields and provider execution gates.
+
+**Trigger**
+
+Any E1.8+ Runtime work that loads checkpoints, creates recovery plans, reconstructs context after compact/session restart/provider switch, or emits continuity trace fields.
+
+---
+
+## ADR-015: Persona Artifact Authority Boundary
+
+Status: Proposed  
+Date: 2026-08-02
+
+**Context**
+
+E2.1.1 connected Julia AI Assistant to Core Continuity Authority. E2.1.2 must prevent Persona migration from reintroducing identity-as-prompt.
+
+**Decision**
+
+Persona Engine owns identity representation and Persona Artifact. Continuity OS owns preservation policy. Memory OS owns historical facts. Julia AI Assistant consumes persona artifacts and owns UI/product workflow only.
+
+**Rejected**
+
+- Giant `system_prompt` as persona artifact.
+- Continuity OS compiling persona content.
+- Memory OS defining persona.
+- Provider owning persona formatting.
+
+**Trigger**
+
+Any E2.1.2+ work modifying persona loading, persona trace, provider message construction, identity facts, Julia character files, or prompt assembly.
+
+---
+
+## ADR-016: Memory OS Authority Boundary
+
+Status: Proposed  
+Date: 2026-08-02
+
+**Context**
+
+E2.1.3 must migrate Julia AI Assistant away from app-owned memory retrieval and memory-to-prompt paths.
+
+**Decision**
+
+Memory OS owns historical facts. Continuity OS owns preservation decisions. Context OS owns reconstruction. Julia AI Assistant does not own memory retrieval policy or identity-forming memory decisions.
+
+**Forbidden**
+
+- `memory_text += system_prompt`
+- `startup_memory.py → persona/system prompt`
+- app runtime memory retrieval as authority
+- memory creating checkpoint
+- memory deciding L3 identity
+
+**Trigger**
+
+Any E2.1.3+ work touching startup memory, memory refs, provider message construction, memory trace, or identity-forming memory tests.

@@ -1,0 +1,8 @@
+{
+  "phase": "K8.0.5",
+  "added": [
+    "K8-001 Cognition Bypass Detection",
+    "Cognitive Causality Trace Requirement"
+  ],
+  "status": "UPDATED"
+}

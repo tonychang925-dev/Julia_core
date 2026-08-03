@@ -1,0 +1,38 @@
+{
+  "boundary": {
+    "minimum_state_allows_fixed_role_script": false,
+    "minimum_state_is_memory_dump": false,
+    "minimum_state_is_prompt": false,
+    "minimum_state_mutates_identity": false,
+    "minimum_state_requires_raw_conversation": false
+  },
+  "continuity_formula": "Identity + Relationship + Experience + Context Adaptation - Drift",
+  "forbidden_state": [
+    "raw_conversation",
+    "persona_prompt",
+    "fixed_role_script",
+    "provider_owned_identity",
+    "memory_dump"
+  ],
+  "minimum_state_definition": {
+    "minimum_viable_state": [
+      "identity",
+      "relationship",
+      "experience",
+      "context_adaptation"
+    ],
+    "non_viable_memory_only": 0.125,
+    "non_viable_persona_prompt_only": 0.0,
+    "non_viable_without_experience": 0.6825,
+    "observed_viable_states": [
+      "full_continuity"
+    ]
+  },
+  "required_state": [
+    "identity",
+    "relationship",
+    "experience",
+    "context_adaptation"
+  ],
+  "version": "1.2"
+}

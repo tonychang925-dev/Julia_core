@@ -1,0 +1,14 @@
+{
+  "phase": "H6.1",
+  "gate_ready": true,
+  "tasks": [
+    {
+      "task_id": "H6.1-T01",
+      "requirement_ids": ["REQ-H6-DAILY-USAGE-PILOT"],
+      "acceptance_ids": ["ACPT-H6-101"],
+      "test_case_ids": ["H6-101", "H6-102", "H6-103", "H6-104", "H6-105"],
+      "test_commands": ["python -m unittest tests.h6.test_daily_usage_pilot -q"]
+    }
+  ],
+  "gaps": []
+}

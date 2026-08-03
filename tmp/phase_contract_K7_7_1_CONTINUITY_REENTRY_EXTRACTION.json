@@ -1,0 +1,53 @@
+{
+  "run_id": "20260802_K7_7_1_CONTINUITY_REENTRY_EXTRACTION",
+  "scope": "phase:K7.7.1",
+  "phase_code": "K7.7.1",
+  "generated_at": "2026-08-02T00:00:00+08:00",
+  "milestone": {
+    "name": "K7.7.1 - Continuity Re-entry State Extraction",
+    "phase": "K7.7.1",
+    "summary": "Freeze extraction of continuation posture, cognitive momentum, and re-entry intention before runtime resume implementation."
+  },
+  "review": {
+    "name": "K7.7.1 Continuity Re-entry Extraction Contract Freeze",
+    "type": "Phase Contract"
+  },
+  "principle": "Extract continuation posture, not previous conversation content.",
+  "acceptance_targets": [
+    "Extractor outputs current cognitive position, not only topic labels.",
+    "Extractor outputs Cognitive Momentum with active_problem, current_hypothesis, unresolved_tension, and expected_next_step.",
+    "Extractor outputs relationship moment and interaction momentum.",
+    "Extractor outputs re-entry intention.",
+    "Extractor records lifecycle state and re-entry weight.",
+    "Extractor does not store raw transcript.",
+    "Extractor does not store recent message copy.",
+    "Extractor does not generate wake-up text or final answer templates.",
+    "Extractor does not mutate identity, relationship, memory, or experience artifacts.",
+    "Extracted state passes Re-entry Quality Score threshold."
+  ],
+  "deliverables": [
+    "docs/architecture/CONTINUITY_REENTRY_EXTRACTION_CONTRACT_v1.md",
+    "julia_core/continuity_reentry/state.py",
+    "julia_core/continuity_reentry/extractor.py",
+    "julia_core/continuity_reentry/lifecycle.py",
+    "julia_core/continuity_reentry/quality.py",
+    "tests/continuity_reentry/test_k7_7_1_extraction_schema.py",
+    "tests/continuity_reentry/test_k7_7_1_anti_summary_boundary.py",
+    "tests/continuity_reentry/test_k7_7_1_cognitive_momentum.py",
+    "tests/continuity_reentry/test_k7_7_1_lifecycle_decay.py",
+    "artifacts/session/julia_continuity_reentry_state_v1.json"
+  ],
+  "non_goals": [
+    "runtime resume behavior",
+    "wake transition generation",
+    "K8 conversation cognition",
+    "final Julia replies",
+    "raw chat history storage",
+    "previous message copies",
+    "new memory",
+    "identity mutation",
+    "relationship mutation",
+    "experience mutation",
+    "Natural Conversation PASS claim"
+  ]
+}

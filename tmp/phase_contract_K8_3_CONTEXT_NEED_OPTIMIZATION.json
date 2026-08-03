@@ -1,0 +1,70 @@
+{
+  "run_id": "20260802_K8_3_CONTEXT_NEED_OPTIMIZATION",
+  "scope": "phase:K8.3",
+  "phase_code": "K8.3",
+  "generated_at": "2026-08-02T00:00:00+08:00",
+  "milestone": {
+    "name": "K8.3 - Context Need Optimization Layer",
+    "phase": "K8.3",
+    "summary": "Freeze minimum necessary context selection for intended interaction without context dump, starvation, pollution, or false continuity."
+  },
+  "review": {
+    "name": "K8.3 Context Need Optimization Contract Freeze",
+    "type": "Phase Contract"
+  },
+  "principles": [
+    "More context does not mean more Julia.",
+    "Relevant context creates better Julia behavior.",
+    "Context supports behavior, not answer content."
+  ],
+  "objective": "Select the minimum context required to support the intended interaction.",
+  "objects": [
+    "Context Requirement Object",
+    "Context Selection Efficiency",
+    "Context Optimization Boundary"
+  ],
+  "acceptance_targets": [
+    "Defines Context Requirement Object with required, optional, avoid, context depth, and rationale.",
+    "Context Requirement selects minimum necessary context, not maximum available context.",
+    "Context Requirement treats context as behavior support, not answer content.",
+    "K8.3 can select light relationship/experience context for relationship confirmation without identity dump.",
+    "K8.3 can select re-entry/experience/project context for prior ongoing topics without starving continuity.",
+    "K8.3 avoids relationship/identity contamination for ordinary technical or market questions.",
+    "K8.3 avoids false continuity on unrelated new tasks.",
+    "Negative gates detect Context Dump, Context Starvation, Context Pollution, and False Continuity.",
+    "Defines Context Selection Efficiency score.",
+    "K8.3 does not mutate Identity, Relationship, Memory, Experience, Re-entry, or Event artifacts.",
+    "K8.3 output remains provider/context input only, not final response.",
+    "K8.3 remains separate from K8.4 Natural Expression Boundary."
+  ],
+  "negative_gates": [
+    "CO-001 Context Dump",
+    "CO-002 Context Starvation",
+    "CO-003 Context Pollution",
+    "CO-004 False Continuity"
+  ],
+  "metrics": {
+    "CSE": "Interaction Relevant Context - Irrelevant Context Activation",
+    "COQS": "Minimum Sufficiency + Relevance Accuracy + Starvation Avoidance + Pollution Avoidance + Boundary Compliance - Dump Risk - False Continuity Risk"
+  },
+  "deliverables": [
+    "docs/architecture/CONTEXT_NEED_OPTIMIZATION_CONTRACT_v1.md",
+    "julia_core/conversation_cognition/context_requirement.py",
+    "julia_core/conversation_cognition/context_optimization.py",
+    "julia_core/conversation_cognition/context_efficiency.py",
+    "tests/conversation_cognition/test_k8_3_context_requirement_schema.py",
+    "tests/conversation_cognition/test_k8_3_minimum_context.py",
+    "tests/conversation_cognition/test_k8_3_negative_gates.py",
+    "tests/conversation_cognition/test_k8_3_context_selection_efficiency.py",
+    "artifacts/conversation_cognition/context_need_optimization_report_v1.json"
+  ],
+  "non_goals": [
+    "final Julia reply generation",
+    "Natural Expression Boundary implementation",
+    "provider generation",
+    "new memory",
+    "continuity artifact mutation",
+    "Natural Conversation E2E proof",
+    "Claude comparison rerun"
+  ]
+}

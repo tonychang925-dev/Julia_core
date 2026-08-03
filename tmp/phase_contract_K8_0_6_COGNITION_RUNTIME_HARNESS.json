@@ -1,0 +1,38 @@
+{
+  "run_id": "20260802_K8_0_6_COGNITION_RUNTIME_HARNESS",
+  "scope": "phase:K8.0.6",
+  "phase_code": "K8.0.6",
+  "generated_at": "2026-08-02T00:00:00+08:00",
+  "milestone": {
+    "name": "K8.0.6 - Cognition Runtime Harness",
+    "phase": "K8.0.6",
+    "summary": "Create trace-only cognition observation harness before K8.1 implementation."
+  },
+  "objective": "For each Tony message, produce an inspectable Cognition Trace without generating a Julia response.",
+  "runtime_api": "CognitionRuntimeHarness.run(user_message, conversation_history, continuity_state, current_context)",
+  "required_outputs": [
+    "cognition_trace",
+    "understanding",
+    "meaning_validation",
+    "intention:null",
+    "provider_request:null",
+    "final_response:null"
+  ],
+  "required_failure_injections": [
+    "FI-001 Understanding Collapse",
+    "FI-002 Keyword Rule",
+    "FI-003 Context Overread"
+  ],
+  "metrics": {
+    "HOS": "Trace Completeness + Stage Order Visibility + Failure Injection Coverage + Provider Isolation - Opaque LLM Blob Dependency",
+    "CPS": "Ambiguity Preservation + Context Suppression Visibility + No Final Text + No Provider Request - Premature Answer Generation"
+  },
+  "non_goals": [
+    "Implement final K8.1 understanding accuracy",
+    "Generate Julia response",
+    "Connect to Provider",
+    "Implement K8.2",
+    "Implement K8.3",
+    "Prove Natural Conversation E2E"
+  ]
+}

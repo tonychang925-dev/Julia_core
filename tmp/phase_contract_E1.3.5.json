@@ -1,0 +1,21 @@
+{
+  "phase_code": "E1.3.5",
+  "phase_name": "Continuity OS Architecture Review",
+  "status": "DRAFT-FROZEN",
+  "risk_level": "P0",
+  "deliverables": [
+    "docs/architecture/CONTINUITY_OS_DESIGN.md",
+    "docs/adrs/ADR-009-continuity-os-authority.md",
+    "docs/project_control/PHASE_CONTRACT_E1.3.5_CONTINUITY_ARCHITECTURE_REVIEW.md"
+  ],
+  "route_adjustment": [
+    "E1.1 Runtime Binding",
+    "E1.2 Session Binding",
+    "E1.3 Minimal Memory Binding",
+    "E1.3.5 Continuity Architecture Review",
+    "E1.4 Memory Binding Alignment with Continuity OS",
+    "E1.5 Context Binding",
+    "E1.6 Continuity Recovery Test",
+    "E1.7 Trace Completion"
+  ]
+}

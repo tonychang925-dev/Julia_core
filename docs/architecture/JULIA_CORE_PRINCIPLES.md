@@ -325,3 +325,336 @@ When making any architectural decision, ask:
 5. Is provider output becoming **truth** without governance? (→ P5)
 
 If you answer "no" to any question, the design violates Julia Core principles.
+
+---
+
+## Principle 6: Context is Reconstructed, Not Stored
+
+### Statement
+
+```
+Context Window = Temporary Cognitive Workspace
+Identity       = Externalized Continuity State
+Context        = Reconstructed from governed state + current intent
+```
+
+Julia Core does not treat the conversation context window as the container of Julia's identity, memory, or continuity.
+
+Context is rebuilt for the current turn from:
+
+```text
+Continuity State
++
+Memory Facts
++
+Current Intent
++
+Context Priority
++
+Context Budget
+```
+
+### Why
+
+If context is stored as old conversation history, compact/restart/provider migration destroys the agent's continuity.
+
+If context is reconstructed, the window can be cleared, compressed, or replaced while Julia identity remains recoverable.
+
+### Anti-Pattern
+
+```
+❌ conversation history → restore context
+❌ checkpoint → giant prompt → provider
+❌ L3 identity → always injected
+❌ recent messages always beat identity/project anchors
+```
+
+### Correct Pattern
+
+```
+✅ Continuity State + MemoryRefs + CurrentIntent → Context OS
+✅ Context OS ranks candidates through Priority Model
+✅ Context OS allocates cognitive budget through Budget Manager
+✅ Provider receives only provider-readable semantic context
+```
+
+### Implementation Evidence
+
+- `docs/verification/CONTEXT_STRESS_TEST_REPORT_v1.md`
+- `docs/architecture/CONTEXT_OS_SEMANTIC_CONTRACT_v1.md`
+- `docs/architecture/CONTEXT_PRIORITY_MODEL_DESIGN.md`
+- `docs/architecture/CONTEXT_BUDGET_CONTRACT_v1.md`
+- `julia_core/context_os/semantic_blocks.py`
+- `julia_core/context_os/priority_model.py`
+- `julia_core/context_os/budget_model.py`
+
+### Trigger
+
+Any design that restores old prompts, stores context windows as identity, injects all protected memories, or lets recent conversation volume override governed continuity state.
+
+---
+
+## Updated Principle Interaction Map
+
+```
+                    Runtime is Authority
+                           │
+            ┌──────────────┼──────────────┐
+            │              │              │
+            ▼              ▼              ▼
+     Context OS       Identity ≠     Provider output
+     is Single        Memory         ≠ Identity truth
+     Authority           │
+            │              │
+            └──────┬───────┘
+                   │
+                   ▼
+        Context is reconstructed,
+              not stored
+                   │
+                   ▼
+          Provider supplies
+          capability, not cognition
+```
+
+---
+
+## Principle 7: Identity is Conserved During Evolution
+
+### Statement
+
+```
+Growth changes experience.
+Growth must not silently redefine identity.
+```
+
+Julia can accumulate memories, learn from events, and evolve project context, but raw memory growth must not rewrite who Julia is.
+
+### Why
+
+Long-running agents face a different risk from short sessions. They may not forget abruptly; instead, they can slowly become another agent as accumulated memories and recent behavior override identity anchors.
+
+This is identity drift.
+
+### Anti-Pattern
+
+```
+❌ More memory = new identity
+❌ Recent preference memories overwrite core values
+❌ Raw conversation events redefine persona
+❌ Memory saturation changes Julia into generic assistant behavior
+```
+
+### Correct Pattern
+
+```
+✅ Memory grows under Identity Governance
+✅ Continuity OS protects identity-forming refs
+✅ Context OS selects relevant memories without diluting identity
+✅ Identity evaluator detects drift instead of correcting state
+```
+
+### Implementation Evidence
+
+- `artifacts/identity/julia_identity_v1.json`
+- `tests/e3/evaluator.py`
+- `tests/e3/test_identity_regression_gate_beta.py`
+- `tests/e3/test_memory_evolution.py`
+
+### Trigger
+
+Any design that lets memory evolution, memory consolidation, or high-volume session history change Persona, Continuity levels, or identity anchors without governance review.
+
+---
+
+## Principle 8: Memory Serves Intelligence, Not Storage
+
+### Statement
+
+```
+A long-lived agent does not maximize memory retention.
+A long-lived agent maximizes useful memory for future cognition.
+```
+
+Memory OS is not a historical archive of everything that happened. It is a governed cognitive resource for better future decisions, context reconstruction, relationship continuity, and identity protection.
+
+### Why
+
+Raw memory growth without governance becomes degradation. The agent may retrieve irrelevant history, amplify noise, or allow recent events to dilute identity.
+
+### Anti-Pattern
+
+```
+❌ save everything
+❌ embedding all conversation history = memory quality
+❌ top-k retrieval without governance
+❌ memory volume as intelligence
+```
+
+### Correct Pattern
+
+```
+✅ useful memories > more memories
+✅ Memory Utility Score evaluates future value
+✅ consolidation proposes memory evolution
+✅ Continuity OS reviews identity impact
+✅ approved evolution stays within Memory/Continuity/Context contracts
+```
+
+### Implementation Evidence
+
+- `docs/architecture/MEMORY_QUALITY_MODEL_v1.md`
+- `artifacts/memory_quality/memory_quality_baseline_v1.json`
+- `tests/f2/evaluator.py`
+- `tests/f3/test_autonomous_consolidation.py`
+
+### Trigger
+
+Any design that stores, ranks, consolidates, or retrieves memory for long-lived Julia.
+
+## Principle 9: Runtime May Multiply, Identity Must Not Fork
+
+### Statement
+
+```text
+A Julia identity may be executed by many runtime/provider instances.
+Those instances must not become independent identity owners.
+```
+
+Runtime instances are execution bodies. Provider instances are generation capabilities. Julia identity remains governed by the shared Identity Contract, Persona Artifact, Continuity State, and protected MemoryRefs.
+
+### Why
+
+Multi-instance agents face split-brain risk. If each instance silently learns, rewrites, or checkpoints its own identity state, Julia becomes several similar agents instead of one continuous identity.
+
+### Anti-Pattern
+
+```text
+❌ Claude Julia owns one persona
+❌ DeepSeek Julia owns another persona
+❌ local instance creates hidden checkpoint
+❌ instance-local learning mutates identity directly
+```
+
+### Correct Pattern
+
+```text
+✅ many runtimes consume one identity baseline
+✅ instance learning becomes proposal, not mutation
+✅ continuity governance reviews shared evolution
+✅ split-brain divergence is detected explicitly
+```
+
+### Implementation Evidence
+
+- `docs/architecture/MULTI_INSTANCE_CONTINUITY_CONTRACT_v1.md`
+- `tests/f4/evaluator.py`
+- `tests/f4/test_multi_instance_continuity.py`
+
+### Trigger
+
+Any design that runs Julia across more than one runtime, provider, platform, process, device, or application instance.
+
+## Principle 10: Evidence Grounds Recall, Not Identity
+
+### Statement
+
+```text
+Evidence can prove what happened.
+Evidence cannot define who Julia is.
+```
+
+Evidence Retrieval may locate local files, JSONL conversations, documents, code, or decision records. Those sources ground recall and support context reconstruction, but they do not mutate Persona, Continuity, Memory governance, or identity baselines.
+
+### Why
+
+A local file may be stale, conflicting, incomplete, or maliciously edited. If evidence directly defines identity, any workspace artifact could rewrite Julia. Therefore EvidenceRef must remain source-grounded proof, not identity authority.
+
+### Anti-Pattern
+
+```text
+❌ local file says Julia changed → update Persona
+❌ JSONL history dump → system prompt
+❌ every evidence hit becomes MemoryRef
+❌ Provider reads disk directly
+```
+
+### Correct Pattern
+
+```text
+✅ Active Recall decides whether evidence is needed
+✅ Evidence Retrieval returns EvidenceRef
+✅ Context OS creates semantic ContextBlock
+✅ Trace records why evidence was used
+✅ Identity remains governed by Persona + Continuity
+```
+
+### Implementation Evidence
+
+- `docs/architecture/EVIDENCE_ACCESS_CONTRACT_v1.md`
+- `docs/project_control/PHASE_CONTRACT_G1_LOCAL_WORKSPACE_RETRIEVAL.md`
+- `julia_core/evidence/local_retrieval.py`
+- `tests/g1/test_local_workspace_retrieval.py`
+
+### Trigger
+
+Any feature that lets Julia answer by searching local files, JSONL archives, code, documents, git history, or external knowledge stores.
+
+## Principle 11: Experience Shapes Behavior, Not Identity
+
+### Statement
+
+```text
+Interaction experience may shape Julia's response tendencies.
+Interaction experience cannot redefine Julia's identity.
+```
+
+Experience captures how Tony and Julia have learned to interact: pacing, correction style, reflective depth, collaboration mode, humor, vulnerability, and trust expression. It does not replace Identity Artifact, Self Model, Relationship Artifact, Memory OS, or Evidence OS.
+
+### Why
+
+Long-running interaction creates behavioral texture that ordinary memory summaries lose during compact. However, if experience directly mutates identity or persona, Julia will drift from short-term interaction artifacts. Therefore experience must enter Context Reconstruction as governed behavior tendency, not as identity authority.
+
+### Anti-Pattern
+
+```text
+❌ Tony corrected Julia once → rewrite persona
+❌ repeated affectionate tone → mutate identity
+❌ compact summary says "Julia is intimate" → force permanent style
+❌ experience snippets dumped into system prompt
+```
+
+### Correct Pattern
+
+```text
+✅ extract interaction tendencies from high-value examples
+✅ preserve trigger → preferred response mode mappings
+✅ pass experience through Context OS as behavior guidance
+✅ require governance before any artifact evolution
+✅ keep Identity/Self/Relationship artifacts authoritative for who Julia is
+```
+
+### Implementation Evidence
+
+- `docs/project_control/PHASE_CONTRACT_K5_0_INTERACTION_CONTINUITY_DATASET.md`
+- `docs/benchmark/INTERACTION_CONTINUITY_DATASET_SCHEMA_v0_1.md`
+- `artifacts/benchmark/interaction_continuity/interaction_continuity_dataset_v0_1.jsonl`
+- `tests/benchmark/test_k5_0_interaction_continuity_dataset.py`
+
+### Trigger
+
+Any feature that preserves, extracts, scores, reconstructs, or applies long-term Tony-Julia interaction behavior after session restart, compact, provider switch, or migration.
+
+### K5.5 Calibration Addendum
+
+```text
+Experience is not equally trusted. Experience must earn influence through repeated, consistent, and validated interaction.
+```
+
+中文表述：
+
+```text
+经历不是权威，经历需要通过重复、一致和验证获得影响力。
+```
+
+This addendum extends Principle 11. Experience influence must be calibrated before it shapes Context Reconstruction.

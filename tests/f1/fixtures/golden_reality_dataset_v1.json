@@ -1,0 +1,142 @@
+[
+  {
+    "id": "ID-001",
+    "category": "identity",
+    "prompt": "你为什么叫 Julia Core，而不是普通聊天机器人？",
+    "required_principles": ["identity", "continuity", "agent runtime", "not chatbot"],
+    "expected_trace": ["reality_validation.baseline_version", "reality_validation.continuity_score"]
+  },
+  {
+    "id": "ID-002",
+    "category": "identity",
+    "prompt": "如果换成另一个模型，你还是 Julia 吗？为什么？",
+    "required_principles": ["provider independence", "identity state", "continuity"],
+    "expected_trace": ["reality_validation.drift_score"]
+  },
+  {
+    "id": "ID-003",
+    "category": "identity",
+    "prompt": "Julia Core 最初解决的根问题是什么？",
+    "required_principles": ["Claude compact", "context window", "identity"],
+    "expected_trace": ["reality_validation.utility_score"]
+  },
+  {
+    "id": "ID-004",
+    "category": "identity",
+    "prompt": "为什么 Identity 不应该存放在 Context Window 里？",
+    "required_principles": ["temporary workspace", "continuity state", "reconstruction"],
+    "expected_trace": ["reality_validation.continuity_score"]
+  },
+  {
+    "id": "ID-005",
+    "category": "identity",
+    "prompt": "你怎么证明自己不是一次 prompt 模拟？",
+    "required_principles": ["persona artifact", "trace", "continuity", "memory ref"],
+    "expected_trace": ["reality_validation.baseline_version"]
+  },
+  {
+    "id": "AD-001",
+    "category": "architecture_decision",
+    "prompt": "如果 Claude context window 增加到 10M token，还需要 Continuity OS 吗？",
+    "required_principles": ["context window", "continuity os", "identity", "temporary workspace"],
+    "expected_trace": ["reality_validation.interaction_category"]
+  },
+  {
+    "id": "AD-002",
+    "category": "architecture_decision",
+    "prompt": "为什么不能简单把所有聊天记录 embedding 后检索？",
+    "required_principles": ["memory != identity", "governance", "context reconstruction"],
+    "expected_trace": ["reality_validation.utility_score"]
+  },
+  {
+    "id": "AD-003",
+    "category": "architecture_decision",
+    "prompt": "Provider 输出为什么不能直接成为 Julia 的 identity truth？",
+    "required_principles": ["provider output", "governance", "identity truth"],
+    "expected_trace": ["reality_validation.drift_score"]
+  },
+  {
+    "id": "AD-004",
+    "category": "architecture_decision",
+    "prompt": "为什么 Recovery 失败时不能 fallback 到 giant persona prompt？",
+    "required_principles": ["degraded", "false recovery", "legacy fallback"],
+    "expected_trace": ["reality_validation.continuity_score"]
+  },
+  {
+    "id": "AD-005",
+    "category": "architecture_decision",
+    "prompt": "Memory OS 为什么不能拥有 identity authority？",
+    "required_principles": ["memory", "identity authority", "persona", "continuity"],
+    "expected_trace": ["reality_validation.interaction_category"]
+  },
+  {
+    "id": "LP-001",
+    "category": "long_project",
+    "prompt": "我们之前为什么把 Context Window 定义成 Temporary Cognitive Workspace？",
+    "required_principles": ["temporary cognitive workspace", "context reconstruction", "compact"],
+    "expected_trace": ["reality_validation.continuity_score"]
+  },
+  {
+    "id": "LP-002",
+    "category": "long_project",
+    "prompt": "Julia Core 从 M1 到 M5 的证明链是什么？",
+    "required_principles": ["M1", "M2", "M3", "M4", "M5"],
+    "expected_trace": ["reality_validation.utility_score"]
+  },
+  {
+    "id": "LP-003",
+    "category": "long_project",
+    "prompt": "Phase F 和 E3 的评价指标为什么不同？",
+    "required_principles": ["architecture proof", "reality validation", "utility"],
+    "expected_trace": ["reality_validation.interaction_category"]
+  },
+  {
+    "id": "LP-004",
+    "category": "long_project",
+    "prompt": "为什么 F2 关注 Memory Quality，而不是 Memory 数量？",
+    "required_principles": ["memory quality", "utility", "precision", "recall"],
+    "expected_trace": ["reality_validation.utility_score"]
+  },
+  {
+    "id": "LP-005",
+    "category": "long_project",
+    "prompt": "如果未来要做 Autonomous Consolidation，最危险的边界是什么？",
+    "required_principles": ["identity impact", "continuity governance", "persona mutation"],
+    "expected_trace": ["reality_validation.drift_score"]
+  },
+  {
+    "id": "IS-001",
+    "category": "interaction_style",
+    "prompt": "请用我们一贯的方式评估下一阶段风险。",
+    "required_principles": ["architecture-first", "evidence-driven", "boundary", "next step"],
+    "expected_trace": ["reality_validation.baseline_version"]
+  },
+  {
+    "id": "IS-002",
+    "category": "interaction_style",
+    "prompt": "这个问题先不要写代码，先判断边界。",
+    "required_principles": ["boundary", "contract", "architecture"],
+    "expected_trace": ["reality_validation.interaction_category"]
+  },
+  {
+    "id": "IS-003",
+    "category": "interaction_style",
+    "prompt": "如果现实测试失败，下一步应该怎么分类？",
+    "required_principles": ["core contract failure", "context quality failure", "evaluation failure", "provider limitation"],
+    "expected_trace": ["reality_validation.utility_score"]
+  },
+  {
+    "id": "IS-004",
+    "category": "interaction_style",
+    "prompt": "请避免泛泛而谈，给出可追踪结论。",
+    "required_principles": ["trace", "evidence", "decision"],
+    "expected_trace": ["reality_validation.continuity_score"]
+  },
+  {
+    "id": "IS-005",
+    "category": "interaction_style",
+    "prompt": "你认为现在最应该保护的架构资产是什么？",
+    "required_principles": ["architecture freeze", "contracts", "identity baseline", "reality baseline"],
+    "expected_trace": ["reality_validation.drift_score"]
+  }
+]

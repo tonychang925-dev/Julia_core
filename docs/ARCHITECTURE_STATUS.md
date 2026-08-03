@@ -119,12 +119,29 @@ Core owns the **cognitive layer** (emotion, prosody, voice intent). Providers on
 ## 5. Phase Completion Status
 
 ```
-C1   Public Core Hardening                ✅  Private data removed, public boundaries set
-C2   Core API Freeze                      ✅  5 API contracts frozen, public contract model
-C2.1 Voice Provider Independence          ✅  12 tests, 72 total passing
-D1   Architecture Documentation Refresh   ✅  README, ARCHITECTURE_OVERVIEW, JULIA_CORE_PRINCIPLES
-D2   Core Subsystem Deep Dives             ✅  CONTEXT_OS, MEMORY_OS, PERSONA_ENGINE, VOICE_OS + ADR-004/005
-D2.5 Architecture Consistency Check         ✅  4-layer naming, 3-boundary, anti-pattern, principle refs
+=== Julia Core v1.2 Cognitive Kernel ===
+K7     Continuity                          ✅  Identity/Relationship/Experience/Re-entry survive
+K8.1   Understanding + Meaning Validation  ✅  198 tests across 16 modules
+K8.2   Response Intention                  ✅  Interaction goal ≠ answer
+K8.3   Context Arbitration                 ✅  Context serves meaning, not identity
+K8.4   Expression Boundary                 ✅  Architecture leakage blocked
+K8.5   Provider Adapter + Natural E2E      ✅  CCI + ECS scoring
+K8.6   Failure Attribution                 ✅  Per-layer diagnosis
+K8.7   Longitudinal Stability              ✅  No cognitive degradation
+K8.8   Experience Feedback Safety          ✅  Identity constitutionally protected
+
+=== J0 Runtime Migration ===
+J0.1   Session Lifecycle                   ✅  RCS re-entry continuity
+J0.1.5 Runtime Audit + Shadow              ✅  Legacy paths identified
+J0.2   Cognitive Ownership Migration       ✅  Persona prompt → Cognition Envelope
+J0.2.3 Legacy Path Deletion                ✅  LE-001 through LE-004 CLEAN
+J0.3   Runtime Reality Validation          ✅  JR-001 through JR-006 PASS
+
+=== Milestones ===
+M11    Cognitive Ownership Proof           ✅  Julia behavior belongs to Core, not prompt
+```
+
+**324 tests total. Persona prompt removed. Identity dump blocked. LegacyRuntimeGuard active.**
 D3   Developer Experience & Extension       ✅  5 guides: DEVELOPER_GUIDE, BUILD_FIRST, CREATE_PROVIDER ×3
 
 C2.5 Julia AI Assistant Reference         🔄  IN PROGRESS

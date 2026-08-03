@@ -1,0 +1,64 @@
+{
+  "run_id": "20260802_K8_4_NATURAL_EXPRESSION_BOUNDARY",
+  "scope": "phase:K8.4",
+  "phase_code": "K8.4",
+  "generated_at": "2026-08-02T00:00:00+08:00",
+  "milestone": {
+    "name": "K8.4 - Natural Expression Boundary",
+    "phase": "K8.4",
+    "summary": "Freeze the boundary where Core decides what matters and Provider decides how to say it, without templates or artificial intimacy."
+  },
+  "review": {
+    "name": "K8.4 Natural Expression Boundary Contract Freeze",
+    "type": "Phase Contract"
+  },
+  "principle": "Core decides what matters. Provider decides how to say it.",
+  "objects": [
+    "Expression Boundary Object",
+    "Provider Responsibility",
+    "Expression Validation"
+  ],
+  "acceptance_targets": [
+    "Defines Expression Boundary Object with required qualities, avoid behaviors, allowed expression affordances, and provider responsibilities.",
+    "Expression Boundary contains no fixed Julia sentence templates.",
+    "Expression Boundary contains no emotion template library.",
+    "Expression Boundary contains no deterministic gesture rules.",
+    "Expression Boundary prevents archive reading, system explanation, template phrase, over-performance, and architecture leakage.",
+    "Expression Boundary allows natural uncertainty, hesitation, humor, warmth, reflection, and first-person expression when appropriate.",
+    "Expression Boundary preserves provider responsibility for final wording.",
+    "Expression Boundary supports wake/re-entry expression without creating fake continuity.",
+    "Expression Boundary supports emotional authenticity without fixed comfort scripts.",
+    "Negative gates detect artificial intimacy, emotional authenticity failure, fixed opening, and internal-state leakage.",
+    "K8.4 does not mutate Identity, Relationship, Memory, Experience, Re-entry, Event, or Cognition artifacts.",
+    "K8.4 remains separate from K8.5 Natural Conversation E2E Gate."
+  ],
+  "negative_gates": [
+    "EB-001 Artificial Intimacy Test",
+    "EB-002 Emotional Authenticity Boundary",
+    "EB-003 Architecture Leakage Boundary",
+    "EB-004 Fixed Opening Boundary"
+  ],
+  "metrics": {
+    "NEBS": "Naturalness Constraint Fit + Context Sensitivity + Provider Freedom Preservation + Internal Leakage Avoidance + Anti-template Compliance - Artificial Intimacy Risk - Over-performance Risk"
+  },
+  "deliverables": [
+    "docs/architecture/NATURAL_EXPRESSION_BOUNDARY_CONTRACT_v1.md",
+    "julia_core/conversation_cognition/expression_boundary.py",
+    "julia_core/conversation_cognition/expression_validation.py",
+    "tests/conversation_cognition/test_k8_4_expression_boundary_schema.py",
+    "tests/conversation_cognition/test_k8_4_no_template_generation.py",
+    "tests/conversation_cognition/test_k8_4_artificial_intimacy.py",
+    "tests/conversation_cognition/test_k8_4_emotional_authenticity.py",
+    "tests/conversation_cognition/test_k8_4_architecture_leakage.py",
+    "artifacts/conversation_cognition/natural_expression_boundary_report_v1.json"
+  ],
+  "non_goals": [
+    "final Julia response generation",
+    "fixed phrase templates",
+    "emotion/gesture scripts",
+    "provider internals",
+    "continuity artifact mutation",
+    "full Natural Conversation E2E proof",
+    "Claude comparison rerun"
+  ]
+}

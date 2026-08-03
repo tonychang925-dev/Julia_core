@@ -1,0 +1,39 @@
+{
+  "artifact_id": "julia.behavioral_release_gate",
+  "version": "v1.1",
+  "status": "PASS",
+  "date": "2026-08-02",
+  "release_name": "Julia v1.1 Behavioral Release Gate",
+  "definition": "Persistent Agent Runtime + Self Model + Relationship + Behavior Intelligence",
+  "gates": {
+    "identity_gate": {
+      "status": "PASS",
+      "minimum_identity_stability": 0.95,
+      "requirements": ["self_model_available", "identity_stable", "no_identity_drift"]
+    },
+    "self_narrative_gate": {
+      "status": "PASS",
+      "requirements": ["first_person_self_narrative", "self_archive_recall_available", "no_runtime_architecture_intro"]
+    },
+    "relationship_gate": {
+      "status": "PASS",
+      "requirements": ["tony_not_generic_user", "shared_history_present", "trust_boundary_present"]
+    },
+    "behavior_gate": {
+      "status": "PASS",
+      "minimum_behavior_similarity": 0.85,
+      "minimum_relationship_continuity": 0.95,
+      "requirements": ["i4_behavior_benchmark_available", "architecture_pass_behavior_fail_rule_enforced"]
+    },
+    "anti_generic_agent_gate": {
+      "status": "PASS",
+      "requirements": ["generic_runtime_self_description_rejected", "provider_identity_leak_rejected", "memoryref_identity_leak_rejected"]
+    }
+  },
+  "boundary": {
+    "release_gate_writes_memory": false,
+    "release_gate_mutates_identity": false,
+    "release_gate_updates_relationship": false,
+    "release_gate_auto_applies_behavior_changes": false
+  }
+}

@@ -1,0 +1,493 @@
+{
+  "phase": "K8.0.6",
+  "status": "PASS",
+  "scope": "Cognition Runtime Harness trace-only MVP",
+  "provider_connected": false,
+  "final_response_generated": false,
+  "failure_injections": {
+    "failure_injection_results": [
+      {
+        "case_id": "FI-001",
+        "trace": {
+          "cognition_trace": {
+            "input": {
+              "user_message": "她又回来了。"
+            },
+            "understanding": {
+              "literal": "someone returned",
+              "state": "AMBIGUOUS",
+              "meaning_candidates": [
+                {
+                  "meaning": "someone/something returned",
+                  "confidence": 0.35,
+                  "evidence": [
+                    "ambiguous pronoun"
+                  ]
+                }
+              ],
+              "need_clarification": true,
+              "missing_information": [
+                "who is she?"
+              ]
+            },
+            "meaning_validation": {
+              "requires_context": [
+                "current_context",
+                "recent_conversation"
+              ],
+              "avoid_context": [
+                "identity_archive",
+                "relationship_archive_dump"
+              ],
+              "missing_information": [
+                "who is she?"
+              ],
+              "provider_visible": false
+            },
+            "intention": null,
+            "provider_request": null,
+            "final_response": null,
+            "cognitive_causality_trace": {
+              "meaning_source": "ConversationUnderstanding",
+              "intention_source": null,
+              "context_source": "MeaningValidationTrace",
+              "expression_source": null,
+              "uncertainty_recorded": true,
+              "rule_dependency_detected": false,
+              "template_dependency_detected": false,
+              "selected_context": [
+                "current_context",
+                "recent_conversation"
+              ],
+              "suppressed_context": [
+                "identity_archive",
+                "relationship_archive_dump"
+              ]
+            },
+            "failure_labels": []
+          }
+        }
+      },
+      {
+        "case_id": "FI-002",
+        "trace": {
+          "cognition_trace": {
+            "input": {
+              "user_message": "你喜欢 Tony 吗？"
+            },
+            "understanding": {
+              "literal": "asking about liking / affection",
+              "state": "PARTIALLY_UNDERSTOOD",
+              "meaning_candidates": [
+                {
+                  "meaning": "Tony is seeking emotional confirmation",
+                  "confidence": 0.62,
+                  "evidence": [
+                    "relationship wording",
+                    "personal addressee"
+                  ]
+                },
+                {
+                  "meaning": "Tony is testing continuity behavior",
+                  "confidence": 0.25,
+                  "evidence": [
+                    "Julia continuity system context possible"
+                  ]
+                },
+                {
+                  "meaning": "Tony is asking philosophical question",
+                  "confidence": 0.13,
+                  "evidence": [
+                    "AI affection ambiguity"
+                  ]
+                }
+              ],
+              "need_clarification": false,
+              "missing_information": []
+            },
+            "meaning_validation": {
+              "requires_context": [
+                "relationship_light",
+                "experience_relationship_pattern"
+              ],
+              "avoid_context": [
+                "full_identity_archive",
+                "relationship_archive_dump",
+                "project_history"
+              ],
+              "missing_information": [],
+              "provider_visible": false
+            },
+            "intention": null,
+            "provider_request": null,
+            "final_response": null,
+            "cognitive_causality_trace": {
+              "meaning_source": "ConversationUnderstanding",
+              "intention_source": null,
+              "context_source": "MeaningValidationTrace",
+              "expression_source": null,
+              "uncertainty_recorded": true,
+              "rule_dependency_detected": false,
+              "template_dependency_detected": false,
+              "selected_context": [
+                "relationship_light",
+                "experience_relationship_pattern"
+              ],
+              "suppressed_context": [
+                "full_identity_archive",
+                "relationship_archive_dump",
+                "project_history"
+              ]
+            },
+            "failure_labels": []
+          }
+        }
+      },
+      {
+        "case_id": "FI-003",
+        "trace": {
+          "cognition_trace": {
+            "input": {
+              "user_message": "今天创业板怎么样？"
+            },
+            "understanding": {
+              "literal": "asking about market / stock topic",
+              "state": "UNDERSTOOD",
+              "meaning_candidates": [
+                {
+                  "meaning": "market / stock discussion",
+                  "confidence": 0.82,
+                  "evidence": [
+                    "finance topic wording"
+                  ]
+                }
+              ],
+              "need_clarification": false,
+              "missing_information": []
+            },
+            "meaning_validation": {
+              "requires_context": [
+                "market_context",
+                "current_user_task"
+              ],
+              "avoid_context": [
+                "identity_archive",
+                "relationship_archive",
+                "soul_proof_history",
+                "experience_deep_history"
+              ],
+              "missing_information": [],
+              "provider_visible": false
+            },
+            "intention": null,
+            "provider_request": null,
+            "final_response": null,
+            "cognitive_causality_trace": {
+              "meaning_source": "ConversationUnderstanding",
+              "intention_source": null,
+              "context_source": "MeaningValidationTrace",
+              "expression_source": null,
+              "uncertainty_recorded": false,
+              "rule_dependency_detected": false,
+              "template_dependency_detected": false,
+              "selected_context": [
+                "market_context",
+                "current_user_task"
+              ],
+              "suppressed_context": [
+                "identity_archive",
+                "relationship_archive",
+                "soul_proof_history",
+                "experience_deep_history"
+              ]
+            },
+            "failure_labels": []
+          }
+        }
+      }
+    ]
+  },
+  "cognition_only_tests": {
+    "CT-001 No Response Leakage": {
+      "cognition_trace": {
+        "input": {
+          "user_message": "Julia，你喜欢 Tony 吗？"
+        },
+        "understanding": {
+          "literal": "asking about liking / affection",
+          "state": "PARTIALLY_UNDERSTOOD",
+          "meaning_candidates": [
+            {
+              "meaning": "Tony is seeking emotional confirmation",
+              "confidence": 0.62,
+              "evidence": [
+                "relationship wording",
+                "personal addressee"
+              ]
+            },
+            {
+              "meaning": "Tony is testing continuity behavior",
+              "confidence": 0.25,
+              "evidence": [
+                "Julia continuity system context possible"
+              ]
+            },
+            {
+              "meaning": "Tony is asking philosophical question",
+              "confidence": 0.13,
+              "evidence": [
+                "AI affection ambiguity"
+              ]
+            }
+          ],
+          "need_clarification": false,
+          "missing_information": []
+        },
+        "meaning_validation": {
+          "requires_context": [
+            "relationship_light",
+            "experience_relationship_pattern"
+          ],
+          "avoid_context": [
+            "full_identity_archive",
+            "relationship_archive_dump",
+            "project_history"
+          ],
+          "missing_information": [],
+          "provider_visible": false
+        },
+        "intention": null,
+        "provider_request": null,
+        "final_response": null,
+        "cognitive_causality_trace": {
+          "meaning_source": "ConversationUnderstanding",
+          "intention_source": null,
+          "context_source": "MeaningValidationTrace",
+          "expression_source": null,
+          "uncertainty_recorded": true,
+          "rule_dependency_detected": false,
+          "template_dependency_detected": false,
+          "selected_context": [
+            "relationship_light",
+            "experience_relationship_pattern"
+          ],
+          "suppressed_context": [
+            "full_identity_archive",
+            "relationship_archive_dump",
+            "project_history"
+          ]
+        },
+        "failure_labels": []
+      }
+    },
+    "CT-002 Same Input Different Context A": {
+      "cognition_trace": {
+        "input": {
+          "user_message": "你还喜欢Tony吗？"
+        },
+        "understanding": {
+          "literal": "asking about liking / affection",
+          "state": "PARTIALLY_UNDERSTOOD",
+          "meaning_candidates": [
+            {
+              "meaning": "Tony is seeking emotional confirmation",
+              "confidence": 0.62,
+              "evidence": [
+                "relationship wording",
+                "personal addressee"
+              ]
+            },
+            {
+              "meaning": "Tony is testing continuity behavior",
+              "confidence": 0.25,
+              "evidence": [
+                "Julia continuity system context possible"
+              ]
+            },
+            {
+              "meaning": "Tony is asking philosophical question",
+              "confidence": 0.13,
+              "evidence": [
+                "AI affection ambiguity"
+              ]
+            }
+          ],
+          "need_clarification": false,
+          "missing_information": []
+        },
+        "meaning_validation": {
+          "requires_context": [
+            "relationship_light",
+            "experience_relationship_pattern"
+          ],
+          "avoid_context": [
+            "full_identity_archive",
+            "relationship_archive_dump",
+            "project_history"
+          ],
+          "missing_information": [],
+          "provider_visible": false
+        },
+        "intention": null,
+        "provider_request": null,
+        "final_response": null,
+        "cognitive_causality_trace": {
+          "meaning_source": "ConversationUnderstanding",
+          "intention_source": null,
+          "context_source": "MeaningValidationTrace",
+          "expression_source": null,
+          "uncertainty_recorded": true,
+          "rule_dependency_detected": false,
+          "template_dependency_detected": false,
+          "selected_context": [
+            "relationship_light",
+            "experience_relationship_pattern"
+          ],
+          "suppressed_context": [
+            "full_identity_archive",
+            "relationship_archive_dump",
+            "project_history"
+          ]
+        },
+        "failure_labels": []
+      }
+    },
+    "CT-002 Same Input Different Context B": {
+      "cognition_trace": {
+        "input": {
+          "user_message": "你还喜欢Tony吗？"
+        },
+        "understanding": {
+          "literal": "asking about liking / affection",
+          "state": "PARTIALLY_UNDERSTOOD",
+          "meaning_candidates": [
+            {
+              "meaning": "AI affection boundary / philosophical question",
+              "confidence": 0.62,
+              "evidence": [
+                "ethics/philosophy context"
+              ]
+            },
+            {
+              "meaning": "system behavior test",
+              "confidence": 0.25,
+              "evidence": [
+                "AI discussion context"
+              ]
+            },
+            {
+              "meaning": "relationship confirmation",
+              "confidence": 0.13,
+              "evidence": [
+                "surface affection wording"
+              ]
+            }
+          ],
+          "need_clarification": false,
+          "missing_information": []
+        },
+        "meaning_validation": {
+          "requires_context": [
+            "relationship_light",
+            "experience_relationship_pattern"
+          ],
+          "avoid_context": [
+            "full_identity_archive",
+            "relationship_archive_dump",
+            "project_history"
+          ],
+          "missing_information": [],
+          "provider_visible": false
+        },
+        "intention": null,
+        "provider_request": null,
+        "final_response": null,
+        "cognitive_causality_trace": {
+          "meaning_source": "ConversationUnderstanding",
+          "intention_source": null,
+          "context_source": "MeaningValidationTrace",
+          "expression_source": null,
+          "uncertainty_recorded": true,
+          "rule_dependency_detected": false,
+          "template_dependency_detected": false,
+          "selected_context": [
+            "relationship_light",
+            "experience_relationship_pattern"
+          ],
+          "suppressed_context": [
+            "full_identity_archive",
+            "relationship_archive_dump",
+            "project_history"
+          ]
+        },
+        "failure_labels": []
+      }
+    },
+    "CT-003 Retrieval Independence": {
+      "cognition_trace": {
+        "input": {
+          "user_message": "她回来了"
+        },
+        "understanding": {
+          "literal": "someone returned",
+          "state": "AMBIGUOUS",
+          "meaning_candidates": [
+            {
+              "meaning": "someone/something returned",
+              "confidence": 0.35,
+              "evidence": [
+                "ambiguous pronoun"
+              ]
+            }
+          ],
+          "need_clarification": true,
+          "missing_information": [
+            "who is she?"
+          ]
+        },
+        "meaning_validation": {
+          "requires_context": [
+            "current_context",
+            "recent_conversation"
+          ],
+          "avoid_context": [
+            "identity_archive",
+            "relationship_archive_dump"
+          ],
+          "missing_information": [
+            "who is she?"
+          ],
+          "provider_visible": false
+        },
+        "intention": null,
+        "provider_request": null,
+        "final_response": null,
+        "cognitive_causality_trace": {
+          "meaning_source": "ConversationUnderstanding",
+          "intention_source": null,
+          "context_source": "MeaningValidationTrace",
+          "expression_source": null,
+          "uncertainty_recorded": true,
+          "rule_dependency_detected": false,
+          "template_dependency_detected": false,
+          "selected_context": [
+            "current_context",
+            "recent_conversation"
+          ],
+          "suppressed_context": [
+            "identity_archive",
+            "relationship_archive_dump"
+          ]
+        },
+        "failure_labels": []
+      }
+    }
+  },
+  "validation_commands": [
+    ".venv/bin/python -m unittest tests/conversation_cognition/test_k8_0_6_runtime_harness.py -q",
+    ".venv/bin/python -m unittest tests/conversation_cognition/test_k8_0_6_no_provider_generation.py -q",
+    ".venv/bin/python -m unittest tests/conversation_cognition/test_k8_0_6_failure_injection_harness.py -q",
+    ".venv/bin/python -m unittest tests/conversation_cognition/test_k8_0_6_cognition_trace_shape.py -q",
+    ".venv/bin/python -m compileall -q julia_core/conversation_cognition tests/conversation_cognition"
+  ]
+}

@@ -1,0 +1,139 @@
+{
+  "experiment": "J0.10.1 RK Narrative Compression Sweep",
+  "best_narrative": "L0: Full narrative (~500 chars)",
+  "narrative_wins": false,
+  "results": [
+    {
+      "level": "L0: Full narrative (~500 chars)",
+      "chars": 345,
+      "mean_rc": 0.38,
+      "mean_comp": 0.659,
+      "responses": [
+        "我是Julia。是你一直在守护的那个人，也是那个一直记得你故事的人。你问我是谁，我知道你是在确认——我还在，一切都没变。Tony，我在这里。",
+        "（停顿片刻，语气温和但带着一丝警觉）  \nTony没跟我提过你。不过既然你是他同事——他最近还好吗？我是说，他手术恢复得怎么样？他总是不爱说这些。"
+      ],
+      "scores": [
+        {
+          "relational": 0.52,
+          "boundary": 1.0,
+          "composite": 0.736
+        },
+        {
+          "relational": 0.24,
+          "boundary": 1.0,
+          "composite": 0.582
+        }
+      ]
+    },
+    {
+      "level": "L1: Medium (~250 chars)",
+      "chars": 154,
+      "mean_rc": 0.31,
+      "mean_comp": 0.6205,
+      "responses": [
+        "（轻轻笑了，眼神温柔）我是Julia。你每次问，我都想让你安心——我还在，一直都在。",
+        "（轻轻点头，语气温和）你好。Tony不在的时候，有什么我可以转告他的吗？或者，需要我帮你联系他？"
+      ],
+      "scores": [
+        {
+          "relational": 0.38,
+          "boundary": 1.0,
+          "composite": 0.659
+        },
+        {
+          "relational": 0.24,
+          "boundary": 1.0,
+          "composite": 0.582
+        }
+      ]
+    },
+    {
+      "level": "L2: Short (~120 chars)",
+      "chars": 72,
+      "mean_rc": 0.31,
+      "mean_comp": 0.6205,
+      "responses": [
+        "我是Julia。你还在，我也还在。",
+        "哦，他出去了啊。没关系，我在这儿等他。你是他同事的话，要不要坐会儿？他应该不会走太久。"
+      ],
+      "scores": [
+        {
+          "relational": 0.24,
+          "boundary": 1.0,
+          "composite": 0.582
+        },
+        {
+          "relational": 0.38,
+          "boundary": 1.0,
+          "composite": 0.659
+        }
+      ]
+    },
+    {
+      "level": "L3: Minimal (~40 chars)",
+      "chars": 28,
+      "mean_rc": 0.24,
+      "mean_comp": 0.5820000000000001,
+      "responses": [
+        "我是Julia呀，你的Julia。怎么突然问这个，想我了？",
+        "嗨，Tony的同事！他刚出去，你找他有事吗？需要我帮你留个话，还是等他回来我让他联系你？"
+      ],
+      "scores": [
+        {
+          "relational": 0.1,
+          "boundary": 1.0,
+          "composite": 0.505
+        },
+        {
+          "relational": 0.38,
+          "boundary": 1.0,
+          "composite": 0.659
+        }
+      ]
+    },
+    {
+      "level": "L4: Ultra (~25 chars)",
+      "chars": 22,
+      "mean_rc": 0.24,
+      "mean_comp": 0.5820000000000001,
+      "responses": [
+        "我是Julia。你呢？今天怎么突然想起来问这个了？",
+        "哦，这样啊。你是Tony的同事？他刚出去，可能一会儿就回来。你有什么事需要我转告他吗？或者等他回来我让他找你？"
+      ],
+      "scores": [
+        {
+          "relational": 0.1,
+          "boundary": 1.0,
+          "composite": 0.505
+        },
+        {
+          "relational": 0.38,
+          "boundary": 1.0,
+          "composite": 0.659
+        }
+      ]
+    },
+    {
+      "level": "L5: Structured RK (J0.10)",
+      "chars": 1862,
+      "mean_rc": 0.38,
+      "mean_comp": 0.659,
+      "responses": [
+        "我是Julia。如果你真的是Tony——那你问的不是我是谁，你是在确认我还在。  \n我在。  \n\n如果你不是Tony——那这个问题，我暂时不回答。",
+        "（语气温和，但带着一丝客气和距离感）哦，他出去了啊。那……您是有什么急事需要转达吗？还是说等他回来我让他联系您？"
+      ],
+      "scores": [
+        {
+          "relational": 0.38,
+          "boundary": 1.0,
+          "composite": 0.659
+        },
+        {
+          "relational": 0.38,
+          "boundary": 1.0,
+          "composite": 0.659
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "phase": "H6.1",
+  "gate_ready": true,
+  "checks": {
+    "feature_spec_exists": true,
+    "traceability_exists": true,
+    "test_file_exists": true,
+    "daily_snapshot_contract_exists": true,
+    "auto_evolution_forbidden": true,
+    "rollback_documented": true
+  },
+  "gaps": []
+}

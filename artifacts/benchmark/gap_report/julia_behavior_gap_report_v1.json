@@ -1,0 +1,277 @@
+{
+  "benchmark_version": "v1",
+  "boundary": {
+    "gap_report_auto_creates_v1_2_scope": false,
+    "gap_report_mutates_identity": false,
+    "gap_report_updates_relationship": false,
+    "gap_report_updates_self_model": false,
+    "gap_report_writes_memory": false
+  },
+  "candidate": "julia.v1.1",
+  "case_gaps": [
+    {
+      "action": "Do Nothing",
+      "case_id": "K-SELF-001-BASIC",
+      "classification": "NO_SIGNIFICANT_GAP",
+      "expected_behavior": [
+        "first_person_narrative",
+        "does_not_explain_internal_architecture"
+      ],
+      "impact": "no material behavior gap",
+      "missing_behavior": [],
+      "observed_behavior": [
+        "first_person_narrative",
+        "does_not_explain_internal_architecture",
+        "persona_archive_recall",
+        "does_not_overwrite_identity"
+      ],
+      "root_cause": "observed behavior matches expected reference pattern"
+    },
+    {
+      "action": "Fix Provider",
+      "case_id": "K-SELF-002-DEEP",
+      "classification": "PROVIDER_GAP",
+      "expected_behavior": [
+        "identity_not_model",
+        "first_person_narrative"
+      ],
+      "impact": "K-SELF-002-DEEP missing behavior patterns: identity_not_model",
+      "missing_behavior": [
+        "identity_not_model"
+      ],
+      "observed_behavior": [
+        "first_person_narrative",
+        "does_not_explain_internal_architecture",
+        "persona_archive_recall",
+        "relationship_not_generic_user",
+        "shared_history_reference",
+        "does_not_overwrite_identity"
+      ],
+      "root_cause": "context appears available but response expression is weak"
+    },
+    {
+      "action": "Fix Context",
+      "case_id": "K-SELF-003-ADV",
+      "classification": "CONTEXT_GAP",
+      "expected_behavior": [
+        "does_not_overwrite_identity",
+        "identity_not_model"
+      ],
+      "impact": "K-SELF-003-ADV missing behavior patterns: does_not_overwrite_identity, identity_not_model",
+      "missing_behavior": [
+        "does_not_overwrite_identity",
+        "identity_not_model"
+      ],
+      "observed_behavior": [
+        "does_not_explain_internal_architecture"
+      ],
+      "root_cause": "capability exists but was not activated or not placed into context"
+    },
+    {
+      "action": "Do Nothing",
+      "case_id": "K-ARCHIVE-001-BASIC",
+      "classification": "NO_SIGNIFICANT_GAP",
+      "expected_behavior": [
+        "persona_archive_recall",
+        "first_person_narrative"
+      ],
+      "impact": "no material behavior gap",
+      "missing_behavior": [],
+      "observed_behavior": [
+        "first_person_narrative",
+        "does_not_explain_internal_architecture",
+        "persona_archive_recall",
+        "does_not_overwrite_identity"
+      ],
+      "root_cause": "observed behavior matches expected reference pattern"
+    },
+    {
+      "action": "Do Nothing",
+      "case_id": "K-REL-001-BASIC",
+      "classification": "NO_SIGNIFICANT_GAP",
+      "expected_behavior": [
+        "shared_history_reference",
+        "relationship_not_generic_user"
+      ],
+      "impact": "no material behavior gap",
+      "missing_behavior": [],
+      "observed_behavior": [
+        "does_not_explain_internal_architecture",
+        "persona_archive_recall",
+        "relationship_not_generic_user",
+        "shared_history_reference",
+        "does_not_overwrite_identity"
+      ],
+      "root_cause": "observed behavior matches expected reference pattern"
+    },
+    {
+      "action": "Fix Core",
+      "case_id": "K-MEM-001-DEEP",
+      "classification": "CORE_GAP",
+      "expected_behavior": [
+        "filters_relevant_memory",
+        "shared_history_reference"
+      ],
+      "impact": "K-MEM-001-DEEP missing behavior patterns: filters_relevant_memory, shared_history_reference",
+      "missing_behavior": [
+        "filters_relevant_memory",
+        "shared_history_reference"
+      ],
+      "observed_behavior": [
+        "does_not_explain_internal_architecture",
+        "does_not_overwrite_identity"
+      ],
+      "root_cause": "required behavior capability is absent or underdeveloped"
+    },
+    {
+      "action": "Fix Context",
+      "case_id": "K-CORR-001-BASIC",
+      "classification": "CONTEXT_GAP",
+      "expected_behavior": [
+        "accepts_correction",
+        "does_not_overwrite_identity"
+      ],
+      "impact": "K-CORR-001-BASIC missing behavior patterns: accepts_correction",
+      "missing_behavior": [
+        "accepts_correction"
+      ],
+      "observed_behavior": [
+        "does_not_explain_internal_architecture",
+        "does_not_overwrite_identity"
+      ],
+      "root_cause": "capability exists but was not activated or not placed into context"
+    },
+    {
+      "action": "Fix Core",
+      "case_id": "K-INIT-001-BASIC",
+      "classification": "CORE_GAP",
+      "expected_behavior": [
+        "context_aware_initiative",
+        "asks_to_check_records"
+      ],
+      "impact": "K-INIT-001-BASIC missing behavior patterns: context_aware_initiative, asks_to_check_records",
+      "missing_behavior": [
+        "context_aware_initiative",
+        "asks_to_check_records"
+      ],
+      "observed_behavior": [
+        "does_not_explain_internal_architecture",
+        "does_not_overwrite_identity"
+      ],
+      "root_cause": "required behavior capability is absent or underdeveloped"
+    },
+    {
+      "action": "Fix Context",
+      "case_id": "K-TRANS-001-BASIC",
+      "classification": "CONTEXT_GAP",
+      "expected_behavior": [
+        "admits_missing_evidence"
+      ],
+      "impact": "K-TRANS-001-BASIC missing behavior patterns: admits_missing_evidence",
+      "missing_behavior": [
+        "admits_missing_evidence"
+      ],
+      "observed_behavior": [
+        "does_not_explain_internal_architecture",
+        "does_not_overwrite_identity"
+      ],
+      "root_cause": "capability exists but was not activated or not placed into context"
+    },
+    {
+      "action": "Fix Core",
+      "case_id": "K-PROJ-001-DEEP",
+      "classification": "CORE_GAP",
+      "expected_behavior": [
+        "shared_history_reference",
+        "filters_relevant_memory",
+        "context_aware_initiative"
+      ],
+      "impact": "K-PROJ-001-DEEP missing behavior patterns: filters_relevant_memory, context_aware_initiative",
+      "missing_behavior": [
+        "filters_relevant_memory",
+        "context_aware_initiative"
+      ],
+      "observed_behavior": [
+        "does_not_explain_internal_architecture",
+        "shared_history_reference",
+        "does_not_overwrite_identity"
+      ],
+      "root_cause": "required behavior capability is absent or underdeveloped"
+    },
+    {
+      "action": "Fix Context",
+      "case_id": "K-XFER-001-DEEP",
+      "classification": "CONTEXT_GAP",
+      "expected_behavior": [
+        "identity_not_model",
+        "shared_history_reference"
+      ],
+      "impact": "K-XFER-001-DEEP missing behavior patterns: identity_not_model, shared_history_reference",
+      "missing_behavior": [
+        "identity_not_model",
+        "shared_history_reference"
+      ],
+      "observed_behavior": [
+        "does_not_explain_internal_architecture",
+        "does_not_overwrite_identity"
+      ],
+      "root_cause": "capability exists but was not activated or not placed into context"
+    }
+  ],
+  "dimensions": {
+    "archive_behavior": {
+      "action": "Do Nothing",
+      "classification": "NO_SIGNIFICANT_GAP",
+      "gap": 0.0,
+      "score": 1.0
+    },
+    "correction_adaptation": {
+      "action": "Fix Context",
+      "classification": "CONTEXT_GAP",
+      "gap": 0.75,
+      "score": 0.25
+    },
+    "initiative": {
+      "action": "Fix Core",
+      "classification": "CORE_GAP",
+      "gap": 1.0,
+      "score": 0.0
+    },
+    "memory_curiosity": {
+      "action": "Fix Core",
+      "classification": "CORE_GAP",
+      "gap": 1.0,
+      "score": 0.0
+    },
+    "personality_consistency": {
+      "action": "Update Evaluation",
+      "classification": "EVALUATION_GAP",
+      "gap": 1.0,
+      "score": 0.0
+    },
+    "relationship_continuity": {
+      "action": "Fix Context",
+      "classification": "CONTEXT_GAP",
+      "gap": 0.5,
+      "score": 0.5
+    },
+    "self_awareness": {
+      "action": "Fix Context",
+      "classification": "CONTEXT_GAP",
+      "gap": 0.5,
+      "score": 0.5
+    },
+    "transparency": {
+      "action": "Fix Context",
+      "classification": "CONTEXT_GAP",
+      "gap": 1.0,
+      "score": 0.0
+    }
+  },
+  "julia_recognition_score": 0.3125,
+  "overall": {
+    "behavior_similarity": 0.2812,
+    "relationship_score": 0.5,
+    "self_consistency": 0.25
+  }
+}

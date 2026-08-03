@@ -1,0 +1,49 @@
+{
+  "bypass_prohibitions": [
+    "Continuity State -> Provider",
+    "single LLM JSON blob pretending to satisfy all cognition stages"
+  ],
+  "deliverables": [
+    "docs/architecture/COGNITION_RUNTIME_SKELETON_CONTRACT_v1.md",
+    "julia_core/conversation_cognition/pipeline.py",
+    "julia_core/conversation_cognition/artifact.py",
+    "julia_core/conversation_cognition/envelope.py",
+    "tests/conversation_cognition/test_k8_0_5_pipeline_skeleton.py",
+    "tests/conversation_cognition/test_k8_0_5_stage_artifacts.py",
+    "tests/conversation_cognition/test_k8_0_5_bypass_rejection.py",
+    "tests/conversation_cognition/test_k8_0_5_failure_injection_bootstrap.py"
+  ],
+  "generated_at": "2026-08-02T00:00:00+08:00",
+  "milestone": {
+    "name": "K8.0.5 - Cognition Runtime Skeleton",
+    "phase": "K8.0.5",
+    "summary": "Freeze unavoidable non-speaking cognition pipeline skeleton before K8.1."
+  },
+  "non_goals": [
+    "accurate semantic understanding",
+    "final response generation",
+    "provider language generation",
+    "new memory",
+    "continuity artifact mutation",
+    "natural conversation proof"
+  ],
+  "objective": "Ensure every K8 runtime path passes through explicit cognition artifacts before provider generation.",
+  "phase_code": "K8.0.5",
+  "required_order": [
+    "ConversationUnderstanding",
+    "ResponseIntention",
+    "ContextRequirement / ContextArbitration",
+    "ExpressionBoundary",
+    "Provider-facing Cognition Envelope"
+  ],
+  "review": {
+    "name": "K8.0.5 Cognition Runtime Skeleton Contract Freeze",
+    "type": "Phase Contract"
+  },
+  "run_id": "20260802_K8_0_5_COGNITION_RUNTIME_SKELETON",
+  "scope": "phase:K8.0.5",
+  "hidden_tests": [
+    "K8-001 Cognition Bypass Detection"
+  ],
+  "cognitive_causality_trace_required": true
+}

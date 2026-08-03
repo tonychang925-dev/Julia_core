@@ -1,0 +1,16 @@
+{
+  "phase_code": "E2.1.3",
+  "phase_name": "Memory Migration",
+  "parent_milestone": "E2.1 Runtime Continuity Integration",
+  "status": "COMPLETE",
+  "risk_level": "P0",
+  "generated_at": "2026-08-02",
+  "adr": "docs/adrs/ADR-016-memory-os-authority-boundary.md",
+  "objective": "Migrate Julia AI Assistant memory consumption from legacy memory-to-prompt paths to Core-governed memory refs.",
+  "non_goals": [
+    "No new Persona migration",
+    "No live provider quality evaluation",
+    "No full compact survival real test yet",
+    "No product UI changes"
+  ]
+}

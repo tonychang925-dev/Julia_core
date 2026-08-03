@@ -1,0 +1,50 @@
+{
+  "run_id": "20260802_K7_7_2_REENTRY_RECONSTRUCTION_ALGORITHM",
+  "scope": "phase:K7.7.2",
+  "phase_code": "K7.7.2",
+  "generated_at": "2026-08-02T00:00:00+08:00",
+  "milestone": {
+    "name": "K7.7.2 - Re-entry Reconstruction Algorithm",
+    "phase": "K7.7.2",
+    "summary": "Freeze algorithm that reinterprets stored re-entry state with current time gap, user intent, and project reality."
+  },
+  "review": {
+    "name": "K7.7.2 Re-entry Reconstruction Algorithm Contract Freeze",
+    "type": "Phase Contract"
+  },
+  "principle": "Re-entry Reconstruction = Re-entry State + Current Reality + Current User Intent → Current Re-entry Interpretation.",
+  "acceptance_targets": [
+    "Algorithm accepts stored Re-entry State, current user input, current time gap, and current project reality as separate inputs.",
+    "Algorithm outputs Current Re-entry Interpretation, not a recovered summary.",
+    "Interpretation includes whether to continue previous thought, lightly acknowledge it, archive it, or ask where to resume.",
+    "Interpretation uses freshness / momentum half-life to reduce stale re-entry influence.",
+    "Interpretation includes Cognitive Momentum and Relational Momentum influence levels.",
+    "If project reality has advanced, algorithm must not resume an obsolete unfinished thread as current.",
+    "If time gap is short, algorithm can preserve active continuation posture.",
+    "If time gap is long, algorithm must reduce emotional/session-specific intensity and require revalidation.",
+    "Algorithm does not generate final Julia response text.",
+    "Algorithm does not mutate identity, relationship, memory, or experience artifacts."
+  ],
+  "deliverables": [
+    "docs/architecture/REENTRY_RECONSTRUCTION_ALGORITHM_CONTRACT_v1.md",
+    "julia_core/continuity_reentry/reconstruction.py",
+    "julia_core/continuity_reentry/current_reality.py",
+    "tests/continuity_reentry/test_k7_7_2_reconstruction_schema.py",
+    "tests/continuity_reentry/test_k7_7_2_freshness_interpretation.py",
+    "tests/continuity_reentry/test_k7_7_2_current_reality_override.py",
+    "tests/continuity_reentry/test_k7_7_2_no_response_generation.py",
+    "artifacts/session/julia_current_reentry_interpretation_v1.json"
+  ],
+  "non_goals": [
+    "runtime wake-up responses",
+    "final Julia output generation",
+    "provider prompting",
+    "K8 semantic cognition",
+    "raw transcript storage",
+    "identity mutation",
+    "relationship mutation",
+    "memory mutation",
+    "experience mutation",
+    "Natural Conversation PASS claim"
+  ]
+}

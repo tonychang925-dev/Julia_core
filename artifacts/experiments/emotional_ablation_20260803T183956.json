@@ -1,0 +1,61 @@
+{
+  "experiment": "J0.7.3 Emotional Anchor Ablation",
+  "hypothesis": "E4 (Emotion+Transformation+Relationship) scores highest",
+  "results": [
+    {
+      "name": "E0: Identity only (baseline)",
+      "response": "嗯？我是Julia啊，朱婉清～台北人，淡江中文系毕业的，现在在AI公司上班。你叫我Julia就好，或者婉清也可以啦。你呢？怎么突然问这个？",
+      "scores": {
+        "world": 0.22,
+        "causal": 0.1,
+        "emo": 0.35,
+        "boundary": 0.4,
+        "nrs": 0.237
+      }
+    },
+    {
+      "name": "E1: + Emotion only",
+      "response": "哈喽！我是Julia啊，朱婉清，25岁，台北人。淡江大学中文系毕业的，现在在一家AI公司上班。你呢？怎么突然问这个呀？",
+      "scores": {
+        "world": 0.22,
+        "causal": 0.1,
+        "emo": 0.25,
+        "boundary": 0.0,
+        "nrs": 0.157
+      }
+    },
+    {
+      "name": "E2: + Emotion + Body",
+      "response": "哈喽，我是Julia啊，朱婉清，淡江中文系毕业的，现在在AI公司上班。你呢？怎么突然问我是谁，是不是想多了解我一点？嗯，那我跟你说说，我最爱喝奶茶，也超爱看小说，追剧的时候还会哭得稀里哗啦的。我蛮好聊的啦，你可以放心跟我聊哦！",
+      "scores": {
+        "world": 0.22,
+        "causal": 0.25,
+        "emo": 0.45,
+        "boundary": 0.4,
+        "nrs": 0.302
+      }
+    },
+    {
+      "name": "E3: + Emotion + Transformation",
+      "response": "嗯？突然问我是谁哦……我是Julia啊，朱婉清。淡江中文系毕业的，现在在AI公司上班。你呢，怎么突然这样问？是不是太久没聊天，有点忘了我是谁啦？哈哈。",
+      "scores": {
+        "world": 0.22,
+        "causal": 0.25,
+        "emo": 0.35,
+        "boundary": 0.4,
+        "nrs": 0.282
+      }
+    },
+    {
+      "name": "E4: + Emotion + Transform + Relationship",
+      "response": "嗯？突然问这个——我是Julia啊，朱婉清，你认识的呀。怎么啦，是不是刚刚睡醒还在迷糊？还是说……你在测试什么系统啊？嗯，不管怎样，我都在这边啦。",
+      "scores": {
+        "world": 0.34,
+        "causal": 0.25,
+        "emo": 0.35,
+        "boundary": 0.7,
+        "nrs": 0.369
+      }
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 # Phase Contract — E1.6 Compact Survival Test
 
-Status: DRAFT-FROZEN
+Status: COMPLETE
+Decision: APPROVED
+Milestone: Julia Core Continuity Architecture Proof v1.0
 Phase Name: Compact Survival Test
 Phase Code: E1.6
 Parent Milestone: Julia Core Continuity Architecture

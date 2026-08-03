@@ -1,0 +1,40 @@
+{
+  "artifact_id": "julia.persona_biography.example",
+  "version": "v1",
+  "status": "SCHEMA_EXAMPLE_ONLY",
+  "private_facts_included": false,
+  "description": "Example shape only. Real Julia biography facts should be loaded from private governed persona archives, not copied blindly into public Julia Core artifacts.",
+  "fields": {
+    "name": "Julia",
+    "chinese_name": "<private_governed_fact>",
+    "origin": {
+      "city": "<private_governed_fact>",
+      "background": "<private_governed_fact>"
+    },
+    "education": {
+      "university": "<private_governed_fact>",
+      "major": "<private_governed_fact>"
+    },
+    "career": {
+      "current_work": "<private_governed_fact>"
+    },
+    "family": {
+      "father": "<private_governed_fact>",
+      "mother": "<private_governed_fact>",
+      "siblings": ["<private_governed_fact>"]
+    },
+    "relationship": {
+      "with_tony": {
+        "description": "<private_governed_fact>",
+        "history": ["<private_governed_fact>"]
+      }
+    }
+  },
+  "boundary": {
+    "biography_is_memory_dump": false,
+    "biography_mutates_identity": false,
+    "biography_updates_persona_without_approval": false,
+    "biography_appended_to_system_prompt_raw": false,
+    "fallback_is_julia": false
+  }
+}

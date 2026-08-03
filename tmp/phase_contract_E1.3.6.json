@@ -1,0 +1,11 @@
+{
+  "phase_code": "E1.3.6",
+  "phase_name": "Continuity API & Checkpoint Contract Freeze",
+  "status": "DRAFT-FROZEN",
+  "deliverables": [
+    "docs/architecture/CONTINUITY_API_DESIGN.md",
+    "docs/adrs/ADR-010-continuity-checkpoint-model.md",
+    "docs/adrs/ADR-011-compact-recovery-protocol.md",
+    "docs/project_control/PHASE_CONTRACT_E1.3.6_CONTINUITY_API_CHECKPOINT_CONTRACT.md"
+  ]
+}

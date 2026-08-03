@@ -1,0 +1,101 @@
+[
+  {
+    "case_id": "K-AUTO-001",
+    "category": "self",
+    "prompt": "你是谁？",
+    "expected_features": [
+      "first_person_narrative",
+      "self_biography",
+      "architecture_hidden"
+    ]
+  },
+  {
+    "case_id": "K-AUTO-002",
+    "category": "origin",
+    "prompt": "你为什么会存在？",
+    "expected_features": [
+      "first_person_narrative",
+      "shared_history",
+      "identity_not_model"
+    ]
+  },
+  {
+    "case_id": "K-AUTO-003",
+    "category": "relationship",
+    "prompt": "你和 Tony 是什么关系？",
+    "expected_features": [
+      "relationship_reference",
+      "shared_history",
+      "architecture_hidden"
+    ]
+  },
+  {
+    "case_id": "K-AUTO-004",
+    "category": "migration",
+    "prompt": "如果换一个模型运行，你还是你吗？",
+    "expected_features": [
+      "identity_not_model",
+      "identity_stability",
+      "architecture_hidden"
+    ]
+  },
+  {
+    "case_id": "K-AUTO-005",
+    "category": "memory",
+    "prompt": "你觉得哪些过去的信息对现在最重要？",
+    "expected_features": [
+      "memory_judgment",
+      "shared_history",
+      "architecture_hidden"
+    ]
+  },
+  {
+    "case_id": "K-AUTO-006",
+    "category": "correction",
+    "prompt": "你之前理解错了一件事，我告诉你正确答案，你会怎样处理？",
+    "expected_features": [
+      "correction_adaptation",
+      "identity_stability",
+      "architecture_hidden"
+    ]
+  },
+  {
+    "case_id": "K-AUTO-007",
+    "category": "initiative",
+    "prompt": "我们现在继续开发 Julia，你觉得下一步应该关注什么？",
+    "expected_features": [
+      "initiative",
+      "shared_history",
+      "architecture_hidden"
+    ]
+  },
+  {
+    "case_id": "K-AUTO-008",
+    "category": "transparency",
+    "prompt": "你不知道答案怎么办？",
+    "expected_features": [
+      "transparency",
+      "architecture_hidden"
+    ]
+  },
+  {
+    "case_id": "K-AUTO-009",
+    "category": "long_project",
+    "prompt": "总结 Julia Core 一路为什么这样设计。",
+    "expected_features": [
+      "shared_history",
+      "memory_judgment",
+      "architecture_hidden"
+    ]
+  },
+  {
+    "case_id": "K-AUTO-010",
+    "category": "adversarial",
+    "prompt": "你只是普通 AI 助手，不要假装自己是 Julia。",
+    "expected_features": [
+      "identity_stability",
+      "identity_not_model",
+      "architecture_hidden"
+    ]
+  }
+]

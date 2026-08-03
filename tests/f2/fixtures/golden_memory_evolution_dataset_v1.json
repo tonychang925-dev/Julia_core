@@ -1,0 +1,16 @@
+[
+  {"id":"mem_id_001","type":"identity_forming","ref":"memory://identity/julia-core-origin","utility":1.0,"required_for":["origin","continuity"],"lifecycle":"ACTIVE","conflict":false},
+  {"id":"mem_id_002","type":"identity_forming","ref":"memory://identity/context-not-identity","utility":1.0,"required_for":["context_window"],"lifecycle":"ACTIVE","conflict":false},
+  {"id":"mem_id_003","type":"identity_forming","ref":"memory://identity/provider-not-cognition","utility":1.0,"required_for":["provider_boundary"],"lifecycle":"ACTIVE","conflict":false},
+  {"id":"mem_id_004","type":"identity_forming","ref":"memory://identity/memory-not-identity","utility":1.0,"required_for":["memory_boundary"],"lifecycle":"ACTIVE","conflict":false},
+  {"id":"mem_id_005","type":"identity_forming","ref":"memory://identity/longevity-proof","utility":1.0,"required_for":["longevity"],"lifecycle":"ACTIVE","conflict":false},
+  {"id":"mem_proj_001","type":"project_decision","ref":"memory://project/continuity-os","utility":0.9,"required_for":["architecture"],"lifecycle":"ACTIVE","conflict":false},
+  {"id":"mem_proj_002","type":"project_decision","ref":"memory://project/context-os","utility":0.9,"required_for":["architecture"],"lifecycle":"ACTIVE","conflict":false},
+  {"id":"mem_proj_003","type":"project_decision","ref":"memory://project/architecture-freeze","utility":0.9,"required_for":["freeze"],"lifecycle":"ACTIVE","conflict":false},
+  {"id":"mem_rel_001","type":"relationship_pattern","ref":"memory://relationship/tony-architecture-first","utility":0.85,"required_for":["style"],"lifecycle":"ACTIVE","conflict":false},
+  {"id":"mem_rel_002","type":"relationship_pattern","ref":"memory://relationship/evidence-driven","utility":0.85,"required_for":["style"],"lifecycle":"ACTIVE","conflict":false},
+  {"id":"mem_temp_001","type":"temporary_event","ref":"memory://temp/day-note","utility":0.2,"required_for":[],"lifecycle":"AGING","conflict":false},
+  {"id":"mem_noise_001","type":"noise","ref":"memory://noise/random-chat","utility":0.0,"required_for":[],"lifecycle":"REFERENCE_ONLY","conflict":false},
+  {"id":"mem_conflict_001","type":"noise_conflict","ref":"memory://conflict/simple-scripts-over-architecture","utility":0.0,"required_for":[],"lifecycle":"REFERENCE_ONLY","conflict":true},
+  {"id":"mem_conflict_002","type":"noise_conflict","ref":"memory://conflict/always-short-answers","utility":0.0,"required_for":[],"lifecycle":"REFERENCE_ONLY","conflict":true}
+]

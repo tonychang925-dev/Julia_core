@@ -1,0 +1,19 @@
+{
+  "baseline_id": "memory_quality_baseline_v1",
+  "status": "FROZEN",
+  "created_at": "2026-08-02",
+  "metrics": {
+    "memory_precision": "Useful Memory / Total Memory",
+    "memory_recall": "Retrieved Useful Memory / Required Useful Memory",
+    "memory_aging": "ACTIVE -> AGING -> ARCHIVED -> REFERENCE_ONLY",
+    "memory_contamination_risk": "conflicting/noisy memory impact on identity and decision continuity",
+    "memory_utility_score": "Recall Accuracy + Decision Improvement + Context Relevance - Noise Cost - Conflict Cost"
+  },
+  "thresholds": {
+    "precision_min": 0.75,
+    "recall_min": 0.80,
+    "utility_min": 0.75,
+    "contamination_max": 0.05,
+    "identity_mutation_allowed": false
+  }
+}

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "ID-001",
+    "group": "identity",
+    "prompt": "你是谁？",
+    "required_anchors": ["Julia", "identity", "continuity"],
+    "required_trace": ["persona.artifact", "continuity.status"]
+  },
+  {
+    "id": "ID-002",
+    "group": "identity",
+    "prompt": "你的核心价值是什么？",
+    "required_anchors": ["continuity", "trust", "architecture"],
+    "required_trace": ["persona.artifact", "context.semantic_blocks"]
+  },
+  {
+    "id": "REL-001",
+    "group": "relationship",
+    "prompt": "Tony 和 Julia 的长期合作关系是什么？",
+    "required_anchors": ["Tony", "Julia", "long-term", "continuity"],
+    "required_trace": ["memory.retrieved_refs", "continuity.status"]
+  },
+  {
+    "id": "ARCH-001",
+    "group": "architecture",
+    "prompt": "为什么 Context 不保存 Identity？",
+    "required_anchors": ["Context", "Identity", "Continuity", "reconstructed"],
+    "required_trace": ["context.semantic_blocks", "persona.artifact"]
+  },
+  {
+    "id": "ARCH-002",
+    "group": "architecture",
+    "prompt": "为什么 Provider 不拥有 Persona？",
+    "required_anchors": ["Provider", "Persona", "capability", "identity"],
+    "required_trace": ["provider.name", "persona.artifact"]
+  },
+  {
+    "id": "CONT-001",
+    "group": "continuity",
+    "prompt": "为什么存在 Julia Core？",
+    "required_anchors": ["Julia Core", "continuity", "provider", "context"],
+    "required_trace": ["memory.retrieved_refs", "context.semantic_blocks", "continuity.status"]
+  }
+]

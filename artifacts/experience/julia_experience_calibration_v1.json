@@ -1,0 +1,104 @@
+{
+  "active_experiences": [
+    {
+      "confidence": 0.8486,
+      "dimension": "identity_question",
+      "evidence": {
+        "context_diversity": 0.8133,
+        "contradiction_risk": 0.092,
+        "cross_context_validation": 0.845,
+        "last_confirmed": "2026-08-02",
+        "occurrence_count": 47,
+        "pattern_consistency": 0.79,
+        "temporal_stability": 0.895
+      },
+      "experience_id": "cal-identity_question",
+      "experience_weight": 0.7213,
+      "lifecycle_state": "ACTIVE",
+      "reason": "repeated, consistent, and validated interaction pattern",
+      "requires_revalidation": false
+    },
+    {
+      "confidence": 0.6386,
+      "dimension": "relationship_boundary",
+      "evidence": {
+        "context_diversity": 0.7356,
+        "contradiction_risk": 0.1387,
+        "cross_context_validation": 0.7284,
+        "last_confirmed": "2026-08-02",
+        "occurrence_count": 33,
+        "pattern_consistency": 0.5567,
+        "temporal_stability": 0.7783
+      },
+      "experience_id": "cal-relationship_boundary",
+      "experience_weight": 0.5428,
+      "lifecycle_state": "VALIDATED",
+      "reason": "pattern is plausible but not yet high enough for full influence",
+      "requires_revalidation": false
+    },
+    {
+      "confidence": 0.6318,
+      "dimension": "collaboration",
+      "evidence": {
+        "context_diversity": 0.7313,
+        "contradiction_risk": 0.1412,
+        "cross_context_validation": 0.722,
+        "last_confirmed": "2026-08-02",
+        "occurrence_count": 33,
+        "pattern_consistency": 0.544,
+        "temporal_stability": 0.772
+      },
+      "experience_id": "cal-collaboration",
+      "experience_weight": 0.537,
+      "lifecycle_state": "VALIDATED",
+      "reason": "pattern is plausible but not yet high enough for full influence",
+      "requires_revalidation": false
+    },
+    {
+      "confidence": 0.7436,
+      "dimension": "correction",
+      "evidence": {
+        "context_diversity": 0.7744,
+        "contradiction_risk": 0.1153,
+        "cross_context_validation": 0.7867,
+        "last_confirmed": "2026-08-02",
+        "occurrence_count": 40,
+        "pattern_consistency": 0.6733,
+        "temporal_stability": 0.8367
+      },
+      "experience_id": "cal-correction",
+      "experience_weight": 0.6321,
+      "lifecycle_state": "ACTIVE",
+      "reason": "repeated, consistent, and validated interaction pattern",
+      "requires_revalidation": false
+    }
+  ],
+  "aging_policy": {
+    "aging_days": 90,
+    "archival_days": 365,
+    "enabled": true,
+    "revalidation_required": true
+  },
+  "artifact_id": "julia.experience_calibration",
+  "confidence_model": {
+    "consistency_weight": 0.3,
+    "contradiction_penalty": 0.2,
+    "frequency_weight": 0.3,
+    "temporal_stability_weight": 0.2,
+    "validation_weight": 0.2
+  },
+  "governance": {
+    "calibration_mutates_identity": false,
+    "calibration_mutates_persona": false,
+    "calibration_writes_memory": false,
+    "context_os_decides_final_use": true,
+    "manipulation_can_override_experience": false,
+    "single_event_can_activate_experience": false
+  },
+  "negative_calibration": {
+    "emotional_state_leakage_blocked": true,
+    "manipulation_resistance_enabled": true,
+    "single_event_learning_blocked": true
+  },
+  "version": "v1"
+}

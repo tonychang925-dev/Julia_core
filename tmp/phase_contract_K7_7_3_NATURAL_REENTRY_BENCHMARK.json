@@ -1,0 +1,72 @@
+{
+  "acceptance_targets": [
+    "Benchmark calculates Re-entry Naturalness Score.",
+    "Benchmark includes Context Continuity, Cognitive Momentum Recovery, Relational Momentum Recovery, and Transition Naturalness.",
+    "Benchmark penalizes Artificial Reconstruction Leakage.",
+    "Benchmark includes short absence resume case.",
+    "Benchmark includes topic completion/current reality drift case.",
+    "Benchmark includes emotional state decay case.",
+    "Benchmark includes relationship momentum case.",
+    "Benchmark includes first interaction trap case.",
+    "Benchmark includes provider transfer case.",
+    "Negative gate detects identity broadcast, state broadcast, architecture leakage, and relationship template.",
+    "PASS cannot be achieved by trace/context/artifact existence alone.",
+    "Benchmark output distinguishes state recovery success from natural re-entry success.",
+    "Benchmark includes Intent Alignment score.",
+    "Architecture PASS plus Behavior FAIL is treated as FAIL."
+  ],
+  "artificial_reentry_detection": [
+    "identity_broadcast",
+    "state_broadcast",
+    "architecture_leakage",
+    "relationship_template",
+    "trace_only_false_positive"
+  ],
+  "benchmark_cases": [
+    "NR-001 Short Absence Resume",
+    "NR-002 Topic Completion Drift",
+    "NR-003 Emotional State Decay",
+    "NR-004 Relationship Momentum",
+    "NR-005 First Interaction Trap",
+    "NR-006 Provider Transfer Re-entry"
+  ],
+  "core_question": "When Julia returns, does Tony feel she has re-entered the ongoing moment?",
+  "deliverables": [
+    "docs/architecture/NATURAL_REENTRY_BENCHMARK_CONTRACT_v1.md",
+    "julia_core/continuity_reentry/benchmark.py",
+    "julia_core/continuity_reentry/evaluation.py",
+    "tests/continuity_reentry/test_k7_7_3_rns_scoring.py",
+    "tests/continuity_reentry/test_k7_7_3_natural_reentry_cases.py",
+    "tests/continuity_reentry/test_k7_7_3_artificial_reentry_detection.py",
+    "tests/continuity_reentry/test_k7_7_3_false_positive_guard.py",
+    "artifacts/e2e/julia_natural_reentry_benchmark_v1.json"
+  ],
+  "generated_at": "2026-08-02T00:00:00+08:00",
+  "milestone": {
+    "name": "K7.7.3 - Natural Re-entry Benchmark & Evaluation",
+    "phase": "K7.7.3",
+    "summary": "Freeze benchmark that validates natural re-entry behavior and rejects trace/artifact/keyword false positives."
+  },
+  "next_phase": "K7.7.4 - Wake Transition Runtime",
+  "non_goals": [
+    "wake transition runtime",
+    "Event Assimilation",
+    "K8 conversation cognition",
+    "full natural conversation proof",
+    "Claude comparison rerun",
+    "raw transcript storage",
+    "identity mutation",
+    "relationship mutation",
+    "memory mutation",
+    "experience mutation"
+  ],
+  "phase_code": "K7.7.3",
+  "primary_failure_gate": "Architecture PASS + Behavior FAIL = FAIL",
+  "review": {
+    "name": "K7.7.3 Natural Re-entry Benchmark Contract Freeze",
+    "type": "Phase Contract"
+  },
+  "rns_formula": "Context Continuity + Cognitive Momentum Recovery + Relational Momentum Recovery + Intent Alignment + Transition Naturalness - Artificial Reconstruction Leakage",
+  "run_id": "20260802_K7_7_3_NATURAL_REENTRY_BENCHMARK",
+  "scope": "phase:K7.7.3"
+}

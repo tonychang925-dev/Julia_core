@@ -1,0 +1,12 @@
+{
+  "phase_code": "E2.1.5",
+  "phase_name": "Julia Behavior Regression Gate Alpha",
+  "parent_milestone": "E2.1 Architecture Migration Complete",
+  "status": "DRAFT-FROZEN",
+  "risk_level": "P0",
+  "generated_at": "2026-08-02",
+  "alpha_cases": 10,
+  "behavior_score_min": 80,
+  "architecture_evidence_score_min": 100,
+  "blocking_gate": "legacy prompt leakage"
+}

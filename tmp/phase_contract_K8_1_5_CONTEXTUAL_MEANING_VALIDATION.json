@@ -1,0 +1,38 @@
+{
+  "run_id": "20260802_K8_1_5_CONTEXTUAL_MEANING_VALIDATION",
+  "scope": "phase:K8.1.5",
+  "phase_code": "K8.1.5",
+  "generated_at": "2026-08-02T00:00:00+08:00",
+  "milestone": {
+    "name": "K8.1.5 - Contextual Meaning Validation",
+    "phase": "K8.1.5",
+    "summary": "Validate that Julia understands message meaning in current conversation reality, not literal text alone."
+  },
+  "objective": "Validate contextual meaning before response intention planning.",
+  "required_object": "ConversationMeaningContext",
+  "understanding_states": [
+    "UNDERSTOOD",
+    "PARTIALLY_UNDERSTOOD",
+    "AMBIGUOUS",
+    "UNKNOWN"
+  ],
+  "negative_gates": [
+    "CMV-001 Literal-only Trap",
+    "CMV-002 Same Words, Different Situation",
+    "CMV-003 Context Starvation",
+    "CMV-004 Context Overread",
+    "CMV-005 Single-Blob Understanding Rejection"
+  ],
+  "metrics": {
+    "CMVS": "Literal Accuracy + Contextual Candidate Quality + Missing Information Detection + Uncertainty Calibration - Literal Trap - Context Overread",
+    "URI": "Conversation State Use + Current Situation Use + Re-entry Evidence Use + Relationship Relevance Calibration - Context Starvation - Single-Blob Dependence"
+  },
+  "provider_visible_trace": false,
+  "non_goals": [
+    "Generate Julia response",
+    "Decide response intention",
+    "Select final context block",
+    "Mutate continuity state",
+    "Replace K8.2 or K8.3"
+  ]
+}

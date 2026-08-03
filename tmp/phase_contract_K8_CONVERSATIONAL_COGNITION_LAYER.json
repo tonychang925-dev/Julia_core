@@ -1,0 +1,79 @@
+{
+  "run_id": "20260802_K8_CONVERSATIONAL_COGNITION_LAYER",
+  "scope": "phase:K8",
+  "phase_code": "K8",
+  "generated_at": "2026-08-02T00:00:00+08:00",
+  "milestone": {
+    "name": "K8 - Conversational Cognition Layer",
+    "phase": "K8",
+    "summary": "Freeze the cognition-generation chain that separates continuity state recovery from natural conversation behavior."
+  },
+  "review": {
+    "name": "K8 Conversational Cognition Contract Freeze",
+    "type": "Phase Contract"
+  },
+  "k7_6_refreeze": {
+    "status": "PASS_CONTINUITY_STATE_RECOVERY",
+    "does_not_prove": [
+      "natural_conversation_recovery",
+      "human_like_input_understanding",
+      "response_depth_adaptation",
+      "non_template_conversational_agency"
+    ]
+  },
+  "principles": [
+    "Continuity provides state; cognition decides expression.",
+    "Julia should not recite what she knows; Julia should respond to what Tony means."
+  ],
+  "acceptance_targets": [
+    "K8-A1 Conversation Understanding outputs semantic understanding, user intention, emotional context, conversation stage, and importance.",
+    "K8-A2 Understanding is not keyword-to-reply rules or deterministic personality replies.",
+    "K8-A3 Response Planning outputs depth, tone, stance, continuity_need, and avoid_behavior without generating final answer text.",
+    "K8-A4 Context Selection maps plan to identity/relationship/experience levels none|light|full.",
+    "K8-A5 Provider receives current user message, selected continuity context, and response plan, then generates natural language.",
+    "K8-A6 Short/simple inputs produce short natural responses without archive dump or over-reconstruction.",
+    "K8-A7 Important identity/relationship/existence inputs produce deeper reflective responses without generic AI leakage.",
+    "K8-A8 Fixed opening repetition is detected and rejected.",
+    "K8-A9 Echo fallback is detected and rejected.",
+    "K8-A10 Archive recitation is rejected unless explicitly requested.",
+    "K8-A11 K7 gates remain state recovery gates only.",
+    "K8-A12 Natural Conversation E2E report is separate from K7 continuity reports."
+  ],
+  "deliverables": [
+    "docs/architecture/CONVERSATIONAL_COGNITION_CONTRACT_v1.md",
+    "julia_core/conversation_cognition/understanding.py",
+    "julia_core/conversation_cognition/planning.py",
+    "julia_core/conversation_cognition/context_selection.py",
+    "tests/e2e/test_k8_conversation_understanding.py",
+    "tests/e2e/test_k8_response_planning.py",
+    "tests/e2e/test_k8_natural_conversation_e2e.py",
+    "artifacts/e2e/julia_natural_conversation_e2e_report_v1.json"
+  ],
+  "non_goals": [
+    "new memory system",
+    "identity mutation",
+    "relationship mutation",
+    "experience mutation outside governance",
+    "deterministic Julia replies",
+    "Claude comparison rerun",
+    "keyword-to-answer product behavior",
+    "J phase long-term evolution"
+  ],
+  "conflicts": [
+    {
+      "conflict": "K7.6 as full behavior release vs state recovery only",
+      "adopted": "state recovery only",
+      "reason": "manual real conversation failed natural behavior despite continuity recovery"
+    },
+    {
+      "conflict": "fixed behavior rules vs cognition planning",
+      "adopted": "cognition planning",
+      "reason": "keyword/fixed replies recreate chatbot behavior"
+    },
+    {
+      "conflict": "EXECUTION_GUARDRAILS.md expected by skill but missing",
+      "adopted": "record missing guardrail",
+      "reason": "local filesystem check returned missing"
+    }
+  ]
+}

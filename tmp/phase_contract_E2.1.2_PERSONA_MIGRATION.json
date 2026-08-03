@@ -1,0 +1,16 @@
+{
+  "phase_code": "E2.1.2",
+  "phase_name": "Persona Migration",
+  "parent_milestone": "E2.1 Runtime Continuity Integration",
+  "status": "COMPLETE",
+  "risk_level": "P0",
+  "generated_at": "2026-08-02",
+  "adr": "docs/adrs/ADR-015-persona-artifact-authority-boundary.md",
+  "objective": "Migrate Julia AI Assistant persona consumption from legacy giant prompt construction to Core Persona Artifact consumption.",
+  "non_goals": [
+    "No Memory migration",
+    "No Context OS integration beyond persona artifact trace",
+    "No continuity checkpoint creation by Persona Engine",
+    "No live provider quality evaluation"
+  ]
+}

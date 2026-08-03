@@ -1,0 +1,14 @@
+{
+  "phase": "OPERATING_MODE_V1",
+  "gate_ready": true,
+  "tasks": [
+    {
+      "task_id": "OM-v1-T01",
+      "requirement_ids": ["REQ-OM-V1-ACTIVATION"],
+      "acceptance_ids": ["ACPT-OM-001"],
+      "test_case_ids": ["OM-001", "OM-002", "OM-003", "OM-004"],
+      "test_commands": ["python -m unittest tests.operation.test_operating_mode_activation -q"]
+    }
+  ],
+  "gaps": []
+}

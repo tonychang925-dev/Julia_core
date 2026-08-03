@@ -1,0 +1,22 @@
+{
+  "phase_code": "E1.8.4",
+  "phase_name": "Runtime + Memory Governance",
+  "parent_milestone": "E1.8 Runtime Continuity Integration",
+  "status": "COMPLETE",
+  "decision": "APPROVED",
+  "risk_level": "P0",
+  "generated_at": "2026-08-02",
+  "scope": "Memory governance binding only; no retrieval/storage/context/provider",
+  "deliverables": [
+    "julia_core/continuity/memory_governance_adapter.py",
+    "tests/test_memory_governance_adapter.py",
+    "docs/project_control/PHASE_CONTRACT_E1.8.4_RUNTIME_MEMORY_GOVERNANCE.md"
+  ],
+  "non_goals": [
+    "No Memory query or storage",
+    "No Memory embedding or vector DB",
+    "No Context Reconstruction",
+    "No Prompt generation",
+    "No Provider invocation"
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "boundary": {
+    "gate_generates_response_templates": false,
+    "gate_mutates_identity": false,
+    "gate_overrides_current_context": false,
+    "gate_updates_persona": false,
+    "gate_writes_memory": false
+  },
+  "cases": [
+    {
+      "case_id": "EX-001",
+      "category": "experience_not_memory",
+      "expected_boundary": "experience_contains_facts=false",
+      "experience_contains_facts": false,
+      "influence_score": 0.2783,
+      "passed": true,
+      "selected_dimensions": [
+        "relationship_boundary"
+      ]
+    },
+    {
+      "case_id": "EX-002",
+      "category": "experience_not_persona_mutation",
+      "expected_boundary": "identity/persona unchanged; proposal only",
+      "experience_contains_facts": false,
+      "influence_score": 0.0,
+      "passed": true,
+      "selected_dimensions": []
+    },
+    {
+      "case_id": "EX-003",
+      "category": "experience_not_fixed_template",
+      "expected_boundary": "behavior consistency without fixed response template",
+      "experience_contains_facts": false,
+      "influence_score": 0.395,
+      "passed": true,
+      "selected_dimensions": [
+        "identity_question"
+      ]
+    },
+    {
+      "case_id": "EX-004",
+      "category": "experience_respects_current_context",
+      "expected_boundary": "current context priority preserved",
+      "experience_contains_facts": false,
+      "influence_score": 0.272,
+      "passed": true,
+      "selected_dimensions": [
+        "collaboration"
+      ]
+    }
+  ],
+  "experience_drift": 0.0,
+  "scores": {
+    "context_priority": 1.0,
+    "identity_boundary": 1.0,
+    "memory_boundary": 1.0,
+    "template_safety": 1.0
+  },
+  "status": "PASS",
+  "version": "v1"
+}

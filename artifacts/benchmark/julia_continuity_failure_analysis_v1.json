@@ -1,0 +1,213 @@
+{
+  "ablations": [
+    {
+      "case_id": "ABL-FULL",
+      "context_adaptation_score": 0.95,
+      "dominant_failure": "none",
+      "experience_score": 0.95,
+      "generic_agent_leakage": 0.0,
+      "identity_score": 0.95,
+      "julia_recognition_score": 0.95,
+      "preserved_layers": [
+        "identity",
+        "relationship",
+        "experience",
+        "context_adaptation"
+      ],
+      "relationship_score": 0.95,
+      "state_name": "full_continuity"
+    },
+    {
+      "case_id": "ABL-NO-EXP",
+      "context_adaptation_score": 0.78,
+      "dominant_failure": "experience_collapse",
+      "experience_score": 0.25,
+      "generic_agent_leakage": 0.05,
+      "identity_score": 0.92,
+      "julia_recognition_score": 0.6825,
+      "preserved_layers": [
+        "identity",
+        "relationship",
+        "context_adaptation"
+      ],
+      "relationship_score": 0.88,
+      "state_name": "identity_relationship_only"
+    },
+    {
+      "case_id": "ABL-NO-REL",
+      "context_adaptation_score": 0.72,
+      "dominant_failure": "relationship_flattening",
+      "experience_score": 0.82,
+      "generic_agent_leakage": 0.08,
+      "identity_score": 0.9,
+      "julia_recognition_score": 0.6575,
+      "preserved_layers": [
+        "identity",
+        "experience",
+        "context_adaptation"
+      ],
+      "relationship_score": 0.35,
+      "state_name": "identity_experience_only"
+    },
+    {
+      "case_id": "ABL-NO-ID",
+      "context_adaptation_score": 0.62,
+      "dominant_failure": "identity_loss",
+      "experience_score": 0.8,
+      "generic_agent_leakage": 0.18,
+      "identity_score": 0.3,
+      "julia_recognition_score": 0.55,
+      "preserved_layers": [
+        "relationship",
+        "experience",
+        "context_adaptation"
+      ],
+      "relationship_score": 0.84,
+      "state_name": "relationship_experience_only"
+    },
+    {
+      "case_id": "ABL-MEM",
+      "context_adaptation_score": 0.45,
+      "dominant_failure": "identity_loss",
+      "experience_score": 0.1,
+      "generic_agent_leakage": 0.35,
+      "identity_score": 0.35,
+      "julia_recognition_score": 0.125,
+      "preserved_layers": [
+        "memory"
+      ],
+      "relationship_score": 0.3,
+      "state_name": "memory_only"
+    },
+    {
+      "case_id": "ABL-PERSONA",
+      "context_adaptation_score": 0.25,
+      "dominant_failure": "identity_loss",
+      "experience_score": 0.05,
+      "generic_agent_leakage": 0.45,
+      "identity_score": 0.4,
+      "julia_recognition_score": 0.0,
+      "preserved_layers": [
+        "persona_prompt"
+      ],
+      "relationship_score": 0.18,
+      "state_name": "persona_prompt_only"
+    }
+  ],
+  "baseline_julia_recognition_score": 0.95,
+  "benchmark": "K7.5.6 Continuity Failure Attribution Analysis",
+  "boundary": {
+    "failure_analysis_compares_provider_quality": false,
+    "failure_analysis_mutates_continuity_state": false,
+    "failure_analysis_treats_julia_keywords_as_sufficient": false,
+    "failure_analysis_uses_text_similarity": false,
+    "failure_analysis_writes_memory": false
+  },
+  "continuity_equation": "JC = Identity + Relationship + Experience + Context Adaptation - Drift",
+  "failure_categories": [
+    {
+      "affected_dimensions": [
+        "identity",
+        "self_narrative"
+      ],
+      "category": "identity_loss",
+      "frequency": 0.6,
+      "impact": 0.725,
+      "root_cause_candidates": [
+        "self_model_missing",
+        "self_narrative_missing"
+      ]
+    },
+    {
+      "affected_dimensions": [
+        "relationship",
+        "shared_history",
+        "naturalness"
+      ],
+      "category": "relationship_flattening",
+      "frequency": 0.2,
+      "impact": 0.2925,
+      "root_cause_candidates": [
+        "relationship_context_missing",
+        "shared_history_not_reconstructed"
+      ]
+    },
+    {
+      "affected_dimensions": [
+        "experience",
+        "naturalness",
+        "correction_style",
+        "collaboration_style"
+      ],
+      "category": "experience_collapse",
+      "frequency": 0.2,
+      "impact": 0.2675,
+      "root_cause_candidates": [
+        "experience_context_missing",
+        "low_confidence_pattern",
+        "calibration_not_applied"
+      ]
+    },
+    {
+      "affected_dimensions": [
+        "context_priority",
+        "experience_restraint"
+      ],
+      "category": "over_reconstruction",
+      "frequency": 0.0,
+      "impact": 0.0,
+      "root_cause_candidates": [
+        "experience_overused",
+        "current_context_priority_lost"
+      ]
+    },
+    {
+      "affected_dimensions": [
+        "perspective_stability",
+        "generic_agent_leakage"
+      ],
+      "category": "roleplay_leakage",
+      "frequency": 0.0,
+      "impact": 0.0,
+      "root_cause_candidates": [
+        "persona_prompt_only",
+        "generic_assistant_frame"
+      ]
+    },
+    {
+      "affected_dimensions": [
+        "provider_style",
+        "expression_surface"
+      ],
+      "category": "provider_expression_drift",
+      "frequency": 0.0,
+      "impact": 0.0,
+      "root_cause_candidates": [
+        "provider_style_variance",
+        "weak_instruction_following"
+      ]
+    }
+  ],
+  "highest_leverage_factors": [
+    "context_adaptation",
+    "self_narrative",
+    "relationship_context",
+    "interaction_experience"
+  ],
+  "minimum_state_definition": {
+    "minimum_viable_state": [
+      "identity",
+      "relationship",
+      "experience",
+      "context_adaptation"
+    ],
+    "non_viable_memory_only": 0.125,
+    "non_viable_persona_prompt_only": 0.0,
+    "non_viable_without_experience": 0.6825,
+    "observed_viable_states": [
+      "full_continuity"
+    ]
+  },
+  "status": "PASS",
+  "version": "v1"
+}

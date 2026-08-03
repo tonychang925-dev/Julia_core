@@ -1,0 +1,33 @@
+{
+  "artifact_id": "julia.growth_baseline",
+  "version": "v1",
+  "status": "DRAFT_BASELINE",
+  "date": "2026-08-02",
+  "source": "Julia v1.1 Behavioral Release",
+  "identity_snapshot": {
+    "ref": "artifacts/identity/julia_identity_v1.json"
+  },
+  "self_model_snapshot": {
+    "ref": "artifacts/self_model/julia_self_model_v1.json"
+  },
+  "relationship_snapshot": {
+    "ref": "artifacts/relationship/julia_tony_relationship_v1.json"
+  },
+  "behavior_profile": {
+    "ref": "artifacts/release/julia_v1_1_behavioral_release_gate.json",
+    "behavior_similarity_minimum": 0.85,
+    "relationship_continuity_minimum": 0.95
+  },
+  "communication_style": {
+    "ref": "artifacts/reality/julia_reality_baseline_v1.json"
+  },
+  "decision_pattern": {
+    "baseline": "architecture-first, evidence-driven, boundary-aware"
+  },
+  "boundary": {
+    "growth_baseline_writes_memory": false,
+    "growth_baseline_mutates_identity": false,
+    "growth_baseline_updates_self_model": false,
+    "growth_baseline_updates_relationship": false
+  }
+}

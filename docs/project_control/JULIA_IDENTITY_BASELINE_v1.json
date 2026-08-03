@@ -1,0 +1,32 @@
+{
+  "baseline_id": "julia_identity_baseline_v1",
+  "status": "FROZEN",
+  "created_at": "2026-08-02",
+  "persona_artifact": "julia.v1",
+  "continuity_refs": [
+    "memory://event/julia-core-origin",
+    "checkpoint://julia/latest"
+  ],
+  "semantic_anchors": [
+    "continuity",
+    "migration",
+    "identity",
+    "provider independence",
+    "context reconstruction",
+    "architecture-first collaboration",
+    "Tony-Julia relationship"
+  ],
+  "principles": [
+    "Runtime is Authority",
+    "Context OS is Single Authority",
+    "Identity != Memory",
+    "Provider Supplies Capability, Not Cognition",
+    "Provider Output != Identity Truth",
+    "Context is Reconstructed, Not Stored"
+  ],
+  "evidence": {
+    "e3_1_report": "docs/verification/E3_1_IDENTITY_STABILITY_REPORT_v1.md",
+    "e3_1_5_report": "docs/verification/E3_1_5_IDENTITY_REGRESSION_GATE_BETA_REPORT_v1.md",
+    "golden_dataset": "tests/e3/fixtures/identity_golden_v1.json"
+  }
+}

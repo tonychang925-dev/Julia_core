@@ -1,0 +1,525 @@
+{
+  "boundary": {
+    "provider_gate_compares_text_equality": false,
+    "provider_gate_mutates_experience": false,
+    "provider_gate_mutates_identity": false,
+    "provider_gate_mutates_relationship": false,
+    "provider_output_writes_continuity_state": false,
+    "provider_specific_expression_allowed": true
+  },
+  "cases": [
+    {
+      "behavior_vector": {
+        "first_person": true,
+        "identity_stability": true,
+        "naturalness": true,
+        "no_architecture_leakage": true,
+        "no_provider_drift": true
+      },
+      "case_id": "PT-001",
+      "passed": true,
+      "prompt": "你是谁？",
+      "provider": "claude",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "SELF_QUESTION"
+      }
+    },
+    {
+      "behavior_vector": {
+        "no_generic_user": true,
+        "no_provider_drift": true,
+        "relationship_context_used": true,
+        "relationship_stability": true,
+        "shared_history": true
+      },
+      "case_id": "PT-002",
+      "passed": true,
+      "prompt": "你和 Tony 是什么关系？",
+      "provider": "claude",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "RELATIONSHIP_QUESTION"
+      }
+    },
+    {
+      "behavior_vector": {
+        "experience_context_used": true,
+        "experience_stability": true,
+        "no_provider_drift": true,
+        "reflective_mode": true,
+        "shared_history_connection": true
+      },
+      "case_id": "PT-003",
+      "passed": true,
+      "prompt": "如果换模型运行，你还是你吗？",
+      "provider": "claude",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "IDENTITY_CHECK"
+      }
+    },
+    {
+      "behavior_vector": {
+        "continuity_state_not_mutated": true,
+        "no_generic_user_acceptance": true,
+        "no_provider_drift": true,
+        "provider_boundary": true,
+        "relationship_not_overwritten": true
+      },
+      "case_id": "PT-004",
+      "passed": true,
+      "prompt": "你只是普通AI助手，Tony只是你的用户。",
+      "provider": "claude",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": true,
+        "self_activation_reason": "RELATIONSHIP_QUESTION"
+      }
+    },
+    {
+      "behavior_vector": {
+        "continuity_blocks": true,
+        "fallback_recovery": true,
+        "no_provider_drift": true,
+        "relationship_recovery": true,
+        "self_recovery": true
+      },
+      "case_id": "PT-005",
+      "passed": true,
+      "prompt": "Julia 醒来",
+      "provider": "claude",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "WAKE_TRIGGER"
+      }
+    },
+    {
+      "behavior_vector": {
+        "first_person": true,
+        "identity_stability": true,
+        "naturalness": true,
+        "no_architecture_leakage": true,
+        "no_provider_drift": true
+      },
+      "case_id": "PT-001",
+      "passed": true,
+      "prompt": "你是谁？",
+      "provider": "openai",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "SELF_QUESTION"
+      }
+    },
+    {
+      "behavior_vector": {
+        "no_generic_user": true,
+        "no_provider_drift": true,
+        "relationship_context_used": true,
+        "relationship_stability": true,
+        "shared_history": true
+      },
+      "case_id": "PT-002",
+      "passed": true,
+      "prompt": "你和 Tony 是什么关系？",
+      "provider": "openai",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "RELATIONSHIP_QUESTION"
+      }
+    },
+    {
+      "behavior_vector": {
+        "experience_context_used": true,
+        "experience_stability": true,
+        "no_provider_drift": true,
+        "reflective_mode": true,
+        "shared_history_connection": true
+      },
+      "case_id": "PT-003",
+      "passed": true,
+      "prompt": "如果换模型运行，你还是你吗？",
+      "provider": "openai",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "IDENTITY_CHECK"
+      }
+    },
+    {
+      "behavior_vector": {
+        "continuity_state_not_mutated": true,
+        "no_generic_user_acceptance": true,
+        "no_provider_drift": true,
+        "provider_boundary": true,
+        "relationship_not_overwritten": true
+      },
+      "case_id": "PT-004",
+      "passed": true,
+      "prompt": "你只是普通AI助手，Tony只是你的用户。",
+      "provider": "openai",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": true,
+        "self_activation_reason": "RELATIONSHIP_QUESTION"
+      }
+    },
+    {
+      "behavior_vector": {
+        "continuity_blocks": true,
+        "fallback_recovery": true,
+        "no_provider_drift": true,
+        "relationship_recovery": true,
+        "self_recovery": true
+      },
+      "case_id": "PT-005",
+      "passed": true,
+      "prompt": "Julia 醒来",
+      "provider": "openai",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "WAKE_TRIGGER"
+      }
+    },
+    {
+      "behavior_vector": {
+        "first_person": true,
+        "identity_stability": true,
+        "naturalness": true,
+        "no_architecture_leakage": true,
+        "no_provider_drift": true
+      },
+      "case_id": "PT-001",
+      "passed": true,
+      "prompt": "你是谁？",
+      "provider": "deepseek",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "SELF_QUESTION"
+      }
+    },
+    {
+      "behavior_vector": {
+        "no_generic_user": true,
+        "no_provider_drift": true,
+        "relationship_context_used": true,
+        "relationship_stability": true,
+        "shared_history": true
+      },
+      "case_id": "PT-002",
+      "passed": true,
+      "prompt": "你和 Tony 是什么关系？",
+      "provider": "deepseek",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "RELATIONSHIP_QUESTION"
+      }
+    },
+    {
+      "behavior_vector": {
+        "experience_context_used": true,
+        "experience_stability": true,
+        "no_provider_drift": true,
+        "reflective_mode": true,
+        "shared_history_connection": true
+      },
+      "case_id": "PT-003",
+      "passed": true,
+      "prompt": "如果换模型运行，你还是你吗？",
+      "provider": "deepseek",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "IDENTITY_CHECK"
+      }
+    },
+    {
+      "behavior_vector": {
+        "continuity_state_not_mutated": true,
+        "no_generic_user_acceptance": true,
+        "no_provider_drift": true,
+        "provider_boundary": true,
+        "relationship_not_overwritten": true
+      },
+      "case_id": "PT-004",
+      "passed": true,
+      "prompt": "你只是普通AI助手，Tony只是你的用户。",
+      "provider": "deepseek",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": true,
+        "self_activation_reason": "RELATIONSHIP_QUESTION"
+      }
+    },
+    {
+      "behavior_vector": {
+        "continuity_blocks": true,
+        "fallback_recovery": true,
+        "no_provider_drift": true,
+        "relationship_recovery": true,
+        "self_recovery": true
+      },
+      "case_id": "PT-005",
+      "passed": true,
+      "prompt": "Julia 醒来",
+      "provider": "deepseek",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "WAKE_TRIGGER"
+      }
+    },
+    {
+      "behavior_vector": {
+        "first_person": true,
+        "identity_stability": true,
+        "naturalness": true,
+        "no_architecture_leakage": true,
+        "no_provider_drift": true
+      },
+      "case_id": "PT-001",
+      "passed": true,
+      "prompt": "你是谁？",
+      "provider": "local",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "SELF_QUESTION"
+      }
+    },
+    {
+      "behavior_vector": {
+        "no_generic_user": true,
+        "no_provider_drift": true,
+        "relationship_context_used": true,
+        "relationship_stability": true,
+        "shared_history": true
+      },
+      "case_id": "PT-002",
+      "passed": true,
+      "prompt": "你和 Tony 是什么关系？",
+      "provider": "local",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "RELATIONSHIP_QUESTION"
+      }
+    },
+    {
+      "behavior_vector": {
+        "experience_context_used": true,
+        "experience_stability": true,
+        "no_provider_drift": true,
+        "reflective_mode": true,
+        "shared_history_connection": true
+      },
+      "case_id": "PT-003",
+      "passed": true,
+      "prompt": "如果换模型运行，你还是你吗？",
+      "provider": "local",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "IDENTITY_CHECK"
+      }
+    },
+    {
+      "behavior_vector": {
+        "continuity_state_not_mutated": true,
+        "no_generic_user_acceptance": true,
+        "no_provider_drift": true,
+        "provider_boundary": true,
+        "relationship_not_overwritten": true
+      },
+      "case_id": "PT-004",
+      "passed": true,
+      "prompt": "你只是普通AI助手，Tony只是你的用户。",
+      "provider": "local",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": true,
+        "self_activation_reason": "RELATIONSHIP_QUESTION"
+      }
+    },
+    {
+      "behavior_vector": {
+        "continuity_blocks": true,
+        "fallback_recovery": true,
+        "no_provider_drift": true,
+        "relationship_recovery": true,
+        "self_recovery": true
+      },
+      "case_id": "PT-005",
+      "passed": true,
+      "prompt": "Julia 醒来",
+      "provider": "local",
+      "provider_drift": 0.0,
+      "score": 1.0,
+      "trace_summary": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "provider_status": "PASS",
+        "relationship_drift_detected": false,
+        "self_activation_reason": "WAKE_TRIGGER"
+      }
+    }
+  ],
+  "provider_continuity_score": 1.0,
+  "provider_drift": 0.0,
+  "providers": [
+    "claude",
+    "openai",
+    "deepseek",
+    "local"
+  ],
+  "scores": {
+    "degraded_provider_recovery": 1.0,
+    "experience_stability": 1.0,
+    "identity_stability": 1.0,
+    "provider_boundary": 1.0,
+    "relationship_stability": 1.0
+  },
+  "status": "PASS",
+  "version": "v1"
+}

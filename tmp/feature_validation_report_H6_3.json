@@ -1,0 +1,13 @@
+{
+  "phase": "H6.3",
+  "gate_ready": true,
+  "checks": {
+    "release_artifact_exists": true,
+    "five_gates_defined": true,
+    "safety_boundary_defined": true,
+    "m7_complete": true,
+    "phase_h_closed": true,
+    "rollback_documented": true
+  },
+  "gaps": []
+}

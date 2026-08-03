@@ -1,0 +1,64 @@
+{
+  "artifact_id": "julia.operating_mode",
+  "version": "v1",
+  "status": "ACTIVE",
+  "activated_at": "2026-08-02",
+  "title": "Julia Assistant v1.0 — Operating Mode Activated",
+  "mode_transition": {
+    "from": "building_mode",
+    "to": "operating_mode",
+    "meaning": "operate Julia through real usage, observation, governed proposal, approval, evolution, and verification"
+  },
+  "operation_cycle": [
+    "Observe",
+    "Understand",
+    "Propose",
+    "Approve",
+    "Evolve",
+    "Verify"
+  ],
+  "life_cycle_tracks": {
+    "L1_continuous_operation": {
+      "goal": "stable daily operation",
+      "signals": ["session_count", "crash_count", "latency", "provider_failure", "voice_fallback"]
+    },
+    "L2_relationship_evolution": {
+      "goal": "Julia increasingly understands Tony's working style",
+      "metric": "Collaboration Continuity Score",
+      "formula": "Context Retention + Decision Alignment + Interaction Efficiency - Correction Frequency"
+    },
+    "L3_governed_evolution": {
+      "goal": "proposal lifecycle with approval and regression gates",
+      "stages": ["Proposal Created", "Evidence Review", "Risk Assessment", "Tony Approval", "Artifact Version Update", "Regression Gate"]
+    },
+    "L4_release_cycle": {
+      "goal": "artifact versioning instead of giant prompt mutation",
+      "artifacts": ["identity", "persona", "voice", "context_policy", "reality_baseline"]
+    }
+  },
+  "core_freeze": {
+    "status": "FROZEN",
+    "rule": "new capability must improve Julia operation rather than add another subsystem",
+    "frozen_capabilities": [
+      "Identity",
+      "Continuity",
+      "Memory Governance",
+      "Context Intelligence",
+      "Evidence OS",
+      "Voice",
+      "Human Interface",
+      "Evolution Governance"
+    ]
+  },
+  "near_term_operational_tools": [
+    "Julia Operation Dashboard",
+    "Evolution Review UI",
+    "Real Daily Use"
+  ],
+  "boundary": {
+    "operating_mode_adds_core_os": false,
+    "operating_mode_writes_memory": false,
+    "operating_mode_mutates_identity": false,
+    "operating_mode_auto_applies_proposals": false
+  }
+}

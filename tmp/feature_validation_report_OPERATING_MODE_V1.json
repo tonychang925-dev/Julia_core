@@ -1,0 +1,12 @@
+{
+  "phase": "OPERATING_MODE_V1",
+  "gate_ready": true,
+  "checks": {
+    "operating_mode_artifact_exists": true,
+    "operation_cycle_documented": true,
+    "core_freeze_documented": true,
+    "milestone_chain_documented": true,
+    "rollback_documented": true
+  },
+  "gaps": []
+}

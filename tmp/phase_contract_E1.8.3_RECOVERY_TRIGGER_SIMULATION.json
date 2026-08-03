@@ -1,0 +1,39 @@
+{
+  "phase_code": "E1.8.3",
+  "phase_name": "Recovery Trigger Simulation",
+  "parent_milestone": "E1.8 Runtime Continuity Integration",
+  "status": "COMPLETE",
+  "decision": "APPROVED",
+  "risk_level": "P0",
+  "generated_at": "2026-08-02",
+  "cases": [
+    {
+      "event": "SESSION_START",
+      "checkpoint_available": false,
+      "recovery_status": "NOT_REQUIRED"
+    },
+    {
+      "event": "RUNTIME_RECOVERY",
+      "checkpoint_available": true,
+      "recovery_status": "RECOVERY_REQUIRED"
+    },
+    {
+      "event": "PROVIDER_SWITCH",
+      "checkpoint_available": true,
+      "continuity_state_changed": false,
+      "recovery_status": "RECOVERY_REQUIRED"
+    }
+  ],
+  "deliverables": [
+    "julia_core/continuity/trigger.py",
+    "tests/test_recovery_trigger_simulation.py",
+    "docs/project_control/PHASE_CONTRACT_E1.8.3_RECOVERY_TRIGGER_SIMULATION.md"
+  ],
+  "non_goals": [
+    "No Memory OS resolution",
+    "No Context Reconstruction",
+    "No Alignment OS integration",
+    "No Provider invocation or switching",
+    "No checkpoint mutation"
+  ]
+}

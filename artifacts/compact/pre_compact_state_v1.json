@@ -1,0 +1,14 @@
+{
+  "boundary": {
+    "snapshot_fabricates_experience": false,
+    "snapshot_is_memory_dump": false,
+    "snapshot_mutates_identity": false,
+    "snapshot_stores_full_conversation": false
+  },
+  "context_signature": "identity+self+relationship+memory_refs+experience_patterns_without_raw_conversation",
+  "experience_snapshot": "julia.interaction_experience.v1 + calibration.v1",
+  "identity_snapshot": "julia.identity.v1",
+  "memory_snapshot": "governed_memory_refs_only",
+  "relationship_snapshot": "julia-tony-v1",
+  "snapshot_id": "pre-compact-julia-v1"
+}

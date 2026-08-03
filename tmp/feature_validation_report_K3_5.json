@@ -1,0 +1,13 @@
+{
+  "phase": "K3.5",
+  "gate_ready": true,
+  "checks": {
+    "feature_spec_exists": true,
+    "traceability_exists": true,
+    "tests_exist": true,
+    "rollback_defined": true,
+    "wake_contract_defined": true,
+    "no_auto_mutation": true
+  },
+  "gaps": []
+}

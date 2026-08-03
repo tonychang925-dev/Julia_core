@@ -1,0 +1,73 @@
+{
+  "run_id": "20260802_K8_1_CONVERSATION_UNDERSTANDING",
+  "scope": "phase:K8.1",
+  "phase_code": "K8.1",
+  "generated_at": "2026-08-02T00:00:00+08:00",
+  "milestone": {
+    "name": "K8.1 - Conversation Understanding Layer",
+    "phase": "K8.1",
+    "summary": "Freeze conversation understanding object, boundaries, negative gates, and metrics before implementation."
+  },
+  "review": {
+    "name": "K8.1 Conversation Understanding Contract Freeze",
+    "type": "Phase Contract"
+  },
+  "principle": "Understanding is not responding.",
+  "objective": "Transform user message from text input into cognitive representation.",
+  "objects": [
+    "Conversation Understanding Object",
+    "Literal Content",
+    "Semantic Meaning",
+    "Possible Intents",
+    "Conversation Context",
+    "Emotional Context",
+    "Relationship Context",
+    "Context Requirements",
+    "Response Requirement"
+  ],
+  "acceptance_targets": [
+    "Defines Conversation Understanding Object with literal content, semantic meaning, conversation context, emotional context, relationship context, and response requirement.",
+    "Understanding object contains possible intents, not a single forced keyword intent.",
+    "Understanding object captures hidden/deeper possible meaning when applicable.",
+    "Understanding object distinguishes literal meaning from inferred intent.",
+    "Understanding object indicates whether relationship/identity/experience/re-entry/event context is required.",
+    "Understanding object contains response needs and avoid behaviors but no final response text.",
+    "Negative gate rejects keyword-to-answer mappings.",
+    "Negative gate rejects identity archive dump routing for 你是谁？.",
+    "Negative gate rejects emotional overread for neutral factual/project messages.",
+    "K8.1 does not mutate Identity, Relationship, Memory, Experience, Re-entry, or Event artifacts.",
+    "K8.1 defines Understanding-to-Behavior Alignment metric.",
+    "K8.1 remains separate from K8.2 Response Intention Planning."
+  ],
+  "negative_gates": [
+    "CU-001 Literal Trap",
+    "CU-002 Identity Trap",
+    "CU-003 Emotional Overread",
+    "CU-004 Drift Feedback",
+    "CU-005 Technical Collaboration"
+  ],
+  "metrics": {
+    "UBA": "Understanding Accuracy + Intent Alignment + Context Selection Accuracy - Interpretation Overreach",
+    "CUQS": "Literal/Semantic Separation + Possible Intent Coverage + Emotional Context Calibration + Context Requirement Accuracy + Boundary Compliance - Keyword Mapping Risk - Overread Risk"
+  },
+  "deliverables": [
+    "docs/architecture/CONVERSATION_UNDERSTANDING_CONTRACT_v1.md",
+    "julia_core/conversation_cognition/understanding.py",
+    "julia_core/conversation_cognition/understanding_boundary.py",
+    "tests/conversation_cognition/test_k8_1_understanding_schema.py",
+    "tests/conversation_cognition/test_k8_1_literal_trap.py",
+    "tests/conversation_cognition/test_k8_1_identity_trap.py",
+    "tests/conversation_cognition/test_k8_1_emotional_overread.py",
+    "tests/conversation_cognition/test_k8_1_no_response_generation.py",
+    "artifacts/conversation_cognition/conversation_understanding_report_v1.json"
+  ],
+  "non_goals": [
+    "final Julia reply generation",
+    "Response Intention Planning implementation",
+    "provider prompt integration",
+    "new memory",
+    "continuity artifact mutation",
+    "Natural Conversation E2E proof",
+    "Claude comparison rerun"
+  ]
+}

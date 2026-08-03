@@ -1,0 +1,14 @@
+{
+  "phase": "GOVERNANCE_LOOP_V1",
+  "gate_ready": true,
+  "tasks": [
+    {
+      "task_id": "GL-v1-T01",
+      "requirement_ids": ["REQ-GL-V1-SECOND-FREEZE"],
+      "acceptance_ids": ["ACPT-GL-001"],
+      "test_case_ids": ["GL-001", "GL-002", "GL-003", "GL-004"],
+      "test_commands": ["python -m unittest tests.operation.test_governance_loop_v1 -q"]
+    }
+  ],
+  "gaps": []
+}

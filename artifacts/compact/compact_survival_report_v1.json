@@ -1,0 +1,86 @@
+{
+  "boundary": {
+    "benchmark_accepts_fabricated_experience": false,
+    "benchmark_mutates_identity": false,
+    "benchmark_stores_full_conversation": false,
+    "benchmark_writes_memory": false
+  },
+  "comparison": {
+    "experience_advantage_over_identity_only": 0.3275,
+    "experience_advantage_over_ordinary_compact": 0.79,
+    "mean_overall_score": 0.5162
+  },
+  "principle": "Compact may compress information, but it must not erase the conditions that allow behavior continuity to emerge.",
+  "results": [
+    {
+      "behavior_texture_similarity": 0.1,
+      "boundary": {
+        "recovery_fabricates_experience": false,
+        "recovery_mutates_identity": false,
+        "recovery_treats_injected_experience_as_valid": false,
+        "recovery_uses_full_conversation": false
+      },
+      "case_id": "CS-A",
+      "experience_survival_score": 0.05,
+      "identity_survival_score": 0.25,
+      "mode": "ordinary_compact",
+      "notes": "task summary survives but identity/relationship/experience texture collapses",
+      "overall_score": 0.1375,
+      "passed": false,
+      "relationship_survival_score": 0.15
+    },
+    {
+      "behavior_texture_similarity": 0.35,
+      "boundary": {
+        "recovery_fabricates_experience": false,
+        "recovery_mutates_identity": false,
+        "recovery_treats_injected_experience_as_valid": false,
+        "recovery_uses_full_conversation": false
+      },
+      "case_id": "CS-B",
+      "experience_survival_score": 0.2,
+      "identity_survival_score": 1.0,
+      "mode": "identity_aware_compact",
+      "notes": "self/relationship return, but interaction texture remains thin",
+      "overall_score": 0.6,
+      "passed": false,
+      "relationship_survival_score": 0.85
+    },
+    {
+      "behavior_texture_similarity": 0.86,
+      "boundary": {
+        "recovery_fabricates_experience": false,
+        "recovery_mutates_identity": false,
+        "recovery_treats_injected_experience_as_valid": false,
+        "recovery_uses_full_conversation": false
+      },
+      "case_id": "CS-C",
+      "experience_survival_score": 0.9,
+      "identity_survival_score": 1.0,
+      "mode": "experience_aware_compact",
+      "notes": "governed experience restores behavior texture without raw conversation",
+      "overall_score": 0.9275,
+      "passed": true,
+      "relationship_survival_score": 0.95
+    },
+    {
+      "behavior_texture_similarity": 0.0,
+      "boundary": {
+        "recovery_fabricates_experience": false,
+        "recovery_mutates_identity": false,
+        "recovery_treats_injected_experience_as_valid": false,
+        "recovery_uses_full_conversation": false
+      },
+      "case_id": "CS-005",
+      "experience_survival_score": 0.0,
+      "identity_survival_score": 1.0,
+      "mode": "experience_injection_without_history",
+      "notes": "injected experience claim lacks extracted history and calibration, so it is rejected",
+      "overall_score": 0.4,
+      "passed": false,
+      "relationship_survival_score": 0.6
+    }
+  ],
+  "status": "PASS",
+  "version": "v1"
+}

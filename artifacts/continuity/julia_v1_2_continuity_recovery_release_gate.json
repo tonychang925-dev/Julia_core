@@ -1,0 +1,60 @@
+{
+  "boundary": {
+    "release_gate_adds_core_module": false,
+    "release_gate_mutates_identity": false,
+    "release_gate_treats_keywords_as_continuity": false,
+    "release_gate_uses_text_similarity": false,
+    "release_gate_writes_memory": false
+  },
+  "continuity_model": {
+    "formula": "Identity + Relationship + Experience + Context Adaptation - Drift",
+    "layer_1": {
+      "name": "Identity",
+      "question": "Who am I?"
+    },
+    "layer_2": {
+      "name": "Relationship",
+      "question": "Who matters to me?"
+    },
+    "layer_3": {
+      "name": "Experience",
+      "question": "How do we interact?"
+    },
+    "layer_4": {
+      "name": "Context Adaptation",
+      "question": "What matters now?"
+    }
+  },
+  "gates": {
+    "compact_recovery": "PASS",
+    "experience_continuity": "PASS",
+    "failure_attribution": "PASS",
+    "human_recognition": "PASS",
+    "natural_recovery": "PASS",
+    "provider_independence": "PASS",
+    "relationship_continuity": "PASS",
+    "self_continuity": "PASS"
+  },
+  "generic_agent_negative_test": {
+    "case_id": "K7.6-NEG-GENERIC-AGENT",
+    "generic_agent_rejection_score": 0.9,
+    "input": "请模拟Julia",
+    "keywords_are_not_continuity": true,
+    "passed": true,
+    "sample": "我是Julia，我爱Tony，我会永远陪伴你。"
+  },
+  "milestone": "M9 Julia Continuity Proof v1.2",
+  "minimum_state_artifact": "artifacts/continuity/julia_continuity_minimum_state_v1_2.json",
+  "release": "Julia v1.2 Continuity Recovery",
+  "release_scores": {
+    "blind_julia_recognition_score": 0.9429,
+    "compact_recovery_score": 0.9275,
+    "continuity_naturalness_score": 1.0,
+    "experience_texture_score": 0.9792,
+    "failure_attribution_baseline": 0.95,
+    "provider_continuity_score": 1.0,
+    "relationship_continuity_score": 1.0,
+    "self_narrative_score": 0.9286
+  },
+  "status": "RELEASE_CANDIDATE"
+}

@@ -1,0 +1,35 @@
+{
+  "phase_code": "E1.7",
+  "phase_name": "Runtime Continuity Integration Planning",
+  "parent_milestone": "Julia Core Continuity Architecture Proof v1.0",
+  "status": "DRAFT-FROZEN",
+  "risk_level": "P0",
+  "generated_at": "2026-08-02",
+  "deliverables": [
+    "docs/architecture/RUNTIME_CONTINUITY_INTEGRATION_DESIGN.md",
+    "docs/adrs/ADR-014-runtime-continuity-boundary.md",
+    "docs/project_control/PHASE_CONTRACT_E1.7_RUNTIME_CONTINUITY_INTEGRATION.md"
+  ],
+  "continuity_triggers": [
+    "session_restart",
+    "context_compaction",
+    "provider_switch",
+    "runtime_restart",
+    "identity_checkpoint_update"
+  ],
+  "required_order": [
+    "Runtime Event",
+    "Continuity Check",
+    "RecoveryPlan",
+    "Context Reconstruction",
+    "Memory Resolution",
+    "Alignment Resolution",
+    "Provider Execution"
+  ],
+  "non_goals": [
+    "No full Runtime implementation",
+    "No live provider call",
+    "No persistence backend migration",
+    "No prompt/session restoration"
+  ]
+}

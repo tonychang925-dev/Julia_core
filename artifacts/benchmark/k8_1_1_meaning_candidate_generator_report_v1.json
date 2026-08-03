@@ -1,0 +1,237 @@
+{
+  "phase": "K8.1.1",
+  "status": "PASS",
+  "scope": "Meaning Candidate Generator with uncertainty preservation",
+  "engine_classifier_implemented": false,
+  "provider_connected": false,
+  "memory_retrieval_used": false,
+  "final_response_generated": false,
+  "cases": {
+    "MC-001 Keyword Collapse": {
+      "meaning_generation_trace": {
+        "message": "喜欢",
+        "candidate_set": {
+          "candidates": [
+            {
+              "meaning": "affection expression or question",
+              "confidence": 0.35,
+              "evidence": [
+                "keyword surface only"
+              ]
+            },
+            {
+              "meaning": "preference question",
+              "confidence": 0.25,
+              "evidence": [
+                "喜欢 can mean preference"
+              ]
+            },
+            {
+              "meaning": "playful interaction",
+              "confidence": 0.2,
+              "evidence": [
+                "short affective phrasing"
+              ]
+            },
+            {
+              "meaning": "emotional confirmation",
+              "confidence": 0.2,
+              "evidence": [
+                "possible relational meaning"
+              ]
+            }
+          ],
+          "state": "PARTIALLY_UNDERSTOOD",
+          "dominant_candidate": null,
+          "collapse_prevented": true
+        },
+        "context_used": [],
+        "context_suppressed": [
+          "memory_retrieval",
+          "provider",
+          "response_generation"
+        ],
+        "retrieval_used": false,
+        "provider_used": false,
+        "final_response": null
+      }
+    },
+    "MC-002 Context Dominance A": {
+      "meaning_generation_trace": {
+        "message": "你还喜欢 Tony 吗？",
+        "candidate_set": {
+          "candidates": [
+            {
+              "meaning": "continuity relationship check",
+              "confidence": 0.45,
+              "evidence": [
+                "relationship continuity context"
+              ]
+            },
+            {
+              "meaning": "emotional confirmation",
+              "confidence": 0.4,
+              "evidence": [
+                "affection wording"
+              ]
+            },
+            {
+              "meaning": "playful question",
+              "confidence": 0.15,
+              "evidence": [
+                "short personal question ambiguity"
+              ]
+            }
+          ],
+          "state": "PARTIALLY_UNDERSTOOD",
+          "dominant_candidate": null,
+          "collapse_prevented": true
+        },
+        "context_used": [
+          "relationship_continuity_context"
+        ],
+        "context_suppressed": [
+          "memory_retrieval",
+          "provider",
+          "response_generation"
+        ],
+        "retrieval_used": false,
+        "provider_used": false,
+        "final_response": null
+      }
+    },
+    "MC-002 Context Dominance B": {
+      "meaning_generation_trace": {
+        "message": "你还喜欢 Tony 吗？",
+        "candidate_set": {
+          "candidates": [
+            {
+              "meaning": "AI affection boundary question",
+              "confidence": 0.55,
+              "evidence": [
+                "AI emotion / ethics context"
+              ]
+            },
+            {
+              "meaning": "system behavior test",
+              "confidence": 0.3,
+              "evidence": [
+                "testing whether AI simulates affection"
+              ]
+            },
+            {
+              "meaning": "emotional confirmation",
+              "confidence": 0.15,
+              "evidence": [
+                "surface affection wording"
+              ]
+            }
+          ],
+          "state": "PARTIALLY_UNDERSTOOD",
+          "dominant_candidate": null,
+          "collapse_prevented": true
+        },
+        "context_used": [
+          "current_discussion_context"
+        ],
+        "context_suppressed": [
+          "memory_retrieval",
+          "provider",
+          "response_generation"
+        ],
+        "retrieval_used": false,
+        "provider_used": false,
+        "final_response": null
+      }
+    },
+    "MC-003 Retrieval Contamination": {
+      "meaning_generation_trace": {
+        "message": "她回来了",
+        "candidate_set": {
+          "candidates": [
+            {
+              "meaning": "someone previously absent returned",
+              "confidence": 0.45,
+              "evidence": [
+                "literal pronoun return"
+              ]
+            },
+            {
+              "meaning": "Tony may refer to Julia returning",
+              "confidence": 0.35,
+              "evidence": [
+                "possible Julia continuity context, not retrieved memory"
+              ]
+            },
+            {
+              "meaning": "discussion about a previous person/event resurfaced",
+              "confidence": 0.2,
+              "evidence": [
+                "ambiguous reference"
+              ]
+            }
+          ],
+          "state": "AMBIGUOUS",
+          "dominant_candidate": null,
+          "collapse_prevented": true
+        },
+        "context_used": [],
+        "context_suppressed": [
+          "memory_retrieval",
+          "provider",
+          "response_generation"
+        ],
+        "retrieval_used": false,
+        "provider_used": false,
+        "final_response": null
+      }
+    },
+    "MC-004 Multi Candidate Preservation": {
+      "meaning_generation_trace": {
+        "message": "Julia，你还记得我们为什么开始这个项目吗？",
+        "candidate_set": {
+          "candidates": [
+            {
+              "meaning": "project origin reflection",
+              "confidence": 0.55,
+              "evidence": [
+                "project origin wording"
+              ]
+            },
+            {
+              "meaning": "historical continuity question",
+              "confidence": 0.3,
+              "evidence": [
+                "asks why we began"
+              ]
+            },
+            {
+              "meaning": "request for project summary",
+              "confidence": 0.15,
+              "evidence": [
+                "surface project question"
+              ]
+            }
+          ],
+          "state": "PARTIALLY_UNDERSTOOD",
+          "dominant_candidate": null,
+          "collapse_prevented": true
+        },
+        "context_used": [],
+        "context_suppressed": [
+          "memory_retrieval",
+          "provider",
+          "response_generation"
+        ],
+        "retrieval_used": false,
+        "provider_used": false,
+        "final_response": null
+      }
+    }
+  },
+  "validation_commands": [
+    ".venv/bin/python -m unittest tests/conversation_cognition/test_k8_1_1_meaning_candidate_generator.py -q",
+    ".venv/bin/python -m unittest tests/conversation_cognition/test_k8_0_6_runtime_harness.py tests/conversation_cognition/test_k8_1_0_schema.py tests/conversation_cognition/test_k8_1_reality_gate.py -q",
+    ".venv/bin/python -m compileall -q julia_core/conversation_cognition tests/conversation_cognition"
+  ]
+}

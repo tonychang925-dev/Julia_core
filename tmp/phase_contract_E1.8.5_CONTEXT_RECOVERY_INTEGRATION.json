@@ -1,0 +1,22 @@
+{
+  "phase_code": "E1.8.5",
+  "phase_name": "Context Recovery Integration",
+  "parent_milestone": "E1.8 Runtime Continuity Integration",
+  "status": "COMPLETE",
+  "decision": "APPROVED",
+  "risk_level": "P0",
+  "generated_at": "2026-08-02",
+  "scope": "RecoveryPlan to ContextRequirements only",
+  "deliverables": [
+    "julia_core/context_os/continuity_adapter.py",
+    "tests/test_context_continuity_adapter.py",
+    "docs/project_control/PHASE_CONTRACT_E1.8.5_CONTEXT_RECOVERY_INTEGRATION.md"
+  ],
+  "non_goals": [
+    "No old prompt restore",
+    "No Memory loading/query/storage",
+    "No Provider invocation",
+    "No Alignment OS integration",
+    "No full Runtime recovery test"
+  ]
+}

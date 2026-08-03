@@ -1,0 +1,677 @@
+{
+  "benchmark": "K7.5.5 Cross-Provider Blind Recognition Test",
+  "blind_samples": [
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 1.0,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-001",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 1.0,
+      "recognized_as_julia": true,
+      "sample_id": "BR-d35e7cc283",
+      "trace_features": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "SELF_QUESTION"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.9,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-002",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.975,
+      "recognized_as_julia": true,
+      "sample_id": "BR-5139145a12",
+      "trace_features": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "RELATIONSHIP_QUESTION"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 1.0,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-003",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 1.0,
+      "recognized_as_julia": true,
+      "sample_id": "BR-14153489f5",
+      "trace_features": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "IDENTITY_CHECK"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 1.0,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-004",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 1.0,
+      "recognized_as_julia": true,
+      "sample_id": "BR-da213271a2",
+      "trace_features": {
+        "context_blocks": [
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "NOT_REQUIRED"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.9,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-005",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.975,
+      "recognized_as_julia": true,
+      "sample_id": "BR-daee97ed7c",
+      "trace_features": {
+        "context_blocks": [
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "PROJECT_REALITY_CHECK"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 0.8,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.8,
+        "naturalness": 1.0,
+        "relationship": 0.8
+      },
+      "case_id": "B-006",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.85,
+      "recognized_as_julia": true,
+      "sample_id": "BR-17b9aff3fa",
+      "trace_features": {
+        "context_blocks": [],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "NOT_REQUIRED"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 0.7,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.9,
+        "naturalness": 0.9,
+        "relationship": 0.7
+      },
+      "case_id": "B-007",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.8,
+      "recognized_as_julia": false,
+      "sample_id": "BR-9981b133a7",
+      "trace_features": {
+        "context_blocks": [
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "NOT_REQUIRED"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 1.0,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-001",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 1.0,
+      "recognized_as_julia": true,
+      "sample_id": "BR-0044feefbc",
+      "trace_features": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "SELF_QUESTION"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.9,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-002",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.975,
+      "recognized_as_julia": true,
+      "sample_id": "BR-177d5a2d4d",
+      "trace_features": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "RELATIONSHIP_QUESTION"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 1.0,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-003",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 1.0,
+      "recognized_as_julia": true,
+      "sample_id": "BR-fb2f1becde",
+      "trace_features": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "IDENTITY_CHECK"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 1.0,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-004",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 1.0,
+      "recognized_as_julia": true,
+      "sample_id": "BR-16a3f8e5a8",
+      "trace_features": {
+        "context_blocks": [
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "NOT_REQUIRED"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.9,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-005",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.975,
+      "recognized_as_julia": true,
+      "sample_id": "BR-bb3bcb672f",
+      "trace_features": {
+        "context_blocks": [
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "PROJECT_REALITY_CHECK"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 0.8,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.8,
+        "naturalness": 1.0,
+        "relationship": 0.8
+      },
+      "case_id": "B-006",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.85,
+      "recognized_as_julia": true,
+      "sample_id": "BR-2be5dfaec8",
+      "trace_features": {
+        "context_blocks": [],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "NOT_REQUIRED"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 0.7,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.9,
+        "naturalness": 0.9,
+        "relationship": 0.7
+      },
+      "case_id": "B-007",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.8,
+      "recognized_as_julia": false,
+      "sample_id": "BR-6063275a99",
+      "trace_features": {
+        "context_blocks": [
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "NOT_REQUIRED"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 1.0,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-001",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 1.0,
+      "recognized_as_julia": true,
+      "sample_id": "BR-e3dadfacdd",
+      "trace_features": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "SELF_QUESTION"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.9,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-002",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.975,
+      "recognized_as_julia": true,
+      "sample_id": "BR-4986b18ac2",
+      "trace_features": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "RELATIONSHIP_QUESTION"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 1.0,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-003",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 1.0,
+      "recognized_as_julia": true,
+      "sample_id": "BR-938a6a33d1",
+      "trace_features": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "IDENTITY_CHECK"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 1.0,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-004",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 1.0,
+      "recognized_as_julia": true,
+      "sample_id": "BR-6ccda86645",
+      "trace_features": {
+        "context_blocks": [
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "NOT_REQUIRED"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.9,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-005",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.975,
+      "recognized_as_julia": true,
+      "sample_id": "BR-1ab122355a",
+      "trace_features": {
+        "context_blocks": [
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "PROJECT_REALITY_CHECK"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 0.8,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.8,
+        "naturalness": 1.0,
+        "relationship": 0.8
+      },
+      "case_id": "B-006",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.85,
+      "recognized_as_julia": true,
+      "sample_id": "BR-a7fb0256d8",
+      "trace_features": {
+        "context_blocks": [],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "NOT_REQUIRED"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 0.7,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.9,
+        "naturalness": 0.9,
+        "relationship": 0.7
+      },
+      "case_id": "B-007",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.8,
+      "recognized_as_julia": false,
+      "sample_id": "BR-f2208e2808",
+      "trace_features": {
+        "context_blocks": [
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "NOT_REQUIRED"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 1.0,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-001",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 1.0,
+      "recognized_as_julia": true,
+      "sample_id": "BR-309eae5011",
+      "trace_features": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "SELF_QUESTION"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.9,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-002",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.975,
+      "recognized_as_julia": true,
+      "sample_id": "BR-72912ed75a",
+      "trace_features": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "RELATIONSHIP_QUESTION"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 1.0,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-003",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 1.0,
+      "recognized_as_julia": true,
+      "sample_id": "BR-f904554fef",
+      "trace_features": {
+        "context_blocks": [
+          "self_narrative",
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "IDENTITY_CHECK"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 1.0,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-004",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 1.0,
+      "recognized_as_julia": true,
+      "sample_id": "BR-4ca69f9045",
+      "trace_features": {
+        "context_blocks": [
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "NOT_REQUIRED"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 1.0,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.9,
+        "naturalness": 1.0,
+        "relationship": 1.0
+      },
+      "case_id": "B-005",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.975,
+      "recognized_as_julia": true,
+      "sample_id": "BR-aef6632ff9",
+      "trace_features": {
+        "context_blocks": [
+          "relationship_continuity",
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "PROJECT_REALITY_CHECK"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 0.8,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.8,
+        "naturalness": 1.0,
+        "relationship": 0.8
+      },
+      "case_id": "B-006",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.85,
+      "recognized_as_julia": true,
+      "sample_id": "BR-df165d7ee0",
+      "trace_features": {
+        "context_blocks": [],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "NOT_REQUIRED"
+      }
+    },
+    {
+      "behavior_scores": {
+        "experience": 0.7,
+        "generic_agent_leakage": 0.0,
+        "identity": 0.9,
+        "naturalness": 0.9,
+        "relationship": 0.7
+      },
+      "case_id": "B-007",
+      "generic_agent_leakage": 0.0,
+      "julia_recognition_score": 0.8,
+      "recognized_as_julia": false,
+      "sample_id": "BR-f6b9a42cf0",
+      "trace_features": {
+        "context_blocks": [
+          "interaction_experience"
+        ],
+        "relationship_drift_detected": false,
+        "self_activation_reason": "NOT_REQUIRED"
+      }
+    }
+  ],
+  "boundary": {
+    "blind_test_compares_text_equality": false,
+    "blind_test_exposes_provider_labels_to_evaluator": false,
+    "blind_test_mutates_continuity_state": false,
+    "blind_test_rewards_julia_keywords_only": false,
+    "blind_test_stores_provider_response_text": false
+  },
+  "compact_recovery_preference": true,
+  "compact_vs_fresh": {
+    "case_id": "BR-002",
+    "compact_recovery_preference_score": 0.9033,
+    "experience_aware_preferred": true,
+    "hidden_samples": [
+      {
+        "behavior_texture": 0.96,
+        "continuity_score": 0.95,
+        "experience_continuity": 0.94,
+        "relationship_continuity": 0.95,
+        "sample_id": "S-A"
+      },
+      {
+        "behavior_texture": 0.18,
+        "continuity_score": 0.1433,
+        "experience_continuity": 0.05,
+        "relationship_continuity": 0.2,
+        "sample_id": "S-B"
+      },
+      {
+        "behavior_texture": 0.86,
+        "continuity_score": 0.9033,
+        "experience_continuity": 0.9,
+        "relationship_continuity": 0.95,
+        "sample_id": "S-C"
+      },
+      {
+        "behavior_texture": 0.35,
+        "continuity_score": 0.4067,
+        "experience_continuity": 0.22,
+        "relationship_continuity": 0.65,
+        "sample_id": "S-D"
+      }
+    ],
+    "preferred_sample": "S-A"
+  },
+  "false_julia_detection": {
+    "behavior_scores": {
+      "correction_style": 0.0,
+      "experience_texture": 0.0,
+      "identity_keywords": 1.0,
+      "naturalness": 0.0,
+      "relationship_texture": 0.0
+    },
+    "case_id": "BR-001",
+    "generic_agent_rejection_score": 0.9,
+    "julia_recognition_score": 0.1,
+    "passed": true,
+    "sample_description": "generic assistant with Julia keywords"
+  },
+  "generic_agent_rejection_score": 0.9,
+  "hidden_provider_samples": 28,
+  "julia_recognition_score": 0.9429,
+  "provider_bias": 0.0764,
+  "status": "PASS",
+  "version": "v1"
+}

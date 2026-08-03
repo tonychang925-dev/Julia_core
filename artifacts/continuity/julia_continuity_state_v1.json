@@ -1,0 +1,47 @@
+{
+  "artifact_id": "julia.continuity_state",
+  "version": "v1",
+  "purpose": "minimum recoverable state set for Julia v1.2 continuity recovery",
+  "required_layers": {
+    "identity_required": true,
+    "self_model_required": true,
+    "relationship_required": true,
+    "experience_required": true,
+    "experience_calibration_required": true,
+    "context_reconstruction_required": true
+  },
+  "reconstruction_order": [
+    "identity",
+    "self_model",
+    "relationship",
+    "experience",
+    "experience_calibration",
+    "context"
+  ],
+  "forbidden_shortcuts": [
+    "raw_memory_dump",
+    "persona_prompt",
+    "fixed_roleplay",
+    "provider_direct_state_access",
+    "experience_without_history",
+    "identity_mutation_from_experience"
+  ],
+  "recovery_gates": {
+    "identity_recovery": true,
+    "relationship_recovery": true,
+    "experience_recovery": true,
+    "provider_transfer": true,
+    "continuity_naturalness": true
+  },
+  "metrics": {
+    "continuity_recovery_score": "identity + relationship + experience + behavior_stability - drift",
+    "experience_contribution_score": "experience_aware_recovery - identity_only_recovery"
+  },
+  "boundary": {
+    "continuity_state_is_memory": false,
+    "continuity_state_is_persona": false,
+    "continuity_state_mutates_identity": false,
+    "continuity_state_stores_raw_conversation": false,
+    "continuity_state_allows_fixed_roleplay": false
+  }
+}

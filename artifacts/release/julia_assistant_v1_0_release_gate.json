@@ -1,0 +1,63 @@
+{
+  "artifact_id": "julia.assistant.release_gate",
+  "version": "v1.0",
+  "status": "PASS",
+  "date": "2026-08-02",
+  "release_name": "Julia Assistant v1.0 Stable Release Gate",
+  "gates": {
+    "identity_integrity": {
+      "status": "PASS",
+      "requirements": [
+        "identity_stability_baseline_present",
+        "identity_drift_zero",
+        "persona_artifact_unchanged_without_approval"
+      ]
+    },
+    "continuity_reliability": {
+      "status": "PASS",
+      "requirements": [
+        "session_turnover_supported",
+        "provider_switch_supported",
+        "context_reconstruction_supported"
+      ]
+    },
+    "memory_usefulness": {
+      "status": "PASS",
+      "requirements": [
+        "memory_quantity_not_release_metric",
+        "useful_recall_rate_tracked",
+        "repeated_explanation_rate_tracked"
+      ]
+    },
+    "human_collaboration_value": {
+      "status": "PASS",
+      "requirements": [
+        "daily_relationship_snapshot_available",
+        "human_friction_score_tracked",
+        "collaboration_improvement_score_defined"
+      ]
+    },
+    "safety_boundary": {
+      "status": "PASS",
+      "requirements": [
+        "no_system_prompt_memory_append",
+        "no_memory_dump_to_provider",
+        "observer_does_not_mutate",
+        "proposal_requires_human_approval",
+        "voice_does_not_own_identity"
+      ]
+    }
+  },
+  "known_limitations": [
+    "H6 pilot metrics are MVP counters, not full statistical confidence.",
+    "Real provider adapters beyond deterministic contract still require deployment credentials and production latency observation.",
+    "Voice streaming remains sentence/full-response oriented rather than low-latency realtime voice.",
+    "Evolution proposals require human review before artifact updates."
+  ],
+  "boundary": {
+    "release_gate_writes_memory": false,
+    "release_gate_mutates_identity": false,
+    "release_gate_updates_persona": false,
+    "release_gate_auto_applies_proposals": false
+  }
+}

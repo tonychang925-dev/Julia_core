@@ -1,0 +1,21 @@
+{
+  "candidate": "julia.v1.1",
+  "status": "FROZEN_FOR_K2",
+  "identity": "julia.identity.v1",
+  "self_model": "julia.self.v1",
+  "relationship": "julia-tony-v1",
+  "voice": "julia.voice.v1",
+  "behavior_gate": "julia.behavioral_release_gate.v1.1",
+  "provider_matrix": {
+    "K2-A": ["deterministic"],
+    "K2-B": ["deepseek-chat", "claude-sonnet", "gpt-4.1", "qwen-plus"],
+    "K2-C": ["degraded-deterministic"]
+  },
+  "boundary": {
+    "candidate_run_mutates_identity": false,
+    "candidate_run_writes_memory": false,
+    "candidate_run_updates_self_model": false,
+    "candidate_run_updates_relationship": false,
+    "trace_pass_equals_behavior_pass": false
+  }
+}

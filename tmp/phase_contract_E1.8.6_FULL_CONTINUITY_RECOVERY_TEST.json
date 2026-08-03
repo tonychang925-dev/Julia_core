@@ -1,0 +1,29 @@
+{
+  "phase_code": "E1.8.6",
+  "phase_name": "Full Continuity Recovery Test",
+  "parent_milestone": "E1.8 Runtime Continuity Integration",
+  "status": "COMPLETE",
+  "decision": "APPROVED",
+  "risk_level": "P0",
+  "generated_at": "2026-08-02",
+  "simulation_only": true,
+  "success_criteria": {
+    "identity_preserved": "PASS",
+    "checkpoint_restored": "PASS",
+    "session_loss_tolerated": "PASS",
+    "context_rebuilt": "PASS",
+    "provider_independent": "PASS",
+    "no_prompt_dependency": "PASS",
+    "trace_complete": "PASS"
+  },
+  "deliverables": [
+    "tests/test_full_continuity_recovery.py",
+    "docs/project_control/PHASE_CONTRACT_E1.8.6_FULL_CONTINUITY_RECOVERY_TEST.md"
+  ],
+  "non_goals": [
+    "No live LLM call",
+    "No real provider execution",
+    "No product-level Julia AI Assistant migration",
+    "No old conversation window restoration"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "phase": "K3.5",
+  "tasks": {
+    "K3.5-T01": {
+      "requirement_ids": ["REQ-K35-AUTO-COMPARE"],
+      "acceptance_ids": ["ACPT-K35-001", "ACPT-K35-002", "ACPT-K35-003"],
+      "test_case_ids": ["TC-K35-001", "TC-K35-002", "TC-K35-003", "TC-K35-004"],
+      "test_commands": [
+        "python -m unittest tests.benchmark.test_k3_5_auto_compare_wake_runner -q",
+        "python scripts/run_k3_5_auto_compare.py --claude-mode fixture --julia-mode core"
+      ]
+    }
+  },
+  "gaps": [],
+  "gate_ready": true
+}

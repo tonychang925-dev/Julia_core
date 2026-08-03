@@ -1,0 +1,14 @@
+{
+  "phase": "H6.3",
+  "gate_ready": true,
+  "tasks": [
+    {
+      "task_id": "H6.3-T01",
+      "requirement_ids": ["REQ-H6-V1-RELEASE-GATE"],
+      "acceptance_ids": ["ACPT-H6-301"],
+      "test_case_ids": ["H6-301", "H6-302", "H6-303", "H6-304", "H6-305"],
+      "test_commands": ["python -m unittest tests.h6.test_julia_assistant_v1_release_gate -q"]
+    }
+  ],
+  "gaps": []
+}

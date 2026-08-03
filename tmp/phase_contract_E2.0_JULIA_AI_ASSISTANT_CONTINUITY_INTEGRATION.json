@@ -1,0 +1,21 @@
+{
+  "phase_code": "E2.0",
+  "phase_name": "Julia AI Assistant Continuity Integration Contract",
+  "parent_milestone": "Phase E2 — Julia AI Assistant Real Runtime Continuity Validation",
+  "status": "DRAFT-FROZEN",
+  "risk_level": "P0",
+  "generated_at": "2026-08-02",
+  "objective": "Freeze application integration contract for using Julia Core Continuity Architecture inside Julia AI Assistant real runtime flows.",
+  "route": [
+    "E2.0 Integration Contract",
+    "E2.1 Real Session Continuity",
+    "E2.2 Real Memory Continuity",
+    "E2.3 Compact Survival Real Test"
+  ],
+  "non_goals": [
+    "No live provider call in E2.0",
+    "No product code change in E2.0",
+    "No prompt/session restoration path",
+    "No checkpoint persistence migration"
+  ]
+}

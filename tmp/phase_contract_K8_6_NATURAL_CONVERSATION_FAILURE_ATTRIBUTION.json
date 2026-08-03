@@ -1,0 +1,35 @@
+{
+  "run_id": "20260802_K8_6_NATURAL_CONVERSATION_FAILURE_ATTRIBUTION",
+  "scope": "phase:K8.6",
+  "phase_code": "K8.6",
+  "generated_at": "2026-08-02T00:00:00+08:00",
+  "milestone": {
+    "name": "K8.6 - Natural Conversation Failure Attribution",
+    "phase": "K8.6",
+    "summary": "Diagnose failed natural conversation behavior by layer before any prompt or runtime fix."
+  },
+  "review": {
+    "name": "K8.6 Natural Conversation Failure Attribution Contract Freeze",
+    "type": "Phase Contract"
+  },
+  "principle": "Do not fix behavior by adding prompt before locating the cognitive failure layer.",
+  "taxonomy": [
+    "F1 Understanding Failure",
+    "F2 Intention Failure",
+    "F3 Context Arbitration Failure",
+    "F4 Context Optimization Failure",
+    "F5 Expression Boundary Failure",
+    "F6 Provider Expression Failure",
+    "F7 Continuity Drift"
+  ],
+  "deliverables": [
+    "docs/architecture/COGNITIVE_FAILURE_TAXONOMY_v1.md",
+    "julia_core/conversation_cognition/failure_attribution.py",
+    "tests/e2e/test_k8_6_failure_taxonomy.py",
+    "tests/e2e/test_k8_6_failure_attribution.py",
+    "tests/e2e/test_k8_6_no_prompt_tuning_without_attribution.py",
+    "tests/e2e/test_k8_6_m10_readiness.py",
+    "artifacts/e2e/julia_natural_conversation_failure_attribution_v1.json"
+  ],
+  "next_milestone": "M10 - Julia Cognitive Behavior Proof v1.0"
+}

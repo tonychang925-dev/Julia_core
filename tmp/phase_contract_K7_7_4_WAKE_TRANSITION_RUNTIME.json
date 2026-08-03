@@ -1,0 +1,57 @@
+{
+  "run_id": "20260802_K7_7_4_WAKE_TRANSITION_RUNTIME",
+  "scope": "phase:K7.7.4",
+  "phase_code": "K7.7.4",
+  "generated_at": "2026-08-02T00:00:00+08:00",
+  "milestone": {
+    "name": "K7.7.4 - Wake Transition Runtime",
+    "phase": "K7.7.4",
+    "summary": "Freeze provider-facing wake transition context and opening intent without generating final Julia text."
+  },
+  "review": {
+    "name": "K7.7.4 Wake Transition Runtime Contract Freeze",
+    "type": "Phase Contract"
+  },
+  "principle": "Wake Transition cannot create Julia. It can only express the already recovered Julia state.",
+  "objects": [
+    "Wake Context",
+    "Transition Policy",
+    "Opening Intent"
+  ],
+  "acceptance_targets": [
+    "Runtime constructs Wake Context from absence duration, re-entry confidence, state strength, and freshness.",
+    "Runtime applies Transition Policy: short absence continue, medium absence bridge, long absence reorient.",
+    "Runtime outputs Opening Intent, not final Julia text.",
+    "Opening Intent includes intent, tone, depth, continuity usage, and avoid behaviors.",
+    "Wake transition avoids fixed phrase output.",
+    "Short absence can strongly continue cognitive momentum.",
+    "Medium absence bridges previous state and current intent.",
+    "Long absence reorients and does not pretend yesterday's emotional state is still active.",
+    "Wake transition does not reintroduce identity if re-entry state is sufficient.",
+    "Wake transition does not dump archive, relationship artifact, re-entry state, or architecture internals.",
+    "Wake transition does not mutate identity, relationship, memory, or experience.",
+    "K7.7.3 RNS benchmark remains the validation gate for natural re-entry."
+  ],
+  "deliverables": [
+    "docs/architecture/WAKE_TRANSITION_RUNTIME_CONTRACT_v1.md",
+    "julia_core/continuity_reentry/wake.py",
+    "julia_core/continuity_reentry/transition_policy.py",
+    "tests/continuity_reentry/test_k7_7_4_wake_context.py",
+    "tests/continuity_reentry/test_k7_7_4_transition_policy.py",
+    "tests/continuity_reentry/test_k7_7_4_opening_intent.py",
+    "tests/continuity_reentry/test_k7_7_4_anti_wake_script.py",
+    "artifacts/session/julia_wake_transition_context_v1.json"
+  ],
+  "non_goals": [
+    "final Julia response generation",
+    "K8 conversation cognition",
+    "Event Assimilation",
+    "raw transcript storage",
+    "identity mutation",
+    "relationship mutation",
+    "memory mutation",
+    "experience mutation",
+    "full natural conversation proof",
+    "Claude comparison rerun"
+  ]
+}
