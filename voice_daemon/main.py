@@ -1,21 +1,15 @@
 #!/usr/bin/env python3
-"""Julia Voice Daemon v4.1.1 — Embodied Runtime Entry Point.
+"""Julia Voice Daemon v4.1.2 — Streaming VAD Pipeline.
 
 Architecture:
-  Mac mic → VAD → Wake Word → STT (GPU Whisper) → WebSocket → Julia Runtime → TTS → Speaker
+  sounddevice (continuous) → Silero VAD → speech segments → Whisper STT
+  → wake word check → Event Gateway (:9000) → LLM → TTS → Speaker
 
-This daemon is a thin client. It converts audio ↔ events.
-All intelligence lives in the Julia Runtime (:9000).
+This is a thin client. It converts audio ↔ events.
+All intelligence lives in the Julia Runtime.
 
 Usage:
-  python -m voice_daemon.main
-  # or
-  python voice_daemon/main.py
-
-Environment:
-  WHISPER_SERVER_URL  — GPU Whisper server (default: http://localhost:8001)
-  ELEVENLABS_API_KEY  — ElevenLabs API key for TTS
-  JULIA_RUNTIME_URL   — Julia Runtime WebSocket (default: ws://localhost:9000/ws)
+  /opt/miniconda3/envs/torch_env/bin/python -m voice_daemon.main
 """
 
 from __future__ import annotations
@@ -25,58 +19,52 @@ import logging
 import os
 import signal
 import sys
-import time
 import threading
+import time
 from pathlib import Path
+from queue import Queue
 
-# Add julia_core to path for imports
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from voice_daemon.audio.microphone import Microphone, get_default_mic_index
-from voice_daemon.audio.stream import AudioRecorder
+from voice_daemon.audio.mac_speech import StreamingMic, VADStreamProcessor
 from voice_daemon.audio.player import AudioPlayer
-from voice_daemon.vad.silero import SileroVAD, SpeechDetector
-from voice_daemon.wakeword.detector import WakeWordDetector, WAKE_WORDS
+from voice_daemon.audio.device import get_default_input_device
 from voice_daemon.stt.whisper_client import WhisperClient
 from voice_daemon.tts.elevenlabs import ElevenLabsTTS
+from voice_daemon.wakeword.detector import _match_wake_word, WAKE_WORDS
 from voice_daemon.presence.manager import PresenceManager, Presence
 from voice_daemon.transport.websocket import WebSocketTransport
 from voice_daemon.transport.protocol import (
-    PRESENCE_CHANGED, TTS_SPEAK, TTS_CANCEL, TTS_FINISHED, ASSISTANT_REPLY, ERROR,
-    presence_changed_event, tts_finished_event, voice_wake_event,
+    PRESENCE_CHANGED, TTS_SPEAK, TTS_CANCEL, ASSISTANT_REPLY, ERROR,
+    presence_changed_event, tts_finished_event,
 )
 
 logger = logging.getLogger("julia.voice")
 
 
 class JuliaVoiceDaemon:
-    """Main voice daemon — coordinates all audio I/O and Runtime communication."""
+    """Voice daemon with streaming VAD pipeline."""
 
-    def __init__(self, config: dict = None):
-        self.config = config or {}
-
+    def __init__(self):
         # Audio
-        self.mic_index = get_default_mic_index()
+        dev = get_default_input_device()
+        self.mic_index = dev['index'] if dev else None
         self.sample_rate = 16000
-        self.recorder = AudioRecorder(sample_rate=self.sample_rate, buffer_seconds=2.0)
-        self.player = AudioPlayer()
 
-        # VAD
-        self.vad = SileroVAD(threshold=0.5, sample_rate=self.sample_rate,
-                             min_speech_duration=0.3, silence_duration=1.5)
-        self.speech_detector = SpeechDetector(self.vad)
+        # Streaming mic + VAD
+        self.mic = StreamingMic(sample_rate=self.sample_rate, device_index=self.mic_index)
+        self.vad_proc = VADStreamProcessor(sample_rate=self.sample_rate)
 
-        # STT (GPU Whisper)
+        # STT
         whisper_url = os.environ.get("WHISPER_SERVER_URL", "http://localhost:8001")
         self.whisper = WhisperClient(server_url=whisper_url)
 
-        # Wake Word
-        self.wake_detector = WakeWordDetector(whisper_client=self.whisper,
-                                             device_index=self.mic_index)
-
-        # TTS
+        # TTS + Player
         self.tts = ElevenLabsTTS()
+        self.player = AudioPlayer()
 
         # Transport
         runtime_url = os.environ.get("JULIA_RUNTIME_URL", "ws://localhost:9000/ws")
@@ -84,259 +72,200 @@ class JuliaVoiceDaemon:
 
         # Presence
         self.presence = PresenceManager(initial=Presence.SLEEPING)
-        self.presence.enable_journal()  # Log state transitions for diagnostics
+        self.presence.enable_journal()
 
         # State
         self._running = False
+        self._wake_detected = False
+        self._wake_word = ""
+        self._loop: asyncio.AbstractEventLoop = None
 
-    # ── Initialization ──────────────────────────────────────────────────────
+        # Thread-safe queue for speech segments from audio thread → asyncio
+        self._segment_queue: Queue = Queue()
+
+    # ── Init ──────────────────────────────────────────────────────────────────
 
     def check_environment(self) -> dict:
-        """Check all subsystems and return status."""
         return {
-            "microphone": self.mic_index,
-            "vad": self.vad.is_available,
+            "mic": self.mic_index,
+            "vad": self.vad_proc.is_loaded,
             "whisper": self.whisper.is_available(),
             "tts": self.tts.is_available,
             "runtime": self.transport.runtime_url,
         }
 
-    # ── Event Handlers ─────────────────────────────────────────────────────
+    # ── Event Handlers ────────────────────────────────────────────────────────
 
     def _setup_event_handlers(self):
-        """Register handlers for events from Julia Runtime."""
-
         def on_tts_speak(event):
-            """Runtime → Voice Daemon: speak this text."""
             text = event.data.get("text", "")
             emotion = event.data.get("emotion", "warm")
             if text:
                 self.presence.transition(Presence.SPEAKING)
-                # Speak in background, send tts.finished when done
-                import threading
-                def _speak_and_notify():
-                    ok = self.tts.speak(text, emotion)
+                def _speak():
+                    self.tts.speak(text, emotion)
                     if self.transport.connected:
                         try:
                             loop = asyncio.get_running_loop()
                             asyncio.run_coroutine_threadsafe(
-                                self.transport.send(tts_finished_event(0.0)),
-                                loop,
+                                self.transport.send(tts_finished_event(0.0)), loop
                             )
                         except RuntimeError:
                             pass
-                        # Transition back to idle
-                        self.presence.transition(Presence.IDLE)
-                threading.Thread(target=_speak_and_notify, daemon=True).start()
+                    self.presence.transition(Presence.IDLE)
+                threading.Thread(target=_speak, daemon=True).start()
 
         def on_tts_cancel(event):
-            """Runtime → Voice Daemon: stop current TTS immediately."""
             self.player.stop()
             self.presence.transition(Presence.IDLE)
 
-        def on_presence_changed(event):
-            """Runtime → Voice Daemon: Julia's state changed."""
-            state = event.data.get("value", "idle")
-            try:
-                new_state = Presence(state)
-                self.presence.force_transition(new_state)
-            except ValueError:
-                pass
-
         def on_error(event):
-            logger.error(f"Runtime error: {event.data.get('detail', 'unknown')}")
+            logger.error(f"Runtime error: {event.data.get('detail', '')}")
 
         self.transport.on(TTS_SPEAK, on_tts_speak)
         self.transport.on(TTS_CANCEL, on_tts_cancel)
-        self.transport.on(PRESENCE_CHANGED, on_presence_changed)
         self.transport.on(ERROR, on_error)
 
-        # Also track presence transitions and broadcast them
+        # Broadcast presence changes to Runtime
         def on_presence_change(new_state, old_state):
             if new_state != old_state and self.transport.connected:
                 event = presence_changed_event(new_state.value)
                 try:
                     loop = asyncio.get_running_loop()
-                    asyncio.run_coroutine_threadsafe(
-                        self.transport.send(event), loop
-                    )
+                    asyncio.run_coroutine_threadsafe(self.transport.send(event), loop)
                 except RuntimeError:
-                    pass  # No running loop yet — skip broadcast
-
+                    pass
         self.presence.on_change(on_presence_change)
 
-    # ── Voice Pipeline ─────────────────────────────────────────────────────
+    # ── Audio Pipeline (runs in audio thread) ─────────────────────────────────
 
-    async def _process_speech(self, text: str):
-        """Send speech final to Runtime, wait for TTS response."""
-        if not text or not text.strip():
+    def _on_audio_chunk(self, audio: np.ndarray):
+        """Called by StreamingMic callback in audio thread."""
+        self.vad_proc.process_chunk(audio)
+
+    def _on_speech_end(self, pcm_bytes: bytes):
+        """Called by VADStreamProcessor when a speech segment completes."""
+        self._segment_queue.put(pcm_bytes)
+
+    # ── Wake Detection + Speech Processing (runs in asyncio) ───────────────────
+
+    async def _process_segment(self, pcm_bytes: bytes):
+        """Transcribe a speech segment and check for wake word or process query."""
+        if len(pcm_bytes) < self.sample_rate * 0.2 * 2:  # < 0.2s — too short
             return
 
-        logger.info(f"Speech final: {text}")
-
-        # Transition: listening → thinking (LLM processing)
-        self.presence.transition(Presence.THINKING)
-
-        # Send to Runtime
-        await self.transport.send_speech_final(text)
-
-        # Runtime will respond with TTS_SPEAK event → handled by on_tts_speak
-        # After TTS completes, the TTS handler transitions to IDLE
-
-    async def _voice_loop(self):
-        """Main voice interaction loop. Runs after wake word detection."""
-        logger.info("Voice loop started")
-
-        # Check if VAD is available
-        if not self.vad.is_available:
-            # Fallback: fixed-duration recording without VAD
-            await self._voice_loop_fallback()
+        result = self.whisper.transcribe_bytes(pcm_bytes, suffix=".raw")
+        text = result.get("text", "").strip()
+        if not text:
             return
 
-        # Fill audio buffer
-        self.recorder.start(device_index=self.mic_index)
+        logger.info(f"🎤 {text}")
 
-        # Setup speech detection
-        def on_speech_start():
-            self.recorder.start_segment()
+        # Check if this is a wake word
+        wake = _match_wake_word(text)
+        if wake and not self._wake_detected:
+            # Wake word detected!
+            self._wake_detected = True
+            self._wake_word = wake
+
+            mode = "interrupt" if self.presence.state in (Presence.SPEAKING, Presence.THINKING) else "activate"
+            logger.info(f"Wake: '{wake}' (mode={mode})")
+
+            if mode == "interrupt":
+                self.player.stop()
+                await self.transport.send_cancel("wake_word_interrupt")
+
             self.presence.transition(Presence.LISTENING)
-            self.transport.send_voice_state("listening")
+            await self.transport.send_wake(wake, text, mode)
+            print(f"  ✅ 唤醒! 说你想说的...", flush=True)
 
-        def on_speech_end():
-            self.presence.transition(Presence.THINKING)
-            self.transport.send_voice_state("processing")
-            segment = self.recorder.stop_segment()
-            if len(segment) > self.sample_rate * 0.3 * 2:  # at least 0.3s of audio
-                result = self.whisper.transcribe_bytes(segment, suffix=".raw")
-                text = result.get("text", "").strip()
-                if text:
-                    asyncio.create_task(self._process_speech(text))
-                else:
-                    self.presence.transition(Presence.IDLE)
-            else:
-                self.presence.transition(Presence.IDLE)
+        elif self._wake_detected:
+            # Post-wake: this is the user's actual query
+            self._wake_detected = False  # Reset for next wake cycle
+            await self._process_query(text)
 
-        self.speech_detector.on_speech_start(on_speech_start)
-        self.speech_detector.on_speech_end(on_speech_end)
+    async def _process_query(self, text: str):
+        """Send user query to Julia Runtime."""
+        self.presence.transition(Presence.THINKING)
+        await self.transport.send_speech_final(text)
+        print(f"  → Julia 思考中...", flush=True)
+        # Response + TTS handled by event handlers
 
-        try:
-            while self._running:
-                chunk = self.recorder.read_chunk()
-                if chunk:
-                    self.speech_detector.process(chunk)
-                await asyncio.sleep(0.01)
-        finally:
-            self.recorder.stop()
+    # ── Main Loop ─────────────────────────────────────────────────────────────
 
-    async def _voice_loop_fallback(self):
-        """Fallback voice loop when VAD is not loaded. Uses fixed-duration recording."""
-        import tempfile, subprocess, os
-
-        self.presence.transition(Presence.LISTENING)
-        await self.transport.send_voice_state("listening")
-        logger.info("Voice loop (VAD fallback): recording 5s from mic...")
-
-        # Record 5 seconds via ffmpeg
-        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-        tmp.close()
-        device = f":{self.mic_index}" if self.mic_index is not None else ":0"
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, lambda: subprocess.run([
-            "ffmpeg", "-y", "-f", "avfoundation",
-            "-i", device, "-t", "5",
-            "-ar", "16000", "-ac", "1", tmp.name,
-        ], capture_output=True, timeout=10))
-
-        if os.path.exists(tmp.name) and os.path.getsize(tmp.name) > 1000:
-            result = self.whisper.transcribe_file(tmp.name)
-            text = result.get("text", "").strip()
-            os.unlink(tmp.name)
-            if text:
-                logger.info(f"Fallback STT: '{text[:60]}'")
-                await self._process_speech(text)
-            else:
-                logger.info("Fallback STT: (silence)")
-                self.presence.transition(Presence.IDLE)
-        else:
-            self.presence.transition(Presence.IDLE)
-
-    async def _wake_listen_loop(self):
-        """Outer loop: wait for wake word, then enter voice loop."""
-        logger.info(f"Wake word listening: {WAKE_WORDS}")
-        print("  🔊 可以说话了，叫 '婉婉' 或 'Julia'", flush=True)
-
+    async def _main_loop(self):
+        """Asyncio loop: drain segment queue, process speech."""
         while self._running:
-            self.presence.transition(Presence.IDLE)
+            try:
+                # Non-blocking check for new speech segments
+                while not self._segment_queue.empty():
+                    pcm = self._segment_queue.get_nowait()
+                    await self._process_segment(pcm)
+                await asyncio.sleep(0.05)  # ~20 checks/second
+            except Exception as e:
+                logger.error(f"Main loop error: {e}")
 
-            # Listen for wake word (blocking in thread to not block asyncio)
-            result = await asyncio.to_thread(
-                self.wake_detector.listen,
-                audio_stream_func=None,
-                timeout=30.0,
-            )
-
-            if result and self._running:
-                word, transcript = result
-                mode = "interrupt" if self.presence.state in (Presence.SPEAKING, Presence.THINKING) else "activate"
-                logger.info(f"Wake word: '{word}' (mode={mode})")
-
-                if mode == "interrupt":
-                    self.player.stop()
-                    await self.transport.send_cancel("wake_word_interrupt")
-
-                await self.transport.send_wake(word, transcript, mode)
-                await self._voice_loop()
-
-                # After voice loop ends, go back to idle and wait for next wake
-
-    # ── Lifecycle ───────────────────────────────────────────────────────────
+    # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     async def start(self):
-        """Start the voice daemon."""
-        logger.info("Julia Voice Daemon v4.1.1 starting...")
+        logger.info("Julia Voice Daemon v4.1.2 starting...")
 
-        # Check subsystems
+        # Check env
         env = self.check_environment()
-        logger.info(f"  Microphone: device {env['microphone']}")
-        logger.info(f"  VAD (Silero): {'✅' if env['vad'] else '⚠️  not loaded'}")
-        logger.info(f"  STT (Whisper): {'✅' if env['whisper'] else '❌ offline'} @ {self.whisper.server_url}")
-        logger.info(f"  TTS (ElevenLabs): {'✅' if env['tts'] else '❌ no API key'}")
+        vad_ok = self.vad_proc.load_vad()
+        logger.info(f"  Mic: device {env['mic']}")
+        logger.info(f"  VAD (Silero): {'✅' if vad_ok else '❌ failed'}")
+        logger.info(f"  STT (Whisper): {'✅' if env['whisper'] else '❌'} @ {self.whisper.server_url}")
+        logger.info(f"  TTS (ElevenLabs): {'✅' if env['tts'] else '❌'}")
         logger.info(f"  Runtime: {env['runtime']}")
+
+        if not vad_ok:
+            logger.error("VAD failed to load — voice daemon cannot run without VAD")
+            logger.error("Make sure torch is installed: pip install torch")
+            return
 
         # Connect to Runtime
         connected = await self.transport.connect()
         if not connected:
-            logger.warning(f"Could not connect to Julia Runtime at {self.transport.runtime_url}")
-            logger.warning("Voice daemon will continue without Runtime — audio will be buffered")
+            logger.warning(f"Runtime at {self.transport.runtime_url} not available")
         else:
             self._setup_event_handlers()
 
-        # Transition to idle
-        self.presence.transition(Presence.IDLE)
-        self._running = True
+        # Wire up audio pipeline
+        self.vad_proc.on_speech_end(self._on_speech_end)
 
-        # Start the wake word listening loop
+        # Start streaming mic
+        if not self.mic.start(self._on_audio_chunk):
+            logger.error("Failed to start microphone")
+            return
+
+        # Start running
+        self._running = True
+        self._loop = asyncio.get_running_loop()
+        self.presence.transition(Presence.IDLE)
+
+        logger.info(f"Listening for: {WAKE_WORDS}")
+        print(f"  🔊 叫 '婉婉' 或 'Julia' 唤醒我", flush=True)
+
         try:
-            await self._wake_listen_loop()
+            await self._main_loop()
         except asyncio.CancelledError:
-            logger.info("Voice daemon stopped")
+            pass
         finally:
             await self.stop()
 
     async def stop(self):
-        """Gracefully shut down."""
-        logger.info("Shutting down voice daemon...")
+        logger.info("Shutting down...")
         self._running = False
-        self.presence.transition(Presence.SLEEPING)
-        self.recorder.stop()
+        self.mic.stop()
         self.player.stop()
         await self.transport.disconnect()
+        self.presence.transition(Presence.SLEEPING)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    """CLI entry point."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
@@ -344,21 +273,17 @@ def main():
     )
 
     daemon = JuliaVoiceDaemon()
-
-    # Handle graceful shutdown
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-    def _signal_handler():
-        logger.info("Received shutdown signal")
+    def _shutdown():
         loop.call_soon_threadsafe(lambda: loop.create_task(daemon.stop()))
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
-            loop.add_signal_handler(sig, _signal_handler)
+            loop.add_signal_handler(sig, _shutdown)
         except NotImplementedError:
-            # Windows doesn't support add_signal_handler
-            signal.signal(sig, lambda s, f: _signal_handler())
+            signal.signal(sig, lambda s, f: _shutdown())
 
     try:
         loop.run_until_complete(daemon.start())
@@ -366,8 +291,7 @@ def main():
         pass
     finally:
         loop.close()
-
-    logger.info("Julia Voice Daemon exited.")
+    logger.info("Exited.")
 
 
 if __name__ == "__main__":
