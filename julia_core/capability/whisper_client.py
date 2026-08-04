@@ -24,7 +24,19 @@ from typing import Optional
 
 
 class WhisperClient:
-    """STT client. Talks to a faster-whisper GPU server via HTTP."""
+    """STT client. Talks to a faster-whisper GPU server via HTTP.
+
+    GPU Server (Tony's AutoDL RTX 3090):
+      faster-whisper large-v3 on CUDA
+      Server code: /root/autodl-tmp/julia-voice-server/
+      API: POST /transcribe  (multipart audio file → JSON)
+
+    Local fallback:
+      openai-whisper (no GPU needed, slower)
+
+    Usage:
+      export WHISPER_SERVER_URL="http://your-autodl-ip:8001"
+    """
 
     tool_name = "transcribe_audio"
     tool_description = "将语音转文字。当Tony用语音输入时自动使用。返回转录文本和语言检测结果。"
