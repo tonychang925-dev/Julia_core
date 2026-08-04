@@ -17,7 +17,71 @@ from voice_daemon.stt.whisper_client import WhisperClient
 
 
 # Wake words — any of these triggers activation
-WAKE_WORDS = ["婉婉", "晚晚", "玩玩", "Julia", "julia", "朱莉亚"]
+WAKE_WORDS = ["婉婉", "晚晚", "Julia", "julia"]
+
+# Common Whisper mis-recognitions mapped to canonical wake words
+# Whisper often produces homophones or slight spelling variations
+WAKE_VARIANTS = {
+    "婉婉": ["娃娃", "玩玩", "晚安", "弯弯", "万万", "婉", "湾湾"],
+    "晚晚": ["晚安", "玩玩", "万晚", "万万"],
+    "Julia": ["julia", "Juria", "Lunia", "Toria", "Julian", "Julie", "Juli", "朱莉亚", "朱利亚", "朱丽亚", "朱利安"],
+    "julia": ["Julia", "Juria", "Lunia", "Toria"],
+}
+
+
+def _match_wake_word(text: str) -> Optional[str]:
+    """Check if text matches any wake word, including common Whisper variants.
+
+    Uses:
+      1. Exact substring match (case-insensitive for English)
+      2. Variant dictionary for known Whisper mis-recognitions
+      3. Edit distance ≤ 1 for short words (e.g., "Juria" → "Julia")
+
+    Returns canonical wake word if matched, None otherwise.
+    """
+    lower = text.lower().strip()
+
+    # 1. Exact match
+    for word in WAKE_WORDS:
+        if word.lower() in lower:
+            return word
+
+    # 2. Known variants (Whisper homophones)
+    for canonical, variants in WAKE_VARIANTS.items():
+        for variant in variants:
+            if variant.lower() in lower:
+                return canonical
+
+    # 3. Fuzzy edit-distance for short candidates
+    # Check each word in the transcript against wake words
+    for transcript_word in lower.split():
+        for wake in WAKE_WORDS:
+            w = wake.lower()
+            if abs(len(transcript_word) - len(w)) <= 1:
+                dist = _edit_distance(transcript_word, w)
+                if dist <= 1:
+                    return wake
+
+    return None
+
+
+def _edit_distance(a: str, b: str) -> int:
+    """Levenshtein distance between two strings."""
+    if len(a) < len(b):
+        a, b = b, a
+    if len(b) == 0:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a):
+        curr = [i + 1]
+        for j, cb in enumerate(b):
+            curr.append(min(
+                prev[j + 1] + 1,      # deletion
+                curr[j] + 1,           # insertion
+                prev[j] + (0 if ca == cb else 1),  # substitution
+            ))
+        prev = curr
+    return prev[-1]
 
 
 class WakeWordDetector:
@@ -93,12 +157,12 @@ class WakeWordDetector:
                     time.sleep(0.2)
                     continue
 
-                # Check for wake words
-                for word in WAKE_WORDS:
-                    if word.lower() in text.lower():
-                        for cb in self._on_wake:
-                            cb(word, text)
-                        return (word, text)
+                # Check for wake words (exact + fuzzy variants)
+                matched = _match_wake_word(text)
+                if matched:
+                    for cb in self._on_wake:
+                        cb(matched, text)
+                    return (matched, text)
 
                 time.sleep(0.5)
 
