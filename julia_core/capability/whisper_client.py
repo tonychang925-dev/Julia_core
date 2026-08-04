@@ -61,21 +61,25 @@ class WhisperClient:
         if not path.exists():
             return {"error": f"文件不存在: {audio_path}"}
 
-        # Try remote server first
-        if cls._server_url != "http://localhost:8001":
-            try:
-                import requests
-                with open(audio_path, 'rb') as f:
-                    resp = requests.post(
-                        f"{cls._server_url}/v1/transcribe",
-                        files={"audio": f},
-                        data={"language": "zh", "response_format": "json"},
-                        timeout=60,
-                    )
-                if resp.status_code == 200:
-                    return resp.json()
-            except Exception:
-                pass
+        # Try remote GPU server (Tony's AutoDL RTX 3090)
+        try:
+            import requests
+            with open(audio_path, 'rb') as f:
+                resp = requests.post(
+                    f"{cls._server_url}/v1/transcribe",
+                    files={"audio": f},
+                    data={"language": "zh", "beam_size": 5},
+                    timeout=60,
+                )
+            if resp.status_code == 200:
+                data = resp.json()
+                return {
+                    "text": data.get("text", "").strip(),
+                    "language": data.get("language", "zh"),
+                    "confidence": data.get("language_probability", 0.9),
+                }
+        except Exception:
+            pass
 
         # Local fallback: use openai-whisper
         if cls._local_model:

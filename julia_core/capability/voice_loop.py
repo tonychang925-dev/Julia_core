@@ -43,12 +43,17 @@ def transcribe(audio_path: str) -> dict:
     with open(audio_path, "rb") as f:
         resp = requests.post(
             f"{SERVER_URL}/v1/transcribe",
-            files={"file": f},
-            data={"language": "zh", "response_format": "json"},
+            files={"audio": f},
+            data={"language": "zh", "beam_size": 5},
             timeout=60,
         )
     if resp.status_code == 200:
-        return resp.json()
+        data = resp.json()
+        return {
+            "text": data.get("text", "").strip(),
+            "language": data.get("language", "zh"),
+            "confidence": data.get("language_probability", 0.9),
+        }
     return {"error": f"Server error: {resp.status_code}"}
 
 
