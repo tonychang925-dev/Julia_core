@@ -29,6 +29,7 @@ from fastapi.responses import JSONResponse
 # ── Config ──────────────────────────────────────────────────────────────────
 
 MODEL_SIZE = os.environ.get("WHISPER_MODEL", "large-v3")
+MODEL_PATH = os.environ.get("WHISPER_MODEL_PATH", "")  # Local model path (skip download)
 MODEL_CACHE = os.environ.get("WHISPER_CACHE_DIR", "/root/autodl-tmp/models")
 DEVICE = "cuda"
 COMPUTE_TYPE = "float16"  # float16 for GPU, int8 for CPU
@@ -47,11 +48,12 @@ def load_model():
     global model
     from faster_whisper import WhisperModel
 
-    logging.info(f"Loading faster-whisper {MODEL_SIZE} on {DEVICE} ({COMPUTE_TYPE})...")
+    model_id = MODEL_PATH or MODEL_SIZE
+    logging.info(f"Loading faster-whisper {model_id} on {DEVICE} ({COMPUTE_TYPE})...")
     os.makedirs(MODEL_CACHE, exist_ok=True)
 
     model = WhisperModel(
-        MODEL_SIZE,
+        model_id,
         device=DEVICE,
         compute_type=COMPUTE_TYPE,
         download_root=MODEL_CACHE,
