@@ -1,0 +1,60 @@
+# Julia Voice Daemon v4.1.1 Configuration
+# This daemon is a thin client — it converts audio ↔ events.
+# All intelligence lives in Julia Runtime.
+
+daemon:
+  name: "julia-voice-daemon"
+  version: "4.1.1"
+
+audio:
+  sample_rate: 16000
+  channels: 1
+  device_index: null  # null = system default mic
+  chunk_size: 1024    # audio buffer chunk size
+
+vad:
+  engine: "silero"
+  threshold: 0.5       # speech probability threshold
+  min_speech_duration: 0.3  # seconds
+  silence_duration: 1.5     # seconds of silence to end speech segment
+
+wake_word:
+  engine: "keyword"     # "keyword" = simple keyword match (current), "openwakeword" = ML model (future)
+  keywords:
+    - "婉婉"
+    - "晚晚"
+    - "Julia"
+    - "julia"
+  listen_timeout: 30.0  # seconds to listen for wake word before reset
+
+stt:
+  server_url: "${WHISPER_SERVER_URL:-http://localhost:8001}"
+  language: "zh"
+  beam_size: 5
+  timeout: 60
+
+tts:
+  provider: "elevenlabs"
+  api_key: "${ELEVENLABS_API_KEY:-}"
+  voice_id: "${ELEVENLABS_VOICE_ID:-tOuLUAIdXShmWH7PEUrU}"
+  model: "eleven_multilingual_v2"
+
+transport:
+  runtime_url: "ws://localhost:9000/ws"
+  reconnect_interval: 3.0    # seconds between reconnect attempts
+  heartbeat_interval: 30.0    # seconds
+  max_reconnect_delay: 60.0   # max backoff for reconnect
+
+presence:
+  initial_state: "sleeping"
+  states:
+    - sleeping
+    - idle
+    - listening
+    - thinking
+    - speaking
+    - away
+
+logging:
+  level: "INFO"
+  file: null  # null = stdout only, or path to log file
