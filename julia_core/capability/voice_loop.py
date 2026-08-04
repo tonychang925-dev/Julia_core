@@ -38,23 +38,24 @@ def record_audio(duration: int = 8, output_path: str = None) -> str:
 
 
 def transcribe(audio_path: str) -> dict:
-    """Send audio to GPU server for STT."""
-    import requests
-    with open(audio_path, "rb") as f:
-        resp = requests.post(
-            f"{SERVER_URL}/v1/transcribe",
-            files={"audio": f},
-            data={"language": "zh", "beam_size": 5},
-            timeout=60,
-        )
-    if resp.status_code == 200:
-        data = resp.json()
+    """Send audio to GPU server for STT. Uses curl for reliability."""
+    import subprocess, json
+    result = subprocess.run([
+        "curl", "-s", "-X", "POST",
+        f"{SERVER_URL}/v1/transcribe",
+        "-F", f"audio=@{audio_path}",
+        "-F", "language=zh",
+        "-F", "beam_size=5",
+        "--max-time", "60",
+    ], capture_output=True, text=True, timeout=65)
+    if result.returncode == 0 and result.stdout.strip():
+        data = json.loads(result.stdout)
         return {
             "text": data.get("text", "").strip(),
             "language": data.get("language", "zh"),
             "confidence": data.get("language_probability", 0.9),
         }
-    return {"error": f"Server error: {resp.status_code}"}
+    return {"error": f"Server error: {result.returncode}"}
 
 
 def voice_chat(llm_chat_fn) -> str:

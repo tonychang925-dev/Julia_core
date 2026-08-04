@@ -62,17 +62,19 @@ class WhisperClient:
             return {"error": f"文件不存在: {audio_path}"}
 
         # Try remote GPU server (Tony's AutoDL RTX 3090)
+        # Using subprocess+curl for reliability (Python requests has compat issues)
         try:
-            import requests
-            with open(audio_path, 'rb') as f:
-                resp = requests.post(
-                    f"{cls._server_url}/v1/transcribe",
-                    files={"audio": f},
-                    data={"language": "zh", "beam_size": 5},
-                    timeout=60,
-                )
-            if resp.status_code == 200:
-                data = resp.json()
+            import subprocess as _sp, json as _json
+            result = _sp.run([
+                "curl", "-s", "-X", "POST",
+                f"{cls._server_url}/v1/transcribe",
+                "-F", f"audio=@{audio_path}",
+                "-F", "language=zh",
+                "-F", "beam_size=5",
+                "--max-time", "60",
+            ], capture_output=True, text=True, timeout=65)
+            if result.returncode == 0 and result.stdout.strip():
+                data = _json.loads(result.stdout)
                 return {
                     "text": data.get("text", "").strip(),
                     "language": data.get("language", "zh"),
