@@ -31,8 +31,8 @@ from fastapi.responses import JSONResponse
 MODEL_SIZE = os.environ.get("WHISPER_MODEL", "large-v3")
 MODEL_PATH = os.environ.get("WHISPER_MODEL_PATH", "")  # Local model path (skip download)
 MODEL_CACHE = os.environ.get("WHISPER_CACHE_DIR", "/root/autodl-tmp/models")
-DEVICE = "cuda"
-COMPUTE_TYPE = "float16"  # float16 for GPU, int8 for CPU
+DEVICE = os.environ.get("WHISPER_DEVICE", "cuda")
+COMPUTE_TYPE = os.environ.get("WHISPER_COMPUTE_TYPE", "float16")  # float16 for GPU, int8 for CPU
 
 # ── App ─────────────────────────────────────────────────────────────────────
 

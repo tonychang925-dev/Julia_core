@@ -1,10 +1,10 @@
-# Julia OS Manifest v2.3
+# Julia OS Manifest v4.0
 # Declares what Julia IS and what she CAN do.
 # Provider-independent. Portable across models.
 # Freeze date: 2026-08-04
 
-version: 2.3
-status: world-access
+version: 4.0
+status: personal-os
 
 identity:
   narrative_world_seed: enabled
@@ -52,11 +52,29 @@ providers:
     elevenlabs: active
     whisper: pending  # AutoDL RTX 3090
 
+capability_layers: 12
+  identity: [nws, rk, bk, scm]
+  capability: [voice, vision, files, web]
+  world: [weather, time, calendar]
+  memory: [diary, consolidation, experience]
+  agency: [approval, action_control]
+  communication: [email]
+  relationship: [contacts, awareness]
+  workflow: [planning, execution]
+  learning: [habits, preferences]
+  context: [timeline, relevance]
+  stability: [identity_preservation, health_check]
+  reflection: [monthly_review, self_update]
+  personal_os: [morning_brief, project_status]
+
 tests:
   principles: 15/15
   perception: 11/11
   e2e: 8/8
-  total: 34/34
+  meb: 6/6
+  com: 8/8
+  pcib: 11/11
+  total: 59/59
 
 architecture:
   runtime: nervous_system  # Provides conditions, never thinks
