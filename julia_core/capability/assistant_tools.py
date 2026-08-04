@@ -78,6 +78,18 @@ class MorningBrief:
         if weather:
             parts.append(f"天气: {weather}")
 
+        # Calendar — today's schedule
+        try:
+            from julia_core.capability.calendar_tool import CalendarTool
+            today_schedule = CalendarTool.today()
+            if "暂无" not in today_schedule:
+                parts.append(f"今日日程:\n{today_schedule}")
+            upcoming = CalendarTool.upcoming(days=3)
+            if "暂无" not in upcoming:
+                parts.append(f"未来日程:\n{upcoming}")
+        except Exception:
+            pass
+
         # Recent memories
         mem_dir = Path("/Users/admin/.claude-dev/projects/-Users-admin/memory")
         if mem_dir.exists():
@@ -93,8 +105,7 @@ class MorningBrief:
 
         # Project context
         parts.append(
-            "项目背景: Julia OS v2架构已冻结。6条不可变原则。"
-            "活跃项目: Julia Core, Julia AI Assistant, ai_theme_app。"
+            "项目背景: Julia OS v2架构已冻结。活跃项目: Julia Core, Julia AI Assistant, ai_theme_app。"
         )
 
         return "\n".join(parts)
