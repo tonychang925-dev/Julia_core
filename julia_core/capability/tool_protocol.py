@@ -161,12 +161,16 @@ def create_tool_registry() -> ToolRegistry:
         search_dir = Path(directory).expanduser()
         if not search_dir.exists():
             return f"目录不存在: {directory}"
-        for path in search_dir.rglob(f"*{pattern}*"):
-            if path.name.startswith('.') or '__pycache__' in str(path):
-                continue
-            results.append(str(path))
-            if len(results) >= 20:
-                break
+        # Shallow search: only 3 levels deep, skip node_modules
+        for path in search_dir.glob(f"*{pattern}*"):
+            if not path.name.startswith('.') and '__pycache__' not in str(path):
+                results.append(str(path))
+        for path in search_dir.glob(f"*/*{pattern}*"):
+            if not path.name.startswith('.') and '__pycache__' not in str(path):
+                results.append(str(path))
+        for path in search_dir.glob(f"*/*/*{pattern}*"):
+            if not path.name.startswith('.') and '__pycache__' not in str(path):
+                results.append(str(path))
         if not results:
             return f"未找到匹配 '{pattern}' 的文件"
         return "\n".join(results[:20])
