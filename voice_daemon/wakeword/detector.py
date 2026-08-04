@@ -28,10 +28,12 @@ class WakeWordDetector:
     """
 
     def __init__(self, whisper_client: WhisperClient = None,
-                 sample_rate: int = 16000, clip_duration: float = 3.0):
+                 sample_rate: int = 16000, clip_duration: float = 3.0,
+                 device_index: int = None):
         self.whisper = whisper_client or WhisperClient()
         self.sample_rate = sample_rate
         self.clip_duration = clip_duration
+        self.device_index = device_index  # None = system default, or specific index
         self._on_wake: list[Callable[[str, str], None]] = []
         self._running = False
 
@@ -58,9 +60,10 @@ class WakeWordDetector:
             tmp.close()
 
             try:
+                device = f":{self.device_index}" if self.device_index is not None else ":0"
                 subprocess.run([
                     "ffmpeg", "-f", "avfoundation",
-                    "-i", ":0", "-t", str(self.clip_duration),
+                    "-i", device, "-t", str(self.clip_duration),
                     "-ar", str(self.sample_rate), "-ac", "1",
                     "-y", tmp_path,
                 ], capture_output=True, timeout=self.clip_duration + 5)
@@ -110,7 +113,8 @@ class WakeWordDetector:
         self._running = False
 
 
-def record_clip_ffmpeg(duration: float = 3.0, sample_rate: int = 16000) -> Optional[str]:
+def record_clip_ffmpeg(duration: float = 3.0, sample_rate: int = 16000,
+                       device_index: int = None) -> Optional[str]:
     """Record a short audio clip using ffmpeg (macOS).
     Returns path to WAV file, or None on failure.
     """
@@ -119,9 +123,10 @@ def record_clip_ffmpeg(duration: float = 3.0, sample_rate: int = 16000) -> Optio
     tmp.close()
 
     try:
+        device = f":{device_index}" if device_index is not None else ":0"
         subprocess.run([
             "ffmpeg", "-f", "avfoundation",
-            "-i", ":0", "-t", str(duration),
+            "-i", device, "-t", str(duration),
             "-ar", str(sample_rate), "-ac", "1",
             "-y", tmp_path,
         ], capture_output=True, timeout=duration + 5)

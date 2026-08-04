@@ -72,7 +72,8 @@ class JuliaVoiceDaemon:
         self.whisper = WhisperClient(server_url=whisper_url)
 
         # Wake Word
-        self.wake_detector = WakeWordDetector(whisper_client=self.whisper)
+        self.wake_detector = WakeWordDetector(whisper_client=self.whisper,
+                                             device_index=self.mic_index)
 
         # TTS
         self.tts = ElevenLabsTTS()
@@ -87,7 +88,6 @@ class JuliaVoiceDaemon:
 
         # State
         self._running = False
-        self._loop: asyncio.AbstractEventLoop = None
 
     # ── Initialization ──────────────────────────────────────────────────────
 
@@ -116,13 +116,15 @@ class JuliaVoiceDaemon:
                 import threading
                 def _speak_and_notify():
                     ok = self.tts.speak(text, emotion)
-                    duration = 0.0  # approximate
                     if self.transport.connected:
-                        # Fire-and-forget the tts.finished event
-                        asyncio.run_coroutine_threadsafe(
-                            self.transport.send(tts_finished_event(duration)),
-                            self._loop,
-                        )
+                        try:
+                            loop = asyncio.get_running_loop()
+                            asyncio.run_coroutine_threadsafe(
+                                self.transport.send(tts_finished_event(0.0)),
+                                loop,
+                            )
+                        except RuntimeError:
+                            pass
                         # Transition back to idle
                         self.presence.transition(Presence.IDLE)
                 threading.Thread(target=_speak_and_notify, daemon=True).start()
@@ -153,9 +155,13 @@ class JuliaVoiceDaemon:
         def on_presence_change(new_state, old_state):
             if new_state != old_state and self.transport.connected:
                 event = presence_changed_event(new_state.value)
-                asyncio.run_coroutine_threadsafe(
-                    self.transport.send(event), self._loop
-                )
+                try:
+                    loop = asyncio.get_running_loop()
+                    asyncio.run_coroutine_threadsafe(
+                        self.transport.send(event), loop
+                    )
+                except RuntimeError:
+                    pass  # No running loop yet — skip broadcast
 
         self.presence.on_change(on_presence_change)
 
