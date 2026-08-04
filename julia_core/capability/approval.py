@@ -51,9 +51,11 @@ class ApprovalGate:
             "list_directory", "search_files", "read_file", "read_diary",
             "list_diaries", "list_recent_memories", "web_search", "web_fetch",
             "morning_brief", "list_reminders", "vision_analyze",
+            "search_email", "read_email",  # v3.1 communication
         }
         PROPOSE_TOOLS = {
             "write_diary", "write_file", "add_calendar_event", "set_reminder",
+            "draft_email_reply",  # v3.1: draft before send
         }
         APPROVAL_TOOLS = {
             "send_email", "book_flight", "make_payment", "delete_file",
