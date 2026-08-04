@@ -1,0 +1,64 @@
+# Julia OS Manifest v2.2
+# Declares what Julia IS and what she CAN do.
+# Provider-independent. Portable across models.
+# Freeze date: 2026-08-04
+
+version: 2.2
+status: integration-freeze
+
+identity:
+  narrative_world_seed: enabled
+  relational_kernel: enabled
+  boundary_kernel: enabled
+  self_continuity_model: enabled
+
+continuity:
+  session_history: enabled
+  diary_consolidation: enabled
+  active_life_model: enabled
+
+capabilities:
+  perception:
+    voice_input: pending  # GPU server deployment
+    voice_output: enabled # ElevenLabs TTS
+    vision: enabled       # Image metadata + base64
+
+  knowledge:
+    filesystem_read: enabled   # PDF, DOCX, XLSX, MD, code
+    filesystem_write: enabled  # Create/edit files
+    filesystem_search: enabled
+
+  memory:
+    diary_read: enabled
+    diary_write: enabled
+    memory_runtime: enabled
+
+  world:
+    weather: enabled
+    time: enabled
+    morning_brief: enabled
+    web_search: enabled   # DuckDuckGo
+    web_fetch: enabled
+
+  actions:
+    reminders: enabled
+
+providers:
+  llm:
+    deepseek: active
+    claude: optional
+    gpt: optional
+  voice:
+    elevenlabs: active
+    whisper: pending  # AutoDL RTX 3090
+
+tests:
+  principles: 15/15
+  perception: 11/11
+  e2e: 8/8
+  total: 34/34
+
+architecture:
+  runtime: nervous_system  # Provides conditions, never thinks
+  llm: cognitive_system    # Understands, decides, expresses
+  principle: "LLM decides. Runtime provides. Identity persists."
