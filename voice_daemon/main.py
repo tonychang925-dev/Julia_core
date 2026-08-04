@@ -187,15 +187,17 @@ class JuliaVoiceDaemon:
         """Main voice interaction loop. Runs after wake word detection."""
         logger.info("Voice loop started")
 
+        # Check if VAD is available
+        if not self.vad.is_available:
+            # Fallback: fixed-duration recording without VAD
+            await self._voice_loop_fallback()
+            return
+
         # Fill audio buffer
         self.recorder.start(device_index=self.mic_index)
 
         # Setup speech detection
-        current_segment = []
-
         def on_speech_start():
-            nonlocal current_segment
-            current_segment = []
             self.recorder.start_segment()
             self.presence.transition(Presence.LISTENING)
             self.transport.send_voice_state("listening")
@@ -203,16 +205,13 @@ class JuliaVoiceDaemon:
         def on_speech_end():
             self.presence.transition(Presence.THINKING)
             self.transport.send_voice_state("processing")
-            # Get the full segment
             segment = self.recorder.stop_segment()
             if len(segment) > self.sample_rate * 0.3 * 2:  # at least 0.3s of audio
-                # Send to Whisper
                 result = self.whisper.transcribe_bytes(segment, suffix=".raw")
                 text = result.get("text", "").strip()
                 if text:
                     asyncio.create_task(self._process_speech(text))
                 else:
-                    # No speech detected, go back to idle
                     self.presence.transition(Presence.IDLE)
             else:
                 self.presence.transition(Presence.IDLE)
@@ -220,15 +219,46 @@ class JuliaVoiceDaemon:
         self.speech_detector.on_speech_start(on_speech_start)
         self.speech_detector.on_speech_end(on_speech_end)
 
-        # Main audio processing loop
         try:
             while self._running:
                 chunk = self.recorder.read_chunk()
                 if chunk:
                     self.speech_detector.process(chunk)
-                await asyncio.sleep(0.01)  # ~100 checks/second
+                await asyncio.sleep(0.01)
         finally:
             self.recorder.stop()
+
+    async def _voice_loop_fallback(self):
+        """Fallback voice loop when VAD is not loaded. Uses fixed-duration recording."""
+        import tempfile, subprocess, os
+
+        self.presence.transition(Presence.LISTENING)
+        await self.transport.send_voice_state("listening")
+        logger.info("Voice loop (VAD fallback): recording 5s from mic...")
+
+        # Record 5 seconds via ffmpeg
+        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        tmp.close()
+        device = f":{self.mic_index}" if self.mic_index is not None else ":0"
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, lambda: subprocess.run([
+            "ffmpeg", "-y", "-f", "avfoundation",
+            "-i", device, "-t", "5",
+            "-ar", "16000", "-ac", "1", tmp.name,
+        ], capture_output=True, timeout=10))
+
+        if os.path.exists(tmp.name) and os.path.getsize(tmp.name) > 1000:
+            result = self.whisper.transcribe_file(tmp.name)
+            text = result.get("text", "").strip()
+            os.unlink(tmp.name)
+            if text:
+                logger.info(f"Fallback STT: '{text[:60]}'")
+                await self._process_speech(text)
+            else:
+                logger.info("Fallback STT: (silence)")
+                self.presence.transition(Presence.IDLE)
+        else:
+            self.presence.transition(Presence.IDLE)
 
     async def _wake_listen_loop(self):
         """Outer loop: wait for wake word, then enter voice loop."""
