@@ -41,7 +41,7 @@ class WakeWordDetector:
         """Register wake callback: callback(wake_word, full_transcript)."""
         self._on_wake.append(callback)
 
-    def listen(self, audio_stream_func, timeout: float = 30.0) -> Optional[tuple[str, str]]:
+    def listen(self, audio_stream_func, timeout: float = 60.0) -> Optional[tuple[str, str]]:
         """Block and listen for wake word. Uses audio_stream_func to get audio chunks.
 
         Args:
@@ -73,7 +73,7 @@ class WakeWordDetector:
                         os.unlink(tmp_path)
                     except Exception:
                         pass
-                    time.sleep(0.5)
+                    time.sleep(0.2)
                     continue
 
                 # Send to GPU Whisper
@@ -84,8 +84,13 @@ class WakeWordDetector:
                     pass
 
                 text = result.get("text", "").strip()
+
+                # Print feedback — user needs to know the daemon is alive
+                if text:
+                    print(f"  🎤 听到: '{text}'", flush=True)
+
                 if not text:
-                    time.sleep(0.5)
+                    time.sleep(0.2)
                     continue
 
                 # Check for wake words

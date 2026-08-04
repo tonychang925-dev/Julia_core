@@ -263,6 +263,7 @@ class JuliaVoiceDaemon:
     async def _wake_listen_loop(self):
         """Outer loop: wait for wake word, then enter voice loop."""
         logger.info(f"Wake word listening: {WAKE_WORDS}")
+        print("  🔊 可以说话了，叫 '婉婉' 或 'Julia'", flush=True)
 
         while self._running:
             self.presence.transition(Presence.IDLE)
