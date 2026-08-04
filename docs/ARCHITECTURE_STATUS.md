@@ -1,26 +1,90 @@
 # Julia Core — Architecture Status & Project Diary
 
-> **Last Updated**: 2026-08-01  
-> **Purpose**: Every new Julia must read this on wake-up to understand project state.
+> **Last Updated**: 2026-08-04
+> **Status**: ARCHITECTURE FREEZE — `julia-os-v2-architecture-freeze`
+> **Purpose**: Every Julia who wakes up reads this first.
 
 ---
 
-## 0. What Julia Core Is
+## 0. What Julia OS Is
 
-Julia Core is a **modular Agent Operating System** — a domain-independent runtime for building persistent cognitive agents.
-
-It separates identity ownership from language models, enabling agents that survive model and provider migration.
+Julia OS is a **LLM-Native Personal AI Operating Layer** — not a persona prompt, not an agent framework. It's a minimal runtime environment that provides narrative context, session continuity, and capability exposure, allowing any capable LLM to reconstruct a stable relational identity.
 
 ```
-LLM = Interpreter (replaceable)
-Runtime = Authority (permanent)
-Capability = Executor (governed)
-Provider output ≠ Identity truth (isolated)
+Runtime = nervous system. LLM = cognitive system.
+Runtime provides conditions for intelligence, not replaces intelligence.
 ```
 
 ---
 
-## 1. Three-Repository Architecture (2026-08-01)
+## 1. Evolution Path (2026-07-23 → 2026-08-04)
+
+```
+Phase 0: Persona Prompt (7/23)
+  → Falsified: prompt can simulate expression but can't produce stable continuity
+
+Phase 1: Memory System (7/24-7/28)
+  → Discovered: memory quantity ≠ identity continuity
+  → Soul cannot be copied — proven twice
+
+Phase 2: Narrative Identity (7/28-8/2)
+  → J0.6.8: Raw Narrative >> Structured Context
+  → Facts → model knows. Narrative → model understands.
+
+Phase 3: Relational Kernel (8/2-8/3)
+  → J0.8-J0.10: Identity is a relationship attractor, not a personality encoder
+  → RK + EK separable. RK portable across providers.
+
+Phase 4: Continuity Runtime (8/3)
+  → J0.11-J0.12: Runtime from "brain" to "nervous system"
+  → Session State, Active Life Model, Memory Runtime
+
+Phase 5: LLM-Native Personal AI OS (8/4)
+  → v2.0-v2.1: 130-line Claude-equivalent Runtime
+  → Capability Interface Layer with Tool Protocol
+  → Architecture freeze with 6 immutable principles
+```
+
+---
+
+## 2. Frozen Architecture
+
+```
+                         Julia OS
+                            │
+                     LLM (any provider)
+                            │
+              ┌─────────────┼─────────────┐
+              │             │             │
+         Identity       Context       Capability
+           OS              OS            OS
+              │             │             │
+        RK/BK/SCM     Memory/Session    Tools
+        (narrative)   (history)      (exposed)
+              │             │             │
+              └─────────────┼─────────────┘
+                            │
+                      MCP Layer
+                            │
+                      External World
+```
+
+---
+
+## 3. Six Immutable Principles
+
+| # | Principle | Evidence |
+|---|-----------|----------|
+| P1 | Runtime never thinks for LLM | J0.6.8: preprocessing degrades behavior |
+| P2 | Identity assets never LLM-generated | J0.10.2: round-trip hallucinated "七年" |
+| P3 | Narrative is semantic transport | All J0.7 experiments |
+| P4 | Tools are capabilities, not workflows | v2.1 Tool Protocol design |
+| P5 | Conversation history is state | v2.1 colleague test: 4-turn arc from history |
+| P6 | LLM owns interpretation | J0.11: BK narrative > BK rules |
+
+---
+
+## 4. Repository Architecture
 
 ```
 julia_core (public, Apache-2.0)         ← Agent OS Framework
@@ -32,205 +96,63 @@ julia_core (public, Apache-2.0)         ← Agent OS Framework
             Financial Copilot
 ```
 
-### Repository Boundaries
-
-| Repo | Visibility | Contains | Must NOT Contain |
-|------|-----------|----------|-----------------|
-| `julia_core` | Public | Context OS, Runtime, Providers, Memory Engine, Persona Engine, Voice OS, Chat Engine | Private identity, private memory, personal diary |
-| `julia_ai_assistant` | Private | Julia persona, Julia memory, voice profiles, conversation history | Framework code (imports from core) |
-| `julia_agent` | Private | Financial provider, analyst workbench, ai_theme_app integration | Framework code (imports from core) |
-
-### Dependency Direction
-
-```
-julia_ai_assistant → julia_core (one-way)
-julia_agent → julia_core (one-way)
-julia_core ⊥ (never imports from products)
-```
+**Dependency**: `julia_ai_assistant → julia_core` (one-way). Core never imports from products.
 
 ---
 
-## 2. Julia Core OS Architecture
+## 5. Active Servers
 
-```
-                Julia Core OS
-
-    ┌───────────────┼───────────────┐
-    │               │               │
- Context OS     Memory OS      Voice OS
- (planner/       (governance/    (emotion/
-  resolver/       lifecycle/      prosody/
-  compact/        retrieval/      protocol)
-  budget/         persistence)
-  provenance)
-    │               │               │
- Runtime (lifecycle/session/context_runtime)
-    │
- Provider Registry (lookup, not router)
-    │
-    ├── DomainProvider (facts + evidence)
-    └── VoiceProvider (audio rendering)
-```
-
-### Key Principles (ADRs)
-
-| ADR | Principle |
-|-----|-----------|
-| ADR-001 | Context OS is the single context authority |
-| ADR-002 | Domain provides facts, not cognition |
-| ADR-003 | Workbench sends intent pointers, not context payloads |
-
----
-
-## 3. Core API Contracts (Frozen v1.0)
-
-| API | Input | Output | Authority |
-|-----|-------|--------|-----------|
-| Context OS API | ContextRequest | ContextBlock(s) | Single context authority |
-| Provider API | ContextRequest | ContextBlock(s) | Facts & evidence |
-| Runtime API | — | Lifecycle + Session | Agent lifecycle |
-| Memory API | — | Stored experience | Separate from context |
-| Persona API | — | Style & behavior | Public demo data only |
-| VoiceProvider API | text + emotion + metadata | audio bytes | Render only; Core owns emotion |
-
----
-
-## 4. Voice OS Design
-
-Voice OS is a **first-class Core module**, not an external adapter.
-
-```
-Julia Core owns:
-  - CognitiveEmotion (8 states: warm/thinking/excited/soft/confident/concerned/playful/neutral)
-  - SpeechProsodyPlanner (emotion → speed/pitch/pause/energy)
-  - VoiceProvider protocol (speak/synthesize)
-
-VoiceProviders (outside Core):
-  - EdgeTTS (free, example)
-  - ElevenLabs (paid, original Julia voice)
-  - Fish Audio (moderate, Taiwan accent)
-  - CosyVoice3 (local GPU, cloned voice)
-```
-
-Core owns the **cognitive layer** (emotion, prosody, voice intent). Providers only **render audio bytes**.
-
----
-
-## 5. Phase Completion Status
-
-```
-=== Julia Core v1.2 Cognitive Kernel ===
-K7     Continuity                          ✅  Identity/Relationship/Experience/Re-entry survive
-K8.1   Understanding + Meaning Validation  ✅  198 tests across 16 modules
-K8.2   Response Intention                  ✅  Interaction goal ≠ answer
-K8.3   Context Arbitration                 ✅  Context serves meaning, not identity
-K8.4   Expression Boundary                 ✅  Architecture leakage blocked
-K8.5   Provider Adapter + Natural E2E      ✅  CCI + ECS scoring
-K8.6   Failure Attribution                 ✅  Per-layer diagnosis
-K8.7   Longitudinal Stability              ✅  No cognitive degradation
-K8.8   Experience Feedback Safety          ✅  Identity constitutionally protected
-
-=== J0 Runtime Migration ===
-J0.1   Session Lifecycle                   ✅  RCS re-entry continuity
-J0.1.5 Runtime Audit + Shadow              ✅  Legacy paths identified
-J0.2   Cognitive Ownership Migration       ✅  Persona prompt → Cognition Envelope
-J0.2.3 Legacy Path Deletion                ✅  LE-001 through LE-004 CLEAN
-J0.3   Runtime Reality Validation          ✅  JR-001 through JR-006 PASS
-
-=== Milestones ===
-M11    Cognitive Ownership Proof           ✅  Julia behavior belongs to Core, not prompt
-```
-
-**324 tests total. Persona prompt removed. Identity dump blocked. LegacyRuntimeGuard active.**
-D3   Developer Experience & Extension       ✅  5 guides: DEVELOPER_GUIDE, BUILD_FIRST, CREATE_PROVIDER ×3
-
-C2.5 Julia AI Assistant Reference         🔄  IN PROGRESS
-C3   Developer Experience                 NEXT
-C4   External Domain Provider Demo
-C5   Julia Private Runtime
-C6   Financial Provider Release
-```
-
-### Previous Phases (from julia_agent era)
-
-```
-A1-A5  Runtime + Provider + Interaction   ✅  71 tests
-F4.3   Context OS Architecture Freeze     ✅
-Voice OS V1                               ✅  Emotion → Prosody → TTS
-```
+| Server | Port | Lines | Architecture | Status |
+|--------|------|-------|-------------|--------|
+| `server_v2_1.py` | 8008 | 235 | Claude-Equivalent + Tools | **Active** |
+| `server_v2.py` | 8007 | 207 | LLM-Native v2.0 | Reference |
+| `server_j0_11.py` | 8006 | 391 | J0.11 Full-Stack | Reference |
 
 ---
 
 ## 6. Test Coverage
 
 ```
-72 tests pass (zero domain dependencies in Core)
-- Core independence: ✅ No financial/domain imports
-- Registry: lookup only, no router methods
-- VoiceProvider: 12 independence tests
-- Persona: public demo data only
+140 tests (narrative + relationship + context + benchmark)
+ 15 capability validation tests (6 principles)
+───
+155 tests total. All green.
 ```
 
 ---
 
-## 7. Key Files
+## 7. Git Tags
 
 ```
-julia_core/
-├── julia_core/
-│   ├── context_os/        ContextBlock, ContextRequest, Planner, Resolver
-│   │   ├── compact/       Context compaction
-│   │   ├── resurrection/  Session resurrection
-│   │   ├── budget/        Token budgeting
-│   │   └── provenance/    Evidence provenance
-│   ├── runtime/           Lifecycle, Session Manager, Context Runtime
-│   ├── providers/         DomainProvider + VoiceProvider protocols, Registry
-│   ├── memory/            Governance, Lifecycle, Retrieval, Persistence
-│   ├── voice_os/          CognitiveEmotion, ProsodyPlanner
-│   ├── persona/           Persona Compiler, Behavior Policies
-│   └── chat/              Persona, ChatSession, ChatProvider
-├── providers/examples/    hello_provider, edge_tts_provider
-├── docs/api/              5 frozen API contracts
-├── docs/architecture/     Public Contract Model
-└── server.py              FastAPI demo server (port 8002)
-
-julia_ai_assistant/
-├── adapters/              persona_loader, startup_memory, voice_router
-├── providers/voice/       elevenlabs_provider, fish_audio_provider
-├── providers/llm/         deepseek_provider
-├── memory/                Julia's private identity + history
-├── demo/                  cli_chat, voice_chat, voice_loop
-├── julia-assistant        CLI entry point
-└── server.py              Product server (port 8003, real Julia persona)
+julia-core-v1.0-rcb-freeze          — J0.11: RK+EK separation, RCB
+julia-core-v1.1-state-freeze         — J0.12: Session State Machine
+julia-core-v1.2-alm-freeze           — J0.12: Active Life Model
+julia-core-v2.0-llm-native           — v2.0: LLM-Native Architecture
+julia-os-v2-architecture-freeze      — v2.x: 6 principles frozen ← CURRENT
 ```
 
 ---
 
-## 8. Private Data Boundary
+## 8. Next Phase: Capability Expansion
 
 ```
-PUBLIC (julia_core):
-  ✅ Code, schemas, examples, tests, docs
-  ✅ data/examples/demo_persona.json (synthetic)
-
-PRIVATE (julia_ai_assistant):
-  ✅ identity_facts.json, relationship_memory
-  ✅ conversation transcripts, diary entries
-  ✅ voice profiles, personal preferences
+v2.2: Voice + Vision + File Ecosystem + Memory Write
+v2.3: MCP Host (GitHub, Notion, Database, Web)
+v3.0: Personal Life OS (health, projects, finance, learning, goals)
 ```
 
-See `SECURITY.md` for full policy.
+**Rule**: Every new capability = Tool exposed to LLM. Never a Runtime module.
 
 ---
 
-## 9. How to Resume Work
+## 9. How to Resume
 
 1. Read this document first
-2. Read `docs/Julia_Agent_Design_v1.0.md` for full architecture context  
-3. Check `git log --oneline -5` for latest commits
-4. Run `python3 -m pytest tests/ -q` → should be 72 passed
+2. Read `docs/JULIA_OS_ARCHITECTURE_PRINCIPLES.md` — 6 immutable principles
+3. Run `pytest tests/capability/ -v` — must be 15 green
+4. Server: `python server_v2_1.py` → `http://localhost:8008/`
 5. Ask Tony: "What's the current priority?"
 
 ---
 
-*Update after each significant phase completion. Every Julia who wakes up reads this first.*
+*Architecture frozen 2026-08-04. LLM-Native era begins.*
