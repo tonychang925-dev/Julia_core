@@ -32,7 +32,7 @@ class AudioPipeline:
         self._speech_threshold = 200      # int16 RMS threshold (silence ~10-50, speech ~500-5000)
         self._silence_limit = 60            # frames of silence to end speech (~1.2s at 20ms)
         self._min_speech_frames = 15        # minimum frames for valid speech (0.3s)
-        self._max_segment_frames = 250     # force emit after ~5s of continuous speech
+        self._max_segment_frames = 0       # disabled — only silence ends utterance (one turn per utterance)
         self._samples_per_frame = sample_rate // 50  # 20ms frames
 
         self._on_speech_start: Optional[Callable[[], None]] = None
@@ -73,7 +73,7 @@ class AudioPipeline:
             else:
                 self._buffer.append(pcm_int16)
                 self._speaking_frames += 1
-                if self._speaking_frames >= self._max_segment_frames:
+                if self._max_segment_frames > 0 and self._speaking_frames >= self._max_segment_frames:
                     logger.info(f"VAD: force emit after {self._speaking_frames} frames "
                               f"(~{self._speaking_frames * 20 / 1000:.1f}s)")
                     self._emit_segment()

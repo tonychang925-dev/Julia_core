@@ -7,7 +7,7 @@ Rules (frozen):
   1. PTS is monotonic — NEVER resets, even after interrupt.
   2. generation_id is monotonic — interrupt() increments it.
   3. Stale generations are rejected — old TTS cannot push to new generation.
-  4. Queue capped at 50 frames (1 second) — no infinite buffering.
+  4. Queue backpressure at 50 frames — producer blocks, never drops.
   5. interrupt() flushes queue + pushes None sentinel to unblock recv().
 
 PCM format: s16le, 48kHz, mono, 20ms frames (960 samples = 1920 bytes).
@@ -37,7 +37,7 @@ class TTSAudioTrack(MediaStreamTrack):
 
     def __init__(self):
         super().__init__()
-        self._queue: asyncio.Queue[bytes | None] = asyncio.Queue()
+        self._queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=MAX_QUEUE_FRAMES)
         self._pts = 0                      # monotonic, never resets
         self._generation = 0               # monotonic, incremented by interrupt()
         self._active_generation = 0        # current valid generation for enqueue
@@ -100,15 +100,7 @@ class TTSAudioTrack(MediaStreamTrack):
         if generation != self._active_generation:
             return False
 
-        # Queue cap: drop oldest if full
-        if self._pending_count >= MAX_QUEUE_FRAMES:
-            try:
-                discarded = self._queue.get_nowait()
-                if discarded is not None:
-                    self._pending_count -= 1
-            except asyncio.QueueEmpty:
-                pass
-
+        # Backpressure: block until consumer drains space
         await self._queue.put(pcm_s16le)
         self._pending_count += 1
         return True

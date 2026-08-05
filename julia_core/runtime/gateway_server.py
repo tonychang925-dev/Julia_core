@@ -111,7 +111,7 @@ def main():
                 })
                 logger.info("[Voice/RTC] transcript event sent session=%s", sid)
 
-                await _process_speech_reply(ws=ws, text=text, session_id=sid)
+                await _process_speech_reply(ws=ws, text=text, session_id=sid, require_tts=True)
 
             except asyncio.CancelledError:
                 logger.info("[Voice/RTC] task cancelled session=%s", sid)
@@ -121,8 +121,13 @@ def main():
 
         return asyncio.create_task(_run(), name=f"voice-turn:{sid}")
 
-    async def _process_speech_reply(ws: WebSocket, text: str, session_id: str) -> None:
-        """Process transcript through JuliaSession with staged logging."""
+    async def _process_speech_reply(ws: WebSocket, text: str, session_id: str,
+                                     require_tts: bool = False) -> None:
+        """Process transcript through JuliaSession with staged logging.
+
+        require_tts=True: caller is a voice turn from WebRTC. TTS is mandatory.
+        require_tts=False: caller is text chat or WS voice.final, TTS is optional.
+        """
         from julia_core.runtime.presence.state_machine import get_presence, PresenceState
 
         stage = "init"
@@ -199,8 +204,9 @@ def main():
 
             stage = "tts-start"
             rtc = _rtc_sessions.get(session_id)
-            if rtc and hasattr(rtc, 'tts_track') and rtc.tts_track:
-                # WebRTC voice client: TTS is mandatory. Fail hard on error.
+            if require_tts:
+                if not rtc or not hasattr(rtc, 'tts_track') or not rtc.tts_track:
+                    raise RuntimeError(f"Voice turn requires TTS but no RTC track for {session_id}")
                 tts_gen = rtc.tts_track.begin_generation()
                 from voice_runtime.providers.tts.edge_tts_pcm import EdgeTTSPCMProvider
                 tts_provider = EdgeTTSPCMProvider()
@@ -212,7 +218,18 @@ def main():
                 if not drained:
                     raise RuntimeError("TTS drain timed out")
                 logger.info("[Reply] TTS drained OK")
-            # else: non-WebRTC client — text-only reply, skip TTS
+            elif rtc and hasattr(rtc, 'tts_track') and rtc.tts_track:
+                # Non-voice turn with RTC available: best-effort TTS
+                tts_gen = rtc.tts_track.begin_generation()
+                from voice_runtime.providers.tts.edge_tts_pcm import EdgeTTSPCMProvider
+                tts_provider = EdgeTTSPCMProvider()
+                produced = await tts_provider.stream_to_track(reply, rtc.tts_track, tts_gen)
+                if not produced:
+                    logger.warning("[Reply] TTS produced no PCM frames (non-voice, continuing)")
+                else:
+                    rtc.tts_track.end_generation()
+                    drained = await rtc.tts_track.wait_generation_consumed(tts_gen)
+                    logger.info("[Reply] TTS drained=%s", drained)
 
             stage = "send-complete"
             await _send_event(ws, {

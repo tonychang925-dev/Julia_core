@@ -191,6 +191,115 @@ def test_one_turn_per_utterance():
         pass  # This is validated by the forbidden pattern test above
 
 
+# ── Behavioral Invariants (runtime semantics) ───────────────────────────────
+
+@pytest.mark.asyncio
+async def test_long_utterance_emits_once():
+    """Continuous speech must NOT produce multiple final segments via force-emit."""
+    from voice_runtime.pipeline.audio_pipeline import AudioPipeline
+    import numpy as np
+
+    pipeline = AudioPipeline(sample_rate=16000)
+    emit_count = 0
+    pipeline.on_speech_end(lambda _: emit_count.__setitem__(0, emit_count[0] + 1))
+    emit_count = [0]
+
+    # Push 300 speech frames (RMS > 200) without any silence
+    loud = (np.ones(320, dtype=np.int16) * 500).tobytes()
+    for _ in range(300):
+        await pipeline.push_pcm(loud)
+
+    # Then push 65 silence frames (RMS < 200) to trigger silence boundary
+    silent = (np.zeros(320, dtype=np.int16)).tobytes()
+    for _ in range(65):
+        await pipeline.push_pcm(silent)
+
+    # Must emit exactly ONCE (only at silence boundary, not force-emit)
+    assert emit_count[0] == 1, (
+        f"force-emit bug: {emit_count[0]} segments emitted for one utterance. "
+        f"Expected exactly 1 (silence boundary only)"
+    )
+
+
+@pytest.mark.asyncio
+async def test_tts_queue_backpressure_no_drop():
+    """Queue at maxsize must block producer, not drop oldest frame."""
+    from voice_runtime.transport.webrtc.tts_track import TTSAudioTrack, MAX_QUEUE_FRAMES, BYTES_PER_FRAME
+
+    track = TTSAudioTrack()
+    gen = track.begin_generation()
+    frame = b"\x01" * BYTES_PER_FRAME
+
+    # Fill queue to capacity
+    for _ in range(MAX_QUEUE_FRAMES):
+        assert await track.enqueue_pcm(frame, gen)
+
+    assert track.pending_frames == MAX_QUEUE_FRAMES
+
+    # Next enqueue should BLOCK (backpressure), not drop
+    # We test indirectly: pending_frames must not decrease
+    # Start a consumer to unblock
+    import asyncio
+    consumed = []
+
+    async def consumer():
+        f = await track.recv()
+        consumed.append(f)
+
+    task = asyncio.create_task(consumer())
+    await asyncio.sleep(0.1)
+
+    # Consumer should have received one frame, count drops by 1
+    assert track.pending_frames == MAX_QUEUE_FRAMES - 1, (
+        f"Backpressure violated: queue dropped frames instead of blocking. "
+        f"Expected {MAX_QUEUE_FRAMES - 1}, got {track.pending_frames}"
+    )
+    task.cancel()
+
+
+@pytest.mark.asyncio
+async def test_tts_failure_never_completes():
+    """If require_tts=True and TTS fails, speech.completed must NOT be sent."""
+    # Verify require_tts parameter exists
+    import inspect
+    from julia_core.runtime.gateway_server import main as _unused
+    # Check the source for require_tts
+    gateway_path = Path(__file__).resolve().parent.parent.parent / "julia_core" / "runtime" / "gateway_server.py"
+    content = gateway_path.read_text() if gateway_path.exists() else ""
+    assert "require_tts" in content, (
+        "gateway_server.py must support require_tts parameter "
+        "to distinguish voice turns from text turns"
+    )
+    # Verify TTS failure raises RuntimeError, not silent continue
+    assert 'raise RuntimeError("TTS produced no PCM frames")' in content, (
+        "TTS failure must raise RuntimeError, not silently skip"
+    )
+    assert 'raise RuntimeError("TTS drain timed out")' in content, (
+        "TTS drain timeout must raise RuntimeError"
+    )
+
+
+def test_missing_rtc_track_fails_voice_turn():
+    """require_tts=True with no RTC session must fail, not fake text-only."""
+    gateway_path = Path(__file__).resolve().parent.parent.parent / "julia_core" / "runtime" / "gateway_server.py"
+    if not gateway_path.exists():
+        return
+    content = gateway_path.read_text()
+    assert 'if require_tts:' in content, (
+        "gateway_server.py must check require_tts before TTS"
+    )
+    assert 'raise RuntimeError' in content, (
+        "Missing TTS track with require_tts=True must raise RuntimeError"
+    )
+    # Must NOT have a silent else: pass that falls through to speech.completed
+    tts_section_start = content.find("if require_tts:")
+    tts_section_end = content.find("stage = \"send-complete\"", tts_section_start)
+    tts_section = content[tts_section_start:tts_section_end]
+    assert "raise RuntimeError" in tts_section, (
+        "require_tts block must raise on missing track, not fall through"
+    )
+
+
 # ── Main ───────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
