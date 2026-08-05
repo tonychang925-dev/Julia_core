@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Julia Client</title>
+  <link rel="stylesheet" href="/client/styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>Julia</h1>
+        <p>Personal Agent Interface v0.1</p>
+      </div>
+      <div class="status-pill" id="health">connecting</div>
+    </header>
+
+    <section class="layout">
+      <section class="chat-panel">
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <form id="chat-form" class="composer">
+          <button type="button" id="voice-in" title="语音输入">🎙</button>
+          <textarea id="text-input" rows="2" placeholder="Tony，输入消息给 Julia…"></textarea>
+          <button type="submit">发送</button>
+          <button type="button" id="voice-out" title="开关语音输出">🔊</button>
+        </form>
+      </section>
+
+      <aside class="trace-panel">
+        <h2>Trace</h2>
+        <pre id="trace">{}</pre>
+      </aside>
+    </section>
+  </main>
+  <script src="/client/app.js"></script>
+</body>
+</html>
