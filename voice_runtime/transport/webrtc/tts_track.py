@@ -109,11 +109,15 @@ class TTSAudioTrack(MediaStreamTrack):
         # Backpressure: block until consumer drains space
         await self._queue.put((generation, pcm_s16le))
 
+        # Item is in queue — count immediately.
+        # If interrupt happened during put(), recv() will discard
+        # the stale tuple and decrement the count back.
+        self._pending_count += 1
+
         # Recheck after unblock — interrupt may have cleared queue during wait
         if generation != self._active_generation:
             return False
 
-        self._pending_count += 1
         return True
 
     async def enqueue_silence(self, duration_ms: int = 20, generation: int = 0) -> int:

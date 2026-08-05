@@ -301,6 +301,47 @@ def test_missing_rtc_track_fails_voice_turn():
     )
 
 
+@pytest.mark.asyncio
+async def test_interrupt_unblocks_stale_producer_without_count_corruption():
+    """Interrupt while producer blocks on put() must not corrupt pending_count."""
+    from voice_runtime.transport.webrtc.tts_track import TTSAudioTrack, MAX_QUEUE_FRAMES, BYTES_PER_FRAME
+
+    track = TTSAudioTrack()
+    gen1 = track.begin_generation()
+    old_frame = b"\x01" * BYTES_PER_FRAME
+    new_frame = b"\x02" * BYTES_PER_FRAME
+
+    # Fill gen-1 queue to capacity
+    for _ in range(MAX_QUEUE_FRAMES):
+        assert await track.enqueue_pcm(old_frame, gen1)
+
+    # 51st frame blocks (queue full, no consumer)
+    blocked = asyncio.create_task(track.enqueue_pcm(old_frame, gen1))
+    await asyncio.sleep(0.05)
+    assert not blocked.done()
+
+    # Interrupt: clear queue, switch to gen-2
+    gen2 = track.interrupt()
+
+    # Old producer unblocks, must return False (stale generation)
+    assert await asyncio.wait_for(blocked, timeout=1.0) is False
+
+    # Stale tuple is in queue, counted as 1
+    assert track.pending_frames == 1
+
+    # Enqueue a valid gen-2 frame
+    assert await track.enqueue_pcm(new_frame, gen2)
+
+    # recv() skips sentinel + stale gen-1, returns valid gen-2
+    result = await asyncio.wait_for(track.recv(), timeout=1.0)
+    assert result is not None
+
+    # Both stale and valid consumed — must be zero, never negative
+    assert track.pending_frames == 0, (
+        f"Count corruption: expected 0, got {track.pending_frames}"
+    )
+
+
 # ── Main ───────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
