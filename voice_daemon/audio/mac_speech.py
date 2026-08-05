@@ -93,31 +93,36 @@ class VADStreamProcessor:
     """
 
     def __init__(self, sample_rate: int = 16000,
-                 speech_threshold: float = 0.5,
-                 silence_seconds: float = 1.0,
+                 speech_threshold: float = 0.3,
+                 silence_seconds: float = 0.8,
                  min_speech_seconds: float = 0.3,
-                 max_speech_seconds: float = 15.0):
+                 max_speech_seconds: float = 15.0,
+                 debug: bool = False):
         self.sample_rate = sample_rate
         self.speech_threshold = speech_threshold
         self.silence_samples = int(silence_seconds * sample_rate)
         self.min_speech_samples = int(min_speech_seconds * sample_rate)
         self.max_speech_samples = int(max_speech_seconds * sample_rate)
+        self._energy_threshold = 0.008  # RMS threshold for energy VAD
 
         self._vad_model = None
         self._vad_loaded = False
 
         # State
         self._is_speaking = False
+        self._use_energy_vad = False
         self._accumulated: list[np.ndarray] = []
         self._accumulated_samples = 0
         self._silent_samples = 0
+        self._energy_threshold = 0.003  # RMS threshold for energy VAD (lower = more sensitive)
 
         # Callbacks
         self._on_speech_start: Optional[Callable[[], None]] = None
         self._on_speech_end: Optional[Callable[[bytes], None]] = None
 
     def load_vad(self) -> bool:
-        """Load Silero VAD model. Returns True on success."""
+        """Load VAD model. Silero first, fallback to energy-based."""
+        # Try Silero VAD (requires torch)
         try:
             import torch
             model, utils = torch.hub.load(
@@ -132,7 +137,12 @@ class VADStreamProcessor:
             return True
         except Exception as e:
             logger.warning(f"Silero VAD not available: {e}")
-            return False
+
+        # Fallback: energy-based VAD (no dependencies)
+        logger.info("Using energy-based VAD fallback")
+        self._vad_loaded = True
+        self._use_energy_vad = True
+        return True
 
     @property
     def is_loaded(self) -> bool:
@@ -150,9 +160,47 @@ class VADStreamProcessor:
         if not self._vad_loaded:
             return
 
-        import torch
+        chunk_samples = len(audio_chunk)
 
-        # VAD expects float32 tensor
+        if getattr(self, '_use_energy_vad', False):
+            # ── Energy-based VAD (no deps) ──
+            rms = float(np.sqrt(np.mean(audio_chunk.astype(np.float64) ** 2)))
+            is_speech = rms > self._energy_threshold
+
+            if is_speech:
+                self._silent_samples = 0
+                if not self._is_speaking:
+                    self._is_speaking = True
+                    self._accumulated = [audio_chunk]
+                    self._accumulated_samples = chunk_samples
+                    logger.debug(f"VAD speech start (rms={rms:.4f})")
+                    if self._on_speech_start:
+                        self._on_speech_start()
+                else:
+                    self._accumulated.append(audio_chunk)
+                    self._accumulated_samples += chunk_samples
+                if self._accumulated_samples >= self.max_speech_samples:
+                    logger.debug(f"VAD max duration reached ({self._accumulated_samples} samples)")
+                    self._end_segment()
+            else:
+                if self._is_speaking:
+                    self._accumulated.append(audio_chunk)
+                    self._accumulated_samples += chunk_samples
+                    self._silent_samples += chunk_samples
+                    if self._silent_samples >= self.silence_samples:
+                        if self._accumulated_samples >= self.min_speech_samples:
+                            logger.debug(f"VAD speech end: {self._accumulated_samples} samples, {len(self._accumulated)} chunks")
+                            self._end_segment()
+                        else:
+                            logger.debug(f"VAD speech too short: {self._accumulated_samples} samples")
+                            self._is_speaking = False
+                            self._accumulated = []
+                            self._accumulated_samples = 0
+                            self._silent_samples = 0
+            return
+
+        # ── Silero VAD (GPU) ──
+        import torch
         audio_tensor = torch.from_numpy(audio_chunk).float()
 
         try:
@@ -160,13 +208,9 @@ class VADStreamProcessor:
         except Exception:
             return
 
-        chunk_samples = len(audio_chunk)
-
         if speech_prob >= self.speech_threshold:
-            # Speech detected
             self._silent_samples = 0
             if not self._is_speaking:
-                # Speech started
                 self._is_speaking = True
                 self._accumulated = [audio_chunk]
                 self._accumulated_samples = chunk_samples
@@ -175,23 +219,17 @@ class VADStreamProcessor:
             else:
                 self._accumulated.append(audio_chunk)
                 self._accumulated_samples += chunk_samples
-
-            # Check max duration
             if self._accumulated_samples >= self.max_speech_samples:
                 self._end_segment()
-
         else:
-            # Silence
             if self._is_speaking:
                 self._accumulated.append(audio_chunk)
                 self._accumulated_samples += chunk_samples
                 self._silent_samples += chunk_samples
-
                 if self._silent_samples >= self.silence_samples:
                     if self._accumulated_samples >= self.min_speech_samples:
                         self._end_segment()
                     else:
-                        # Too short — discard
                         self._is_speaking = False
                         self._accumulated = []
                         self._accumulated_samples = 0
@@ -215,6 +253,13 @@ class VADStreamProcessor:
 
         if self._on_speech_end:
             self._on_speech_end(pcm_bytes)
+
+    def reset(self):
+        """Reset VAD state — discard any accumulated audio."""
+        self._is_speaking = False
+        self._accumulated = []
+        self._accumulated_samples = 0
+        self._silent_samples = 0
 
     @property
     def is_speaking(self) -> bool:

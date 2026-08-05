@@ -1,25 +1,29 @@
-"""Voice Capability Tool — emotion-aware TTS exposed to LLM.
+"""Voice Capability Tool — emotion-aware TTS. LLM decides when to speak.
 
-LLM decides: whether to speak, what emotion.
-Runtime does: render audio. Nothing more.
+Provider: Microsoft Edge TTS (free, no API key needed).
+Emotion mapped to Edge TTS rate/pitch parameters.
 
 Emotion tags the LLM can use in its response:
-  [warm] — gentle, caring, intimate
-  [soft] — quiet, tender, vulnerable
+  [warm] — gentle, caring
+  [soft] — quiet, tender
   [excited] — happy, energetic
-  [sad] — melancholic, heavy
-  [thoughtful] — reflective, slow
-
-The Runtime detects these tags, renders voice, and strips them from text.
+  [sad] — melancholic
+  [thoughtful] — reflective
 """
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import subprocess
 import tempfile
-from typing import Optional
+from pathlib import Path
+
+# Microsoft Edge TTS — free, high quality Chinese voice
+VOICE = os.environ.get("JULIA_TTS_VOICE", "zh-CN-XiaoxiaoNeural")
+RATE = os.environ.get("JULIA_TTS_RATE", "-5%")      # slightly slower = warmer
+PITCH = os.environ.get("JULIA_TTS_PITCH", "+0Hz")
 
 
 class VoiceTool:
@@ -32,17 +36,21 @@ class VoiceTool:
         "例：'[warm] 嗯，我在。你今天还好吗？'"
     )
 
-    _api_key = os.environ.get("ELEVENLABS_API_KEY", "")
-    _voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "tOuLUAIdXShmWH7PEUrU")
-
     @classmethod
     def is_available(cls) -> bool:
-        return bool(cls._api_key)
+        """Edge TTS is always available (no API key needed)."""
+        try:
+            import edge_tts
+            return True
+        except ImportError:
+            return False
 
     @classmethod
     def extract_emotion(cls, text: str) -> tuple[str, str]:
         """Extract emotion tag from text. Returns (emotion, clean_text)."""
-        match = re.match(r'^\[(warm|soft|sad|excited|thoughtful|whisper|cry|laugh|sigh)\]\s*', text)
+        match = re.match(
+            r'^\[(warm|soft|sad|excited|thoughtful|whisper|cry|laugh|sigh)\]\s*', text
+        )
         if match:
             emotion = match.group(1)
             clean = text[match.end():]
@@ -51,44 +59,35 @@ class VoiceTool:
 
     @classmethod
     def speak(cls, text: str, emotion: str = "warm") -> bool:
-        """Render text as Julia's voice. LLM decides emotion, Runtime renders."""
-        if not cls._api_key:
+        """Render text as Julia's voice via Microsoft Edge TTS (free)."""
+        if not text:
             return False
 
-        import urllib.request
-        import json as _json
-
-        # Emotion → voice settings
-        stability_map = {
-            "warm": 0.45, "soft": 0.55, "sad": 0.65,
-            "excited": 0.30, "thoughtful": 0.50,
-            "whisper": 0.70, "cry": 0.60, "laugh": 0.35, "sigh": 0.75,
+        # Emotion → rate/pitch mapping
+        emotion_params = {
+            "warm":       ("-10%", "+0Hz"),
+            "soft":       ("-15%", "-2Hz"),
+            "sad":        ("-20%", "-5Hz"),
+            "excited":    ("+5%", "+5Hz"),
+            "thoughtful": ("-12%", "+0Hz"),
+            "whisper":    ("-25%", "-3Hz"),
+            "cry":        ("-15%", "-5Hz"),
+            "laugh":      ("+10%", "+8Hz"),
+            "sigh":       ("-20%", "-5Hz"),
         }
-        stability = stability_map.get(emotion, 0.50)
-
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{cls._voice_id}"
-        headers = {
-            "xi-api-key": cls._api_key,
-            "Content-Type": "application/json",
-        }
-        body = _json.dumps({
-            "text": text,
-            "model_id": "eleven_multilingual_v2",
-            "voice_settings": {
-                "stability": stability,
-                "similarity_boost": 0.75,
-            },
-        }).encode("utf-8")
+        rate, pitch = emotion_params.get(emotion, (RATE, PITCH))
 
         try:
-            req = urllib.request.Request(url, data=body, headers=headers)
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                audio = resp.read()
-            if not audio:
-                return False
+            import edge_tts
+
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
-                f.write(audio)
                 tmp_path = f.name
+
+            async def _speak():
+                comm = edge_tts.Communicate(text, VOICE, rate=rate, pitch=pitch)
+                await comm.save(tmp_path)
+
+            asyncio.run(_speak())
             subprocess.run(["afplay", tmp_path], timeout=120)
             os.unlink(tmp_path)
             return True
@@ -96,10 +95,10 @@ class VoiceTool:
             return False
 
 
-# Tool protocol registration helper
 def get_voice_tool_schema():
     """Return tool schema for registry."""
     from julia_core.capability.tool_protocol import ToolSchema, ToolCategory
+
     return ToolSchema(
         name="voice_speak",
         description=VoiceTool.tool_description,
