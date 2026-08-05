@@ -30,8 +30,9 @@ def main():
     app = FastAPI(title="Julia Gateway", version="1.1")
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-    # Map: session_id → WebSocket. For WebRTC ASR transcripts to find the right WS.
-    _session_ws: dict[str, WebSocket] = {}
+    # Maps for WebRTC ↔ WS binding
+    _session_ws: dict[str, WebSocket] = {}       # session_id → WebSocket
+    _rtc_sessions: dict[str, object] = {}         # session_id → WebRTCSession
 
     # Shared voice processing — all voice input (WS or RTC) flows through here.
     def _spawn_speech_reply(ws: WebSocket, text: str, sid: str):
@@ -72,6 +73,17 @@ def main():
                         "timestamp":_time.strftime("%H:%M:%S")}))
                     get_turn_manager().julia_speech_chunk(chunk)
 
+                # E3.6: Stream TTS as PCM through WebRTC track (Full Duplex path)
+                rtc = _rtc_sessions.get(sid)
+                if rtc and hasattr(rtc, 'tts_track') and rtc.tts_track:
+                    tts_gen = rtc.tts_track.begin_generation()
+                    from voice_runtime.providers.tts.edge_tts_pcm import EdgeTTSPCMProvider
+                    tts_provider = EdgeTTSPCMProvider()
+                    # Stream in background — runs alongside text speech.chunk events
+                    asyncio.ensure_future(
+                        tts_provider.stream_to_track(reply, rtc.tts_track, tts_gen)
+                    )
+
                 await ws.send_text(_json.dumps({"type":"speech.completed",
                     "data":{"speech_id":speech_id},"timestamp":_time.strftime("%H:%M:%S")}))
                 await ws.send_text(_json.dumps({"type":"assistant.completed",
@@ -83,6 +95,10 @@ def main():
                 get_turn_manager().julia_stopped_speaking()
                 await ws.send_text(_json.dumps(pm.transition(PresenceState.IDLE)))
             except asyncio.CancelledError:
+                # E3.6: Cancel TTS PCM streaming
+                rtc = _rtc_sessions.get(sid)
+                if rtc and hasattr(rtc, 'interrupt_tts'):
+                    rtc.interrupt_tts()
                 await ws.send_text(_json.dumps({"type":"speech.cancelled",
                     "data":{"speech_id":speech_id,"reason":"interrupted"},
                     "timestamp":_time.strftime("%H:%M:%S")}))
@@ -142,6 +158,9 @@ def main():
             on_transcript=on_transcript,
         )
         answer_sdp = await rtc_session.create_answer(sdp_offer)
+
+        # Store for TTS PCM streaming + interrupt via voice.started
+        _rtc_sessions[session_id] = rtc_session
 
         trace = get_collector().start(rtc_session.id)
         trace.record("rtc.connected", {"client": client_type, "asr": "whisper_cpu"})
@@ -252,6 +271,10 @@ def main():
                         # E3.5: Cancel active speech task directly (not just flag)
                         if _active_speech_task and not _active_speech_task.done():
                             _active_speech_task.cancel()
+                        # E3.6: Also interrupt TTS audio track
+                        rtc = _rtc_sessions.get(sid)
+                        if rtc and hasattr(rtc, 'interrupt_tts'):
+                            rtc.interrupt_tts()
                         await ws.send_text(_json.dumps(pm.transition(PresenceState.INTERRUPTED)))
                         await ws.send_text(_json.dumps(pm.transition(PresenceState.LISTENING)))
                     else:

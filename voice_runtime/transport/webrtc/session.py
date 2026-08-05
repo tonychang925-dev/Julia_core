@@ -1,107 +1,118 @@
-"""WebRTC Voice Session — wraps aiortc RTCPeerConnection for Gateway use.
+"""WebRTC Voice Session — bidirectional audio for E3.6 Full Duplex.
 
-One session per connected client. Manages SDP exchange and audio track receiving.
-The Gateway calls create_session() → get_answer(). Audio tracks flow in.
+One session per connected client:
+  - Incoming: client mic → AudioPipeline(VAD) → ASR → transcript
+  - Outgoing: TTS PCM → TTSAudioTrack → WebRTC → client speaker
+
+Single PeerConnection, single audio engine on client.
+Chromium AEC uses the TTS track as render reference for echo cancellation.
 """
 
 from __future__ import annotations
+import asyncio
 import logging
 import time as _time
 from typing import Optional, Callable
 
 logger = logging.getLogger("julia.webrtc")
 
-# aiortc is optional — installed separately for voice capabilities
 try:
     from aiortc import RTCPeerConnection, RTCSessionDescription, MediaStreamTrack
-    from aiortc.contrib.media import MediaRelay
     AIORTC_AVAILABLE = True
 except ImportError:
     AIORTC_AVAILABLE = False
     RTCPeerConnection = None
     RTCSessionDescription = None
-    MediaRelay = None
+
+from voice_runtime.transport.webrtc.tts_track import TTSAudioTrack
 
 
 class WebRTCSession:
-    """One WebRTC voice session. Handles SDP + audio track lifecycle."""
+    """One WebRTC voice session. Bidirectional: mic in, TTS out."""
 
     def __init__(self, session_id: str = "", client_type: str = "electron",
                  asr_provider=None, audio_pipeline=None, on_transcript: Callable = None):
         self.id = session_id or f"rtc-{int(_time.time()*1000)}"
         self.client_type = client_type
         self.state = "created"
-        self._pc: Optional[object] = None
+        self._pc = None
         self._track_handler: Optional[Callable] = None
-        self._pipeline = audio_pipeline                  # Audio Pipeline (E3.2-B)
-        self._asr = asr_provider                         # ASR Provider (E3.3)
+        self._pipeline = audio_pipeline
+        self._asr = asr_provider
         self._on_transcript = on_transcript
         self.created_at = _time.strftime("%Y-%m-%d %H:%M:%S")
         self._audio_frames: int = 0
         self._final_text: str = ""
+        self.tts_track: Optional[TTSAudioTrack] = None
 
     async def create_answer(self, offer_sdp: str) -> str:
-        """Process SDP offer, return SDP answer. Sets up audio track handler."""
+        """Process SDP offer, set up bidirectional audio, return SDP answer."""
         if not AIORTC_AVAILABLE:
             return self._build_text_answer(offer_sdp)
 
         self._pc = RTCPeerConnection()
 
+        # ── Outgoing: TTS audio track (server → client) ──
+        # Gives Chromium AEC the render reference signal for echo cancellation.
+        self.tts_track = TTSAudioTrack()
+        self._pc.addTrack(self.tts_track)
+
+        # ── Incoming: client mic track (client → server) ──
         @self._pc.on("track")
         async def on_track(track):
             logger.info(f"[RTC] track received: kind={track.kind}")
             if track.kind == "audio":
                 self.state = "listening"
+                await self._handle_incoming_audio(track)
 
-                # Wire AudioPipeline → ASR for clean speech segments
-                if self._pipeline and self._asr:
-                    await self._asr.start()
-                    if self._on_transcript:
-                        self._asr.on_partial(lambda text: self._on_transcript(text, False))
-                        self._asr.on_final(lambda text: self._on_transcript(text, True))
-                    self._pipeline.on_speech_start(lambda: logger.info("VAD: speech started"))
-                    self._pipeline.on_speech_end(lambda pcm: asyncio.ensure_future(
-                        self._transcribe_segment(pcm)))
-
-                while True:
-                    try:
-                        frame = await track.recv()
-                        self._audio_frames += 1
-                        if self._audio_frames % 50 == 0:
-                            logger.info(f"[RTC] frame #{self._audio_frames}")
-                        if self._pipeline:
-                            await self._pipeline.push_frame(frame)
-                        elif self._asr:
-                            await self._asr.feed_frame(frame)
-                        if self._track_handler:
-                            self._track_handler(frame)
-                    except Exception:
-                        break
-
-                # Track ended — flush remaining speech
-                if self._pipeline and self._pipeline.is_speaking:
-                    self._pipeline._emit_segment()
-                if self._asr:
-                    final = await self._asr.stop()
-                    if final:
-                        self._final_text = final
-                        logger.info(f"[RTC] ASR final: {final}")
-                        if self._on_transcript:
-                            self._on_transcript(final, True)
-
-        # Set remote description (offer)
+        # ── SDP exchange ──
         offer = RTCSessionDescription(sdp=offer_sdp, type="offer")
         await self._pc.setRemoteDescription(offer)
 
-        # Create answer
         answer = await self._pc.createAnswer()
         await self._pc.setLocalDescription(answer)
         self.state = "connected"
-        logger.info(f"[RTC] session {self.id} connected")
+        logger.info(f"[RTC] session {self.id} connected (bidirectional)")
         return self._pc.localDescription.sdp
 
+    async def _handle_incoming_audio(self, track):
+        """Process incoming audio frames: pipeline(VAD) → ASR → transcript."""
+        if self._pipeline and self._asr:
+            await self._asr.start()
+            if self._on_transcript:
+                self._asr.on_partial(lambda text: self._on_transcript(text, False))
+                self._asr.on_final(lambda text: self._on_transcript(text, True))
+            self._pipeline.on_speech_start(lambda: logger.info("VAD: speech started"))
+            self._pipeline.on_speech_end(lambda pcm: asyncio.ensure_future(
+                self._transcribe_segment(pcm)))
+
+        while True:
+            try:
+                frame = await track.recv()
+                self._audio_frames += 1
+                if self._audio_frames % 50 == 0:
+                    logger.info(f"[RTC] frame #{self._audio_frames}")
+                if self._pipeline:
+                    await self._pipeline.push_frame(frame)
+                elif self._asr:
+                    await self._asr.feed_frame(frame)
+                if self._track_handler:
+                    self._track_handler(frame)
+            except Exception:
+                break
+
+        # Track ended — flush remaining speech
+        if self._pipeline and self._pipeline.is_speaking:
+            self._pipeline._emit_segment()
+        if self._asr:
+            final = await self._asr.stop()
+            if final:
+                self._final_text = final
+                logger.info(f"[RTC] ASR final: {final}")
+                if self._on_transcript:
+                    self._on_transcript(final, True)
+
     def on_audio_frame(self, handler: Callable):
-        """Register handler for incoming audio frames."""
         self._track_handler = handler
 
     async def close(self):
@@ -109,8 +120,21 @@ class WebRTCSession:
             await self._pc.close()
         self.state = "closed"
 
+    # ── TTS (server → client) ────────────────────────────────────────────
+
+    async def enqueue_tts_pcm(self, pcm_frame: bytes) -> None:
+        """Enqueue one 20ms PCM frame for playback on client."""
+        if self.tts_track:
+            await self.tts_track.enqueue_pcm(pcm_frame)
+
+    def interrupt_tts(self) -> None:
+        """Cancel current TTS playback (barge-in)."""
+        if self.tts_track:
+            self.tts_track.interrupt()
+
+    # ── Internal ─────────────────────────────────────────────────────────
+
     def _build_text_answer(self, offer_sdp: str) -> str:
-        """Fallback SDP answer when aiortc is not installed."""
         self.state = "connected"
         return "\r\n".join([
             "v=0", "o=julia-gateway 0 1 IN IP4 127.0.0.1",
@@ -121,21 +145,14 @@ class WebRTCSession:
         ]) + "\r\n"
 
     async def _transcribe_segment(self, pcm_bytes: bytes):
-        """ASR on a complete speech segment → emit via on_transcript callback.
-
-        Uses ASR Provider's transcribe_segment() if available (WhisperCPUProvider),
-        or feed_frame through the provider's internal buffer as fallback.
-        """
+        """ASR on a complete speech segment."""
         if not self._asr or not self._on_transcript:
             return
         try:
             text = None
-
-            # E3.3.1: Server-side ASR Provider with dedicated transcribe_segment
             if hasattr(self._asr, 'transcribe_segment'):
                 text = await self._asr.transcribe_segment(pcm_bytes)
             else:
-                # Fallback: Google Speech via speech_recognition
                 import speech_recognition as sr
                 import wave, tempfile
                 from pathlib import Path
