@@ -41,6 +41,7 @@ class TTSAudioTrack(MediaStreamTrack):
         self._pts = 0                      # monotonic, never resets
         self._generation = 0               # monotonic, incremented by interrupt()
         self._active_generation = 0        # current valid generation for enqueue
+        self._pending_count = 0            # actual PCM frames in queue (excludes sentinels)
 
     # ── aiortc interface ──────────────────────────────────────────────────
 
@@ -49,9 +50,9 @@ class TTSAudioTrack(MediaStreamTrack):
         while True:
             item = await self._queue.get()
             if item is None:
-                # Sentinel: generation ended/interrupted, wait for next
-                continue
+                continue  # sentinel from interrupt/end, skip
 
+            self._pending_count -= 1
             frame = AudioFrame(format="s16", layout="mono", samples=SAMPLES_PER_FRAME)
             frame.planes[0].update(item)
             frame.sample_rate = SAMPLE_RATE
@@ -100,13 +101,16 @@ class TTSAudioTrack(MediaStreamTrack):
             return False
 
         # Queue cap: drop oldest if full
-        if self._queue.qsize() >= MAX_QUEUE_FRAMES:
+        if self._pending_count >= MAX_QUEUE_FRAMES:
             try:
-                self._queue.get_nowait()
+                discarded = self._queue.get_nowait()
+                if discarded is not None:
+                    self._pending_count -= 1
             except asyncio.QueueEmpty:
                 pass
 
         await self._queue.put(pcm_s16le)
+        self._pending_count += 1
         return True
 
     async def enqueue_silence(self, duration_ms: int = 20, generation: int = 0) -> int:
@@ -137,6 +141,7 @@ class TTSAudioTrack(MediaStreamTrack):
                 flushed += 1
             except asyncio.QueueEmpty:
                 break
+        self._pending_count = 0
 
         # Unblock recv()
         try:
@@ -157,11 +162,11 @@ class TTSAudioTrack(MediaStreamTrack):
 
     @property
     def pending_frames(self) -> int:
-        return self._queue.qsize()
+        return self._pending_count
 
     @property
     def pending_ms(self) -> int:
-        return self._queue.qsize() * 20
+        return self._pending_count * 20
 
     @property
     def pts(self) -> int:

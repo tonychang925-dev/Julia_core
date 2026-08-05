@@ -34,6 +34,24 @@ def main():
     _session_ws: dict[str, WebSocket] = {}       # session_id → WebSocket
     _rtc_sessions: dict[str, object] = {}         # session_id → WebRTCSession
 
+    def _cleanup_session(sid: str):
+        """E3.6: Destroy RTC session + cancel TTS producer on disconnect."""
+        rtc = _rtc_sessions.pop(sid, None)
+        _session_ws.pop(sid, None)
+        if rtc is None:
+            return
+        logger.info(f"[Session] cleanup: {sid}")
+        try:
+            if hasattr(rtc, 'interrupt_tts'):
+                rtc.interrupt_tts()
+        except Exception:
+            pass
+        try:
+            if hasattr(rtc, 'close'):
+                asyncio.ensure_future(rtc.close())
+        except Exception:
+            pass
+
     # Shared voice processing — all voice input (WS or RTC) flows through here.
     def _spawn_speech_reply(ws: WebSocket, text: str, sid: str):
         """Process transcript through JuliaSession → speech.* events via WS."""
@@ -258,14 +276,14 @@ def main():
 
                 # Voice events: Client → Core
                 if msg_type == "session.bind":
-                    # Client registers its session_id for RTC ASR lookup
                     bound_sid = msg.get("session_id", sid)
                     _session_ws[bound_sid] = ws
                     sid = bound_sid
                     await ws.send_text(_json.dumps({"type": "session.bound", "session_id": sid}))
                     continue
 
-                elif msg_type in ("voice.started", "client.voice.started"):
+                # E3.6: input.speech.started (preferred) / client.voice.started (deprecated)
+                elif msg_type in ("voice.started", "client.voice.started", "input.speech.started"):
                     if pm.is_interruptible():
                         pm.interrupted = True
                         # E3.5: Cancel active speech task directly (not just flag)
@@ -287,7 +305,8 @@ def main():
                         "timestamp": _time.strftime("%H:%M:%S"),
                     }))
 
-                elif msg_type in ("voice.final", "client.voice.final"):
+                # E3.6: input.speech.final (preferred) / client.voice.final (deprecated)
+                elif msg_type in ("voice.final", "client.voice.final", "input.speech.final"):
                     text = msg.get("data", {}).get("text", "") or msg.get("text", "")
                     logger.info(f"[Voice/WS] final received: text={text[:80] if text else '(empty)'}")
                     if not text:
@@ -340,7 +359,10 @@ def main():
                     if meta and not meta.get("title") and js.turn_count >= 2:
                         store.generate_title(sid, js)
         except WebSocketDisconnect:
-            pass
+            # E3.6: Clean up RTC session on disconnect
+            _cleanup_session(sid)
+        finally:
+            _cleanup_session(sid)
 
     port = int(sys.argv[2]) if len(sys.argv)>2 and sys.argv[1]=="--port" else 8100
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
