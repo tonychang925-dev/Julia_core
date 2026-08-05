@@ -42,23 +42,44 @@ class TTSAudioTrack(MediaStreamTrack):
         self._generation = 0               # monotonic, incremented by interrupt()
         self._active_generation = 0        # current valid generation for enqueue
         self._pending_count = 0            # actual PCM frames in queue (excludes sentinels)
+        self._clock_anchor: float | None = None   # wall-clock time of first frame in generation
+        self._clock_anchor_pts = 0               # PTS at clock anchor
 
     # ── aiortc interface ──────────────────────────────────────────────────
 
     async def recv(self) -> AudioFrame:
-        """Called by aiortc for each outgoing audio frame."""
+        """Called by aiortc for each outgoing audio frame.
+
+        Paces output at 20ms wall-clock intervals so aiortc sends RTP
+        in real time instead of bursting all queued frames at once.
+        """
+        loop = asyncio.get_running_loop()
+
         while True:
             item = await self._queue.get()
             if item is None:
                 continue  # sentinel from interrupt/end, skip
 
             generation, pcm = item
-            # Drop stale frames from old generations
             if generation != self._active_generation:
                 self._pending_count -= 1
                 continue
 
             self._pending_count -= 1
+
+            # ── Wall-clock pacing at 20ms per frame ──
+            if self._clock_anchor is None:
+                self._clock_anchor = loop.time()
+                self._clock_anchor_pts = self._pts
+
+            target_time = (
+                self._clock_anchor
+                + (self._pts - self._clock_anchor_pts) / SAMPLE_RATE
+            )
+            delay = target_time - loop.time()
+            if delay > 0:
+                await asyncio.sleep(delay)
+
             frame = AudioFrame(format="s16", layout="mono", samples=SAMPLES_PER_FRAME)
             frame.planes[0].update(pcm)
             frame.sample_rate = SAMPLE_RATE
@@ -74,6 +95,8 @@ class TTSAudioTrack(MediaStreamTrack):
         """Start a new TTS generation. Returns generation id for enqueue checks."""
         self._generation += 1
         self._active_generation = self._generation
+        self._clock_anchor = None  # reset — next recv() anchors to current wall clock
+        self._clock_anchor_pts = self._pts
         logger.debug(f"TTS generation {self._generation} started")
         return self._generation
 
@@ -156,6 +179,7 @@ class TTSAudioTrack(MediaStreamTrack):
         """
         self._generation += 1
         self._active_generation = self._generation
+        self._clock_anchor = None  # reset — next recv() re-anchors
 
         flushed = 0
         while not self._queue.empty():

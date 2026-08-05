@@ -342,6 +342,29 @@ async def test_interrupt_unblocks_stale_producer_without_count_corruption():
     )
 
 
+@pytest.mark.asyncio
+async def test_tts_recv_is_paced_at_20ms():
+    """recv() must pace output at 20ms intervals, not burst."""
+    from voice_runtime.transport.webrtc.tts_track import TTSAudioTrack, BYTES_PER_FRAME
+
+    track = TTSAudioTrack()
+    gen = track.begin_generation()
+    frame = b"\x01" * BYTES_PER_FRAME
+
+    for _ in range(6):
+        assert await track.enqueue_pcm(frame, gen)
+
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    for _ in range(6):
+        await track.recv()
+    elapsed = loop.time() - started
+
+    # Frame 0 returns immediately, frames 1-5 take ~100ms (5 × 20ms)
+    assert elapsed >= 0.085, f"Too fast: {elapsed*1000:.0f}ms — frames burst, no pacing"
+    assert elapsed < 0.25, f"Too slow: {elapsed*1000:.0f}ms — pacing drift"
+
+
 # ── Main ───────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
