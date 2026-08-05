@@ -129,6 +129,75 @@ async def chat(req: ChatRequest):
     return await api_chat(req)
 
 
+# ── Session API (E0.6.1) ──
+
+from julia_core.conversation_state import ConversationService
+
+SESSIONS = ConversationService(filepath="data/sessions.json")
+
+
+class SessionCreateRequest(BaseModel):
+    title: str = "New Conversation"
+
+
+class SessionTitleUpdate(BaseModel):
+    title: str
+
+
+class SessionMessageAdd(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
+@app.get("/sessions")
+async def list_sessions(q: str = ""):
+    """GET /sessions — list all, optional query search."""
+    if q:
+        return SESSIONS.search_sessions(q)
+    return SESSIONS.list_sessions()
+
+
+@app.post("/sessions")
+async def create_session(req: SessionCreateRequest):
+    """POST /sessions — create new conversation session."""
+    return SESSIONS.create_session(title=req.title)
+
+
+@app.get("/sessions/{session_id}")
+async def get_session(session_id: str):
+    """GET /sessions/{id} — load full session with messages."""
+    session = SESSIONS.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session
+
+
+@app.put("/sessions/{session_id}/title")
+async def update_session_title(session_id: str, req: SessionTitleUpdate):
+    """PUT /sessions/{id}/title — rename session."""
+    result = SESSIONS.update_title(session_id, req.title)
+    if not result:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return result
+
+
+@app.delete("/sessions/{session_id}")
+async def delete_session(session_id: str):
+    """DELETE /sessions/{id} — delete session."""
+    if not SESSIONS.delete_session(session_id):
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"status": "deleted", "id": session_id}
+
+
+@app.post("/sessions/{session_id}/messages")
+async def add_message(session_id: str, req: SessionMessageAdd):
+    """POST /sessions/{id}/messages — append a message to a session."""
+    result = SESSIONS.add_message(session_id, req.role, req.content)
+    if not result:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return result
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("server:app", host="0.0.0.0", port=8002, reload=True)
