@@ -52,84 +52,208 @@ def main():
         except Exception:
             pass
 
-    # Shared voice processing — all voice input (WS or RTC) flows through here.
-    def _spawn_speech_reply(ws: WebSocket, text: str, sid: str):
-        """Process transcript through JuliaSession → speech.* events via WS."""
+    # ── WS writer lock — prevents concurrent sends on same WebSocket ────
+    _ws_send_locks: dict[str, asyncio.Lock] = {}
+
+    def _get_ws_lock(sid: str) -> asyncio.Lock:
+        lock = _ws_send_locks.get(sid)
+        if lock is None:
+            lock = asyncio.Lock()
+            _ws_send_locks[sid] = lock
+        return lock
+
+    async def _send_event(ws: WebSocket, payload: dict) -> None:
+        sid = payload.get("session_id", "unknown")
+        async with _get_ws_lock(sid):
+            await ws.send_text(_json.dumps(payload))
+
+    def _extract_reply_text(result) -> str:
+        """Extract reply string from JuliaSession return (may be str, dict, or object)."""
+        if result is None:
+            return ""
+        if isinstance(result, str):
+            return result.strip()
+        if isinstance(result, dict):
+            for key in ("reply", "text", "response", "content"):
+                value = result.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+        for attr in ("reply", "text", "response", "content"):
+            value = getattr(result, attr, None)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return ""
+
+    # ── Ordered voice turn handler — transcript ACK → reply in ONE task ──
+
+    def _handle_rtc_transcript(ws: WebSocket, text: str, sid: str) -> asyncio.Task:
+        """Sequenced: send transcript ACK, then process through JuliaSession.
+
+        Single task — NO concurrent ws.send_text between ACK and reply.
+        """
+        async def _run():
+            try:
+                logger.info("[Voice/RTC] handling transcript session=%s text=%r", sid, text[:80])
+
+                # Notify TurnManager: user is speaking (interrupt Julia if needed)
+                tm = get_turn_manager()
+                if tm.is_speaking:
+                    logger.info("[Voice/RTC] interrupting Julia for user speech")
+                    rtc = _rtc_sessions.get(sid)
+                    if rtc and hasattr(rtc, 'interrupt_tts'):
+                        rtc.interrupt_tts()
+
+                await _send_event(ws, {
+                    "type": "client.voice.final",
+                    "data": {"text": text},
+                    "session_id": sid,
+                    "timestamp": _time.strftime("%H:%M:%S"),
+                })
+                logger.info("[Voice/RTC] transcript event sent session=%s", sid)
+
+                await _process_speech_reply(ws=ws, text=text, session_id=sid)
+
+            except asyncio.CancelledError:
+                logger.info("[Voice/RTC] task cancelled session=%s", sid)
+                raise
+            except Exception:
+                logger.exception("[Voice/RTC] turn failed session=%s text=%r", sid, text[:80])
+
+        return asyncio.create_task(_run(), name=f"voice-turn:{sid}")
+
+    async def _process_speech_reply(ws: WebSocket, text: str, session_id: str) -> None:
+        """Process transcript through JuliaSession with staged logging."""
         from julia_core.runtime.presence.state_machine import get_presence, PresenceState
+
+        stage = "init"
+        speech_id = ""
+        trace = None
         js = get_session()
         store = get_store()
         pm = get_presence()
         pm.interrupted = False
 
-        async def _process_reply():
-            speech_id = ""
-            trace = None
-            try:
-                trace = get_collector().start(sid)
-                trace.record("voice.final", {"text": text[:100]})
-                loop = asyncio.get_event_loop()
-                reply = _clean_reply(await loop.run_in_executor(None, js.chat, text))
-                trace.record("assistant.completed", {"reply": reply[:100]})
+        try:
+            stage = "presence-recalling"
+            trace = get_collector().start(session_id)
+            trace.record("voice.final", {"text": text[:100]})
+            await _send_event(ws, pm.transition(PresenceState.RECALLING))
 
+            stage = "julia-process"
+            logger.info("[Reply] invoking JuliaSession text=%r", text[:80])
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, js.chat, text)
+            logger.info("[Reply] JuliaSession returned type=%s value=%r",
+                       type(result).__name__, str(result)[:200])
+
+            stage = "extract-reply"
+            reply = _extract_reply_text(result)
+            reply = _clean_reply(reply)
+            if not reply:
+                raise RuntimeError(f"JuliaSession returned empty reply: {result!r}")
+            logger.info("[Reply] extracted reply len=%d: %r", len(reply), reply[:80])
+
+            if pm.interrupted:
+                raise asyncio.CancelledError()
+
+            stage = "send-speech"
+            await _send_event(ws, {
+                **pm.transition(PresenceState.SPEAKING),
+                "session_id": session_id,
+            })
+            speech_id = f"sp-{int(_time.time()*1000)}"
+            await _send_event(ws, {
+                "type": "speech.started",
+                "data": {"speech_id": speech_id},
+                "session_id": session_id,
+                "timestamp": _time.strftime("%H:%M:%S"),
+            })
+            get_turn_manager().julia_started_speaking(speech_id)
+
+            await _send_event(ws, {
+                "type": "speech.request",
+                "data": {"speech_id": speech_id, "text_preview": reply[:80]},
+                "session_id": session_id,
+                "timestamp": _time.strftime("%H:%M:%S"),
+            })
+
+            chunks = [reply[i:i+80] for i in range(0, len(reply), 80)]
+            for i, chunk in enumerate(chunks[:8]):
                 if pm.interrupted:
                     raise asyncio.CancelledError()
+                chunk_event = {
+                    "session_id": session_id,
+                    "timestamp": _time.strftime("%H:%M:%S"),
+                }
+                await _send_event(ws, {
+                    **chunk_event,
+                    "type": "speech.chunk",
+                    "data": {"speech_id": speech_id, "text": chunk, "sequence": i},
+                })
+                await _send_event(ws, {
+                    **chunk_event,
+                    "type": "assistant.chunk",
+                    "data": {"text": chunk, "sequence": i},
+                })
+                get_turn_manager().julia_speech_chunk(chunk)
 
-                await ws.send_text(_json.dumps(pm.transition(PresenceState.SPEAKING)))
+            stage = "tts-start"
+            rtc = _rtc_sessions.get(session_id)
+            if rtc and hasattr(rtc, 'tts_track') and rtc.tts_track:
+                tts_gen = rtc.tts_track.begin_generation()
+                from voice_runtime.providers.tts.edge_tts_pcm import EdgeTTSPCMProvider
+                tts_provider = EdgeTTSPCMProvider()
+                produced = await tts_provider.stream_to_track(reply, rtc.tts_track, tts_gen)
+                if not produced:
+                    logger.warning("[Reply] TTS produced no PCM frames")
+                else:
+                    rtc.tts_track.end_generation()
+                    drained = await rtc.tts_track.wait_generation_consumed(tts_gen)
+                    logger.info("[Reply] TTS drained=%s", drained)
 
-                speech_id = f"sp-{int(_time.time()*1000)}"
-                get_turn_manager().julia_started_speaking(speech_id)
-                await ws.send_text(_json.dumps({"type":"speech.request",
-                    "data":{"speech_id":speech_id,"text_preview":reply[:80]},
-                    "timestamp":_time.strftime("%H:%M:%S")}))
+            stage = "send-complete"
+            await _send_event(ws, {
+                "type": "speech.completed",
+                "data": {"speech_id": speech_id},
+                "session_id": session_id,
+                "timestamp": _time.strftime("%H:%M:%S"),
+            })
+            await _send_event(ws, {
+                "type": "assistant.completed",
+                "data": {"reply": reply, "turn": js.turn_count, "topic": js.current_topic},
+                "session_id": session_id,
+                "timestamp": _time.strftime("%H:%M:%S"),
+            })
 
-                chunks = [reply[i:i+80] for i in range(0, len(reply), 80)]
-                for i, chunk in enumerate(chunks[:8]):
-                    if pm.interrupted:
-                        raise asyncio.CancelledError()
-                    await ws.send_text(_json.dumps({"type":"speech.chunk",
-                        "data":{"speech_id":speech_id,"text":chunk,"sequence":i},
-                        "timestamp":_time.strftime("%H:%M:%S")}))
-                    get_turn_manager().julia_speech_chunk(chunk)
+            store.touch(session_id, topic=js.current_topic, user_msg=text, assistant_msg=reply)
+            trace.record("done", {"latency_ms": trace.elapsed_ms()})
+            get_collector().finish()
+            get_turn_manager().julia_stopped_speaking()
+            await _send_event(ws, pm.transition(PresenceState.IDLE))
+            logger.info("[Reply] completed sid=%s reply=%r", session_id, reply[:80])
 
-                # E3.6: Stream TTS as PCM through WebRTC track (Full Duplex path)
-                rtc = _rtc_sessions.get(sid)
-                if rtc and hasattr(rtc, 'tts_track') and rtc.tts_track:
-                    tts_gen = rtc.tts_track.begin_generation()
-                    from voice_runtime.providers.tts.edge_tts_pcm import EdgeTTSPCMProvider
-                    tts_provider = EdgeTTSPCMProvider()
-                    # Stream in background — runs alongside text speech.chunk events
-                    asyncio.ensure_future(
-                        tts_provider.stream_to_track(reply, rtc.tts_track, tts_gen)
-                    )
-
-                await ws.send_text(_json.dumps({"type":"speech.completed",
-                    "data":{"speech_id":speech_id},"timestamp":_time.strftime("%H:%M:%S")}))
-                await ws.send_text(_json.dumps({"type":"assistant.completed",
-                    "data":{"reply":reply,"turn":js.turn_count,"topic":js.current_topic},
-                    "timestamp":_time.strftime("%H:%M:%S")}))
-                store.touch(sid, topic=js.current_topic, user_msg=text, assistant_msg=reply)
-                trace.record("done",{"latency_ms":trace.elapsed_ms()})
+        except asyncio.CancelledError:
+            logger.info("[Reply] cancelled stage=%s sid=%s", stage, session_id)
+            rtc = _rtc_sessions.get(session_id)
+            if rtc and hasattr(rtc, 'interrupt_tts'):
+                rtc.interrupt_tts()
+            await _send_event(ws, {
+                "type": "speech.cancelled",
+                "data": {"speech_id": speech_id, "reason": "interrupted"},
+                "session_id": session_id,
+                "timestamp": _time.strftime("%H:%M:%S"),
+            })
+            get_turn_manager().julia_stopped_speaking()
+            await _send_event(ws, pm.transition(PresenceState.IDLE))
+            if trace:
+                trace.record("cancelled", {"reason": "voice.started interrupt"})
                 get_collector().finish()
-                get_turn_manager().julia_stopped_speaking()
-                await ws.send_text(_json.dumps(pm.transition(PresenceState.IDLE)))
-            except asyncio.CancelledError:
-                # E3.6: Cancel TTS PCM streaming
-                rtc = _rtc_sessions.get(sid)
-                if rtc and hasattr(rtc, 'interrupt_tts'):
-                    rtc.interrupt_tts()
-                await ws.send_text(_json.dumps({"type":"speech.cancelled",
-                    "data":{"speech_id":speech_id,"reason":"interrupted"},
-                    "timestamp":_time.strftime("%H:%M:%S")}))
-                get_turn_manager().julia_stopped_speaking()
-                await ws.send_text(_json.dumps(pm.transition(PresenceState.IDLE)))
-                if trace:
-                    trace.record("cancelled", {"reason": "voice.started interrupt"})
-                    get_collector().finish()
-            except Exception:
-                get_turn_manager().julia_stopped_speaking()
-                pass
+            raise
 
-        return asyncio.ensure_future(_process_reply())
+        except Exception as exc:
+            logger.exception("[Reply] failed stage=%s sid=%s error=%s", stage, session_id, exc)
+            get_turn_manager().julia_stopped_speaking()
+            await _send_event(ws, pm.transition(PresenceState.IDLE))
 
     @app.get("/health")
     async def health():
@@ -150,12 +274,17 @@ def main():
         client_type = body.get("client_type", "electron")
         session_id = body.get("session_id", "tony-main")
 
+        # Debug: log received SDP length and ICE status
+        has_ice = "ice-ufrag" in sdp_offer
+        logger.info(f"[RTC] offer received: {len(sdp_offer)} bytes, ICE={has_ice}, "
+                    f"sdp_preview={sdp_offer[:120]}...")
+
         from voice_runtime.transport.webrtc.session import WebRTCSession
         from voice_runtime.pipeline.audio_pipeline import AudioPipeline
         from voice_runtime.providers.local.asr.whisper_cpu import WhisperCPUProvider
 
-        # Audio pipeline: VAD + speech boundary detection
-        pipeline = AudioPipeline(sample_rate=48000)
+        # Audio pipeline: VAD + speech boundary detection (PyAV resamples to 16kHz upstream)
+        pipeline = AudioPipeline(sample_rate=16000)
         # Server-side ASR: faster-whisper tiny (CPU)
         asr = WhisperCPUProvider(model_size="tiny", language="zh")
 
@@ -166,8 +295,8 @@ def main():
             if ws is None:
                 logger.warning(f"[RTC] no WS for session={session_id}")
                 return
-            logger.info(f"[Voice/RTC] {text[:60]}")
-            _spawn_speech_reply(ws, text, session_id)
+            logger.info(f"[Voice/RTC] transcript={text[:60]}, session={session_id}")
+            _handle_rtc_transcript(ws, text, session_id)
 
         rtc_session = WebRTCSession(
             client_type=client_type,
@@ -175,9 +304,18 @@ def main():
             asr_provider=asr,
             on_transcript=on_transcript,
         )
-        answer_sdp = await rtc_session.create_answer(sdp_offer)
 
-        # Store for TTS PCM streaming + interrupt via voice.started
+        try:
+            answer_sdp = await rtc_session.create_answer(sdp_offer)
+        except Exception as e:
+            logger.error(f"[RTC] create_answer failed: {e}")
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=400, content={
+                "status": "error",
+                "error": f"Invalid SDP: {e}",
+                "hint": "ICE ufrag/pwd required in offer SDP",
+            })
+
         _rtc_sessions[session_id] = rtc_session
 
         trace = get_collector().start(rtc_session.id)
@@ -187,6 +325,7 @@ def main():
         return {
             "status": "ok",
             "sdp": answer_sdp,
+            "type": "answer",
             "session_id": rtc_session.id,
             "state": rtc_session.state,
         }
@@ -314,42 +453,25 @@ def main():
                     sid = msg.get("session_id") or sid
                     _session_ws[sid] = ws  # Register for RTC ASR lookup
 
-                    # E3.5.2: Voice Turn Ownership — echo or interrupt?
+                    # E3.6: Julia speaking → user voice = interrupt
                     tm = get_turn_manager()
-                    classification = tm.classify(text)
-
-                    if classification == InputClass.ECHO:
-                        logger.info(f"[TurnManager] echo suppressed: {text[:60]}")
-                        continue
-
-                    if classification == InputClass.INTERRUPT:
-                        logger.info(f"[TurnManager] interrupt: {text[:40]}")
+                    if tm.is_speaking:
+                        logger.info("[Voice/WS] interrupting Julia for user speech")
                         if _active_speech_task and not _active_speech_task.done():
                             _active_speech_task.cancel()
+                        rtc = _rtc_sessions.get(sid)
+                        if rtc and hasattr(rtc, 'interrupt_tts'):
+                            rtc.interrupt_tts()
                         await ws.send_text(_json.dumps(pm.transition(PresenceState.INTERRUPTED)))
                         await ws.send_text(_json.dumps(pm.transition(PresenceState.LISTENING)))
 
                     await ws.send_text(_json.dumps(pm.transition(PresenceState.RECALLING)))
-                    _active_speech_task = _spawn_speech_reply(ws, text, sid)
+                    _active_speech_task = asyncio.create_task(
+                        _process_speech_reply(ws, text, sid), name=f"ws-turn:{sid}")
                     continue
 
                 elif msg_type == "user.message":
                     text, sid = msg.get("content",""), msg.get("session_id",sid)
-
-                    # E3.5.2: Voice Turn Ownership
-                    tm = get_turn_manager()
-                    classification = tm.classify(text)
-
-                    if classification == InputClass.ECHO:
-                        logger.info(f"[TurnManager] echo suppressed (user.message): {text[:60]}")
-                        continue
-
-                    if classification == InputClass.INTERRUPT:
-                        logger.info(f"[TurnManager] interrupt (user.message): {text[:40]}")
-                        if _active_speech_task and not _active_speech_task.done():
-                            _active_speech_task.cancel()
-                        await ws.send_text(_json.dumps(pm.transition(PresenceState.INTERRUPTED)))
-                        await ws.send_text(_json.dumps(pm.transition(PresenceState.LISTENING)))
 
                     reply = _clean_reply(js.chat(text))
                     store.touch(sid, topic=js.current_topic, user_msg=text, assistant_msg=reply)
