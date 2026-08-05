@@ -19,6 +19,7 @@ Single-path invariants — one and only one of each:
 
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
 import sys
@@ -233,28 +234,28 @@ async def test_tts_queue_backpressure_no_drop():
     # Fill queue to capacity
     for _ in range(MAX_QUEUE_FRAMES):
         assert await track.enqueue_pcm(frame, gen)
-
     assert track.pending_frames == MAX_QUEUE_FRAMES
 
-    # Next enqueue should BLOCK (backpressure), not drop
-    # We test indirectly: pending_frames must not decrease
-    # Start a consumer to unblock
-    import asyncio
-    consumed = []
-
-    async def consumer():
-        f = await track.recv()
-        consumed.append(f)
-
-    task = asyncio.create_task(consumer())
+    # 51st enqueue should BLOCK (queue full, no consumer)
+    frame_51 = b"\x02" * BYTES_PER_FRAME
+    blocked = asyncio.create_task(track.enqueue_pcm(frame_51, gen))
     await asyncio.sleep(0.1)
-
-    # Consumer should have received one frame, count drops by 1
-    assert track.pending_frames == MAX_QUEUE_FRAMES - 1, (
-        f"Backpressure violated: queue dropped frames instead of blocking. "
-        f"Expected {MAX_QUEUE_FRAMES - 1}, got {track.pending_frames}"
+    assert not blocked.done(), (
+        "Backpressure violated: 51st enqueue completed without consumer draining. "
+        "Queue must block, not drop frames."
     )
-    task.cancel()
+
+    # Consumer drains one frame → unblocks producer
+    consumed = await track.recv()
+    assert consumed is not None  # aiortc AudioFrame received
+
+    # Now the blocked enqueue should complete
+    assert await asyncio.wait_for(blocked, timeout=1.0), (
+        "Backpressure violated: blocked enqueue did not complete after drain."
+    )
+    assert track.pending_frames == MAX_QUEUE_FRAMES, (
+        f"Expected {MAX_QUEUE_FRAMES} after drain+enqueue, got {track.pending_frames}"
+    )
 
 
 @pytest.mark.asyncio

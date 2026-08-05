@@ -273,6 +273,12 @@ def main():
         except Exception as exc:
             logger.exception("[Reply] failed stage=%s sid=%s error=%s", stage, session_id, exc)
             get_turn_manager().julia_stopped_speaking()
+            await _send_event(ws, {
+                "type": "speech.failed",
+                "data": {"speech_id": speech_id, "stage": stage, "reason": str(exc)},
+                "session_id": session_id,
+                "timestamp": _time.strftime("%H:%M:%S"),
+            })
             await _send_event(ws, pm.transition(PresenceState.IDLE))
 
     @app.get("/health")

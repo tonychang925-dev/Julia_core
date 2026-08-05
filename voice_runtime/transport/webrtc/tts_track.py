@@ -37,7 +37,7 @@ class TTSAudioTrack(MediaStreamTrack):
 
     def __init__(self):
         super().__init__()
-        self._queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=MAX_QUEUE_FRAMES)
+        self._queue: asyncio.Queue[tuple[int, bytes] | None] = asyncio.Queue(maxsize=MAX_QUEUE_FRAMES)
         self._pts = 0                      # monotonic, never resets
         self._generation = 0               # monotonic, incremented by interrupt()
         self._active_generation = 0        # current valid generation for enqueue
@@ -52,9 +52,15 @@ class TTSAudioTrack(MediaStreamTrack):
             if item is None:
                 continue  # sentinel from interrupt/end, skip
 
+            generation, pcm = item
+            # Drop stale frames from old generations
+            if generation != self._active_generation:
+                self._pending_count -= 1
+                continue
+
             self._pending_count -= 1
             frame = AudioFrame(format="s16", layout="mono", samples=SAMPLES_PER_FRAME)
-            frame.planes[0].update(item)
+            frame.planes[0].update(pcm)
             frame.sample_rate = SAMPLE_RATE
             frame.pts = self._pts
             frame.time_base = Fraction(1, SAMPLE_RATE)
@@ -96,12 +102,17 @@ class TTSAudioTrack(MediaStreamTrack):
                 f"Expected {BYTES_PER_FRAME} bytes, got {len(pcm_s16le)}"
             )
 
-        # Reject stale generations
+        # Reject stale generations before enqueue
         if generation != self._active_generation:
             return False
 
         # Backpressure: block until consumer drains space
-        await self._queue.put(pcm_s16le)
+        await self._queue.put((generation, pcm_s16le))
+
+        # Recheck after unblock — interrupt may have cleared queue during wait
+        if generation != self._active_generation:
+            return False
+
         self._pending_count += 1
         return True
 
