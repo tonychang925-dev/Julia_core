@@ -8,18 +8,19 @@ Pipeline only sees clean int16 PCM bytes at 16kHz.
 from __future__ import annotations
 import asyncio
 import logging
-import time as _time
+from collections import deque
 from typing import Callable, Optional
 
 logger = logging.getLogger("julia.audio.pipeline")
 
 
 class AudioPipeline:
-    """Receives int16 PCM bytes at known sample_rate, detects speech boundaries.
+    """Receives int16 PCM bytes at 16kHz, detects speech boundaries.
 
-    Flow:
-      PCM bytes → VAD check → buffer → speech_start → accumulate
-      → silence detected → speech_end → emit PCM segment → ASR
+    Features:
+      - 300ms pre-roll preserves sentence-start audio
+      - Dynamic noise floor adapts to environment
+      - 700ms silence gap ends utterance (no force-emit)
     """
 
     def __init__(self, sample_rate: int = 16000):
@@ -29,11 +30,17 @@ class AudioPipeline:
         self._silent_frames = 0
         self._speaking_frames = 0
         self._total_frames = 0
-        self._speech_threshold = 200      # int16 RMS threshold (silence ~10-50, speech ~500-5000)
-        self._silence_limit = 60            # frames of silence to end speech (~1.2s at 20ms)
-        self._min_speech_frames = 15        # minimum frames for valid speech (0.3s)
-        self._max_segment_frames = 0       # disabled — only silence ends utterance (one turn per utterance)
+        self._speech_threshold = 160      # initial int16 RMS (adapts via noise floor)
+        self._silence_limit = 35            # frames of silence to end speech (~0.7s at 20ms)
+        self._min_speech_frames = 10        # minimum frames for valid speech (0.2s)
+        self._max_segment_frames = 0       # disabled — only silence ends utterance
         self._samples_per_frame = sample_rate // 50  # 20ms frames
+
+        # Pre-roll: buffer audio before speech_start to preserve first syllables
+        self._pre_roll: deque[bytes] = deque(maxlen=15)  # 300ms
+
+        # Dynamic noise floor
+        self._noise_floor: float = 40.0
 
         self._on_speech_start: Optional[Callable[[], None]] = None
         self._on_speech_end: Optional[Callable[[bytes], None]] = None
@@ -55,10 +62,14 @@ class AudioPipeline:
         self._total_frames += 1
 
         rms = float(np.sqrt(np.mean(samples ** 2)))
-        is_speech = rms > self._speech_threshold
+
+        # Dynamic threshold: 3× noise floor, minimum 120
+        threshold = max(120, self._noise_floor * 3.0)
+        is_speech = rms > threshold
 
         if self._total_frames % 50 == 0:
             logger.info(f"VAD: frame #{self._total_frames}, rms={rms:.0f}, "
+                       f"thresh={threshold:.0f}, noise={self._noise_floor:.0f}, "
                        f"speech={is_speech}, speaking={self._is_speaking}")
 
         if is_speech:
@@ -66,21 +77,21 @@ class AudioPipeline:
             if not self._is_speaking:
                 self._is_speaking = True
                 self._speaking_frames = 0
-                self._buffer = [pcm_int16]
-                logger.info(f"VAD: speech start (rms={rms:.0f})")
+                # Prepend pre-roll to preserve sentence-start audio
+                self._buffer = list(self._pre_roll) + [pcm_int16]
+                self._pre_roll.clear()
+                logger.info(f"VAD: speech start (rms={rms:.0f}, thresh={threshold:.0f})")
                 if self._on_speech_start:
                     self._on_speech_start()
             else:
                 self._buffer.append(pcm_int16)
                 self._speaking_frames += 1
-                if self._max_segment_frames > 0 and self._speaking_frames >= self._max_segment_frames:
-                    logger.info(f"VAD: force emit after {self._speaking_frames} frames "
-                              f"(~{self._speaking_frames * 20 / 1000:.1f}s)")
-                    self._emit_segment()
-                    self._is_speaking = True
-                    self._speaking_frames = 0
-                    self._buffer = []
         else:
+            # Update noise floor during silence
+            self._noise_floor = self._noise_floor * 0.95 + rms * 0.05
+            # Pre-roll: always buffer recent audio
+            self._pre_roll.append(pcm_int16)
+
             if self._is_speaking:
                 self._buffer.append(pcm_int16)
                 self._silent_frames += 1
@@ -121,3 +132,5 @@ class AudioPipeline:
         self._is_speaking = False
         self._silent_frames = 0
         self._speaking_frames = 0
+        self._pre_roll.clear()
+        self._noise_floor = 40.0

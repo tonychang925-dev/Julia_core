@@ -3,7 +3,7 @@ Usage: python julia_core/runtime/gateway_server.py --port 8100
 Routes: GET /health, GET /sessions, GET/DELETE /sessions/{id}, POST /chat, WS /ws
 """
 
-import asyncio, json as _json, logging, re, sys, time as _time
+import asyncio, json as _json, logging, os, re, sys, time as _time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -312,8 +312,12 @@ def main():
 
         # Audio pipeline: VAD + speech boundary detection (PyAV resamples to 16kHz upstream)
         pipeline = AudioPipeline(sample_rate=16000)
-        # Server-side ASR: faster-whisper tiny (CPU)
-        asr = WhisperCPUProvider(model_size="tiny", language="zh")
+        # Server-side ASR: faster-whisper small (or env override)
+        asr = WhisperCPUProvider(
+            model_size=os.environ.get("JULIA_ASR_MODEL", "small"),
+            language="zh",
+            compute_type=os.environ.get("JULIA_ASR_COMPUTE", "int8"),
+        )
 
         def on_transcript(text: str, is_final: bool = False):
             if not text or not is_final:

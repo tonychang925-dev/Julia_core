@@ -86,7 +86,6 @@ class WebRTCSession:
         from pathlib import Path
 
         resampler = av.AudioResampler(format="s16", layout="mono", rate=16000)
-        debug_saved = False
 
         if self._pipeline and self._asr:
             await self._asr.start()
@@ -95,7 +94,7 @@ class WebRTCSession:
                 self._asr.on_final(lambda text: self._on_transcript(text, True))
             self._pipeline.on_speech_start(lambda: logger.info("VAD: speech started"))
             self._pipeline.on_speech_end(lambda pcm: asyncio.ensure_future(
-                self._transcribe_segment(pcm)))
+                self._on_speech_segment(pcm)))
 
         while True:
             try:
@@ -124,19 +123,6 @@ class WebRTCSession:
                     rms = float(np.sqrt(np.mean(samples64 ** 2)))
                     peak = int(np.max(np.abs(samples64)))
 
-                    # Save first 3s as debug WAV
-                    if not debug_saved and self._audio_frames % 50 == 0:
-                        import wave as _wave
-                        debug_path = Path.home() / ".julia/debug_converted.wav"
-                        with _wave.open(str(debug_path), "w") as w:
-                            w.setnchannels(1)
-                            w.setsampwidth(2)
-                            w.setframerate(16000)
-                            w.writeframes(pcm.tobytes())
-                        logger.info(f"[RTC] debug WAV saved: {debug_path} "
-                                   f"(RMS={rms:.0f}, peak={peak}, {len(pcm)}samples)")
-                        debug_saved = True
-
                     if self._audio_frames % 50 == 0:
                         logger.info(f"[RTC] frame #{self._audio_frames} "
                                    f"→ s16/16kHz: {len(pcm)}samples RMS={rms:.0f} peak={peak}")
@@ -163,6 +149,19 @@ class WebRTCSession:
                 logger.info(f"[RTC] ASR final: {final}")
                 if self._on_transcript:
                     self._on_transcript(final, True)
+
+    async def _on_speech_segment(self, pcm_bytes: bytes):
+        """Save debug WAV then transcribe."""
+        import wave as _wave
+        debug_path = Path.home() / ".julia/debug_converted.wav"
+        with _wave.open(str(debug_path), "w") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(16000)
+            w.writeframes(pcm_bytes)
+        dur = len(pcm_bytes) / 32000
+        logger.info(f"[RTC] debug WAV: {debug_path} ({dur:.1f}s, {len(pcm_bytes)} bytes)")
+        await self._transcribe_segment(pcm_bytes)
 
     def on_audio_frame(self, handler: Callable):
         self._track_handler = handler
