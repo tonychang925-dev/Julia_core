@@ -204,22 +204,6 @@ class WebRTCSession:
             text = None
             if hasattr(self._asr, 'transcribe_segment'):
                 text = await self._asr.transcribe_segment(pcm_bytes)
-            else:
-                logger.info(f"ASR: using Google STT fallback for {len(pcm_bytes)} bytes PCM")
-                import speech_recognition as sr
-                import wave, tempfile
-                from pathlib import Path
-
-                r = sr.Recognizer()
-                tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-                tmp_path = tmp.name; tmp.close()
-                with wave.open(tmp_path, "w") as w:
-                    w.setnchannels(1); w.setsampwidth(2); w.setframerate(48000)
-                    w.writeframes(pcm_bytes)
-                with sr.AudioFile(tmp_path) as source:
-                    sr_audio = r.record(source)
-                Path(tmp_path).unlink()
-                text = r.recognize_google(sr_audio, language="zh-CN")
 
             if text:
                 self._final_text = text
