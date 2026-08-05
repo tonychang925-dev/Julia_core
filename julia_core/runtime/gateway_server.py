@@ -200,16 +200,19 @@ def main():
             stage = "tts-start"
             rtc = _rtc_sessions.get(session_id)
             if rtc and hasattr(rtc, 'tts_track') and rtc.tts_track:
+                # WebRTC voice client: TTS is mandatory. Fail hard on error.
                 tts_gen = rtc.tts_track.begin_generation()
                 from voice_runtime.providers.tts.edge_tts_pcm import EdgeTTSPCMProvider
                 tts_provider = EdgeTTSPCMProvider()
                 produced = await tts_provider.stream_to_track(reply, rtc.tts_track, tts_gen)
                 if not produced:
-                    logger.warning("[Reply] TTS produced no PCM frames")
-                else:
-                    rtc.tts_track.end_generation()
-                    drained = await rtc.tts_track.wait_generation_consumed(tts_gen)
-                    logger.info("[Reply] TTS drained=%s", drained)
+                    raise RuntimeError("TTS produced no PCM frames")
+                rtc.tts_track.end_generation()
+                drained = await rtc.tts_track.wait_generation_consumed(tts_gen)
+                if not drained:
+                    raise RuntimeError("TTS drain timed out")
+                logger.info("[Reply] TTS drained OK")
+            # else: non-WebRTC client — text-only reply, skip TTS
 
             stage = "send-complete"
             await _send_event(ws, {
