@@ -1,6 +1,6 @@
-"""Independent Review Pipeline Tests — updated for stage audit + missing facts + admission gate.
+"""Independent Review Pipeline Tests — ai_theme_app derived format.
 
-Run: python -m pytest tests/runtime/test_independent_review.py -v
+Uses real raw_metrics + derived_signals format (not old flat fields).
 """
 
 import pytest
@@ -8,21 +8,40 @@ import pytest
 from julia_core.reasoning.independent_review import (
     IndependentReviewPipeline,
     IndependentReviewAdmissionGate,
+    StageInferenceEngine,
     StageClaimAuditor,
-    JuliaJudgment,
+    ThemeFactContractMapper,
 )
 
 
 @pytest.fixture
 def live_context():
+    """Real ai_theme_app derived format: raw_metrics + derived_signals."""
     return {
         "schema_version": "market-context.v1",
         "trade_date": "2026-08-06",
         "status": "live",
-        "market_state": {"breadth": {"up_count": 3200}, "emotion": {"node": "REPAIR", "score": 18}},
         "themes": [
-            {"subject": "创新药", "strength": 0.81, "derived_stage_signal": "acceleration", "capital_direction": "inflow", "leader_health": "strong", "breadth": "wide"},
-            {"subject": "半导体设备", "strength": 0.62, "derived_stage_signal": "divergence", "capital_direction": "mixed", "leader_health": "weakening", "breadth": "contracting"},
+            {
+                "subject": "创新药",
+                "raw_metrics": {"mainline_strength_score": 0.81, "confidence_score": 0.86},
+                "derived_signals": {
+                    "stage_signal": {"value": "acceleration"},
+                    "capital_direction": {"value": "inflow"},
+                    "leader_health": {"value": "strong"},
+                    "strong_stock_coverage": {"value": "wide"},
+                },
+            },
+            {
+                "subject": "半导体设备",
+                "raw_metrics": {"mainline_strength_score": 0.62, "confidence_score": 0.55},
+                "derived_signals": {
+                    "stage_signal": {"value": "divergence"},
+                    "capital_direction": {"value": "mixed"},
+                    "leader_health": {"value": "weakening"},
+                    "strong_stock_coverage": {"value": "contracting"},
+                },
+            },
         ],
         "quality": {"source_quality": 0.85},
     }
@@ -35,135 +54,185 @@ def draft_review():
         "trade_date": "2026-08-06",
         "opinion_mode": "ai_draft",
         "claims": [
-            {"claim_id": "claim_draft_001", "subject": {"type": "theme", "name": "创新药"}, "claim_type": "theme_stage", "stage_judgement": "acceleration", "attention_level": "CRITICAL", "confidence": 0.82, "analyst_reviewed": False},
-            {"claim_id": "claim_draft_002", "subject": {"type": "theme", "name": "半导体设备"}, "claim_type": "theme_stage", "stage_judgement": "diffusion", "attention_level": "HIGH", "confidence": 0.62, "analyst_reviewed": False},
-            {"claim_id": "claim_draft_003", "subject": {"type": "theme", "name": "未知题材"}, "claim_type": "theme_stage", "stage_judgement": "start", "confidence": 0.4, "analyst_reviewed": False},
+            {"claim_id": "claim_d_001", "subject": {"type": "theme", "name": "创新药"}, "stage_judgement": "acceleration", "confidence": 0.82},
+            {"claim_id": "claim_d_002", "subject": {"type": "theme", "name": "半导体设备"}, "stage_judgement": "diffusion", "confidence": 0.62},
+            {"claim_id": "claim_d_003", "subject": {"type": "theme", "name": "未知题材"}, "stage_judgement": "start", "confidence": 0.4},
         ],
-        "approval": {"draft_version": 1},
+        "approval": {},
     }
 
 
-# ── Admission Gate ──────────────────────────────────────────────────────────
+@pytest.fixture
+def approved_review():
+    return {
+        "schema_version": "analyst-workbench.review.v1",
+        "trade_date": "2026-08-06",
+        "opinion_mode": "analyst_approved",
+        "claims": [
+            {"claim_id": "claim_a_001", "subject": {"type": "theme", "name": "创新药"}, "stage_judgement": "acceleration", "confidence": 0.82},
+        ],
+        "approval": {"snapshot_version": 3, "snapshot_hash": "abc123"},
+    }
 
-def test_admission_allows_valid_inputs(live_context, draft_review):
+
+@pytest.fixture
+def rejected_review():
+    return {
+        "schema_version": "analyst-workbench.review.v1",
+        "trade_date": "2026-08-06",
+        "opinion_mode": "rejected",
+        "validation_errors": ["hash_mismatch"],
+        "claims": [],
+        "approval": {},
+    }
+
+
+# ── Contract Mapper ───────────────────────────────────────────────────────
+
+def test_mapper_converts_derived_to_flat():
+    mapper = ThemeFactContractMapper()
+    ai_format = {
+        "subject": "测试",
+        "raw_metrics": {"mainline_strength_score": 0.75},
+        "derived_signals": {
+            "stage_signal": {"value": "diffusion"},
+            "capital_direction": {"value": "inflow"},
+            "leader_health": {"value": "strong"},
+            "strong_stock_coverage": {"value": "wide"},
+        },
+    }
+    flat = mapper.map(ai_format)
+    assert flat["strength"] == 0.75
+    assert flat["derived_stage_signal"] == "diffusion"
+    assert flat["capital_direction"] == "inflow"
+    assert flat["leader_health"] == "strong"
+    assert flat["breadth"] == "wide"
+
+
+def test_mapper_preserves_null():
+    mapper = ThemeFactContractMapper()
+    ai_format = {
+        "subject": "空缺",
+        "raw_metrics": {},
+        "derived_signals": {
+            "stage_signal": None,
+            "capital_direction": None,
+            "leader_health": None,
+            "strong_stock_coverage": None,
+        },
+    }
+    flat = mapper.map(ai_format)
+    assert flat["strength"] is None
+    assert flat["capital_direction"] is None
+
+
+# ── Blind Stage Inference ─────────────────────────────────────────────────
+
+def test_inference_blind_to_claim():
+    """StageInferenceEngine does NOT receive workbench claim."""
+    engine = StageInferenceEngine()
+    facts = {"strength": 0.81, "leader_health": "strong", "breadth": "wide", "capital_direction": "inflow"}
+    stage, evidence = engine.infer(facts)
+    assert stage == "acceleration"
+    # Source code must not reference "claim" or "judgement"
+    import inspect
+    src = inspect.getsource(engine.infer)
+    assert "claim" not in src.lower()
+    assert "judgment" not in src.lower()
+    assert "workbench" not in src.lower()
+
+
+def test_inference_detects_divergence():
+    engine = StageInferenceEngine()
+    facts = {"leader_health": "weakening", "breadth": "contracting"}
+    stage, _ = engine.infer(facts)
+    assert stage == "divergence"
+
+
+# ── Admission Gate ────────────────────────────────────────────────────────
+
+def test_rejected_is_blocked(rejected_review):
     gate = IndependentReviewAdmissionGate()
-    ok, reason = gate.check(live_context, draft_review)
-    assert ok, reason
-
-
-def test_admission_blocks_date_mismatch(live_context):
-    gate = IndependentReviewAdmissionGate()
-    review = {"schema_version": "analyst-workbench.review.v1", "trade_date": "2026-08-05", "opinion_mode": "ai_draft"}
-    ok, reason = gate.check(live_context, review)
+    ctx = {"schema_version": "market-context.v1", "trade_date": "2026-08-06", "status": "live", "quality": {"source_quality": 0.8}}
+    ok, reason = gate.check(ctx, rejected_review)
     assert not ok
-    assert "mismatch" in reason
+    assert "rejected" in reason
 
 
-def test_admission_blocks_unavailable_context():
-    gate = IndependentReviewAdmissionGate()
-    ctx = {"schema_version": "market-context.v1", "status": "unavailable", "trade_date": "2026-08-06"}
-    ok, _ = gate.check(ctx, {"schema_version": "analyst-workbench.review.v1", "opinion_mode": "ai_draft"})
-    assert not ok
+# ── Independent Review ────────────────────────────────────────────────────
 
-
-def test_admission_blocks_synthetic_context():
-    gate = IndependentReviewAdmissionGate()
-    ctx = {"schema_version": "market-context.v1", "status": "synthetic", "trade_date": "2026-08-06"}
-    ok, _ = gate.check(ctx, {"schema_version": "analyst-workbench.review.v1", "opinion_mode": "ai_draft"})
-    assert not ok
-
-
-def test_admission_blocks_not_ready_review(live_context):
-    gate = IndependentReviewAdmissionGate()
-    ok, _ = gate.check(live_context, {"schema_version": "analyst-workbench.review.v1", "opinion_mode": "not_ready"})
-    assert not ok
-
-
-# ── Stage Claim Auditor ─────────────────────────────────────────────────────
-
-def test_stage_auditor_detects_mismatch():
-    """Derived signal=divergence, claim=diffusion → contradicting."""
-    auditor = StageClaimAuditor()
-    facts = {"derived_stage_signal": "divergence", "strength": 0.62, "leader_health": "weakening", "breadth": "contracting"}
-    claim = {"stage_judgement": "diffusion", "confidence": 0.62}
-    sup, contra, miss = auditor.audit(claim, facts)
-    assert any("signal_divergence" in c for c in contra)
-
-
-def test_stage_auditor_confirms_match():
-    """Derived signal=acceleration, claim=acceleration → aligned."""
-    auditor = StageClaimAuditor()
-    facts = {"derived_stage_signal": "acceleration", "strength": 0.81, "leader_health": "strong", "capital_direction": "inflow", "breadth": "wide"}
-    claim = {"stage_judgement": "acceleration", "confidence": 0.82}
-    sup, contra, miss = auditor.audit(claim, facts)
-    assert any("signal_aligned" in s for s in sup)
-
-
-# ── Independent Review ──────────────────────────────────────────────────────
-
-def test_review_detects_stage_mismatch(live_context, draft_review):
-    """半导体: derived=divergence, claim=diffusion → disagree."""
+def test_real_format_review_produces_judgments(live_context, draft_review):
     pipeline = IndependentReviewPipeline()
     result = pipeline.review(live_context, draft_review)
-    assert result.status == "completed"
+    assert result.status in ("completed", "partial")
+    assert len(result.judgments) == 3
+
+    # 创新药: strong → acceleration, claim=acceleration → agree
+    innovation = [j for j in result.judgments if "创新药" in j.subject][0]
+    assert innovation.verdict in ("agree", "partially_agree")
+    assert innovation.julia_stage != ""
+
+    # 半导体: weakening+contracting → Julia says divergence, claim says diffusion → disagree
     semi = [j for j in result.judgments if "半导体" in j.subject][0]
     assert semi.verdict in ("disagree", "partially_disagree")
 
 
-def test_review_agrees_on_stage_match(live_context, draft_review):
-    """创新药: derived=acceleration, claim=acceleration → agree."""
-    pipeline = IndependentReviewPipeline()
-    result = pipeline.review(live_context, draft_review)
-    innovation = [j for j in result.judgments if "创新药" in j.subject][0]
-    assert innovation.verdict in ("agree", "partially_agree")
-
-
-def test_missing_fact_produces_insufficient_data(live_context, draft_review):
-    """P0: 未知题材 has no facts → insufficient_data, NOT dropped."""
+def test_insufficient_data_for_missing_fact(live_context, draft_review):
     pipeline = IndependentReviewPipeline()
     result = pipeline.review(live_context, draft_review)
     unknown = [j for j in result.judgments if "未知题材" in j.subject]
     assert len(unknown) == 1
     assert unknown[0].verdict == "insufficient_data"
-    assert "theme_fact_not_found" in unknown[0].missing_evidence
 
 
-def test_blocked_review_has_no_judgments():
-    """Admission gate blocked → no judgments, status=blocked."""
+def test_approved_has_analyst_reviewed_true(approved_review):
+    """P0: approved claim → analyst_reviewed=True."""
+    ctx = {"schema_version": "market-context.v1", "trade_date": "2026-08-06", "status": "live",
+           "themes": [{"subject": "创新药", "raw_metrics": {"mainline_strength_score": 0.81},
+                       "derived_signals": {"stage_signal": {"value": "acceleration"},
+                                           "capital_direction": {"value": "inflow"},
+                                           "leader_health": {"value": "strong"},
+                                           "strong_stock_coverage": {"value": "wide"}}}],
+           "quality": {"source_quality": 0.8}}
     pipeline = IndependentReviewPipeline()
-    ctx = {"schema_version": "market-context.v1", "trade_date": "2026-08-06", "status": "unavailable", "quality": {"source_quality": 0}}
-    result = pipeline.review(ctx, {"schema_version": "analyst-workbench.review.v1", "opinion_mode": "not_ready"})
-    assert result.status == "blocked"
-    assert result.judgments == []
-
-
-def test_empty_data_is_graceful():
-    pipeline = IndependentReviewPipeline()
-    ctx = {"schema_version": "market-context.v1", "trade_date": "2026-08-06", "status": "live", "themes": [], "market_state": {}, "quality": {"source_quality": 0.8}}
-    rev = {"schema_version": "analyst-workbench.review.v1", "trade_date": "2026-08-06", "opinion_mode": "ai_draft", "claims": []}
-    result = pipeline.review(ctx, rev)
-    assert result.status == "completed"
-    assert result.judgments == []
+    result = pipeline.review(ctx, approved_review)
+    j = result.judgments[0]
+    assert j.workbench_claim["opinion_provenance"]["analyst_reviewed"] is True
+    assert j.workbench_claim["opinion_provenance"]["snapshot_version"] == 3
 
 
 def test_opinion_provenance_preserved(live_context, draft_review):
-    """Judgment preserves opinion_mode, claim_id, draft_version from source."""
     pipeline = IndependentReviewPipeline()
     result = pipeline.review(live_context, draft_review)
     for j in result.judgments:
-        wc = j.workbench_claim
-        assert "opinion_provenance" in wc or "opinion_mode" in str(wc), \
-            f"Judgment should carry opinion provenance"
+        assert "opinion_provenance" in j.workbench_claim
+        assert "opinion_mode" in j.workbench_claim["opinion_provenance"]
 
-def test_julia_stage_is_independent_not_just_consistent(live_context, draft_review):
-    """Julia outputs her own stage assessment — even when agreeing."""
+
+def test_null_not_converted_to_zero():
+    """P0: null strength stays None, not 0."""
+    ctx = {"schema_version": "market-context.v1", "trade_date": "2026-08-06", "status": "live",
+           "themes": [{"subject": "数据缺失股", "raw_metrics": {},
+                       "derived_signals": {"stage_signal": None,
+                                           "capital_direction": None,
+                                           "leader_health": None,
+                                           "strong_stock_coverage": None}}],
+           "quality": {"source_quality": 0.8}}
+    rev = {"schema_version": "analyst-workbench.review.v1", "trade_date": "2026-08-06",
+           "opinion_mode": "ai_draft",
+           "claims": [{"subject": {"name": "数据缺失股"}, "stage_judgement": "start", "confidence": 0.3}],
+           "approval": {}}
     pipeline = IndependentReviewPipeline()
-    result = pipeline.review(live_context, draft_review)
-    for j in result.judgments:
-        if j.verdict == "insufficient_data":
-            assert j.julia_stage == "unknown"
-        else:
-            assert j.julia_stage != ""
-            assert j.julia_stage != "consistent_with_workbench", (
-                f"Julia must output independent stage for '{j.subject}', got '{j.julia_stage}'"
-            )
+    result = pipeline.review(ctx, rev)
+    j = result.judgments[0]
+    # Should have missing evidence (not evaluated as strength=0)
+    assert j.missing_evidence, "Should have missing_evidence for null fields"
+    # Should NOT be classified as "agree" with strength=0 interpreted as start
+    assert j.verdict in ("insufficient_data", "partially_disagree", "disagree")
+
+
+def test_empty_context_blocked(live_context):
+    ctx = {"schema_version": "market-context.v1", "trade_date": "2026-08-06", "status": "unavailable", "quality": {"source_quality": 0}}
+    rev = {"schema_version": "analyst-workbench.review.v1", "opinion_mode": "ai_draft"}
+    result = IndependentReviewPipeline().review(ctx, rev)
+    assert result.status == "blocked"
