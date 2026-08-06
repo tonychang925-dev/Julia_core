@@ -491,6 +491,47 @@ Updated pipeline: ObservationEvent → Router → Policy → Workflow → Artifa
 
 Any attempt to connect Julia to real-time data streams (market, news, IoT, calendar) before implementing rate limiting and experience gating.
 
+---
+
+## ADR-030: Market Intelligence Integration Contract v1.0
+
+**Context**
+
+M3.2 connects ai_theme_app Analyst Workbench to Julia Awareness Runtime. Before real market data flows in, the integration contract must be frozen: exact schemas, adapter rules, deduplication keys, and experience routing tiers. ADR-028 Addendum established the Domain Intelligence Provider boundary. ADR-030 defines the concrete integration mechanics.
+
+**Decision**
+
+Four frozen contracts:
+
+1. **Observation Schema**: ai_theme_app raw format (DecisionEnvelope-level observations with signal_level L0-L4) → IntelligenceAdapter → Julia ObservationEvent (source/domain/event_type/subject/change_type/evidence_refs). ai_theme_app internal fields (theme_id, gate_score, embedding) MUST NOT appear in ObservationEvent.
+
+2. **Observation Identity**: `{domain}:{subject}:{event_type}:{15min_window}` hash for deduplication. Same key within 15min window → single workflow trigger.
+
+3. **Experience Tier Routing**: L0→discard, L1→cache(24hr), L2(confidence>=0.6)→working, L2(confidence<0.6)→cache, L3/L4(confidence>=0.7+evidence>=2)→experience, L3/L4(insufficient)→working.
+
+4. **Provider Metadata**: Every observation carries `provider_name/provider_version/schema_version/generated_at/capability_name` for multi-source traceability.
+
+Complete pipeline: CapabilityManager → Provider → Adapter → Router → Policy → Identity → Workflow → TierRouter → EventStore + Experience.
+
+**Alternatives**
+
+1. Bypass adapter, feed DecisionEnvelope directly to Awareness (rejected: binds Julia to ai_theme_app domain model)
+2. Single-tier experience storage (rejected: L1 noise would pollute long-term memory)
+3. No deduplication (rejected: same event observed twice → duplicate workflows)
+
+**Consequences**
+
+- First domain intelligence integration with frozen schema contract
+- Future domains (medical, IoT, news) follow the same adapter + tier routing pattern
+- 6 acceptance criteria: AC-M3.2-1 through AC-M3.2-6
+- New modules: awareness/ingestion.py, awareness/identity.py, experience/tiers.py
+- 0 new capabilities — reuses existing market.intelligence.observe
+
+**Trigger**
+
+Any attempt to connect domain intelligence systems to Julia Awareness Runtime before freezing the adapter schema, identity key, and experience routing tiers.
+
+
 
 
 
