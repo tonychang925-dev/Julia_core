@@ -419,4 +419,41 @@ Event Timeline ≠ Experience. Events answer "what happened?" (immutable facts).
 
 Any attempt to add autonomous observation, scheduled workflows, multi-turn task tracking, or event-driven capabilities before freezing the Runtime time model.
 
+---
+
+## ADR-028: Market Awareness Runtime Architecture v1.0
+
+**Context**
+
+ADR-027 defined how Julia acts. ADR-028 defines how Julia notices the world. M3 is NOT a collection of new API tools (market.alert.query, market.theme.observe) — it is an Awareness Runtime built on R1's event+workflow infrastructure. The leap from reactive agent to aware runtime.
+
+**Decision**
+
+Three core objects: (1) ObservationEvent — *what changed in the world* (distinct from CapabilityResult — *what did I query*), (2) ObservationWorkflow — event-driven workflow extending WorkflowRuntime with 5 steps (collect_snapshot → collect_theme_state → evaluate_risk → generate_awareness → store_experience), (3) AwarenessContext — governed ContextBlocks entering Context OS, never raw prompt text.
+
+Five forbidden patterns: (1) Observation → LLM Prompt → Response, (2) Workflow calling MCP directly, (3) Market data as raw prompt text, (4) Timer/cron as only trigger, (5) AwarenessArtifact with no evidence refs.
+
+Architecture: World Change → ObservationEvent → EventStore → ObservationRouter → WorkflowRuntime(observation.market) → CapabilityManager + Context OS → Julia Reasoning → AwarenessArtifact → Experience.
+
+Implementation: M3.0 Skeleton → M3.1 Market Event Provider → M3.2 Awareness Workflow → M3.3 Experience Feedback.
+
+**Alternatives**
+
+1. Add market.alert.query as standalone capability without workflow (rejected: bypasses runtime, creates ad-hoc observation path)
+2. Direct LLM prompt injection from market events (rejected: reduces Julia to financial chatbot)
+3. Timer-based scheduled reports (rejected: observation is event-driven, not cron-driven)
+
+**Consequences**
+
+- Julia transitions from reactive ("user asks → answer") to aware ("world changes → notice → understand → remember")
+- ObservationWorkflow reuses existing WorkflowRuntime — no new lifecycle engine
+- AwarenessContext reuses existing Context OS — no new prompt pipeline
+- Foundation for M7 Feedback Loop (observation → prediction → outcome → learning)
+- New directories: observation/ (models, router, workflow)
+
+**Trigger**
+
+Any attempt to add autonomous market observation, event-driven perception, or scheduled awareness before freezing the Observation→Workflow→Artifact architecture.
+
+
 
