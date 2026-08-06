@@ -244,6 +244,36 @@ def main():
     async def health():
         return {"status": "ok", "version": "gateway-v1.1"}
 
+    @app.get("/livekit/token")
+    async def livekit_token(req: Request):
+        """V2-1: Issue LiveKit Access Token. Gateway handles auth only — no media."""
+        room = req.query_params.get("room", "julia-voice-v2-1")
+        identity = req.query_params.get("identity", "tony-electron")
+
+        lk_api_key = os.environ.get("LIVEKIT_API_KEY", "devkey")
+        lk_api_secret = os.environ.get("LIVEKIT_API_SECRET", "secret")
+
+        try:
+            from livekit import api
+            token = api.AccessToken(lk_api_key, lk_api_secret) \
+                .with_identity(identity) \
+                .with_name(identity) \
+                .with_grants(api.VideoGrants(
+                    room_join=True,
+                    room=room,
+                )).to_jwt()
+        except ImportError:
+            return {"status": "error", "error": "livekit SDK not installed"}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
+        return {
+            "url": os.environ.get("LIVEKIT_URL", "ws://127.0.0.1:7880"),
+            "token": token,
+            "room": room,
+            "identity": identity,
+        }
+
     @app.post("/rtc/offer")
     async def rtc_offer(req: Request):
         """WebRTC signaling + Server-side ASR.
