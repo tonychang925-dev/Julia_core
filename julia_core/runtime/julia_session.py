@@ -221,6 +221,28 @@ class JuliaSession:
 
     # ── R0.3b: Market Context Resolution ─────────────────────────────────
 
+    @staticmethod
+    def _run_async_workflow(coro):
+        """Run async workflow safely — works in both sync and async contexts.
+
+        In sync context (direct chat() call): uses asyncio.run().
+        In async context (Gateway/FastAPI handler): uses a thread to avoid
+        "event loop already running" errors.
+        """
+        import asyncio
+        import concurrent.futures
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop — safe to use asyncio.run()
+            return asyncio.run(coro)
+
+        # Running loop exists (Gateway) — run in background thread
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(asyncio.run, coro)
+            return future.result(timeout=30)
+
     def _resolve_market_context(self, text: str) -> str:
         """Check if user utterance is market-related. If so, run the full
         MarketBriefPipeline through WorkflowRouter and return structured
@@ -236,7 +258,7 @@ class JuliaSession:
             return ""
 
         try:
-            result = asyncio.run(
+            result = self._run_async_workflow(
                 self.workflow_router.route(text)
             )
         except Exception:
