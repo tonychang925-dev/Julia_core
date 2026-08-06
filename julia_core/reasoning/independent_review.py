@@ -56,10 +56,11 @@ class ClaimEvidence:
     claim: str
     source: str
     source_confidence: float
+    opinion_provenance: dict = field(default_factory=dict)  # opinion_mode, claim_id, version, hash
     supporting_evidence: list[str] = field(default_factory=list)
     contradicting_evidence: list[str] = field(default_factory=list)
     missing_evidence: list[str] = field(default_factory=list)
-    has_facts: bool = True  # False → insufficient_data
+    has_facts: bool = True
 
 
 @dataclass
@@ -285,54 +286,111 @@ class EvidenceExtractor:
         self.stage_auditor = StageClaimAuditor()
 
     def extract(self, context: dict, review: dict) -> list[ClaimEvidence]:
-        theme_facts = {t.get("subject", ""): t for t in context.get("themes", [])}
+        theme_facts = self._build_fact_index(context)
         theme_judgments = review.get("claims", review.get("theme_judgments", []))
+        opinion_mode = review.get("opinion_mode", "unknown")
+        approval = review.get("approval", {})
 
         claims = []
         for judgment in theme_judgments:
             subject = judgment.get("subject", {})
-            if isinstance(subject, dict):
-                subject_name = subject.get("name", "")
-            else:
-                subject_name = str(subject)
-
+            subject_name = subject.get("name", "") if isinstance(subject, dict) else str(subject)
             if not subject_name:
                 continue
 
             facts = theme_facts.get(subject_name, {})
 
-            # P0: Missing facts → insufficient_data, NOT dropped
             if not facts:
                 claims.append(ClaimEvidence(
                     claim=f"{subject_name}: {judgment.get('stage_judgement', 'unknown')}",
                     source="analyst_workbench",
                     source_confidence=float(judgment.get("confidence", 0.5)),
-                    supporting_evidence=[],
-                    contradicting_evidence=[],
+                    opinion_provenance={
+                        "opinion_mode": opinion_mode,
+                        "claim_id": judgment.get("claim_id", ""),
+                        "analyst_reviewed": judgment.get("analyst_reviewed", False),
+                        **{k: approval[k] for k in ("snapshot_version", "snapshot_hash", "draft_version") if k in approval},
+                    },
                     missing_evidence=["theme_fact_not_found"],
                     has_facts=False,
                 ))
                 continue
 
-            claim_type = judgment.get("claim_type", judgment.get("type", "theme_stage"))
-
+            claim_type = judgment.get("claim_type", "theme_stage")
             if claim_type == "theme_stage":
                 supporting, contradicting, missing = self.stage_auditor.audit(judgment, facts)
             else:
-                # Generic fallback
                 supporting, contradicting, missing = [], [], []
+
+            # Check for unknown-derived values → missing
+            missing.extend(self._check_unknown_signals(facts))
 
             claims.append(ClaimEvidence(
                 claim=f"{subject_name}: {judgment.get('stage_judgement', 'unknown')}",
                 source="analyst_workbench",
                 source_confidence=float(judgment.get("confidence", 0.5)),
-                supporting_evidence=supporting,
-                contradicting_evidence=contradicting,
-                missing_evidence=missing,
+                opinion_provenance={
+                    "opinion_mode": opinion_mode,
+                    "claim_id": judgment.get("claim_id", ""),
+                    "analyst_reviewed": judgment.get("analyst_reviewed", False),
+                    **{k: approval[k] for k in ("snapshot_version", "snapshot_hash", "draft_version") if k in approval},
+                },
+                supporting_evidence=self._dedup(supporting),
+                contradicting_evidence=self._dedup(contradicting),
+                missing_evidence=self._dedup(missing),
                 has_facts=True,
             ))
 
         return claims
+
+    def _build_fact_index(self, context: dict) -> dict:
+        """Index themes by subject name from new derived format."""
+        index = {}
+        for t in context.get("themes", []):
+            name = t.get("subject", "")
+            if not name:
+                continue
+            # Flatten nested signal structure for auditor compatibility
+            flat = {"subject": name}
+            raw = t.get("raw_metrics", {}) or {}
+            for k, v in raw.items():
+                flat[k] = v if v is not None else 0
+            signals = t.get("derived_signals", {}) or {}
+            for sig_name, sig_data in signals.items():
+                if isinstance(sig_data, dict):
+                    flat[sig_name] = sig_data.get("value")
+                else:
+                    flat[sig_name] = sig_data
+            # Backward compat: old flat fields
+            for k in ("derived_stage_signal", "capital_direction", "leader_health", "breadth", "strength"):
+                if k not in flat and k in t:
+                    flat[k] = t[k]
+            index[name] = flat
+        return index
+
+    @staticmethod
+    def _check_unknown_signals(facts: dict) -> list[str]:
+        """Signal values that are effectively missing."""
+        MISSING = {"", None, "unknown", "unavailable", "n/a"}
+        missing = []
+        for key in ("capital_direction", "leader_health", "strong_stock_coverage", "stage_signal", "breadth"):
+            val = facts.get(key)
+            if val in MISSING or (isinstance(val, dict) and val.get("value") in MISSING):
+                missing.append(f"unknown_{key}")
+        return missing
+
+    @staticmethod
+    def _dedup(evidence: list[str]) -> list[str]:
+        """Dedup evidence items: normalize to standard evidence IDs."""
+        seen = set()
+        result = []
+        for item in evidence:
+            # Extract core evidence ID from descriptive strings
+            eid = item.split(":")[0].strip()
+            if eid not in seen:
+                seen.add(eid)
+                result.append(item)
+        return result
 
 
 # ── Independent Review Pipeline ─────────────────────────────────────────────
@@ -380,10 +438,16 @@ class IndependentReviewPipeline:
         )
 
     def _assess(self, claim: ClaimEvidence) -> JuliaJudgment:
+        base_claim = {
+            "claim": claim.claim,
+            "confidence": claim.source_confidence,
+            "opinion_provenance": claim.opinion_provenance,
+        }
+
         if not claim.has_facts:
             return JuliaJudgment(
                 subject=claim.claim.split(":")[0],
-                workbench_claim={"claim": claim.claim, "confidence": claim.source_confidence},
+                workbench_claim=base_claim,
                 verdict="insufficient_data",
                 julia_stage="unknown",
                 confidence=0.25,
@@ -414,7 +478,7 @@ class IndependentReviewPipeline:
 
         return JuliaJudgment(
             subject=claim.claim.split(":")[0],
-            workbench_claim={"claim": claim.claim, "confidence": claim.source_confidence},
+            workbench_claim=base_claim,
             verdict=verdict,
             julia_stage=julia_stage,
             confidence=round(confidence, 2),

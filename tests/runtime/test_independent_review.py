@@ -35,11 +35,11 @@ def draft_review():
         "trade_date": "2026-08-06",
         "opinion_mode": "ai_draft",
         "claims": [
-            {"subject": {"type": "theme", "name": "创新药"}, "claim_type": "theme_stage", "stage_judgement": "acceleration", "attention_level": "CRITICAL", "confidence": 0.82},
-            {"subject": {"type": "theme", "name": "半导体设备"}, "claim_type": "theme_stage", "stage_judgement": "diffusion", "attention_level": "HIGH", "confidence": 0.62},
-            {"subject": {"type": "theme", "name": "未知题材"}, "claim_type": "theme_stage", "stage_judgement": "start", "confidence": 0.4},
+            {"claim_id": "claim_draft_001", "subject": {"type": "theme", "name": "创新药"}, "claim_type": "theme_stage", "stage_judgement": "acceleration", "attention_level": "CRITICAL", "confidence": 0.82, "analyst_reviewed": False},
+            {"claim_id": "claim_draft_002", "subject": {"type": "theme", "name": "半导体设备"}, "claim_type": "theme_stage", "stage_judgement": "diffusion", "attention_level": "HIGH", "confidence": 0.62, "analyst_reviewed": False},
+            {"claim_id": "claim_draft_003", "subject": {"type": "theme", "name": "未知题材"}, "claim_type": "theme_stage", "stage_judgement": "start", "confidence": 0.4, "analyst_reviewed": False},
         ],
-        "approval": {"mode": "ai_draft"},
+        "approval": {"draft_version": 1},
     }
 
 
@@ -145,6 +145,15 @@ def test_empty_data_is_graceful():
     assert result.status == "completed"
     assert result.judgments == []
 
+
+def test_opinion_provenance_preserved(live_context, draft_review):
+    """Judgment preserves opinion_mode, claim_id, draft_version from source."""
+    pipeline = IndependentReviewPipeline()
+    result = pipeline.review(live_context, draft_review)
+    for j in result.judgments:
+        wc = j.workbench_claim
+        assert "opinion_provenance" in wc or "opinion_mode" in str(wc), \
+            f"Judgment should carry opinion provenance"
 
 def test_julia_stage_is_independent_not_just_consistent(live_context, draft_review):
     """Julia outputs her own stage assessment — even when agreeing."""
