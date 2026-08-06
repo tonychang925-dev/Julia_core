@@ -276,6 +276,73 @@ def failing_gateway_client():
     sys.modules.pop("providers", None)
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# R0.9.1: Production Gateway App (real create_app, not rebuilt)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture
+def production_gateway_client():
+    """FastAPI TestClient against the REAL production create_app().
+
+    This is NOT a rebuilt app — it's the actual gateway_server.create_app()
+    that runs in production. Only the LLM provider is mocked.
+    """
+    fake_llm = mock.MagicMock()
+    fake_llm.get_llm_provider = mock.MagicMock(return_value=_MockLLM())
+    sys.modules["providers.llm.deepseek_provider"] = fake_llm
+    sys.modules["providers.llm"] = mock.MagicMock()
+    sys.modules["providers"] = mock.MagicMock()
+
+    from julia_core.runtime.gateway_server import create_app
+    app = create_app()
+
+    # Inject mock ai_theme_app into the session
+    from julia_core.runtime.julia_session import get_session
+    session = get_session()
+    from julia_core.capability.providers.ai_theme import (
+        register_ai_theme_capabilities, AiThemeProvider,
+    )
+    from julia_core.capability.providers.ai_theme.adapter import MCPToolAdapter
+    register_ai_theme_capabilities(session.capability.registry)
+    adapter = MCPToolAdapter(transport=_gw_transport)
+    provider = AiThemeProvider(adapter)
+    session.capability._providers["ai_theme_app"] = provider
+    session.capability._initialized = False
+    session.capability.initialize()
+
+    client = TestClient(app)
+    yield client
+
+    sys.modules.pop("providers.llm.deepseek_provider", None)
+    sys.modules.pop("providers.llm", None)
+    sys.modules.pop("providers", None)
+
+
+def test_production_app_health(production_gateway_client):
+    """Production create_app() GET /health returns ok."""
+    resp = production_gateway_client.get("/health")
+    assert resp.status_code == 200
+
+
+def test_production_app_chat_market(production_gateway_client):
+    """Production app POST /chat with market query works."""
+    resp = production_gateway_client.post("/chat", json={
+        "text": "今天市场怎么样？",
+        "session_id": "prod-test",
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "reply" in data
+    assert "market_in_context=True" in data["reply"]
+
+
+def test_production_app_sessions_endpoint(production_gateway_client):
+    """Production app GET /sessions returns list."""
+    resp = production_gateway_client.get("/sessions")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
+
 def test_real_init_failure_does_not_crash(failing_gateway_client):
     """Real JuliaSession with failing provider → chat() returns normally."""
     resp = failing_gateway_client.post("/chat", json={
@@ -299,9 +366,18 @@ def test_real_init_failure_no_market_context(failing_gateway_client):
     # Mock LLM returns "market_in_context=False" — no market context
     from julia_core.runtime.julia_session import get_session
     session = get_session()
-    # Evidence may exist but no SUCCESSFUL market invocations
+    # No SUCCESSFUL market invocations
     market_success = [
         e for e in session.capability.manager.evidence.entries
         if e.capability_name == "market.snapshot.read" and e.status == "success"
     ]
     assert len(market_success) == 0
+
+    # R0.9.3: Failure evidence IS recorded (unavailable status)
+    failure_evidence = [
+        e for e in session.capability.manager.evidence.entries
+        if e.capability_name == "market.snapshot.read" and e.status == "unavailable"
+    ]
+    assert len(failure_evidence) >= 1, (
+        "Provider failure should record evidence with status=unavailable"
+    )

@@ -19,8 +19,8 @@ from julia_core.runtime.guards.turn_manager import get_turn_manager, InputClass
 
 logger = logging.getLogger("julia.gateway")
 
-def main():
-    import uvicorn
+def create_app() -> "FastAPI":
+    """Build the production Gateway FastAPI app. Testable via TestClient."""
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
     from fastapi.middleware.cors import CORSMiddleware
     from julia_core.runtime.julia_session import get_session
@@ -375,6 +375,12 @@ def main():
         finally:
             _cleanup_session(sid)
 
+    return app
+
+
+def main():
+    import uvicorn
+    app = create_app()
     port = int(sys.argv[2]) if len(sys.argv)>2 and sys.argv[1]=="--port" else 8100
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
     logger.info(f"Gateway v1.1 :{port}")

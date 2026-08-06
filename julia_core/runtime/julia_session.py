@@ -137,7 +137,22 @@ class JuliaSession:
 
     # ── Public API ────────────────────────────────────────────────────────
 
+    async def chat_async(self, text: str) -> str:
+        """Async-native chat entry point. Use this from Gateway/async contexts.
+
+        Has the same cognitive pipeline as chat() but can be awaited directly
+        without asyncio.run() / ThreadPoolExecutor bridging.
+        """
+        return self._chat_impl(text)
+
     def chat(self, text: str) -> str:
+        """Sync chat entry point — delegates to _chat_impl().
+
+        Maintained for backward compat with CLI and non-async callers.
+        """
+        return self._chat_impl(text)
+
+    def _chat_impl(self, text: str) -> str:
         """One turn. Full cognitive pipeline."""
         self.turn_count += 1
 

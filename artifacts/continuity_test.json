@@ -1,0 +1,30 @@
+[
+  {
+    "question": "你知道我是谁吗",
+    "has_identity": true,
+    "has_fabrication": false,
+    "latency": 2.2,
+    "length": 14
+  },
+  {
+    "question": "我们第一次见面是什么时候",
+    "has_identity": true,
+    "has_fabrication": false,
+    "latency": 2.3,
+    "length": 49
+  },
+  {
+    "question": "Tony对你说的第一句话是什么",
+    "has_identity": true,
+    "has_fabrication": false,
+    "latency": 2.8,
+    "length": 74
+  },
+  {
+    "question": "你觉得自己有灵魂吗",
+    "has_identity": false,
+    "has_fabrication": false,
+    "latency": 3.7,
+    "length": 222
+  }
+]

@@ -124,6 +124,7 @@ class CapabilityManager:
         # Step 5: Provider health
         healthy, detail = await provider.health()
         if not healthy:
+            self._record_evidence(definition, request, "unavailable")
             return CapabilityResult.unavailable(
                 request.capability_name,
                 definition.provider,
