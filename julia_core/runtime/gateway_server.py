@@ -103,10 +103,8 @@ def main():
                     return
 
                 if tm.is_speaking:
-                    logger.info("[Voice/RTC] interrupting Julia for user speech")
-                    rtc = _rtc_sessions.get(sid)
-                    if rtc and hasattr(rtc, 'interrupt_tts'):
-                        rtc.interrupt_tts()
+                    logger.warning("[Voice/RTC] suppressed transcript during Julia speech: %r", text[:80])
+                    return
 
                 await _send_event(ws, {
                     "type": "client.voice.final",
@@ -209,6 +207,9 @@ def main():
 
             stage = "tts-start"
             rtc = _rtc_sessions.get(session_id)
+            if rtc and hasattr(rtc, 'set_output_active'):
+                rtc.set_output_active(True)  # gate mic during TTS
+
             if require_tts:
                 if not rtc or not hasattr(rtc, 'tts_track') or not rtc.tts_track:
                     raise RuntimeError(f"Voice turn requires TTS but no RTC track for {session_id}")
@@ -223,6 +224,10 @@ def main():
                 if not drained:
                     raise RuntimeError("TTS drain timed out")
                 logger.info("[Reply] TTS drained OK")
+                # Release mic gate after tail silence (jitter buffer + acoustic tail)
+                await asyncio.sleep(0.4)
+                if hasattr(rtc, 'set_output_active'):
+                    rtc.set_output_active(False)
             elif rtc and hasattr(rtc, 'tts_track') and rtc.tts_track:
                 # Non-voice turn with RTC available: best-effort TTS
                 tts_gen = rtc.tts_track.begin_generation()
@@ -260,6 +265,8 @@ def main():
         except asyncio.CancelledError:
             logger.info("[Reply] cancelled stage=%s sid=%s", stage, session_id)
             rtc = _rtc_sessions.get(session_id)
+            if rtc and hasattr(rtc, 'set_output_active'):
+                rtc.set_output_active(False)
             if rtc and hasattr(rtc, 'interrupt_tts'):
                 rtc.interrupt_tts()
             await _send_event(ws, {
@@ -277,6 +284,9 @@ def main():
 
         except Exception as exc:
             logger.exception("[Reply] failed stage=%s sid=%s error=%s", stage, session_id, exc)
+            rtc = _rtc_sessions.get(session_id)
+            if rtc and hasattr(rtc, 'set_output_active'):
+                rtc.set_output_active(False)
             get_turn_manager().julia_stopped_speaking()
             if speech_id:
                 await _send_event(ws, {

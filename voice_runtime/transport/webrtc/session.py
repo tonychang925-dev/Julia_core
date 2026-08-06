@@ -44,6 +44,7 @@ class WebRTCSession:
         self._audio_frames: int = 0
         self._final_text: str = ""
         self.tts_track: Optional[TTSAudioTrack] = None
+        self._output_active = False  # E3.6.2: gate mic during TTS playback
 
     async def create_answer(self, offer_sdp: str) -> str:
         """Process SDP offer, set up bidirectional audio, return SDP answer."""
@@ -130,7 +131,10 @@ class WebRTCSession:
                     pcm_bytes = pcm.astype("<i2", copy=False).tobytes()
 
                     if self._pipeline:
-                        await self._pipeline.push_pcm(pcm_bytes, sample_rate=16000)
+                        if self._output_active:
+                            self._pipeline.reset()
+                        else:
+                            await self._pipeline.push_pcm(pcm_bytes, sample_rate=16000)
                     elif self._asr:
                         await self._asr.feed_frame(frame)
 
@@ -167,6 +171,12 @@ class WebRTCSession:
             await self._transcribe_segment(pcm_bytes)
         except Exception:
             logger.exception("[RTC] _on_speech_segment failed")
+
+    def set_output_active(self, active: bool) -> None:
+        """Gate mic input during TTS playback. True = Julia speaking, discard mic."""
+        self._output_active = active
+        if active and self._pipeline:
+            self._pipeline.reset()
 
     def on_audio_frame(self, handler: Callable):
         self._track_handler = handler
