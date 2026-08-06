@@ -379,3 +379,44 @@ External contracts carry `schema_version`. Unknown versions are rejected, not si
 
 Any attempt to add a new external provider, integrate ai_theme_app MCP into Julia Core, or bypass the Capability Runtime for external tool access.
 
+---
+
+## ADR-027: Julia Runtime Execution Model v1.0
+
+**Context**
+
+ADR-021~026 answered *what* Julia is and *how* she connects to the world. ADR-027 answers *how* Julia runs continuously: how she experiences an event, remembers an experience, and manages a task. Phase 0 established the spatial architecture (capabilities, providers, context). Phase 1 requires the time dimension.
+
+**Decision**
+
+Runtime is **Event Driven, Async First, Workflow Governed**. Three forbidden patterns:
+
+1. Sync logic as Runtime Authority — `chat_async()` is canonical; `chat()` is compatibility only
+2. Events as mere logs — events are Runtime Facts with `event_id/timestamp/correlation_id/causation_id/evidence_refs`
+3. Workflow lifecycle owned by Pipelines — `WorkflowRuntime` owns lifecycle; Pipelines are step definitions
+
+Event categories frozen: `runtime.*`, `conversation.*`, `capability.*`, `workflow.*`, `experience.*`. One market query produces a complete event timeline: `user.request.created → intent.detected → capability.requested → market.snapshot.received → context.created → reasoning.completed → artifact.created → experience.recorded`.
+
+Workflow state machine: `CREATED → RUNNING → WAITING_CAPABILITY → WAITING_REASONING → COMPLETED | FAILED`. Existing `MarketBriefPipeline` becomes a step set registered in `WorkflowRuntime`.
+
+Event Timeline ≠ Experience. Events answer "what happened?" (immutable facts). Experience answers "what should be learned?" (governed patterns).
+
+**Alternatives**
+
+1. Keep sync-first execution (rejected: voice, MCP, calendar, IoT require async multiplexing)
+2. Keep events as log lines without causation tracking (rejected: prevents audit and "why did Julia say that?" reconstruction)
+3. Keep workflow lifecycle in business Pipelines (rejected: leads to fragmented lifecycle management across domains)
+
+**Consequences**
+
+- `chat_async()` becomes canonical; `chat()` is compatibility wrapper — zero dual logic
+- New directories: `events/` (store, models, timeline), `workflow/` (runtime, models, executor, registry)
+- Phase 1 capabilities (market.alert.query, autonomous observation) become natural extensions of event-driven awareness, not disconnected features
+- Does NOT change CapabilityManager, Context OS, or MCP Adapter — additive, not destructive
+- Recovery: Runtime restart can resume RUNNING/WAITING workflows from Event Store
+
+**Trigger**
+
+Any attempt to add autonomous observation, scheduled workflows, multi-turn task tracking, or event-driven capabilities before freezing the Runtime time model.
+
+
