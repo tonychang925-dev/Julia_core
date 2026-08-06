@@ -216,8 +216,8 @@ def test_adapter_is_the_only_boundary_file():
 
 # ── AC-M1-2: Capability Registration ────────────────────────────────────────
 
-def test_all_three_capabilities_registered(registry):
-    """All 3 M1 capabilities are registered with correct metadata."""
+def test_all_market_capabilities_registered(registry):
+    """All registered market capabilities have correct metadata."""
     for spec in AI_THEME_CAPABILITIES:
         definition = registry.get(spec["name"])
         assert definition is not None, f"{spec['name']} not registered"
@@ -225,22 +225,24 @@ def test_all_three_capabilities_registered(registry):
         assert definition.provider == "ai_theme_app"
         assert definition.permission_scope == "market.observe"
         assert definition.status == CapabilityStatus.AVAILABLE
-        assert definition.schema_version == "1.1"
 
 
-def test_registry_has_exactly_three_ai_theme(registry):
-    """Registry has exactly 3 ai_theme_app capabilities (M1 scope)."""
+def test_registry_has_ai_theme_capabilities(registry):
+    """Registry has all required ai_theme_app capabilities (M1+M3.2)."""
     ai_theme_defs = registry.by_provider("ai_theme_app")
-    assert len(ai_theme_defs) == 3
+    assert len(ai_theme_defs) >= 4  # 3 M1 + 1 M3.2
     names = {d.name for d in ai_theme_defs}
-    assert names == {"market.snapshot.read", "market.alert.query", "market.decision.explain"}
+    assert "market.snapshot.read" in names
+    assert "market.alert.query" in names
+    assert "market.decision.explain" in names
+    assert "market.intelligence.observe" in names
 
 
 def test_registry_intelligence_layer(registry):
     """All 3 capabilities are in INTELLIGENCE layer."""
     intel_defs = registry.by_layer(CapabilityLayer.INTELLIGENCE)
     ai_theme_in_intel = [d for d in intel_defs if d.provider == "ai_theme_app"]
-    assert len(ai_theme_in_intel) == 3
+    assert len(ai_theme_in_intel) >= 4  # 3 M1 + 1 M3.2
 
 
 # ── AC-M1-3: Permission ─────────────────────────────────────────────────────

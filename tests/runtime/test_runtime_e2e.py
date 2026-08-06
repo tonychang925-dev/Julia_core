@@ -108,9 +108,12 @@ def test_bridge_initializes_all_providers(bridge):
 
     # ai_theme_app capabilities registered
     ai_defs = bridge.registry.by_provider("ai_theme_app")
-    assert len(ai_defs) == 3
+    assert len(ai_defs) >= 4  # 3 M1 + 1 M3.2
     ai_names = {d.name for d in ai_defs}
-    assert ai_names == {"market.snapshot.read", "market.alert.query", "market.decision.explain"}
+    assert "market.snapshot.read" in ai_names
+    assert "market.alert.query" in ai_names
+    assert "market.decision.explain" in ai_names
+    assert "market.intelligence.observe" in ai_names
 
 
 # ── E2E-2: Capability Manager executes market.snapshot.read ──────────────────

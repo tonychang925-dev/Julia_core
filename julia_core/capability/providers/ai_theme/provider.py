@@ -43,9 +43,29 @@ class AiThemeProvider:
     async def execute(self, request: CapabilityRequest) -> dict:
         """Execute a market intelligence capability.
 
-        Returns a dict that CapabilityManager wraps in CapabilityResult.
-        Does NOT return DecisionEnvelope directly — wraps with metadata.
+        For M3.2.1: market.intelligence.observe uses ContractMapper
+        to compose observations from real MCP tools (snapshot + alerts).
+
+        Other capabilities (snapshot.read, alert.query, decision.explain)
+        use direct MCP tool mapping as before.
         """
+        # M3.2.1: Intelligence observation path
+        if request.capability_name == "market.intelligence.observe":
+            from julia_core.capability.providers.ai_theme.contract_mapper import (
+                IntelligenceContractMapper,
+            )
+            mapper = IntelligenceContractMapper(self.adapter)
+            result = await mapper.observe()
+            return {
+                "provider": "ai_theme_app",
+                "schema": "Observation.v1.0",
+                "schema_version": "1.0",
+                "capability": request.capability_name,
+                "data": result,
+                "request_id": request.request_id,
+            }
+
+        # Existing path: direct MCP tool mapping
         raw = await self.adapter.call(
             request.capability_name,
             request.arguments,

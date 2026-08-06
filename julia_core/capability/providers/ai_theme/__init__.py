@@ -35,6 +35,14 @@ from julia_core.capability.registry import CapabilityRegistry
 
 AI_THEME_CAPABILITIES: list[dict] = [
     {
+        "name": "market.intelligence.observe",
+        "description": "Observe curated market intelligence — composed observations from snapshot + alerts with L0-L4 decision levels",
+        "layer": CapabilityLayer.INTELLIGENCE,
+        "provider": "ai_theme_app",
+        "permission_scope": "market.observe",
+        "schema_version": "1.0",
+    },
+    {
         "name": "market.snapshot.read",
         "description": "Read today's market overview — sentiment, active themes, top signals, risk alerts",
         "layer": CapabilityLayer.INTELLIGENCE,
