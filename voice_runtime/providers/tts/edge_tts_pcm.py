@@ -124,7 +124,7 @@ class EdgeTTSPCMProvider:
                                 track.enqueue_pcm(pcm_frame, generation), loop
                             )
                             try:
-                                accepted = future.result(timeout=1)
+                                accepted = future.result(timeout=5)
                                 if not accepted:
                                     return False
                                 frames_enqueued += 1
@@ -138,7 +138,7 @@ class EdgeTTSPCMProvider:
                     track.enqueue_pcm(tail, generation), loop
                 )
                 try:
-                    if future.result(timeout=1):
+                    if future.result(timeout=5):
                         frames_enqueued += 1
                 except Exception:
                     pass

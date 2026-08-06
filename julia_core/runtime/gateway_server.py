@@ -30,27 +30,11 @@ def main():
     app = FastAPI(title="Julia Gateway", version="1.1")
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-    # Maps for WebRTC ↔ WS binding
-    _session_ws: dict[str, WebSocket] = {}       # session_id → WebSocket
-    _rtc_sessions: dict[str, object] = {}         # session_id → WebRTCSession
+    # Maps for session tracking
+    _session_ws: dict[str, WebSocket] = {}
 
     def _cleanup_session(sid: str):
-        """E3.6: Destroy RTC session + cancel TTS producer on disconnect."""
-        rtc = _rtc_sessions.pop(sid, None)
         _session_ws.pop(sid, None)
-        if rtc is None:
-            return
-        logger.info(f"[Session] cleanup: {sid}")
-        try:
-            if hasattr(rtc, 'interrupt_tts'):
-                rtc.interrupt_tts()
-        except Exception:
-            pass
-        try:
-            if hasattr(rtc, 'close'):
-                asyncio.ensure_future(rtc.close())
-        except Exception:
-            pass
 
     # ── WS writer lock — prevents concurrent sends on same WebSocket ────
     _ws_send_locks: dict[str, asyncio.Lock] = {}
@@ -124,13 +108,8 @@ def main():
 
         return asyncio.create_task(_run(), name=f"voice-turn:{sid}")
 
-    async def _process_speech_reply(ws: WebSocket, text: str, session_id: str,
-                                     require_tts: bool = False) -> None:
-        """Process transcript through JuliaSession with staged logging.
-
-        require_tts=True: caller is a voice turn from WebRTC. TTS is mandatory.
-        require_tts=False: caller is text chat or WS voice.final, TTS is optional.
-        """
+    async def _process_speech_reply(ws: WebSocket, text: str, session_id: str) -> None:
+        """Process transcript through JuliaSession → text-only speech events via WS."""
         from julia_core.runtime.presence.state_machine import get_presence, PresenceState
 
         stage = "init"
@@ -204,42 +183,6 @@ def main():
                     "data": {"text": chunk, "sequence": i},
                 })
                 get_turn_manager().julia_speech_chunk(chunk)
-
-            stage = "tts-start"
-            rtc = _rtc_sessions.get(session_id)
-            if rtc and hasattr(rtc, 'set_output_active'):
-                rtc.set_output_active(True)  # gate mic during TTS
-
-            if require_tts:
-                if not rtc or not hasattr(rtc, 'tts_track') or not rtc.tts_track:
-                    raise RuntimeError(f"Voice turn requires TTS but no RTC track for {session_id}")
-                tts_gen = rtc.tts_track.begin_generation()
-                from voice_runtime.providers.tts.edge_tts_pcm import EdgeTTSPCMProvider
-                tts_provider = EdgeTTSPCMProvider()
-                produced = await tts_provider.stream_to_track(reply, rtc.tts_track, tts_gen)
-                if not produced:
-                    raise RuntimeError("TTS produced no PCM frames")
-                rtc.tts_track.end_generation()
-                drained = await rtc.tts_track.wait_generation_consumed(tts_gen)
-                if not drained:
-                    raise RuntimeError("TTS drain timed out")
-                logger.info("[Reply] TTS drained OK")
-                # Release mic gate after tail silence (jitter buffer + acoustic tail)
-                await asyncio.sleep(0.4)
-                if hasattr(rtc, 'set_output_active'):
-                    rtc.set_output_active(False)
-            elif rtc and hasattr(rtc, 'tts_track') and rtc.tts_track:
-                # Non-voice turn with RTC available: best-effort TTS
-                tts_gen = rtc.tts_track.begin_generation()
-                from voice_runtime.providers.tts.edge_tts_pcm import EdgeTTSPCMProvider
-                tts_provider = EdgeTTSPCMProvider()
-                produced = await tts_provider.stream_to_track(reply, rtc.tts_track, tts_gen)
-                if not produced:
-                    logger.warning("[Reply] TTS produced no PCM frames (non-voice, continuing)")
-                else:
-                    rtc.tts_track.end_generation()
-                    drained = await rtc.tts_track.wait_generation_consumed(tts_gen)
-                    logger.info("[Reply] TTS drained=%s", drained)
 
             stage = "send-complete"
             await _send_event(ws, {
