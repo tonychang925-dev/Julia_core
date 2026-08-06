@@ -68,46 +68,6 @@ def main():
                 return value.strip()
         return ""
 
-    # ── Ordered voice turn handler — transcript ACK → reply in ONE task ──
-
-    def _handle_rtc_transcript(ws: WebSocket, text: str, sid: str) -> asyncio.Task:
-        """Sequenced: send transcript ACK, then process through JuliaSession.
-
-        Single task — NO concurrent ws.send_text between ACK and reply.
-        """
-        async def _run():
-            try:
-                logger.info("[Voice/RTC] handling transcript session=%s text=%r", sid, text[:80])
-
-                # Guard: if Julia recently stopped speaking (< 3s ago), likely echo
-                tm = get_turn_manager()
-                if tm.seconds_since_last_speech() < 3.0:
-                    logger.info("[Voice/RTC] ECHO GUARD: suppressing (%.1fs since last speech)",
-                               tm.seconds_since_last_speech())
-                    return
-
-                if tm.is_speaking:
-                    logger.warning("[Voice/RTC] suppressed transcript during Julia speech: %r", text[:80])
-                    return
-
-                await _send_event(ws, {
-                    "type": "client.voice.final",
-                    "data": {"text": text},
-                    "session_id": sid,
-                    "timestamp": _time.strftime("%H:%M:%S"),
-                })
-                logger.info("[Voice/RTC] transcript event sent session=%s", sid)
-
-                await _process_speech_reply(ws=ws, text=text, session_id=sid, require_tts=True)
-
-            except asyncio.CancelledError:
-                logger.info("[Voice/RTC] task cancelled session=%s", sid)
-                raise
-            except Exception:
-                logger.exception("[Voice/RTC] turn failed session=%s text=%r", sid, text[:80])
-
-        return asyncio.create_task(_run(), name=f"voice-turn:{sid}")
-
     async def _process_speech_reply(ws: WebSocket, text: str, session_id: str) -> None:
         """Process transcript through JuliaSession → text-only speech events via WS."""
         from julia_core.runtime.presence.state_machine import get_presence, PresenceState
@@ -207,11 +167,6 @@ def main():
 
         except asyncio.CancelledError:
             logger.info("[Reply] cancelled stage=%s sid=%s", stage, session_id)
-            rtc = _rtc_sessions.get(session_id)
-            if rtc and hasattr(rtc, 'set_output_active'):
-                rtc.set_output_active(False)
-            if rtc and hasattr(rtc, 'interrupt_tts'):
-                rtc.interrupt_tts()
             await _send_event(ws, {
                 "type": "speech.cancelled",
                 "data": {"speech_id": speech_id, "reason": "interrupted"},
@@ -227,9 +182,6 @@ def main():
 
         except Exception as exc:
             logger.exception("[Reply] failed stage=%s sid=%s error=%s", stage, session_id, exc)
-            rtc = _rtc_sessions.get(session_id)
-            if rtc and hasattr(rtc, 'set_output_active'):
-                rtc.set_output_active(False)
             get_turn_manager().julia_stopped_speaking()
             if speech_id:
                 await _send_event(ws, {
@@ -272,81 +224,6 @@ def main():
             "token": token,
             "room": room,
             "identity": identity,
-        }
-
-    @app.post("/rtc/offer")
-    async def rtc_offer(req: Request):
-        """WebRTC signaling + Server-side ASR.
-
-        Audio → WebRTC → aiortc → AudioPipeline(VAD) → ASR → transcript
-        → _spawn_speech_reply(ws) → speech.* events → Client.
-
-        Client does echoCancellation:true on getUserMedia for AEC.
-        Server does ASR + speech processing.
-        """
-        body = await req.json()
-        sdp_offer = body.get("sdp", "")
-        client_type = body.get("client_type", "electron")
-        session_id = body.get("session_id", "tony-main")
-
-        # Debug: log received SDP length and ICE status
-        has_ice = "ice-ufrag" in sdp_offer
-        logger.info(f"[RTC] offer received: {len(sdp_offer)} bytes, ICE={has_ice}, "
-                    f"sdp_preview={sdp_offer[:120]}...")
-
-        from voice_runtime.transport.webrtc.session import WebRTCSession
-        from voice_runtime.pipeline.audio_pipeline import AudioPipeline
-        from voice_runtime.providers.local.asr.whisper_cpu import WhisperCPUProvider
-
-        # Audio pipeline: VAD + speech boundary detection (PyAV resamples to 16kHz upstream)
-        pipeline = AudioPipeline(sample_rate=16000)
-        # Server-side ASR: faster-whisper small (or env override)
-        asr = WhisperCPUProvider(
-            model_size=os.environ.get("JULIA_ASR_MODEL", "small"),
-            language="zh",
-            compute_type=os.environ.get("JULIA_ASR_COMPUTE", "int8"),
-        )
-
-        def on_transcript(text: str, is_final: bool = False):
-            if not text or not is_final:
-                return
-            ws = _session_ws.get(session_id)
-            if ws is None:
-                logger.warning(f"[RTC] no WS for session={session_id}")
-                return
-            logger.info(f"[Voice/RTC] transcript={text[:60]}, session={session_id}")
-            _handle_rtc_transcript(ws, text, session_id)
-
-        rtc_session = WebRTCSession(
-            client_type=client_type,
-            audio_pipeline=pipeline,
-            asr_provider=asr,
-            on_transcript=on_transcript,
-        )
-
-        try:
-            answer_sdp = await rtc_session.create_answer(sdp_offer)
-        except Exception as e:
-            logger.error(f"[RTC] create_answer failed: {e}")
-            from fastapi.responses import JSONResponse
-            return JSONResponse(status_code=400, content={
-                "status": "error",
-                "error": f"Invalid SDP: {e}",
-                "hint": "ICE ufrag/pwd required in offer SDP",
-            })
-
-        _rtc_sessions[session_id] = rtc_session
-
-        trace = get_collector().start(rtc_session.id)
-        trace.record("rtc.connected", {"client": client_type, "asr": "whisper_cpu"})
-        get_collector().finish()
-
-        return {
-            "status": "ok",
-            "sdp": answer_sdp,
-            "type": "answer",
-            "session_id": rtc_session.id,
-            "state": rtc_session.state,
         }
 
     @app.get("/traces")
@@ -447,10 +324,6 @@ def main():
                         # E3.5: Cancel active speech task directly (not just flag)
                         if _active_speech_task and not _active_speech_task.done():
                             _active_speech_task.cancel()
-                        # E3.6: Also interrupt TTS audio track
-                        rtc = _rtc_sessions.get(sid)
-                        if rtc and hasattr(rtc, 'interrupt_tts'):
-                            rtc.interrupt_tts()
                         await ws.send_text(_json.dumps(pm.transition(PresenceState.INTERRUPTED)))
                         await ws.send_text(_json.dumps(pm.transition(PresenceState.LISTENING)))
                     else:
@@ -478,9 +351,6 @@ def main():
                         logger.info("[Voice/WS] interrupting Julia for user speech")
                         if _active_speech_task and not _active_speech_task.done():
                             _active_speech_task.cancel()
-                        rtc = _rtc_sessions.get(sid)
-                        if rtc and hasattr(rtc, 'interrupt_tts'):
-                            rtc.interrupt_tts()
                         await ws.send_text(_json.dumps(pm.transition(PresenceState.INTERRUPTED)))
                         await ws.send_text(_json.dumps(pm.transition(PresenceState.LISTENING)))
 
