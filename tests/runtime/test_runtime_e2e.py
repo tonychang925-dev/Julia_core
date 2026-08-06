@@ -287,6 +287,105 @@ def test_tool_manifest_includes_both_local_and_market(bridge):
     assert "market.decision.explain" in manifest
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# R0.4 Real E2E: JuliaSession.chat() → WorkflowRouter → CapabilityManager
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture
+def e2e_bridge():
+    """Bridge with mock ai_theme_app transport — safe for session tests."""
+    from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
+    from julia_core.capability.providers.ai_theme import (
+        register_ai_theme_capabilities,
+        AiThemeProvider,
+    )
+    from julia_core.capability.providers.ai_theme.adapter import MCPToolAdapter
+
+    b = RuntimeCapabilityBridge()
+
+    # Inject mock providers BEFORE initialize
+    register_ai_theme_capabilities(b.registry)
+    adapter = MCPToolAdapter(transport=_e2e_transport)
+    provider = AiThemeProvider(adapter)
+    b._providers["ai_theme_app"] = provider
+
+    b._initialized = False
+    b.initialize()
+    return b
+
+
+@pytest.fixture
+def e2e_session(e2e_bridge):
+    """JuliaSession with mock bridge — tests the real chat() pipeline."""
+    import types
+    from julia_core.runtime.julia_session import JuliaSession
+
+    session = JuliaSession.__new__(JuliaSession)
+
+    # Manually inject the bridge (bypasses normal __init__ which needs LLM provider)
+    session.capability = e2e_bridge
+    session.workflow_router = None  # set up below
+
+    # Minimal state
+    session.turn_count = 0
+    session.history = []
+    session.current_topic = "greeting"
+    session.answered_questions = []
+
+    from julia_core.runtime.workflow_router import WorkflowRouter
+    session.workflow_router = WorkflowRouter(e2e_bridge)
+
+    return session
+
+
+def test_session_resolve_market_context_returns_blocks(e2e_session):
+    """_resolve_market_context returns non-empty context for market query."""
+    context = e2e_session._resolve_market_context("今天市场怎么样？")
+
+    assert context != ""
+    assert "市场情绪" in context
+    assert "活跃题材" in context
+    assert "AI Agent" in context or "半导体" in context
+    assert "风险提示" in context
+
+
+def test_session_non_market_returns_empty(e2e_session):
+    """_resolve_market_context returns empty for non-market query."""
+    context = e2e_session._resolve_market_context("你好，今天心情怎么样？")
+    assert context == ""
+
+
+def test_session_market_context_includes_evidence(e2e_session):
+    """Market context includes data source provenance."""
+    context = e2e_session._resolve_market_context("大盘怎么看")
+    assert context != ""
+    assert "数据来源" in context or "ai_theme_app" in context
+
+
+@pytest.mark.parametrize("query", [
+    "今天市场怎么样？",
+    "大盘怎么看",
+    "最近什么方向强",
+    "今天行情如何",
+])
+def test_session_market_queries_all_return_context(e2e_session, query):
+    """All common market queries trigger pipeline and return context."""
+    context = e2e_session._resolve_market_context(query)
+    assert context != "", f"'{query}' should return market context, got empty"
+
+
+def test_session_market_context_pipeline_trace(e2e_session):
+    """After _resolve_market_context, CapabilityManager has evidence."""
+    e2e_session._resolve_market_context("今天市场怎么样？")
+
+    # Evidence was recorded through the CapabilityManager
+    assert e2e_session.capability.manager.evidence.count >= 1
+    last = e2e_session.capability.manager.evidence.last()
+    assert last is not None
+    assert last.capability_name == "market.snapshot.read"
+    assert last.provider == "ai_theme_app"
+
+
 # ── E2E-10: Health check — all providers available ──────────────────────────
 
 @pytest.mark.asyncio
