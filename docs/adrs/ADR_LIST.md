@@ -531,6 +531,46 @@ Complete pipeline: CapabilityManager → Provider → Adapter → Router → Pol
 
 Any attempt to connect domain intelligence systems to Julia Awareness Runtime before freezing the adapter schema, identity key, and experience routing tiers.
 
+---
+
+## ADR-031: Experience Feedback Architecture v1.0
+
+**Context**
+
+ADR-028 established perception. ADR-030 established domain intelligence ingestion. Julia must now learn from what she observes — not through model training, but through governed experience evolution. The leap from "has memory" to "has experience."
+
+**Decision**
+
+Three core objects: (1) PredictionRecord — what Julia thought might happen (links observation_id + prediction_id from ai_theme_app), (2) RealityOutcome — what actually happened (must carry prediction_id for binding), (3) ExperienceUpdate — what Julia learned (pattern_key, delta, historical_accuracy, admitted flag).
+
+Pipeline: Prediction + Outcome → OutcomeBinder (validate prediction_id match) → DeviationAnalyzer (expected vs actual → measurable delta, not just right/wrong) → ExperienceAdmission (min_confidence gate from ADR-029) → ExperienceUpdate.
+
+Five forbidden patterns: (1) Outcome → LLM prompt, (2) Prediction → auto-trade, (3) Model fine-tuning from outcomes, (4) Unilateral experience mutation, (5) Deletion of wrong predictions (they teach caution).
+
+Ownership: PredictionRecord belongs to ai_theme_app/Julia Reasoning. RealityOutcome belongs to external truth sources. ExperienceUpdate belongs to Julia Experience OS.
+
+Implementation: M3.3.0 Skeleton → M3.3.1 ai_theme_app integration.
+
+**Alternatives**
+
+1. Simple success/failure logging (rejected: no pattern learning, no accuracy tracking)
+2. LLM-based evaluation ("Julia, was your prediction correct?") (rejected: self-referential, not auditable)
+3. Direct model training from outcomes (rejected: Julia learns through Experience OS, not gradient descent)
+
+**Consequences**
+
+- Julia evolves from "has memory" to "has experience"
+- Patterns accumulate historical accuracy over multiple validations
+- Foundation for ai_theme_app M7 Feedback Loop (prediction_id already linked)
+- Wrong predictions preserved — they are valuable negative examples
+- New modules: experience/feedback_models.py, experience/feedback.py
+- 5 acceptance criteria: AC-M3.3-1 through AC-M3.3-5
+
+**Trigger**
+
+Any attempt to implement learning, feedback, or experience evolution without freezing the Prediction→Outcome→Update contract.
+
+
 
 
 
