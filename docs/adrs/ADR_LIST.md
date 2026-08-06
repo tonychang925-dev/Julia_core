@@ -336,3 +336,46 @@ Any attempt to continue Phase 3.6.10 after Session Resurrection, especially befo
 
 任何跨项目复用、Claude Julia voice activation、benchmark trace、memory/context/action integration 的设计评审。
 
+---
+
+## ADR-026: Julia Capability Runtime & MCP Adapter Architecture v1
+
+**Context**
+
+Julia Core Runtime owns identity, memory, reasoning, and decision. But the Capability Layer has not yet become the unified external-world interface. Two parallel execution paths exist: the correct `JuliaSession → provider.chat() → tool_call → capability.execute()` path, and a boundary-violating `MarketBrainClient → direct import from mcp_server` path. Voice Runtime, Runtime Gateway, and MCP are not three separate problems — they are all Capability Boundary Design.
+
+**Decision**
+
+Establish a unified Capability Operating Layer with four components:
+
+1. **CapabilityRegistry** (extend existing) — add `provider`, `adapter`, `permission_scope` fields
+2. **CapabilityManager** (NEW) — resolves capability requests: lookup → permission → health → route
+3. **CapabilityPermissionPolicy** (NEW) — scoped rules (e.g. `market.observe: allow`, `market.trade.execute: deny`)
+4. **MCP Adapter** (NEW) — transforms external MCP servers into Julia Capabilities via tool↔capability name mapping
+
+Add `CapabilityLayer.INTELLIGENCE` for external intelligence domains (market, calendar analytics, GitHub insights, news sentiment).
+
+Directory: `julia_core/capability/{manager,policy,models}.py` + `julia_core/mcp/{client,adapter,schemas/}`.
+
+MCP Client is pure transport (no domain knowledge). MCP Adapter owns the mapping: Julia capability name → MCP tool name. Julia thinks `market.snapshot.read`, MCP speaks `review_market_snapshot`.
+
+External contracts carry `schema_version`. Unknown versions are rejected, not silently parsed.
+
+**Alternatives**
+
+1. Keep current dual-path architecture (rejected: boundary violation grows with each new provider).
+2. Have MarketBrainClient implement the Capability interface directly (rejected: mixes transport, registry, execution, and schema mapping).
+3. Expose MCP tools 1:1 to LLM without adaptation (rejected: LLM sees cognitive interface, not technical tool names).
+
+**Consequences**
+
+- All external-world access unified through one layer. Voice, MCP, filesystem, calendar, GitHub, email, IoT all connect the same way.
+- `mcp_client/` legacy path deprecated over M0→M4 migration.
+- Future providers register once (capability + permission + adapter) rather than building new integration paths.
+- CapabilityPermissionPolicy enables safe expansion into email, calendar, IoT without risk of autonomy overreach.
+- Migration: M0 (skeleton) → M1 (migrate MarketBrainClient) → M2 (register capabilities) → M3 (Morning Brief) → M4 (cleanup legacy).
+
+**Trigger**
+
+Any attempt to add a new external provider, integrate ai_theme_app MCP into Julia Core, or bypass the Capability Runtime for external tool access.
+
