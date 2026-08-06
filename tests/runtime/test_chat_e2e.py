@@ -294,3 +294,202 @@ def test_chat_system_prompt_structure(chat_session):
 
     for element in structural_elements:
         assert element in system, f"System prompt missing structural element: {element}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# R0.6: Real __init__ lifecycle test (not __new__ bypass)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture
+def real_init_session():
+    """JuliaSession with REAL __init__() called.
+
+    Only the LLM provider is mocked. Everything else — capability bridge,
+    bootstrap, persona, action, relationship, recorder, workflow router —
+    goes through actual __init__() initialization path.
+    """
+    import sys
+    from unittest import mock
+
+    # Pre-populate sys.modules so the import inside __init__ succeeds
+    fake_deepseek = mock.MagicMock()
+    fake_deepseek.get_llm_provider = mock.MagicMock(return_value=MockLLMProvider())
+    sys.modules["providers.llm.deepseek_provider"] = fake_deepseek
+    sys.modules["providers.llm"] = mock.MagicMock()
+    sys.modules["providers"] = mock.MagicMock()
+
+    try:
+        session = JuliaSession()
+    finally:
+        # Clean up fake modules
+        sys.modules.pop("providers.llm.deepseek_provider", None)
+        sys.modules.pop("providers.llm", None)
+        sys.modules.pop("providers", None)
+
+    # Post-init: inject mock ai_theme_app into the bridge
+    session.capability._providers.pop("ai_theme_app", None)
+    _inject_mock_ai_theme(session.capability)
+
+    return session
+
+
+def _inject_mock_ai_theme(bridge):
+    """Replace ai_theme_app provider with mock transport version."""
+    from julia_core.capability.providers.ai_theme import (
+        register_ai_theme_capabilities,
+        AiThemeProvider,
+    )
+    from julia_core.capability.providers.ai_theme.adapter import MCPToolAdapter
+
+    register_ai_theme_capabilities(bridge.registry)
+    adapter = MCPToolAdapter(transport=_chat_transport)
+    provider = AiThemeProvider(adapter)
+    bridge._providers["ai_theme_app"] = provider
+    bridge._initialized = False
+    bridge.initialize()
+
+
+def test_real_init_session_has_identity(real_init_session):
+    """Real __init__ produces identity system context."""
+    session = real_init_session
+    assert session._identity_system is not None
+    assert len(session._identity_system) > 0
+    # Identity contains persona traits, not empty
+    assert "Tony" in session._identity_system or "台北" in session._identity_system \
+        or "女朋友" in session._identity_system or "扮演" in session._identity_system
+
+
+def test_real_init_session_has_workflow_router(real_init_session):
+    """Real __init__ creates workflow router bound to bridge."""
+    assert real_init_session.workflow_router is not None
+    assert real_init_session.workflow_router.bridge is real_init_session.capability
+
+
+def test_real_init_session_chat_works(real_init_session):
+    """chat() on real-init session runs full market pipeline."""
+    session = real_init_session
+
+    reply = session.chat("今天市场怎么样？")
+
+    assert reply is not None
+    assert len(reply) > 0
+
+    # Evidence recorded through real bridge
+    assert session.capability.manager.evidence.count >= 1
+    last = session.capability.manager.evidence.last()
+    assert last.capability_name == "market.snapshot.read"
+
+
+def test_real_init_chat_produces_market_context(real_init_session):
+    """System prompt from real-init session contains market context."""
+    real_init_session.chat("大盘怎么看")
+
+    system = MockLLMProvider.last_system_prompt()
+    assert "市场情报" in system
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# R0.8: Provider failure — graceful degradation
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture
+def failing_bridge():
+    """Bridge where ai_theme_app provider reports unhealthy."""
+    from julia_core.capability.providers.ai_theme import register_ai_theme_capabilities
+
+    b = RuntimeCapabilityBridge()
+    register_ai_theme_capabilities(b.registry)
+
+    # Inject a provider whose health() returns False
+    class FailingProvider:
+        async def execute(self, request):
+            return {"error": "should not be called — provider is unhealthy"}
+
+        async def health(self):
+            return False, "ai_theme_app MCP unreachable: connection refused"
+
+    b._providers["ai_theme_app"] = FailingProvider()
+    b._initialized = False
+    b.initialize()
+    return b
+
+
+@pytest.fixture
+def failing_session(failing_bridge):
+    """Session with failing market provider."""
+    session = JuliaSession.__new__(JuliaSession)
+    session.provider = MockLLMProvider()
+    session.capability = failing_bridge
+    session.workflow_router = WorkflowRouter(failing_bridge)
+    session.turn_count = 0
+    session.history = []
+    session.current_topic = "greeting"
+    session.answered_questions = []
+
+    from unittest.mock import MagicMock
+    session.relationship = MagicMock()
+    session.relationship.to_context.return_value = ""
+    session.relationship.session_mood = "neutral"
+    session.recorder = MagicMock()
+    session.action = MagicMock()
+    session._identity_system = "[Julia 身份层 — failure test]"
+    session._load_recent_experiences = lambda: ""
+    session.bootstrap = ""
+
+    return session
+
+
+def test_chat_unavailable_provider_graceful(failing_session):
+    """When market provider is unavailable, chat() does NOT crash."""
+    # Should not raise exception
+    reply = failing_session.chat("今天市场怎么样？")
+
+    # Returns a response (not empty, not crash)
+    assert reply is not None
+    assert isinstance(reply, str)
+
+
+def test_chat_unavailable_no_market_context(failing_session):
+    """When provider is down, no market context in system prompt."""
+    failing_session.chat("今天市场怎么样？")
+
+    system = MockLLMProvider.last_system_prompt()
+
+    # Market context is NOT injected (provider unavailable)
+    assert "市场情绪" not in system
+
+
+def test_chat_unavailable_no_market_evidence(failing_session):
+    """When provider fails, no successful market evidence."""
+    failing_session.chat("今天市场怎么样？")
+
+    # No successful market invocations
+    market_success = [
+        e for e in failing_session.capability.manager.evidence.entries
+        if e.capability_name == "market.snapshot.read" and e.status == "success"
+    ]
+    assert len(market_success) == 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# R0.6+: Multi-turn context preservation
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_chat_multi_turn_context_preserved(chat_session):
+    """Second turn: LLM receives first turn's messages in context."""
+    chat_session.chat("今天市场怎么样？")
+    assert len(chat_session.history) >= 2
+
+    # Second turn — evidence gate may add retry message for market triggers
+    chat_session.chat("那风险大吗？")
+
+    all_messages = MockLLMProvider._last_messages
+    user_contents = [m["content"] for m in all_messages if m["role"] == "user"]
+
+    # First query appears somewhere in LLM context
+    first_queries = [c for c in user_contents if "今天市场怎么样" in c]
+    assert len(first_queries) >= 1, (
+        f"First turn query should appear in LLM context, got: {user_contents}"
+    )
+    # Second query is in user messages
+    assert any("风险大" in c for c in user_contents)
