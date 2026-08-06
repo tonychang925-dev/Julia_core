@@ -366,3 +366,171 @@ def test_all_event_categories_defined():
     assert "capability" in categories
     assert "workflow" in categories
     assert "experience" in categories
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# R1.1: Runtime Trace E2E — one chat() call produces event timeline
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture
+def trace_bridge():
+    """Bridge with mock transport for trace E2E."""
+    from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
+    from julia_core.capability.providers.ai_theme import (
+        register_ai_theme_capabilities, AiThemeProvider,
+    )
+    from julia_core.capability.providers.ai_theme.adapter import MCPToolAdapter
+
+    b = RuntimeCapabilityBridge()
+    register_ai_theme_capabilities(b.registry)
+
+    async def trace_transport(tool_name, args):
+        if tool_name == "review_market_snapshot":
+            return {
+                "market_sentiment": "偏弱",
+                "active_themes": ["AI Agent"],
+                "top_signals": [],
+                "risk_alerts": [],
+                "date": "2026-08-06",
+            }
+        return {}
+
+    adapter = MCPToolAdapter(transport=trace_transport)
+    provider = AiThemeProvider(adapter)
+    b._providers["ai_theme_app"] = provider
+    b._initialized = False
+    b.initialize()
+    return b
+
+
+@pytest.fixture
+def trace_session(trace_bridge):
+    """Session wired for event trace verification."""
+    from julia_core.runtime.julia_session import JuliaSession
+    from unittest.mock import MagicMock
+
+    session = JuliaSession.__new__(JuliaSession)
+    session.provider = MagicMock()
+    session.provider.chat.return_value = "[MOCK] 市场目前偏弱，AI Agent活跃。"
+    session.capability = trace_bridge
+
+    from julia_core.runtime.workflow_router import WorkflowRouter
+    session.workflow_router = WorkflowRouter(trace_bridge)
+
+    session.turn_count = 0
+    session.history = []
+    session.current_topic = "greeting"
+    session.answered_questions = []
+
+    session.relationship = MagicMock()
+    session.relationship.to_context.return_value = ""
+    session.relationship.session_mood = "neutral"
+    session.recorder = MagicMock()
+    session.action = MagicMock()
+    session._identity_system = "[test identity]"
+    session._load_recent_experiences = lambda: ""
+    session.bootstrap = ""
+
+    return session
+
+
+def test_runtime_trace_produces_event_timeline(trace_session):
+    """R1.1: One chat() call produces complete event timeline.
+
+    The "flight recorder" test — proves the runtime emits events
+    that can be reconstructed into a full execution trace.
+    """
+    from julia_core.events.store import get_event_store
+    from julia_core.events.timeline import TimelineReconstructor
+
+    store = get_event_store()
+    before = store.count
+
+    # Execute: one market query
+    trace_session.chat("今天市场怎么样？")
+
+    after = store.count
+    new_events = after - before
+
+    # At minimum: message.received + capability.requested + turn.completed
+    assert new_events >= 3, (
+        f"Expected at least 3 events, got {new_events}. "
+        f"R1 trace should produce conversation + capability + turn events."
+    )
+
+    # Find the correlation_id from the first new event
+    recent = store.recent(new_events)
+    correlation_id = recent[0].correlation_id
+    assert correlation_id != "", "Events must have correlation_id"
+
+    # Reconstruct timeline
+    reconstructor = TimelineReconstructor(store)
+    timeline = reconstructor.reconstruct(correlation_id)
+
+    assert timeline.event_count >= 3
+    event_types = [e.event_type for e in recent]
+
+    # Must include conversation events
+    assert "conversation.message.received" in event_types, f"Missing message.received in {event_types}"
+    assert "conversation.turn.completed" in event_types, f"Missing turn.completed in {event_types}"
+
+    # Explanation is human-readable
+    explanation = reconstructor.explain(correlation_id)
+    assert "conversation.message.received" in explanation
+    assert "conversation.turn.completed" in explanation
+
+
+def test_runtime_trace_market_query_has_capability_event(trace_session):
+    """Market query produces capability.requested event."""
+    from julia_core.events.store import get_event_store
+
+    store = get_event_store()
+    before = store.count
+
+    trace_session.chat("大盘怎么看")
+
+    recent = store.recent(store.count - before)
+    event_types = [e.event_type for e in recent]
+
+    assert "capability.requested" in event_types, (
+        f"Market query must produce capability.requested event. Got: {event_types}"
+    )
+
+
+def test_runtime_trace_non_market_no_capability_event(trace_session):
+    """Non-market query does NOT produce capability event."""
+    from julia_core.events.store import get_event_store
+
+    store = get_event_store()
+    before = store.count
+
+    trace_session.chat("你好")
+
+    recent = store.recent(store.count - before)
+    event_types = [e.event_type for e in recent]
+
+    assert "capability.requested" not in event_types, (
+        f"Non-market query should not produce capability events. Got: {event_types}"
+    )
+    # Still has conversation events
+    assert "conversation.message.received" in event_types
+    assert "conversation.turn.completed" in event_types
+
+
+def test_runtime_trace_causation_chain(trace_session):
+    """Events form a causation chain: event N causes event N+1."""
+    from julia_core.events.store import get_event_store
+
+    store = get_event_store()
+    before = store.count
+
+    trace_session.chat("今天市场怎么样？")
+
+    recent = store.recent(store.count - before)
+    assert len(recent) >= 3
+
+    # Each event (except first) has a causation_id pointing to the previous
+    for i in range(1, len(recent)):
+        assert recent[i].causation_id != "", (
+            f"Event {i} ({recent[i].event_type}) missing causation_id"
+        )

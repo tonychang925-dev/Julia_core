@@ -156,6 +156,24 @@ class JuliaSession:
         """One turn. Full cognitive pipeline."""
         self.turn_count += 1
 
+        # R1: Event tracking — correlation_id groups all events in this turn
+        from julia_core.events.models import (
+            EventCategory, ConversationEventType, CapabilityEventType,
+            RuntimeEventType, create_event,
+        )
+        from julia_core.events.store import get_event_store
+        event_store = get_event_store()
+        correlation_id = f"corr_{id(self)}_{self.turn_count}"
+
+        # Emit: conversation.message.received
+        event_store.append(create_event(
+            source="conversation",
+            event_type=ConversationEventType.MESSAGE_RECEIVED,
+            category=EventCategory.CONVERSATION,
+            payload={"text": text[:200], "turn": self.turn_count},
+            correlation_id=correlation_id,
+        ))
+
         # Layer 1: Relationship — what's happening BETWEEN us?
         rel_ctx = self.relationship.to_context()
 
@@ -164,6 +182,17 @@ class JuliaSession:
 
         # Layer 2.5: R0.3b — Market Intent → WorkflowRouter → ContextBlocks
         market_context = self._resolve_market_context(text)
+
+        # R1: Emit capability event if market context was successfully resolved
+        if market_context:
+            event_store.append(create_event(
+                source="capability",
+                event_type=CapabilityEventType.REQUESTED,
+                category=EventCategory.CAPABILITY,
+                payload={"capability": "market.snapshot.read", "turn": self.turn_count},
+                correlation_id=correlation_id,
+                causation_id=event_store._buffer[-1].event_id if event_store._buffer else "",
+            ))
 
         # Layer 3: Build messages — identity + dynamic experiences + tools + state
         experiences = self._load_recent_experiences()
@@ -220,6 +249,20 @@ class JuliaSession:
         self.recorder.record("Julia", reply[:300], topic=self.current_topic)
         if self.turn_count % 10 == 0:
             threading.Thread(target=lambda: self.recorder.consolidate(self.provider), daemon=True).start()
+
+        # R1: Emit conversation.turn.completed
+        event_store.append(create_event(
+            source="conversation",
+            event_type=ConversationEventType.TURN_COMPLETED,
+            category=EventCategory.CONVERSATION,
+            payload={
+                "topic": self.current_topic,
+                "reply_len": len(reply) if reply else 0,
+                "turn": self.turn_count,
+            },
+            correlation_id=correlation_id,
+            causation_id=event_store._buffer[-1].event_id if event_store._buffer else "",
+        ))
 
         return reply
 
