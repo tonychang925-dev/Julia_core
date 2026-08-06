@@ -72,51 +72,80 @@ class ThemeFactContractMapper:
 
 # ── Stage Taxonomy (single authority for stages, order, evidence, inference) ─
 
-class StageTaxonomy:
-    """Unified stage definitions — the single authority for stage semantics.
+class StageSignalEvaluator:
+    """Single authority for computing signal values from market facts.
 
-    No separate STAGE_ORDER / STAGE_EVIDENCE / inference rules drifting apart.
-    Every stage has: order, aliases, inference rules, evidence semantics.
+    No other module defines thresholds like 'strength_low < 0.4' or
+    'leader_strong == leader_health:strong'. All thresholds live here.
+
+    Both StageInferenceEngine and StageClaimAuditor consume the same
+    signal set — ensuring zero threshold drift.
+    """
+
+    SIGNAL_RULES = {
+        "strength_low":      lambda f: _is_present(f.get("strength")) and f["strength"] < 0.4,
+        "strength_strong":   lambda f: _is_present(f.get("strength")) and f["strength"] >= 0.6,
+        "leader_strong":     lambda f: f.get("leader_health") == "strong",
+        "leader_weak":       lambda f: f.get("leader_health") in ("weakening", "weak"),
+        "breadth_wide":      lambda f: f.get("breadth") in ("wide", "expanding"),
+        "breadth_contracting": lambda f: f.get("breadth") == "contracting",
+        "capital_inflow":    lambda f: f.get("capital_direction") == "inflow",
+    }
+
+    @classmethod
+    def evaluate(cls, facts: dict) -> set[str]:
+        """Return the set of active signal names for these facts."""
+        return {name for name, pred in cls.SIGNAL_RULES.items() if pred(facts)}
+
+
+# ── Stage Taxonomy (executable — single authority) ──────────────────────────
+
+class StageTaxonomy:
+    """Unified, executable stage definitions.
+
+    Inference engine reads inference_requires from here (not hardcoded).
+    Auditor reads supporting/contradicting from here.
+    Both consume the same StageSignalEvaluator output.
     """
 
     STAGES = {
         "start": {
-            "order": 0,
+            "order": 0, "inference_priority": 10,   # lowest priority — fallback when nothing else matches
             "aliases": (),
             "inference_requires": {"strength_low"},
             "supporting": {"strength_low"},
             "contradicting": {"strength_strong", "leader_strong", "breadth_wide", "capital_inflow"},
         },
         "diffusion": {
-            "order": 1,
+            "order": 1, "inference_priority": 30,
             "aliases": (),
             "inference_requires": {"leader_strong", "breadth_wide"},
             "supporting": {"leader_strong", "breadth_wide", "strength_strong"},
             "contradicting": {"leader_weak", "breadth_contracting"},
         },
         "acceleration": {
-            "order": 2,
+            "order": 2, "inference_priority": 60,
             "aliases": ("consolidation",),
             "inference_requires": {"leader_strong", "breadth_wide", "capital_inflow", "strength_strong"},
             "supporting": {"leader_strong", "breadth_wide", "capital_inflow", "strength_strong"},
             "contradicting": {"leader_weak", "breadth_contracting", "strength_low"},
         },
         "fading_momentum": {
-            "order": 3,
+            "order": 3, "inference_priority": 20,
             "aliases": (),
             "inference_requires": {"leader_weak"},
             "supporting": {"leader_weak"},
             "contradicting": {"leader_strong", "strength_strong", "capital_inflow"},
         },
         "divergence": {
-            "order": 4,
+            "order": 4, "inference_priority": 40,
             "aliases": (),
             "inference_requires": {"leader_weak", "breadth_contracting"},
             "supporting": {"leader_weak", "breadth_contracting"},
             "contradicting": {"leader_strong", "breadth_wide", "capital_inflow"},
         },
         "decline": {
-            "order": 5,
+            "order": 5, "inference_priority": 80,
             "aliases": (),
             "inference_requires": {"leader_weak", "strength_low", "breadth_contracting"},
             "supporting": {"leader_weak", "strength_low", "breadth_contracting"},
@@ -150,42 +179,37 @@ class StageTaxonomy:
                 return stage
         return name
 
+    @classmethod
+    def inference_order(cls) -> list[str]:
+        """Stages sorted by inference_priority (descending).
+        Most specific stages (decline, acceleration) checked first.
+        """
+        return sorted(
+            cls.STAGES.keys(),
+            key=lambda s: cls.STAGES[s].get("inference_priority", 0),
+            reverse=True,
+        )
 
-# ── Stage Inference (blind — does NOT receive workbench claim) ─────────────
+
+# ── Stage Inference (driven by executible taxonomy) ─────────────────────────
 
 class StageInferenceEngine:
     """Derives julia_stage from structural evidence ONLY.
 
-    Does NOT receive workbench claim. True blind inference.
-    Rule priority: check strongest stages first.
+    Reads inference_requires from StageTaxonomy.
+    Consumes signals from StageSignalEvaluator.
+    Both are the single authorities — no hardcoded rules.
     """
 
     def infer(self, facts: dict) -> tuple[str, list[str]]:
-        """Returns (julia_stage, evidence_used)."""
-        strength = _float_or_null(facts.get("strength"))
-        has_strength = _is_present(strength) and strength >= 0.6
-        strength_low = _is_present(strength) and strength < 0.4
-        has_capital = facts.get("capital_direction") == "inflow"
-        has_leader = facts.get("leader_health") == "strong"
-        leader_weak = facts.get("leader_health") == "weakening"
-        has_breadth = facts.get("breadth") in ("wide", "expanding")
-        breadth_contracting = facts.get("breadth") == "contracting"
+        """Returns (julia_stage, signal_evidence)."""
+        signals = StageSignalEvaluator.evaluate(facts)
 
-        # Ordered by priority (most specific → most general)
-        if has_leader and has_breadth and has_capital and has_strength:
-            return ("acceleration", ["leader_strong", "breadth_wide", "capital_inflow", f"strength_{strength}"])
-        if leader_weak and breadth_contracting and strength_low:
-            return ("decline", ["leader_weak", "breadth_contracting", f"strength_{strength}"])
-        if leader_weak and breadth_contracting:
-            return ("divergence", ["leader_weak", "breadth_contracting"])
-        if has_leader and has_breadth:
-            return ("diffusion", ["leader_strong", "breadth_wide"])
-        if leader_weak:
-            return ("fading_momentum", ["leader_weak"])
-        if has_strength and has_breadth:
-            return ("diffusion", [f"strength_{strength}", "breadth_wide"])
-        if strength_low:
-            return ("start", [f"strength_{strength}"])
+        for stage in StageTaxonomy.inference_order():
+            required = StageTaxonomy.STAGES[stage]["inference_requires"]
+            if required <= signals:  # all required signals present
+                return (stage, sorted(required))
+
         return ("data_inconclusive", [])
 
 
@@ -304,18 +328,10 @@ class StageClaimAuditor:
             else:
                 contradicting.append(_evid("stages_diverged", julia_stage, claimed))
 
-        # Classify each raw evidence item by context
-        raw_items = [
-            ("capital_inflow") if facts.get("capital_direction") == "inflow" else None,
-            ("leader_strong") if facts.get("leader_health") == "strong" else None,
-            ("leader_weak") if facts.get("leader_health") in ("weakening", "weak") else None,
-            ("breadth_wide") if facts.get("breadth") in ("wide", "expanding") else None,
-            ("breadth_contracting") if facts.get("breadth") == "contracting" else None,
-            ("strength_strong") if _is_present(facts.get("strength")) and float(facts.get("strength", 0)) >= 0.7 else None,
-            ("strength_low") if _is_present(facts.get("strength")) and float(facts.get("strength", 0)) < 0.5 else None,
-        ]
+        # Evaluate all signals via single authority (no threshold drift)
+        signals = StageSignalEvaluator.evaluate(facts)
 
-        for item in raw_items:
+        for item in signals:
             if item is None:
                 continue
             if item in stage_support:
@@ -572,5 +588,6 @@ __all__ = [
     "JuliaJudgment", "IndependentReviewResult", "ClaimEvidence",
     "EvidenceExtractor", "IndependentReviewPipeline",
     "IndependentReviewAdmissionGate", "StageInferenceEngine",
-    "StageClaimAuditor", "StageTaxonomy", "ThemeFactContractMapper",
+    "StageClaimAuditor", "StageTaxonomy", "StageSignalEvaluator",
+    "ThemeFactContractMapper",
 ]

@@ -9,6 +9,7 @@ from julia_core.reasoning.independent_review import (
     IndependentReviewPipeline,
     IndependentReviewAdmissionGate,
     StageInferenceEngine,
+    StageSignalEvaluator,
     StageClaimAuditor,
     StageTaxonomy,
     ThemeFactContractMapper,
@@ -451,9 +452,10 @@ def test_decline_inference():
     engine = StageInferenceEngine()
     facts = {"leader_health": "weakening", "breadth": "contracting", "strength": 0.30}
     stage, evidence = engine.infer(facts)
-    assert stage == "decline"
-    assert any("leader_weak" in e for e in evidence)
-    assert any("breadth_contracting" in e for e in evidence)
+    assert stage == "decline", f"Expected decline, got {stage}. Signals: {StageSignalEvaluator.evaluate(facts)}"
+    assert "leader_weak" in evidence
+    assert "breadth_contracting" in evidence
+    assert "strength_low" in evidence
 
 
 def test_taxonomy_coverage():
@@ -463,3 +465,71 @@ def test_taxonomy_coverage():
         valid = entry.get("supporting", set()) | entry.get("contradicting", set())
         unknown = requires - valid
         assert not unknown, f"Stage '{stage}': inference_requires {unknown} not in supporting+contradicting"
+
+
+# ── Executable taxonomy tests ─────────────────────────────────────────────
+
+def test_engine_reads_from_taxonomy():
+    """TC-13: Inference engine reads inference_requires from StageTaxonomy.
+    If taxonomy changes, inference behavior changes — no hardcoded rules."""
+    import inspect
+    src = inspect.getsource(StageInferenceEngine.infer)
+    # No hardcoded stage strings or thresholds
+    for forbidden in ('"acceleration"', "'decline'", '>= 0.6', '< 0.4',
+                       'has_leader', 'has_breadth', 'has_capital', 'has_strength'):
+        assert forbidden not in src, f"Engine should not contain '{forbidden}'"
+
+
+# ── Threshold boundary tests ──────────────────────────────────────────────
+
+@pytest.mark.parametrize("strength,expected_signal", [
+    (0.39, "strength_low"),     # TC-09: just below threshold → strength_low
+    (0.45, None),               # TC-10: in gap zone — neither low nor strong
+    (0.59, None),               # TC-11: still in gap — not strong enough
+    (0.60, "strength_strong"),  # TC-12: at threshold → strength_strong
+])
+def test_signal_evaluator_boundary(strength, expected_signal):
+    """Single threshold authority — inference and audit share same signals."""
+    evaluator = StageSignalEvaluator
+    signals = evaluator.evaluate({"strength": strength})
+
+    if expected_signal == "strength_low":
+        assert "strength_low" in signals, f"strength={strength} should trigger strength_low"
+        assert "strength_strong" not in signals
+    elif expected_signal == "strength_strong":
+        assert "strength_strong" in signals, f"strength={strength} should trigger strength_strong"
+        assert "strength_low" not in signals
+    else:  # gap zone
+        assert "strength_low" not in signals, f"strength={strength} should not trigger strength_low"
+        assert "strength_strong" not in signals, f"strength={strength} should not trigger strength_strong"
+
+
+def test_0_45_is_neutral_zone():
+    """strength=0.45: inference cannot use it, audit cannot use it."""
+    evaluator = StageSignalEvaluator
+    signals = evaluator.evaluate({"strength": 0.45})
+    assert "strength_low" not in signals
+    assert "strength_strong" not in signals
+
+    # Inference: no strong/low signal → cannot match start or acceleration
+    engine = StageInferenceEngine()
+    stage, ev = engine.infer({"strength": 0.45})
+    assert stage != "start", "strength=0.45 should not infer start"
+    assert stage != "acceleration", "strength=0.45 should not infer acceleration"
+
+
+def test_taxonomy_has_inference_priority():
+    """TC-14: Each non-terminal stage has inference_priority."""
+    for stage, entry in StageTaxonomy.STAGES.items():
+        assert "inference_priority" in entry, f"{stage} missing inference_priority"
+
+
+def test_priority_order_matches_expected():
+    """High-priority stages (decline, acceleration) come before low (fading_momentum)."""
+    order = StageTaxonomy.inference_order()
+    # decline(70) and acceleration(60) must come before diffusion(40) and fading(20)
+    d_idx = order.index("decline")
+    a_idx = order.index("acceleration")
+    f_idx = order.index("fading_momentum")
+    assert d_idx < f_idx, "decline should have higher priority than fading_momentum"
+    assert a_idx < f_idx, "acceleration should have higher priority than fading_momentum"
