@@ -36,9 +36,9 @@ class JuliaSession:
         self.provider = get_llm_provider("deepseek")
         self.bootstrap = get_bootstrap()
 
-        # Capability Layer
-        from julia_core.runtime.capability import get_capability_runtime
-        self.capability = get_capability_runtime()
+        # Capability Layer (R0.2 — migrated to RuntimeCapabilityBridge)
+        from julia_core.runtime.capability_bridge import get_capability_bridge
+        self.capability = get_capability_bridge()
 
         # Action Layer
         from julia_core.runtime.action import get_action_runtime
@@ -148,7 +148,7 @@ class JuliaSession:
         system_with_tools = (
             self._identity_system + "\n\n"
             + experiences + "\n\n"
-            + self.capability.tools.build_manifest() + "\n\n"
+            + self.capability.tool_manifest() + "\n\n"
             + rel_ctx + "\n\n"
             + conv_state
         )
@@ -161,7 +161,7 @@ class JuliaSession:
 
         # Layer 5: Evidence Gate — does this need external evidence?
         needs_evidence = self.capability.requires_tool(text)
-        tool_json = self.capability._detect_tool_call(reply)
+        tool_json = self.capability.detect_tool_call(reply)
 
         if needs_evidence and not tool_json:
             # Force retry: LLM must use a tool for this request
@@ -172,12 +172,12 @@ class JuliaSession:
                 "基于工具返回的实际内容重新回答。不要编造文件内容。"
             )})
             reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")
-            tool_json = self.capability._detect_tool_call(reply)
+            tool_json = self.capability.detect_tool_call(reply)
 
         # Layer 6: Capability Execution (Pass 2 — if tool called)
         if tool_json:
             self._execute_tool_with_action(tool_json)
-            tool_result = self.capability.execute(tool_json)
+            tool_result = self.capability.execute_tool(tool_json)
             if tool_result:
                 messages.append({"role": "assistant", "content": reply})
                 messages.append({"role": "user", "content": (
