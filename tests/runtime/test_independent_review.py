@@ -21,8 +21,8 @@ def live_context():
         "status": "live",
         "market_state": {"breadth": {"up_count": 3200}, "emotion": {"node": "REPAIR", "score": 18}},
         "themes": [
-            {"subject": "创新药", "strength": 0.81, "stage": "acceleration", "capital_direction": "inflow", "leader_health": "strong", "breadth": "wide"},
-            {"subject": "半导体设备", "strength": 0.62, "stage": "divergence", "capital_direction": "mixed", "leader_health": "weakening", "breadth": "contracting"},
+            {"subject": "创新药", "strength": 0.81, "derived_stage_signal": "acceleration", "capital_direction": "inflow", "leader_health": "strong", "breadth": "wide"},
+            {"subject": "半导体设备", "strength": 0.62, "derived_stage_signal": "divergence", "capital_direction": "mixed", "leader_health": "weakening", "breadth": "contracting"},
         ],
         "quality": {"source_quality": 0.85},
     }
@@ -82,27 +82,27 @@ def test_admission_blocks_not_ready_review(live_context):
 # ── Stage Claim Auditor ─────────────────────────────────────────────────────
 
 def test_stage_auditor_detects_mismatch():
-    """Fact stage=divergence, claim stage=diffusion → contradicting."""
+    """Derived signal=divergence, claim=diffusion → contradicting."""
     auditor = StageClaimAuditor()
-    facts = {"stage": "divergence", "strength": 0.62, "leader_health": "weakening", "breadth": "contracting"}
+    facts = {"derived_stage_signal": "divergence", "strength": 0.62, "leader_health": "weakening", "breadth": "contracting"}
     claim = {"stage_judgement": "diffusion", "confidence": 0.62}
     sup, contra, miss = auditor.audit(claim, facts)
-    assert any("stage_mismatch" in c for c in contra)
+    assert any("signal_divergence" in c for c in contra)
 
 
 def test_stage_auditor_confirms_match():
-    """Fact stage=acceleration, claim stage=acceleration → supporting."""
+    """Derived signal=acceleration, claim=acceleration → aligned."""
     auditor = StageClaimAuditor()
-    facts = {"stage": "acceleration", "strength": 0.81, "leader_health": "strong", "capital_direction": "inflow", "breadth": "wide"}
+    facts = {"derived_stage_signal": "acceleration", "strength": 0.81, "leader_health": "strong", "capital_direction": "inflow", "breadth": "wide"}
     claim = {"stage_judgement": "acceleration", "confidence": 0.82}
     sup, contra, miss = auditor.audit(claim, facts)
-    assert any("stage_match" in s for s in sup)
+    assert any("signal_aligned" in s for s in sup)
 
 
 # ── Independent Review ──────────────────────────────────────────────────────
 
 def test_review_detects_stage_mismatch(live_context, draft_review):
-    """半导体: fact=divergence, claim=diffusion → disagree."""
+    """半导体: derived=divergence, claim=diffusion → disagree."""
     pipeline = IndependentReviewPipeline()
     result = pipeline.review(live_context, draft_review)
     assert result.status == "completed"
@@ -111,7 +111,7 @@ def test_review_detects_stage_mismatch(live_context, draft_review):
 
 
 def test_review_agrees_on_stage_match(live_context, draft_review):
-    """创新药: fact=acceleration, claim=acceleration → agree."""
+    """创新药: derived=acceleration, claim=acceleration → agree."""
     pipeline = IndependentReviewPipeline()
     result = pipeline.review(live_context, draft_review)
     innovation = [j for j in result.judgments if "创新药" in j.subject][0]
@@ -147,11 +147,14 @@ def test_empty_data_is_graceful():
 
 
 def test_julia_stage_is_independent_not_just_consistent(live_context, draft_review):
-    """Julia outputs her own stage assessment — not just 'consistent_with_workbench'."""
+    """Julia outputs her own stage assessment — even when agreeing."""
     pipeline = IndependentReviewPipeline()
     result = pipeline.review(live_context, draft_review)
-    semi = [j for j in result.judgments if "半导体" in j.subject][0]
-    assert semi.julia_stage != "", "Julia should have her own stage assessment"
-    # Not just "consistent_with_workbench" when disagreeing
-    if semi.verdict in ("disagree", "partially_disagree"):
-        assert semi.julia_stage != "consistent_with_workbench"
+    for j in result.judgments:
+        if j.verdict == "insufficient_data":
+            assert j.julia_stage == "unknown"
+        else:
+            assert j.julia_stage != ""
+            assert j.julia_stage != "consistent_with_workbench", (
+                f"Julia must output independent stage for '{j.subject}', got '{j.julia_stage}'"
+            )

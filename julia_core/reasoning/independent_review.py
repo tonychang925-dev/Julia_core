@@ -150,23 +150,28 @@ class StageClaimAuditor:
     """
 
     def audit(self, claim: dict, facts: dict) -> tuple[list, list, list]:
-        """Returns (supporting, contradicting, missing) evidence."""
+        """Returns (supporting, contradicting, missing) evidence.
+
+        Notes: facts['derived_stage_signal'] is a market algorithm output,
+        NOT objective truth. It serves as supporting/contradicting evidence,
+        not as the ground truth for Julia's stage derivation.
+        """
         supporting, contradicting, missing = [], [], []
 
         claimed_stage = str(claim.get("stage_judgement", ""))
-        fact_stage = str(facts.get("stage", ""))
+        derived_signal = str(facts.get("derived_stage_signal", facts.get("stage", "")))
 
-        # P0: Compare stage claim vs fact stage
-        if claimed_stage and fact_stage:
-            if claimed_stage == fact_stage:
-                supporting.append(f"stage_match: {claimed_stage}")
+        # P0: Compare claim stage vs derived_signal (NOT ground truth)
+        if claimed_stage and derived_signal:
+            if claimed_stage == derived_signal:
+                supporting.append(f"signal_aligned: derived_stage={derived_signal}")
             else:
-                fact_order = STAGE_ORDER.get(fact_stage, -1)
+                signal_order = STAGE_ORDER.get(derived_signal, -1)
                 claim_order = STAGE_ORDER.get(claimed_stage, -1)
-                if abs(fact_order - claim_order) <= 1:
-                    missing.append(f"stage_close: fact={fact_stage} claim={claimed_stage}")
+                if abs(signal_order - claim_order) <= 1:
+                    missing.append(f"stage_close: derived={derived_signal} claim={claimed_stage}")
                 else:
-                    contradicting.append(f"stage_mismatch: fact={fact_stage} vs claim={claimed_stage}")
+                    contradicting.append(f"signal_divergence: derived={derived_signal} vs claim={claimed_stage}")
 
         # Check stage requirements
         reqs = STAGE_REQUIREMENTS.get(claimed_stage, {})
@@ -421,15 +426,35 @@ class IndependentReviewPipeline:
         )
 
     def _infer_julia_stage(self, claim: ClaimEvidence, verdict: str) -> str:
-        if verdict in ("agree", "partially_agree"):
-            return "consistent_with_workbench"
-        contras = " ".join(claim.contradicting_evidence)
-        if "leader_weakening" in contras and "breadth_contracting" in contras:
-            return "late_acceleration_to_divergence"
-        if "leader_weakening" in contras:
-            return "acceleration_with_leader_divergence"
-        if "strength" in contras or "requirement_failed" in contras:
+        """Derive Julia's independent stage from evidence.
+
+        Even when agreeing, Julia outputs her OWN stage conclusion,
+        not just 'consistent_with_workbench'.
+        """
+        # Derive from supporting/contradicting evidence
+        support_str = " ".join(claim.supporting_evidence)
+        contra_str = " ".join(claim.contradicting_evidence)
+
+        has_leader_strong = "leader_strong" in support_str
+        has_leader_weak = "leader_weakening" in contra_str
+        has_breadth_wide = "breadth_wide" in support_str or "breadth_expanding" in support_str
+        has_breadth_contract = "breadth_contracting" in contra_str
+        has_capital_inflow = "capital_inflow" in support_str
+        has_strength = any("requirement_met: strength" in s or "strength_0." in s for s in claim.supporting_evidence)
+
+        # Derive stage from structural evidence
+        if has_leader_strong and has_breadth_wide and has_capital_inflow and has_strength:
+            return "acceleration"
+        if has_leader_weak and has_breadth_contract:
+            return "divergence"
+        if has_leader_strong and has_breadth_wide:
+            return "diffusion"
+        if has_leader_weak:
             return "fading_momentum"
+        if has_strength and has_breadth_wide:
+            return "diffusion"
+        if not has_strength:
+            return "start"
         return "data_inconclusive"
 
     def _generate_outcomes(self, verdict: str, claim: ClaimEvidence) -> list[dict]:
