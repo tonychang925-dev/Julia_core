@@ -137,7 +137,8 @@ class WebRTCSession:
                 if self._track_handler:
                     self._track_handler(frame)
 
-            except Exception:
+            except Exception as e:
+                logger.error(f"[RTC] track recv error: {e}", exc_info=True)
                 break
 
         if self._pipeline and self._pipeline.is_speaking:
@@ -152,16 +153,20 @@ class WebRTCSession:
 
     async def _on_speech_segment(self, pcm_bytes: bytes):
         """Save debug WAV then transcribe."""
-        import wave as _wave
-        debug_path = Path.home() / ".julia/debug_converted.wav"
-        with _wave.open(str(debug_path), "w") as w:
-            w.setnchannels(1)
-            w.setsampwidth(2)
-            w.setframerate(16000)
-            w.writeframes(pcm_bytes)
-        dur = len(pcm_bytes) / 32000
-        logger.info(f"[RTC] debug WAV: {debug_path} ({dur:.1f}s, {len(pcm_bytes)} bytes)")
-        await self._transcribe_segment(pcm_bytes)
+        try:
+            import wave as _wave
+            from pathlib import Path
+            debug_path = Path.home() / ".julia/debug_converted.wav"
+            with _wave.open(str(debug_path), "w") as w:
+                w.setnchannels(1)
+                w.setsampwidth(2)
+                w.setframerate(16000)
+                w.writeframes(pcm_bytes)
+            dur = len(pcm_bytes) / 32000
+            logger.info(f"[RTC] debug WAV: {debug_path} ({dur:.1f}s, {len(pcm_bytes)} bytes)")
+            await self._transcribe_segment(pcm_bytes)
+        except Exception:
+            logger.exception("[RTC] _on_speech_segment failed")
 
     def on_audio_frame(self, handler: Callable):
         self._track_handler = handler
