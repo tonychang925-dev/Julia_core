@@ -25,6 +25,7 @@ class VoiceTurnManager:
     def __init__(self):
         self._state = "idle"                     # idle | speaking
         self._speech_started_at: float = 0.0
+        self._speech_ended_at: float = 0.0
         self._active_speech_id: str = ""
         self._suppressed_count = 0
         self._interrupt_count = 0
