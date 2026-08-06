@@ -41,7 +41,13 @@ class VoiceTurnManager:
 
     def julia_stopped_speaking(self):
         self._state = "idle"
+        self._speech_ended_at = _time.time()
         self._active_speech_id = ""
+
+    def seconds_since_last_speech(self) -> float:
+        if self._speech_ended_at == 0.0:
+            return 999.0
+        return _time.time() - self._speech_ended_at
 
     # ── Input Classification ─────────────────────────────────────────────
 

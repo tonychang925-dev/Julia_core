@@ -95,8 +95,13 @@ def main():
             try:
                 logger.info("[Voice/RTC] handling transcript session=%s text=%r", sid, text[:80])
 
-                # Notify TurnManager: user is speaking (interrupt Julia if needed)
+                # Guard: if Julia recently stopped speaking (< 3s ago), likely echo
                 tm = get_turn_manager()
+                if tm.seconds_since_last_speech() < 3.0:
+                    logger.info("[Voice/RTC] ECHO GUARD: suppressing (%.1fs since last speech)",
+                               tm.seconds_since_last_speech())
+                    return
+
                 if tm.is_speaking:
                     logger.info("[Voice/RTC] interrupting Julia for user speech")
                     rtc = _rtc_sessions.get(sid)
