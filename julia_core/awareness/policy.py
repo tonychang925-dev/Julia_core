@@ -1,10 +1,13 @@
-"""M3.1 ObservationPolicy — rate limiting + cooldown gate.
+"""M3.1 ObservationPolicy — rate limiting + cooldown + decision level gate.
 
-ADR-029 Section 1: Inserted between ObservationRouter and Workflow dispatch.
-Router checks significance. Policy checks rate.
+ADR-029 Section 1 + ADR-028 Addendum: Inserted between ObservationRouter
+and Workflow dispatch. Router checks significance. Policy checks rate
+and filters by decision level (L0-L4).
 
-Policy answers: "Have we seen too many of these?" — not "What does this mean?"
-It is a rate gate, not a semantic filter. Zero LLM dependency.
+L0 → ignore, L1 → record only, L2 → short-term watch, L3 → awareness, L4 → notify.
+
+Policy answers: "Should Julia pay attention?" — not "What does this mean?"
+Zero LLM dependency.
 """
 
 from __future__ import annotations
@@ -32,6 +35,14 @@ class ObservationPolicy:
 
     # Cooldown: same subject + same change_type must wait this long
     cooldown_seconds: int = 900  # 15 minutes
+
+    # Minimum decision level to trigger awareness workflow
+    min_decision_level: str = "L2"  # L0-L1 are logged but don't trigger workflows
+
+    # Decision level → numeric weight for admission scoring
+    decision_level_weight: dict[str, float] = field(default_factory=lambda: {
+        "L0": 0.0, "L1": 0.2, "L2": 0.4, "L3": 0.7, "L4": 1.0,
+    })
 
     # Internal tracking
     _subject_timestamps: dict[str, list[float]] = field(default_factory=dict)
@@ -79,6 +90,39 @@ class ObservationPolicy:
         self._cooldown_map[cooldown_key] = now
 
         return True, "accepted — within rate limits and cooldown"
+
+    def should_process_intelligence(self, observation: dict) -> tuple[bool, str]:
+        """Filter an ai_theme_app intelligence observation by decision level.
+
+        observation: one entry from market.intelligence.observe response.
+        Returns (allowed, reason).
+
+        L0 → ignore, L1 → record only, L2+ → process (subject to rate limits).
+        """
+        level = observation.get("signal_level", "L0")
+        level_rank = {"L0": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4}
+        min_rank = level_rank.get(self.min_decision_level, 2)
+        obs_rank = level_rank.get(level, 0)
+
+        if obs_rank < min_rank:
+            return False, f"decision level {level} below minimum {self.min_decision_level}"
+
+        # For L2+: apply rate limits
+        subject = observation.get("theme", observation.get("subject", "unknown"))
+        change_type = observation.get("type", "unknown")
+
+        synthetic_event = ObservationEvent(
+            subject=subject,
+            change_type=change_type,
+            domain="market",
+            confidence=observation.get("confidence", 0.5),
+            delta=str(observation.get("signal_level", "")),
+        )
+        return self.should_process(synthetic_event)
+
+    def level_weight(self, level: str) -> float:
+        """Get admission weight for a decision level."""
+        return self.decision_level_weight.get(level, 0.0)
 
 
 __all__ = ["ObservationPolicy"]
