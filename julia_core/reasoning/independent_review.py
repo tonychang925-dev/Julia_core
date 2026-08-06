@@ -125,23 +125,26 @@ class ClaimEvidence:
     source: str
     source_confidence: float
     opinion_provenance: dict = field(default_factory=dict)
+    has_facts: bool = True
+    julia_stage: str = ""
+    inference_evidence: list[str] = field(default_factory=list)
     supporting_evidence: list[str] = field(default_factory=list)
     contradicting_evidence: list[str] = field(default_factory=list)
     missing_evidence: list[str] = field(default_factory=list)
-    has_facts: bool = True
 
 
 @dataclass
 class JuliaJudgment:
     judgment_id: str = field(default_factory=lambda: f"judgment_{uuid4().hex}")
     subject: str = ""
-    workbench_claim: dict = field(default_factory=dict)
     verdict: str = ""
+    workbench_claim: dict = field(default_factory=dict)
     julia_stage: str = ""
     confidence: float = 0.0
     supporting_evidence: list[str] = field(default_factory=list)
     contradicting_evidence: list[str] = field(default_factory=list)
     missing_evidence: list[str] = field(default_factory=list)
+    inference_evidence: list[str] = field(default_factory=list)
     expected_outcomes: list[dict] = field(default_factory=list)
     rationale: str = ""
     created_at: str = field(default_factory=lambda: datetime.now(CST).isoformat())
@@ -202,77 +205,87 @@ class IndependentReviewAdmissionGate:
 class StageClaimAuditor:
     """Compares Julia's independent stage against workbench claim.
 
-    Receives: julia_stage (already inferred), workbench_claim, facts.
-    Does NOT select rules based on claim.
+    Evidence classification is CONTEXT-AWARE:
+      - leader_weak is SUPPORTING for divergence, CONTRADICTING for acceleration
+      - breadth_contracting is SUPPORTING for divergence, CONTRADICTING for acceleration
+      - capital_inflow is SUPPORTING for acceleration/diffusion, neutral for divergence
+
+    Market signal polarity must not be confused with claim agreement.
     """
 
-    CONDITION_MAP = {
-        "capital_inflow": ("capital_direction", "inflow"),
-        "leader_strong": ("leader_health", "strong"),
-        "leader_weakening": ("leader_health", "weakening"),
-        "breadth_contracting": ("breadth", "contracting"),
+    # Evidence that is SUPPORTING for each stage type
+    STAGE_EVIDENCE = {
+        "acceleration": {
+            "supporting": {"leader_strong", "breadth_wide", "capital_inflow", "strength_strong"},
+            "contradicting": {"leader_weak", "breadth_contracting", "strength_low"},
+        },
+        "diffusion": {
+            "supporting": {"leader_strong", "breadth_wide", "strength_strong"},
+            "contradicting": {"leader_weak", "breadth_contracting"},
+        },
+        "divergence": {
+            "supporting": {"leader_weak", "breadth_contracting"},
+            "contradicting": {"leader_strong", "breadth_wide", "capital_inflow"},
+        },
+        "start": {
+            "supporting": set(),
+            "contradicting": {"strength_low"},
+        },
+        "decline": {
+            "supporting": {"leader_weak", "strength_low", "breadth_contracting"},
+            "contradicting": {"leader_strong", "strength_strong", "capital_inflow"},
+        },
     }
 
     def audit(self, julia_stage: str, claim: dict, facts: dict) -> tuple[list, list, list]:
+        """Classify evidence relative to the workbench's claimed stage."""
+        claimed = str(claim.get("stage_judgement", ""))
+        stage_rules = self.STAGE_EVIDENCE.get(claimed, {})
+        stage_support = stage_rules.get("supporting", set())
+        stage_contra = stage_rules.get("contradicting", set())
+
         supporting, contradicting, missing = [], [], []
 
-        # Compare: Julia stage vs workbench stage
-        claimed = str(claim.get("stage_judgement", ""))
+        # Compare stages
         if julia_stage == claimed:
             supporting.append(_evid("stages_aligned", julia_stage, claimed))
+        elif julia_stage == "data_inconclusive":
+            missing.append(_evid("julia_inconclusive", julia_stage, claimed))
         elif julia_stage and claimed:
-            jo, co = STAGE_ORDER.get(julia_stage, -1), STAGE_ORDER.get(claimed, -1)
-            if abs(jo - co) <= 1:
+            jo = STAGE_ORDER.get(julia_stage, -1)
+            co = STAGE_ORDER.get(claimed, -1)
+            if jo >= 0 and co >= 0 and abs(jo - co) <= 1:
                 missing.append(_evid("stages_close", julia_stage, claimed))
             else:
                 contradicting.append(_evid("stages_diverged", julia_stage, claimed))
 
-        # General evidence from facts (not claim-dependent)
+        # Classify each raw evidence item by context
+        raw_items = [
+            ("capital_inflow") if facts.get("capital_direction") == "inflow" else None,
+            ("leader_strong") if facts.get("leader_health") == "strong" else None,
+            ("leader_weak") if facts.get("leader_health") in ("weakening", "weak") else None,
+            ("breadth_wide") if facts.get("breadth") in ("wide", "expanding") else None,
+            ("breadth_contracting") if facts.get("breadth") == "contracting" else None,
+            ("strength_strong") if _is_present(facts.get("strength")) and float(facts.get("strength", 0)) >= 0.7 else None,
+            ("strength_low") if _is_present(facts.get("strength")) and float(facts.get("strength", 0)) < 0.5 else None,
+        ]
+
+        for item in raw_items:
+            if item is None:
+                continue
+            if item in stage_support:
+                supporting.append(_evid(item))
+            elif item in stage_contra:
+                contradicting.append(_evid(item))
+            # items not in either set are neutral — not added to either side
+
+        # Missing
         for key in ("strength", "leader_health", "breadth", "capital_direction"):
             val = facts.get(key)
-            if val is None:
-                missing.append(_evid(f"missing_{key}", None, None))
-                continue
-
-        supporting.extend(self._general_support(facts))
-        contradicting.extend(self._general_contradictions(facts))
-        missing.extend(self._general_missing(facts))
+            if val is None or val in ("unknown", "unavailable", ""):
+                missing.append(_evid(f"missing_{key}"))
 
         return self._dedup(supporting), self._dedup(contradicting), self._dedup(missing)
-
-    def _general_support(self, facts: dict) -> list[str]:
-        s = []
-        if facts.get("capital_direction") == "inflow":
-            s.append(_evid("capital_inflow", "capital_direction", "inflow"))
-        if facts.get("leader_health") == "strong":
-            s.append(_evid("leader_strong", "leader_health", "strong"))
-        if facts.get("breadth") in ("wide", "expanding"):
-            s.append(_evid("breadth_positive", "breadth", facts.get("breadth")))
-        if _is_present(facts.get("strength")) and float(facts.get("strength", 0)) >= 0.7:
-            s.append(_evid("strength_strong", "strength", facts["strength"]))
-        return s
-
-    def _general_contradictions(self, facts: dict) -> list[str]:
-        c = []
-        if facts.get("leader_health") in ("weakening", "weak"):
-            c.append(_evid("leader_weak", "leader_health", facts["leader_health"]))
-        if facts.get("breadth") == "contracting":
-            c.append(_evid("breadth_contracting", "breadth", "contracting"))
-        if _is_present(facts.get("strength")) and float(facts.get("strength", 0)) < 0.5:
-            c.append(_evid("strength_low", "strength", facts["strength"]))
-        return c
-
-    def _general_missing(self, facts: dict) -> list[str]:
-        m = []
-        if facts.get("capital_direction") in (None, "unknown", "unavailable", "mixed"):
-            m.append(_evid("capital_unclear", "capital_direction", facts.get("capital_direction")))
-        if facts.get("leader_health") in (None, "unknown", "unavailable"):
-            m.append(_evid("leader_unknown", "leader_health", None))
-        if facts.get("breadth") in (None, "unknown", "unavailable"):
-            m.append(_evid("breadth_unknown", "breadth", None))
-        if not _is_present(facts.get("strength")):
-            m.append(_evid("strength_unknown", "strength", None))
-        return m
 
     @staticmethod
     def _dedup(evidence: list[str]) -> list[str]:
@@ -339,6 +352,8 @@ class EvidenceExtractor:
                 source="analyst_workbench",
                 source_confidence=float(j.get("confidence", 0.5)),
                 opinion_provenance=_provenance(opinion_mode, j, approval),
+                julia_stage=julia_stage,
+                inference_evidence=inference_evidence,
                 supporting_evidence=supporting,
                 contradicting_evidence=contradicting,
                 missing_evidence=missing,
@@ -427,35 +442,53 @@ class IndependentReviewPipeline:
                 rationale="no_market_facts_for_this_subject",
             )
 
-        ns, nc = len(claim.supporting_evidence), len(claim.contradicting_evidence)
-        if nc == 0 and ns >= 2:       verdict, conf = "agree", min(0.85, 0.6 + ns * 0.1)
-        elif nc == 0 and ns >= 1:      verdict, conf = "partially_agree", 0.55
-        elif nc >= 2 and ns == 0:      verdict, conf = "disagree", 0.7
-        elif nc >= 1 and ns >= 2:      verdict, conf = "partially_disagree", 0.65
-        elif nc >= 2:                  verdict, conf = "partially_disagree", 0.6
-        elif ns == 0 and nc == 0:      verdict, conf = "insufficient_data", 0.3
-        else:                          verdict, conf = "partially_agree", 0.5
+        # P0: data_inconclusive → insufficient_data regardless of evidence counts
+        if claim.julia_stage == "data_inconclusive":
+            return JuliaJudgment(
+                subject=claim.claim.split(":")[0],
+                workbench_claim=base,
+                verdict="insufficient_data",
+                julia_stage="data_inconclusive",
+                confidence=0.25,
+                inference_evidence=claim.inference_evidence,
+                missing_evidence=claim.missing_evidence,
+                rationale="cannot_form_independent_stage",
+            )
 
-        julia_stage = self._julia_stage_from_claim(claim)
+        ns, nc = len(claim.supporting_evidence), len(claim.contradicting_evidence)
+        nm = len(claim.missing_evidence)
+
+        # P0: missing evidence reduces confidence, may downgrade verdict
+        if nc == 0 and ns >= 2:
+            verdict, conf = "agree", min(0.85, 0.6 + ns * 0.1)
+            if nm >= 2: verdict, conf = "partially_agree", conf - 0.15
+        elif nc == 0 and ns >= 1:
+            verdict, conf = "partially_agree", 0.55
+        elif nc >= 2 and ns == 0:
+            verdict, conf = "disagree", 0.7
+        elif nc >= 1 and ns >= 2:
+            verdict, conf = "partially_disagree", 0.65
+        elif nc >= 2:
+            verdict, conf = "partially_disagree", 0.6
+        elif ns == 0 and nc == 0:
+            if nm >= 3: verdict, conf = "insufficient_data", 0.25
+            else: verdict, conf = "partially_agree", 0.45
+        else:
+            verdict, conf = "partially_agree", 0.5
 
         return JuliaJudgment(
             subject=claim.claim.split(":")[0],
             workbench_claim=base,
             verdict=verdict,
-            julia_stage=julia_stage,
-            confidence=round(conf, 2),
+            julia_stage=claim.julia_stage,  # P0: direct from claim, no string parsing
+            confidence=round(max(0.15, conf), 2),
+            inference_evidence=claim.inference_evidence,
             supporting_evidence=claim.supporting_evidence,
             contradicting_evidence=claim.contradicting_evidence,
             missing_evidence=claim.missing_evidence,
             expected_outcomes=self._outcomes(verdict, claim),
-            rationale=f"support={ns} contradict={nc}",
+            rationale=f"support={ns} contradict={nc} missing={nm}",
         )
-
-    def _julia_stage_from_claim(self, claim: ClaimEvidence) -> str:
-        """Extract Julia's inferred stage from the claim string."""
-        if " julia=" in claim.claim:
-            return claim.claim.split("julia=")[1]
-        return "data_inconclusive"
 
     def _outcomes(self, verdict: str, claim: ClaimEvidence) -> list[dict]:
         outcomes = []

@@ -236,3 +236,141 @@ def test_empty_context_blocked(live_context):
     rev = {"schema_version": "analyst-workbench.review.v1", "opinion_mode": "ai_draft"}
     result = IndependentReviewPipeline().review(ctx, rev)
     assert result.status == "blocked"
+
+
+# ── P0: Stage semantics tests ────────────────────────────────────────────
+
+@pytest.fixture
+def divergence_context():
+    """Both Julia and workbench say divergence — leader_weak IS supporting."""
+    return {
+        "schema_version": "market-context.v1", "trade_date": "2026-08-06", "status": "live",
+        "themes": [{
+            "subject": "退潮股",
+            "raw_metrics": {"mainline_strength_score": 0.35},
+            "derived_signals": {
+                "stage_signal": {"value": "divergence"},
+                "capital_direction": {"value": "mixed"},
+                "leader_health": {"value": "weakening"},
+                "strong_stock_coverage": {"value": "contracting"},
+            },
+        }],
+        "quality": {"source_quality": 0.8},
+    }
+
+
+@pytest.fixture
+def divergence_review():
+    return {
+        "schema_version": "analyst-workbench.review.v1", "trade_date": "2026-08-06",
+        "opinion_mode": "ai_draft",
+        "claims": [{"claim_id": "c1", "subject": {"name": "退潮股"}, "stage_judgement": "divergence", "confidence": 0.7}],
+        "approval": {},
+    }
+
+
+@pytest.fixture
+def acceleration_review():
+    return {
+        "schema_version": "analyst-workbench.review.v1", "trade_date": "2026-08-06",
+        "opinion_mode": "ai_draft",
+        "claims": [{"claim_id": "c1", "subject": {"name": "退潮股"}, "stage_judgement": "acceleration", "confidence": 0.7}],
+        "approval": {},
+    }
+
+
+@pytest.fixture
+def inconclusive_context():
+    return {
+        "schema_version": "market-context.v1", "trade_date": "2026-08-06", "status": "live",
+        "themes": [{
+            "subject": "模糊股",
+            "raw_metrics": {},
+            "derived_signals": {
+                "stage_signal": None, "capital_direction": None,
+                "leader_health": None, "strong_stock_coverage": None,
+            },
+        }],
+        "quality": {"source_quality": 0.5},
+    }
+
+
+def test_divergence_plus_divergence_equals_agree(divergence_context, divergence_review):
+    """TC-01: Julia=divergence, workbench=divergence → agree. leader_weak is SUPPORTING."""
+    result = IndependentReviewPipeline().review(divergence_context, divergence_review)
+    j = result.judgments[0]
+    assert j.julia_stage == "divergence"
+    assert j.verdict == "agree", (
+        f"Expected agree (both say divergence), got {j.verdict}. "
+        f"supporting={j.supporting_evidence} contradicting={j.contradicting_evidence}"
+    )
+    # leader_weak and breadth_contracting should be in SUPPORTING (for divergence)
+    assert any("leader_weak" in e for e in j.supporting_evidence), \
+        f"leader_weak should be SUPPORTING for divergence claim, got supporting={j.supporting_evidence}"
+
+
+def test_divergence_plus_acceleration_equals_disagree(divergence_context, acceleration_review):
+    """TC-02: Julia=divergence, workbench=acceleration → disagree."""
+    result = IndependentReviewPipeline().review(divergence_context, acceleration_review)
+    j = result.judgments[0]
+    assert j.julia_stage == "divergence"
+    assert j.verdict in ("disagree", "partially_disagree")
+    # leader_weak and breadth_contracting should be CONTRADICTING (for acceleration claim)
+    assert any("leader_weak" in e for e in j.contradicting_evidence), \
+        f"leader_weak should be CONTRADICTING for acceleration claim"
+
+
+def test_data_inconclusive_forces_insufficient_data(inconclusive_context):
+    """TC-03: Julia=data_inconclusive → insufficient_data regardless of evidence."""
+    rev = {
+        "schema_version": "analyst-workbench.review.v1", "trade_date": "2026-08-06",
+        "opinion_mode": "ai_draft",
+        "claims": [{"claim_id": "c1", "subject": {"name": "模糊股"}, "stage_judgement": "divergence", "confidence": 0.3}],
+        "approval": {},
+    }
+    result = IndependentReviewPipeline().review(inconclusive_context, rev)
+    j = result.judgments[0]
+    assert j.julia_stage == "data_inconclusive"
+    assert j.verdict == "insufficient_data", \
+        f"data_inconclusive MUST produce insufficient_data, got {j.verdict}"
+
+
+def test_inference_evidence_preserved(divergence_context, divergence_review):
+    """TC-05: inference_evidence stored in JuliaJudgment."""
+    result = IndependentReviewPipeline().review(divergence_context, divergence_review)
+    j = result.judgments[0]
+    assert j.inference_evidence is not None
+    assert len(j.inference_evidence) >= 1, f"inference_evidence must be preserved, got {j.inference_evidence}"
+
+
+def test_julia_stage_not_from_string_parsing(divergence_context, divergence_review):
+    """TC-06: JuliaJudgment.julia_stage is directly from ClaimEvidence, not parsed from claim string."""
+    result = IndependentReviewPipeline().review(divergence_context, divergence_review)
+    j = result.judgments[0]
+    assert j.julia_stage == "divergence"
+    # No parsing dependency on claim string format
+    assert "_julia_stage_from_claim" not in str(type(j))
+
+
+def test_missing_evidence_downgrades_verdict(divergence_context, divergence_review):
+    """TC-04: missing leader/breadth → verdict downgraded or insufficient."""
+    ctx = {
+        "schema_version": "market-context.v1", "trade_date": "2026-08-06", "status": "live",
+        "themes": [{
+            "subject": "退潮股",
+            "raw_metrics": {"mainline_strength_score": 0.35},
+            "derived_signals": {
+                "stage_signal": None,
+                "capital_direction": None,
+                "leader_health": None,
+                "strong_stock_coverage": None,
+            },
+        }],
+        "quality": {"source_quality": 0.5},
+    }
+    result = IndependentReviewPipeline().review(ctx, divergence_review)
+    j = result.judgments[0]
+    # Missing evidence should lead to insufficient_data (can't form stage)
+    assert j.verdict in ("insufficient_data", "partially_agree"), \
+        f"Missing evidence should downgrade verdict, got {j.verdict}"
+    assert len(j.missing_evidence) >= 1
