@@ -455,5 +455,42 @@ Implementation: M3.0 Skeleton → M3.1 Market Event Provider → M3.2 Awareness 
 
 Any attempt to add autonomous market observation, event-driven perception, or scheduled awareness before freezing the Observation→Workflow→Artifact architecture.
 
+---
+
+## ADR-029: Observation Policy & Experience Admission v1.0
+
+**Context**
+
+ADR-028 defined the Awareness Runtime. M3.1 will connect Julia to real market data streams. Two risks emerge: (1) Observation Event Explosion — 10,000+ events/day flooding the EventStore with noise. (2) Experience Pollution — low-confidence observations contaminating long-term memory.
+
+**Decision**
+
+Two new gates in the M3 pipeline:
+
+1. **ObservationPolicy** — inserted between Router and Workflow. Adds rate limiting (per_subject: 4/hr, per_domain: 20/hr, global: 50/hr) and cooldown (same subject + same change_type: 15min minimum between triggers). Router checks significance. Policy checks rate.
+
+2. **ExperienceAdmission** — inserted between Artifact creation and Experience storage. Minimum confidence >= 0.7 and minimum 2 evidence_refs for long-term admission. Below threshold: short-term log only (EventStore, not Experience).
+
+Updated pipeline: ObservationEvent → Router → Policy → Workflow → Artifact → Admission → Experience (LONG_TERM) or EventStore only (SHORT_TERM).
+
+**Alternatives**
+
+1. Connect real market data without filtering (rejected: first trading day floods system)
+2. Single threshold for all observation types (rejected: different change_types have different noise profiles)
+3. LLM-based admission (rejected: adds latency and non-determinism to a gating decision)
+
+**Consequences**
+
+- Julia can receive real-time market data without being overwhelmed
+- Memory OS protected from low-confidence observation pollution
+- Foundation for M7 Feedback Loop: only high-confidence artifacts become training data
+- M3.1 scope updated: Policy + Admission gates must exist before real market connection
+- New module: awareness/admission.py
+
+**Trigger**
+
+Any attempt to connect Julia to real-time data streams (market, news, IoT, calendar) before implementing rate limiting and experience gating.
+
+
 
 
