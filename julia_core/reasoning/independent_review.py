@@ -70,50 +70,122 @@ class ThemeFactContractMapper:
         return index
 
 
+# ── Stage Taxonomy (single authority for stages, order, evidence, inference) ─
+
+class StageTaxonomy:
+    """Unified stage definitions — the single authority for stage semantics.
+
+    No separate STAGE_ORDER / STAGE_EVIDENCE / inference rules drifting apart.
+    Every stage has: order, aliases, inference rules, evidence semantics.
+    """
+
+    STAGES = {
+        "start": {
+            "order": 0,
+            "aliases": (),
+            "inference_requires": {"strength_low"},
+            "supporting": {"strength_low"},
+            "contradicting": {"strength_strong", "leader_strong", "breadth_wide", "capital_inflow"},
+        },
+        "diffusion": {
+            "order": 1,
+            "aliases": (),
+            "inference_requires": {"leader_strong", "breadth_wide"},
+            "supporting": {"leader_strong", "breadth_wide", "strength_strong"},
+            "contradicting": {"leader_weak", "breadth_contracting"},
+        },
+        "acceleration": {
+            "order": 2,
+            "aliases": ("consolidation",),
+            "inference_requires": {"leader_strong", "breadth_wide", "capital_inflow", "strength_strong"},
+            "supporting": {"leader_strong", "breadth_wide", "capital_inflow", "strength_strong"},
+            "contradicting": {"leader_weak", "breadth_contracting", "strength_low"},
+        },
+        "fading_momentum": {
+            "order": 3,
+            "aliases": (),
+            "inference_requires": {"leader_weak"},
+            "supporting": {"leader_weak"},
+            "contradicting": {"leader_strong", "strength_strong", "capital_inflow"},
+        },
+        "divergence": {
+            "order": 4,
+            "aliases": (),
+            "inference_requires": {"leader_weak", "breadth_contracting"},
+            "supporting": {"leader_weak", "breadth_contracting"},
+            "contradicting": {"leader_strong", "breadth_wide", "capital_inflow"},
+        },
+        "decline": {
+            "order": 5,
+            "aliases": (),
+            "inference_requires": {"leader_weak", "strength_low", "breadth_contracting"},
+            "supporting": {"leader_weak", "strength_low", "breadth_contracting"},
+            "contradicting": {"leader_strong", "strength_strong", "capital_inflow"},
+        },
+    }
+
+    TERMINAL_STAGES = frozenset({"data_inconclusive"})
+
+    @classmethod
+    def order(cls, stage: str) -> int:
+        entry = cls.STAGES.get(stage)
+        return entry["order"] if entry else -1
+
+    @classmethod
+    def all_stages(cls) -> set[str]:
+        return set(cls.STAGES.keys()) | cls.TERMINAL_STAGES
+
+    @classmethod
+    def evidence_for(cls, stage: str) -> dict:
+        entry = cls.STAGES.get(stage, {})
+        return {
+            "supporting": entry.get("supporting", set()),
+            "contradicting": entry.get("contradicting", set()),
+        }
+
+    @classmethod
+    def resolve_alias(cls, name: str) -> str:
+        for stage, entry in cls.STAGES.items():
+            if name in entry.get("aliases", ()):
+                return stage
+        return name
+
+
 # ── Stage Inference (blind — does NOT receive workbench claim) ─────────────
-
-STAGE_ORDER = {
-    "start": 0, "diffusion": 1, "acceleration": 2,
-    "consolidation": 3, "divergence": 4, "decline": 5,
-}
-
 
 class StageInferenceEngine:
     """Derives julia_stage from structural evidence ONLY.
 
     Does NOT receive workbench claim. True blind inference.
+    Rule priority: check strongest stages first.
     """
 
     def infer(self, facts: dict) -> tuple[str, list[str]]:
         """Returns (julia_stage, evidence_used)."""
-        has_strength = _is_present(facts.get("strength")) and float(facts.get("strength", 0)) >= 0.6
+        strength = _float_or_null(facts.get("strength"))
+        has_strength = _is_present(strength) and strength >= 0.6
+        strength_low = _is_present(strength) and strength < 0.4
         has_capital = facts.get("capital_direction") == "inflow"
         has_leader = facts.get("leader_health") == "strong"
         leader_weak = facts.get("leader_health") == "weakening"
         has_breadth = facts.get("breadth") in ("wide", "expanding")
         breadth_contracting = facts.get("breadth") == "contracting"
-        strength_value = _float_or_null(facts.get("strength"))
 
-        evidence = []
-
+        # Ordered by priority (most specific → most general)
         if has_leader and has_breadth and has_capital and has_strength:
-            evidence = ["leader_strong", "breadth_wide", "capital_inflow", f"strength_{strength_value}"]
-            return ("acceleration", evidence)
+            return ("acceleration", ["leader_strong", "breadth_wide", "capital_inflow", f"strength_{strength}"])
+        if leader_weak and breadth_contracting and strength_low:
+            return ("decline", ["leader_weak", "breadth_contracting", f"strength_{strength}"])
         if leader_weak and breadth_contracting:
-            evidence = ["leader_weak", "breadth_contracting"]
-            return ("divergence", evidence)
+            return ("divergence", ["leader_weak", "breadth_contracting"])
         if has_leader and has_breadth:
-            evidence = ["leader_strong", "breadth_wide"]
-            return ("diffusion", evidence)
+            return ("diffusion", ["leader_strong", "breadth_wide"])
         if leader_weak:
-            evidence = ["leader_weak"]
-            return ("fading_momentum", evidence)
+            return ("fading_momentum", ["leader_weak"])
         if has_strength and has_breadth:
-            evidence = [f"strength_{strength_value}", "breadth_wide"]
-            return ("diffusion", evidence)
-        if strength_value is not None and strength_value < 0.4:
-            evidence = [f"strength_{strength_value}"]
-            return ("start", evidence)
+            return ("diffusion", [f"strength_{strength}", "breadth_wide"])
+        if strength_low:
+            return ("start", [f"strength_{strength}"])
         return ("data_inconclusive", [])
 
 
@@ -205,44 +277,17 @@ class IndependentReviewAdmissionGate:
 class StageClaimAuditor:
     """Compares Julia's independent stage against workbench claim.
 
-    Evidence classification is CONTEXT-AWARE:
-      - leader_weak is SUPPORTING for divergence, CONTRADICTING for acceleration
-      - breadth_contracting is SUPPORTING for divergence, CONTRADICTING for acceleration
-      - capital_inflow is SUPPORTING for acceleration/diffusion, neutral for divergence
-
-    Market signal polarity must not be confused with claim agreement.
+    Uses StageTaxonomy for evidence semantics — the single authority.
+    Evidence classification is context-aware per claimed stage.
     """
-
-    # Evidence that is SUPPORTING for each stage type
-    STAGE_EVIDENCE = {
-        "acceleration": {
-            "supporting": {"leader_strong", "breadth_wide", "capital_inflow", "strength_strong"},
-            "contradicting": {"leader_weak", "breadth_contracting", "strength_low"},
-        },
-        "diffusion": {
-            "supporting": {"leader_strong", "breadth_wide", "strength_strong"},
-            "contradicting": {"leader_weak", "breadth_contracting"},
-        },
-        "divergence": {
-            "supporting": {"leader_weak", "breadth_contracting"},
-            "contradicting": {"leader_strong", "breadth_wide", "capital_inflow"},
-        },
-        "start": {
-            "supporting": set(),
-            "contradicting": {"strength_low"},
-        },
-        "decline": {
-            "supporting": {"leader_weak", "strength_low", "breadth_contracting"},
-            "contradicting": {"leader_strong", "strength_strong", "capital_inflow"},
-        },
-    }
 
     def audit(self, julia_stage: str, claim: dict, facts: dict) -> tuple[list, list, list]:
         """Classify evidence relative to the workbench's claimed stage."""
-        claimed = str(claim.get("stage_judgement", ""))
-        stage_rules = self.STAGE_EVIDENCE.get(claimed, {})
-        stage_support = stage_rules.get("supporting", set())
-        stage_contra = stage_rules.get("contradicting", set())
+        claimed_raw = str(claim.get("stage_judgement", ""))
+        claimed = StageTaxonomy.resolve_alias(claimed_raw)
+        rules = StageTaxonomy.evidence_for(claimed)
+        stage_support = rules["supporting"]
+        stage_contra = rules["contradicting"]
 
         supporting, contradicting, missing = [], [], []
 
@@ -252,8 +297,8 @@ class StageClaimAuditor:
         elif julia_stage == "data_inconclusive":
             missing.append(_evid("julia_inconclusive", julia_stage, claimed))
         elif julia_stage and claimed:
-            jo = STAGE_ORDER.get(julia_stage, -1)
-            co = STAGE_ORDER.get(claimed, -1)
+            jo = StageTaxonomy.order(julia_stage)
+            co = StageTaxonomy.order(claimed)
             if jo >= 0 and co >= 0 and abs(jo - co) <= 1:
                 missing.append(_evid("stages_close", julia_stage, claimed))
             else:
@@ -527,5 +572,5 @@ __all__ = [
     "JuliaJudgment", "IndependentReviewResult", "ClaimEvidence",
     "EvidenceExtractor", "IndependentReviewPipeline",
     "IndependentReviewAdmissionGate", "StageInferenceEngine",
-    "StageClaimAuditor", "ThemeFactContractMapper",
+    "StageClaimAuditor", "StageTaxonomy", "ThemeFactContractMapper",
 ]

@@ -10,6 +10,7 @@ from julia_core.reasoning.independent_review import (
     IndependentReviewAdmissionGate,
     StageInferenceEngine,
     StageClaimAuditor,
+    StageTaxonomy,
     ThemeFactContractMapper,
 )
 
@@ -247,7 +248,7 @@ def divergence_context():
         "schema_version": "market-context.v1", "trade_date": "2026-08-06", "status": "live",
         "themes": [{
             "subject": "退潮股",
-            "raw_metrics": {"mainline_strength_score": 0.35},
+            "raw_metrics": {"mainline_strength_score": 0.55},  # moderate, not strength_low
             "derived_signals": {
                 "stage_signal": {"value": "divergence"},
                 "capital_direction": {"value": "mixed"},
@@ -374,3 +375,91 @@ def test_missing_evidence_downgrades_verdict(divergence_context, divergence_revi
     assert j.verdict in ("insufficient_data", "partially_agree"), \
         f"Missing evidence should downgrade verdict, got {j.verdict}"
     assert len(j.missing_evidence) >= 1
+
+
+# ── P0: start stage semantics ────────────────────────────────────────────
+
+@pytest.fixture
+def start_context():
+    return {
+        "schema_version": "market-context.v1", "trade_date": "2026-08-06", "status": "live",
+        "themes": [{
+            "subject": "初期股",
+            "raw_metrics": {"mainline_strength_score": 0.35},
+            "derived_signals": {
+                "stage_signal": {"value": "start"},
+                "capital_direction": {"value": "mixed"},
+                "leader_health": {"value": "unknown"},
+                "strong_stock_coverage": {"value": "narrow"},
+            },
+        }],
+        "quality": {"source_quality": 0.7},
+    }
+
+
+def test_start_plus_start_equals_agree(start_context):
+    """TC-07: Julia=start, workbench=start → agree. strength_low is SUPPORTING."""
+    rev = {
+        "schema_version": "analyst-workbench.review.v1", "trade_date": "2026-08-06",
+        "opinion_mode": "ai_draft",
+        "claims": [{"claim_id": "c1", "subject": {"name": "初期股"}, "stage_judgement": "start", "confidence": 0.5}],
+        "approval": {},
+    }
+    result = IndependentReviewPipeline().review(start_context, rev)
+    j = result.judgments[0]
+    assert j.julia_stage == "start"
+    assert j.verdict == "agree", (
+        f"Expected agree (both say start), got {j.verdict}. "
+        f"supporting={j.supporting_evidence} contradicting={j.contradicting_evidence}"
+    )
+    # strength_low should be SUPPORTING for start claim
+    assert any("strength_low" in e for e in j.supporting_evidence), \
+        f"strength_low should be SUPPORTING for start claim"
+
+
+def test_acceleration_plus_start_equals_disagree(start_context):
+    """TC-08: Julia=start, workbench=acceleration → disagree."""
+    rev = {
+        "schema_version": "analyst-workbench.review.v1", "trade_date": "2026-08-06",
+        "opinion_mode": "ai_draft",
+        "claims": [{"claim_id": "c1", "subject": {"name": "初期股"}, "stage_judgement": "acceleration", "confidence": 0.7}],
+        "approval": {},
+    }
+    result = IndependentReviewPipeline().review(start_context, rev)
+    j = result.judgments[0]
+    assert j.julia_stage == "start"
+    assert j.verdict in ("disagree", "partially_disagree")
+    # strength_low should be CONTRADICTING for acceleration claim
+    assert any("strength_low" in e for e in j.contradicting_evidence), \
+        f"strength_low should be CONTRADICTING for acceleration claim"
+
+
+def test_inference_engine_outputs_valid_stages(start_context, divergence_context, inconclusive_context, live_context):
+    """All inference outputs are in StageTaxonomy."""
+    engine = StageInferenceEngine()
+    for ctx in (start_context, divergence_context, live_context, inconclusive_context):
+        mapper = ThemeFactContractMapper()
+        for t in ctx["themes"]:
+            facts = mapper.map(t)
+            stage, _ = engine.infer(facts)
+            valid = set(StageTaxonomy.STAGES.keys()) | StageTaxonomy.TERMINAL_STAGES
+            assert stage in valid, f"Inferred '{stage}' not in taxonomy. Valid: {valid}"
+
+
+def test_decline_inference():
+    """leader_weak + breadth_contracting + strength_low → decline."""
+    engine = StageInferenceEngine()
+    facts = {"leader_health": "weakening", "breadth": "contracting", "strength": 0.30}
+    stage, evidence = engine.infer(facts)
+    assert stage == "decline"
+    assert any("leader_weak" in e for e in evidence)
+    assert any("breadth_contracting" in e for e in evidence)
+
+
+def test_taxonomy_coverage():
+    """All inference_requires sets are subsets of the taxonomy's own evidence sets."""
+    for stage, entry in StageTaxonomy.STAGES.items():
+        requires = entry.get("inference_requires", set())
+        valid = entry.get("supporting", set()) | entry.get("contradicting", set())
+        unknown = requires - valid
+        assert not unknown, f"Stage '{stage}': inference_requires {unknown} not in supporting+contradicting"
