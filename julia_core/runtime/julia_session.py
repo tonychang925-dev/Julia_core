@@ -63,6 +63,10 @@ class JuliaSession:
         from julia_core.runtime.persona.feature_store import get_persona_store
         self.persona = get_persona_store()
 
+        # R0.3b: Workflow Router — intent → capability pipeline
+        from julia_core.runtime.workflow_router import WorkflowRouter
+        self.workflow_router = WorkflowRouter(self.capability)
+
         # Static system context — persona traits + narrative memory.
         # Persona traits come first: "I have a mole under my left eye" — not from memory.
         self._identity_system = (
@@ -143,11 +147,15 @@ class JuliaSession:
         # Layer 2: Conversation state — what are we talking about?
         conv_state = self._build_conversation_state(text)
 
+        # Layer 2.5: R0.3b — Market Intent → WorkflowRouter → ContextBlocks
+        market_context = self._resolve_market_context(text)
+
         # Layer 3: Build messages — identity + dynamic experiences + tools + state
         experiences = self._load_recent_experiences()
         system_with_tools = (
             self._identity_system + "\n\n"
             + experiences + "\n\n"
+            + market_context + "\n\n"
             + self.capability.tool_manifest() + "\n\n"
             + rel_ctx + "\n\n"
             + conv_state
@@ -210,6 +218,87 @@ class JuliaSession:
         except Exception:
             name = "?"
         self.action.start(name, f"执行 {name}")
+
+    # ── R0.3b: Market Context Resolution ─────────────────────────────────
+
+    def _resolve_market_context(self, text: str) -> str:
+        """Check if user utterance is market-related. If so, run the full
+        MarketBriefPipeline through WorkflowRouter and return structured
+        market context for LLM injection.
+
+        This is the R0.3b bridge between sync chat() and async pipeline.
+        Uses asyncio to bridge the gap without changing the chat() signature.
+        """
+        import asyncio
+
+        # Quick pre-check: is this market-related?
+        if not self._is_market_intent(text):
+            return ""
+
+        try:
+            result = asyncio.run(
+                self.workflow_router.route(text)
+            )
+        except Exception:
+            return ""
+
+        if result.workflow != "market_brief" or result.status != "completed":
+            return ""
+
+        pipeline_result = result.pipeline_result
+        if pipeline_result is None:
+            return ""
+
+        blocks = getattr(pipeline_result, 'context_blocks', [])
+        if not blocks:
+            return ""
+
+        return self._format_market_context(blocks, pipeline_result)
+
+    def _is_market_intent(self, text: str) -> bool:
+        """Quick pre-check before invoking async pipeline."""
+        triggers = [
+            "今天市场", "市场怎么样", "大盘", "行情",
+            "最近什么方向", "市场状态", "市场情况", "盘面",
+            "风险", "警报", "预警", "有什么信号",
+            "为什么.*L", "什么逻辑", "怎么判断",
+        ]
+        import re
+        lower = text.lower()
+        return any(re.search(t, lower) or t in lower for t in triggers)
+
+    def _format_market_context(self, blocks, pipeline_result) -> str:
+        """Format ContextBlocks as structured system prompt context.
+
+        This is NOT raw market data dumped into prompt.
+        It's governed ContextBlocks from Context OS → LLM-readable format.
+        """
+        parts = ["[市场情报 — 基于 ai_theme_app Market Brain 的实时数据]\n"]
+
+        for block in blocks:
+            content = block.content if hasattr(block, 'content') else {}
+            if not isinstance(content, dict):
+                continue
+            section = content.get('section', '')
+            if section == 'market_overview':
+                parts.append(f"市场情绪: {content.get('sentiment', '未知')}")
+            elif section == 'active_themes':
+                themes = content.get('themes', [])
+                parts.append(f"活跃题材({content.get('count', 0)}): {', '.join(themes)}")
+            elif section == 'risk_alerts':
+                risks = content.get('risks', [])
+                parts.append(f"风险提示: {'; '.join(risks)}")
+            elif section == 'evidence':
+                parts.append(f"数据来源: {content.get('provider', '')} v{content.get('schema_version', '')}")
+
+        prediction_ids = getattr(pipeline_result, 'prediction_ids', ())
+        if prediction_ids:
+            parts.append(f"关联预测: {', '.join(prediction_ids)}")
+
+        parts.append("\n[上述市场数据是实时获取的。请基于这些事实，结合你对Tony的了解，用自然语言解释市场状态。]")
+        parts.append("你不只是转述数据。你是Tony的伴侣，也是他的分析师。用他理解的方式解释。\n")
+
+        return "\n".join(parts)
 
     # ── Conversation State ─────────────────────────────────────────────────
 
