@@ -94,8 +94,8 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
             "subject_key": "$subject.subject_key",
             "as_of": "$subject.trade_date",
         },
-        derive_metric="relative_strength_rank",
-        output_type="list",
+        derive_metric="peer_relative_strength",
+        output_type="dict",
         missing_policy="INSUFFICIENT_EVIDENCE",
     ),
     "theme_breadth_change": RequirementBinding(
@@ -106,7 +106,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
             "as_of": "$subject.trade_date",
         },
         derive_metric="breadth_change",
-        output_type="categorical",
+        output_type="dict",
         missing_policy="INSUFFICIENT_EVIDENCE",
     ),
     "new_leader_candidates": RequirementBinding(
