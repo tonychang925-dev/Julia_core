@@ -60,13 +60,25 @@ class ThemeFactContractMapper:
 
     @classmethod
     def build_fact_index(cls, context: dict) -> dict[str, dict]:
-        """Build {subject_name: flat_facts} index from ai_theme_app context."""
+        """Build {subject_name: flat_facts} index from ai_theme_app context.
+
+        Uses subject_key if available to disambiguate duplicate names.
+        Falls back to subject name.
+        """
         index = {}
         for t in context.get("themes", []):
             name = t.get("subject", "")
             if not name:
                 continue
-            index[name] = cls.map(t)
+            key = t.get("subject_key", name)
+            if key in index:
+                # Collision: keep the entry with higher strength
+                existing = index[key]
+                new_facts = cls.map(t)
+                if (new_facts.get("strength") or 0) > (existing.get("strength") or 0):
+                    index[key] = new_facts
+            else:
+                index[key] = cls.map(t)
         return index
 
 
@@ -118,7 +130,7 @@ class StageTaxonomy:
         },
         "diffusion": {
             "order": 1, "inference_priority": 30,
-            "aliases": (),
+            "aliases": ("fermentation",),  # ai_theme_app: 发酵期 ≈ diffusion
             "inference_requires": {"leader_strong", "breadth_wide"},
             "supporting": {"leader_strong", "breadth_wide", "strength_strong"},
             "contradicting": {"leader_weak", "breadth_contracting"},
@@ -525,8 +537,9 @@ class IndependentReviewPipeline:
             if nm >= 2: verdict, conf = "partially_agree", conf - 0.15
         elif nc == 0 and ns >= 1:
             verdict, conf = "partially_agree", 0.55
-        elif nc >= 2 and ns == 0:
-            verdict, conf = "disagree", 0.7
+        elif nc >= 1 and ns == 0:
+            # contradiction with zero support → at least partially_disagree
+            verdict, conf = "partially_disagree", 0.6
         elif nc >= 1 and ns >= 2:
             verdict, conf = "partially_disagree", 0.65
         elif nc >= 2:
@@ -535,6 +548,7 @@ class IndependentReviewPipeline:
             if nm >= 3: verdict, conf = "insufficient_data", 0.25
             else: verdict, conf = "partially_agree", 0.45
         else:
+            # ns >= 1, nc == 1 (exactly one of each)
             verdict, conf = "partially_agree", 0.5
 
         return JuliaJudgment(
