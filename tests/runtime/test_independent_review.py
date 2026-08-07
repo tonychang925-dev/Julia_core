@@ -458,6 +458,44 @@ def test_decline_inference():
     assert "strength_low" in evidence
 
 
+def test_zero_support_one_contradiction_is_disagree():
+    """Regression: ns=0, nc>=1 → partially_disagree.
+
+    leader_weak is CONTRADICTING for acceleration claims.
+    Julia sees fading_momentum (leader_weak only), Workbench says acceleration.
+    This should produce partially_disagree, not partially_agree.
+    """
+    ctx = {
+        "schema_version": "market-context.v1", "trade_date": "2026-08-06", "status": "live",
+        "themes": [{
+            "subject": "测试股", "subject_key": "test_001",
+            "raw_metrics": {"mainline_strength_score": 0.25},
+            "derived_signals": {
+                "stage_signal": {"value": "fading_momentum"},
+                "capital_direction": {"value": "unknown"},
+                "leader_health": {"value": "weakening"},
+                "strong_stock_coverage": {"value": "narrow"},
+            },
+        }],
+        "quality": {"source_quality": 0.6},
+    }
+    rev = {
+        "schema_version": "analyst-workbench.review.v1", "trade_date": "2026-08-06",
+        "opinion_mode": "ai_draft",
+        "claims": [{
+            "claim_id": "c_test", "subject": {"key": "test_001", "name": "测试股"},
+            "stage_judgement": "acceleration", "confidence": 0.7,
+        }],
+        "approval": {},
+    }
+    result = IndependentReviewPipeline().review(ctx, rev)
+    j = result.judgments[0]
+    assert j.verdict == "partially_disagree", (
+        f"ns=0,nc>=1 MUST produce partially_disagree, got {j.verdict}. "
+        f"supporting={j.supporting_evidence} contradicting={j.contradicting_evidence}"
+    )
+
+
 def test_taxonomy_coverage():
     """All inference_requires sets are subsets of the taxonomy's own evidence sets."""
     for stage, entry in StageTaxonomy.STAGES.items():

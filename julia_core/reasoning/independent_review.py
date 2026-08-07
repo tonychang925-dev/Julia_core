@@ -396,11 +396,21 @@ class EvidenceExtractor:
         claims = []
         for j in judgments:
             subject = j.get("subject", {})
-            name = subject.get("name", "") if isinstance(subject, dict) else str(subject)
-            if not name:
+            if isinstance(subject, dict):
+                name = subject.get("name", "")
+                subject_key = subject.get("key", subject.get("subject_key", ""))
+            else:
+                name = str(subject)
+                subject_key = ""
+
+            if not name and not subject_key:
                 continue
 
-            facts = fact_index.get(name, {})
+            # Lookup: subject_key first (stable identity), name as fallback
+            facts = (
+                (fact_index.get(subject_key) if subject_key else None)
+                or fact_index.get(name, {})
+            )
             if not facts:
                 claims.append(ClaimEvidence(
                     claim=f"{name}: {j.get('stage_judgement', 'unknown')}",
