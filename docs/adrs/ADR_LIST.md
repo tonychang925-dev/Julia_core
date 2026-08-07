@@ -570,6 +570,45 @@ Implementation: M3.3.0 Skeleton → M3.3.1 ai_theme_app integration.
 
 Any attempt to implement learning, feedback, or experience evolution without freezing the Prediction→Outcome→Update contract.
 
+---
+
+## ADR-032: Strategy Knowledge Model v1.0
+
+**Context**
+
+Case001 proved Julia can independently judge market facts against external opinions. It also proved her reasoning chain is too short: `leader_weak → fading_momentum` (2 steps) vs a trader's chain `leader_weak → market_regime? → theme_lifecycle? → strategy_rule? → active_divergence OR leader_failure OR leader_rotation` (5+ steps). The missing layer is not more market data — it is the Investment Cognitive Model: structured strategy knowledge that changes HOW Julia reasons, not WHAT she paraphrases.
+
+**Decision**
+
+Strategy Knowledge is NOT RAG over PDFs. It is an executable reasoning scaffold with four layers: L0 (document registry), L1 (structured source chunks preserving chapter/section/page), L2 (StrategyCards — trigger conditions, required data, possible states, research questions, invalidation rules, source references), L3 (executable rules — hard rules and soft heuristics with SUPPORTED/PARTIAL/UNSUPPORTED/INSUFFICIENT_EVIDENCE), L4 (research templates — what questions to ask for each conflict pattern).
+
+Key ontology: Market State (Julia Taxonomy) ≠ Strategy Interpretation (Trading Cognition). "Divergence" in market terms is a state; in strategy terms it resolves to [normal_adjustment | active_divergence | leader_failure | leader_rotation].
+
+Forbidden: StrategyCard text → LLM prompt. StrategyCard overrides market facts. StrategyCard as single answer. Required: StrategyCard structures evidence Julia must gather and hypotheses she must test.
+
+First three cards (Case001 priority): leader_divergence, weak_to_strong, theme_lifecycle. Source documents: 如何建立正确的交易体系.pdf + 弱转强买入法.pdf.
+
+**Alternatives**
+
+1. PDF → chunk → embedding → RAG (rejected: Julia becomes a chatbot that searches investment books, not a trader who reasons with strategy)
+2. Fine-tune Julia on strategy PDFs (rejected: untraceable, unversionable, can't modify single rules, can't attribute errors to strategy vs model)
+3. Hardcode strategy rules as Python (rejected: can't handle nuanced distinctions like active vs passive divergence)
+
+**Consequences**
+
+- StrategyCard possible_states is always a list — never one "correct" answer
+- research_questions, not answers — the card tells Julia WHAT to investigate, not WHAT to conclude
+- required_data drives CapabilityManager — Julia autonomously gathers evidence
+- Every card carries source_refs to specific page/paragraph
+- Strategy knowledge sits BESIDE market facts, not above them
+- Implementation: M3.2.6 Foundation → M3.2.7 Julia Grounding → M3.2.8 Research Workflow (ADR-033)
+- New directory: ai_theme_app/strategy_knowledge/ (documents + cards)
+
+**Trigger**
+
+Any attempt to have Julia reason about market stages without structured strategy interpretation, or to inject strategy text directly into LLM prompts as "expert context."
+
+
 
 
 
