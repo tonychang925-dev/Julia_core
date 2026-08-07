@@ -141,7 +141,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         arguments_template={
             "as_of": "$subject.trade_date",
         },
-        derive_metric="regime_assessment",
+        derive_metric="derived.regime_assessment.value",
         output_type="dict",
         missing_policy="INSUFFICIENT_EVIDENCE",
     ),

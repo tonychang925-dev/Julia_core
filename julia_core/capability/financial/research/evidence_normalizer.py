@@ -1,122 +1,129 @@
-"""M3.2.7.2b Research Evidence Normalizer — CapabilityResult → EvidenceItem.
+"""M3.2.7.2c Research Evidence Normalizer — CapabilityResult → EvidenceItem.
 
-Bridges the semantic gap between CapabilityManager's binary success/error
-and the MCP tool's inner status (live/unavailable/insufficient).
-
-Rules:
-  - MCP inner status=unavailable → Evidence.unavailable (even if outer=success)
-  - metric exists in payload → Evidence.success
-  - metric missing but payload live → Evidence.insufficient_evidence
-  - outer error → Evidence.error
-  - missing_policy from probe is preserved
+Bridges outer CapabilityManager success vs MCP inner status.
+Supports nested value_path (e.g. "derived.regime_assessment.value").
+Fail-closed on cardinality mismatch.
 """
 
 from __future__ import annotations
 
 from julia_core.capability.financial.research.models import EvidenceItem, ResearchProbe
 
-# ── Normalizer ──────────────────────────────────────────────────────────────
+
+class EvidenceCardinalityMismatch(Exception):
+    """Probe count != result count — evidence chain broken."""
+
 
 class ResearchEvidenceNormalizer:
-    """Maps CapabilityResult → EvidenceItem with inner-status awareness.
+    """Normalizes CapabilityResult → EvidenceItem with inner-status awareness.
 
-    CapabilityManager returns 'success' whenever provider.execute() doesn't throw.
-    But MCP tools return {"status": "unavailable", ...} inside the data payload.
-    This normalizer inspects the inner semantic status.
+    Rules:
+      outer error/unavailable/denied → Evidence.error/unavailable
+      outer success + inner unavailable → Evidence.unavailable
+      outer success + inner live + value_path resolves → Evidence.success
+      outer success + inner live + value_path miss → Evidence.insufficient_evidence
+      missing_policy preserved from probe
     """
 
     def normalize(self, probe: ResearchProbe, capability_result) -> EvidenceItem:
-        """Normalize one CapabilityResult into an EvidenceItem.
-
-        Args:
-            probe: the ResearchProbe that generated this request
-            capability_result: CapabilityResult from CapabilityManager.execute()
-
-        Returns:
-            EvidenceItem with resolved status, derived_value, provenance
-        """
         item = EvidenceItem(
             requirement_id=probe.requirement_id,
             probe_id=probe.probe_id,
-            capability_request_id=capability_result.capability_name
-                if hasattr(capability_result, 'capability_name') else "",
+            # P0-1: use probe.request.request_id (not capability_name)
+            capability_request_id=probe.request.request_id if probe.request else "",
             derived_metric=probe.derive_metric,
             missing_policy=probe.missing_policy,
         )
 
-        # Step 1: Outer status — CapabilityManager-level errors
+        # Step 1: Outer status
         if hasattr(capability_result, 'status'):
             outer = capability_result.status
-            if outer in ("denied", "unknown", "error"):
+            if outer in ("denied", "unknown", "error", "unavailable"):
                 item.status = outer
-                item.provenance = {"error": getattr(capability_result, 'error_message', '')}
-                return item
-            if outer == "unavailable":
-                item.status = "unavailable"
-                item.provenance = {"error": getattr(capability_result, 'error_message', '')}
+                item.provenance = {
+                    "outer_status": outer,
+                    "error": getattr(capability_result, 'error_message', ''),
+                }
                 return item
 
-        # Step 2: Unwrap provider envelope {"provider", "data": {...}}
+        # Step 2: Unwrap provider envelope
         data = getattr(capability_result, 'data', {}) or {}
         inner = data.get("data", data) if isinstance(data, dict) else {}
 
-        # Step 3: Inner MCP tool status
-        inner_status = inner.get("status", "live") if isinstance(inner, dict) else "live"
+        # Step 3: Inner MCP status
+        if isinstance(inner, dict):
+            inner_status = inner.get("status", "live")
+        else:
+            inner_status = "live"
 
         if inner_status == "unavailable":
             item.status = "unavailable"
             item.provenance = {
                 "reason": inner.get("reason", ""),
-                "data_status": inner.get("data_status", ""),
                 "source_kind": inner.get("source_kind", ""),
             }
             return item
 
-        if inner_status in ("error", "denied"):
-            item.status = inner_status
-            return item
-
-        # Step 4: Metric extraction
+        # Step 4: Value extraction via value_path (P0-3: nested support)
         if inner_status in ("live", "success", "partial") and isinstance(inner, dict):
-            metric = probe.derive_metric
-            if metric and metric in inner:
-                item.derived_value = inner[metric]
+            value_path = probe.derive_metric  # e.g. "derived.regime_assessment.value"
+            value, found = _resolve_path(inner, value_path) if value_path else (inner, True)
+
+            if found and value is not None:
+                item.derived_value = value
                 item.status = "success"
-            elif metric:
-                # Metric not present in live response → insufficient
+            elif value_path:
                 item.status = "insufficient_evidence"
                 item.provenance = {
-                    "reason": f"metric '{metric}' not found in live payload",
-                    "available_keys": sorted(inner.keys())[:10],
+                    "reason": f"value_path '{value_path}' not resolved in live payload",
+                    "available_keys": _top_keys(inner),
                     "source_kind": inner.get("source_kind", ""),
                 }
             else:
                 item.status = "success"
                 item.raw_value = inner
 
-            # Preserve provenance
-            item.provenance = {
-                **(item.provenance or {}),
-                "source_kind": inner.get("source_kind", ""),
-                "data_note": inner.get("data_note", ""),
-            }
+            if not item.provenance:
+                item.provenance = {}
+            item.provenance["source_kind"] = inner.get("source_kind", "")
+            item.provenance["data_note"] = inner.get("data_note", "")
             return item
 
-        # Fallback
         item.status = "insufficient_evidence"
         return item
 
 
+def _resolve_path(data: dict, path: str) -> tuple:
+    """Resolve dotted path into nested dict. Returns (value, found)."""
+    parts = path.split(".")
+    current = data
+    for part in parts:
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            return (None, False)
+    return (current, True)
+
+
+def _top_keys(data: dict) -> list:
+    return sorted(data.keys())[:10]
+
+
 def normalize_bundle(
     probes: list[ResearchProbe],
-    results: list,  # CapabilityResult[]
+    results: list,
 ) -> list[EvidenceItem]:
-    """Normalize all probe results into EvidenceItems."""
+    """Normalize all probes → EvidenceItems. Fail on cardinality mismatch."""
+    if len(probes) != len(results):
+        raise EvidenceCardinalityMismatch(
+            f"probe count {len(probes)} != result count {len(results)}"
+        )
     normalizer = ResearchEvidenceNormalizer()
-    items = []
-    for probe, result in zip(probes, results):
-        items.append(normalizer.normalize(probe, result))
-    return items
+    return [normalizer.normalize(p, r) for p, r in zip(probes, results)]
 
 
-__all__ = ["ResearchEvidenceNormalizer", "normalize_bundle"]
+__all__ = [
+    "ResearchEvidenceNormalizer",
+    "normalize_bundle",
+    "EvidenceCardinalityMismatch",
+]
