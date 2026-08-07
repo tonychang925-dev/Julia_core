@@ -24,6 +24,12 @@ CAPABILITY_TO_TOOL: dict[str, str] = {
     "market.snapshot.read":    "review_market_snapshot",
     "market.alert.query":      "list_active_alerts",
     "market.decision.explain": "explain_decision",
+    # ── M3.2.7 Research ────────────────────────────────────────────────
+    "market.stock.history":    "market_stock_history",
+    "market.stock.auction":    "market_stock_auction",
+    "market.theme.constituents": "market_theme_constituents",
+    "market.theme.capital":    "market_theme_capital",
+    "market.regime.read":      "market_regime_read",
 }
 
 TOOL_TO_CAPABILITY: dict[str, str] = {

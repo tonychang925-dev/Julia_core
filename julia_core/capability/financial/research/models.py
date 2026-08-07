@@ -24,6 +24,17 @@ class Hypothesis:
 
 
 @dataclass
+class ResearchProbe:
+    """One capability request with stable identity. No regex on reason strings."""
+    probe_id: str = field(default_factory=lambda: f"probe_{uuid4().hex}")
+    requirement_id: str = ""
+    binding_id: str = ""
+    request: Any = None
+    derive_metric: str = ""
+    missing_policy: str = "INSUFFICIENT_EVIDENCE"
+
+
+@dataclass
 class ResearchPlan:
     """Compiled plan: StrategyCard + SubjectContext → executable research."""
     research_case_id: str = field(default_factory=lambda: f"rc_{uuid4().hex}")
