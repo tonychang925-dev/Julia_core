@@ -245,6 +245,8 @@ class ClaimEvidence:
 class JuliaJudgment:
     judgment_id: str = field(default_factory=lambda: f"judgment_{uuid4().hex}")
     subject: str = ""
+    subject_key: str = ""
+    subject_name: str = ""
     verdict: str = ""
     workbench_claim: dict = field(default_factory=dict)
     julia_stage: str = ""
@@ -448,9 +450,11 @@ class EvidenceExtractor:
 
 def _provenance(mode: str, j: dict, approval: dict) -> dict:
     """If approved, analyst_reviewed is always True at envelope level."""
+    subject = j.get("subject", {})
     p = {
         "opinion_mode": mode,
         "claim_id": j.get("claim_id", ""),
+        "subject_key": subject.get("key", subject.get("subject_key", "")) if isinstance(subject, dict) else "",
         "analyst_reviewed": True if mode == "analyst_approved" else j.get("analyst_reviewed", False),
     }
     for k in ("snapshot_version", "snapshot_hash", "draft_version"):
@@ -514,9 +518,16 @@ class IndependentReviewPipeline:
             "confidence": claim.source_confidence,
             "opinion_provenance": claim.opinion_provenance,
         }
+        # Extract stable identity from provenance for Outcome Resolver
+        prov = claim.opinion_provenance
+        subject_key = prov.get("subject_key", "")
+        subject_name = claim.claim.split(":")[0] if ":" in claim.claim else claim.claim
+        if not subject_key:
+            subject_key = prov.get("claim_id", "").replace("claim_0714_", "")
+
         if not claim.has_facts:
             return JuliaJudgment(
-                subject=claim.claim.split(":")[0],
+                subject=subject_name, subject_key=subject_key, subject_name=subject_name,
                 workbench_claim=base,
                 verdict="insufficient_data",
                 julia_stage="unknown",
@@ -528,7 +539,7 @@ class IndependentReviewPipeline:
         # P0: data_inconclusive → insufficient_data regardless of evidence counts
         if claim.julia_stage == "data_inconclusive":
             return JuliaJudgment(
-                subject=claim.claim.split(":")[0],
+                subject=subject_name, subject_key=subject_key, subject_name=subject_name,
                 workbench_claim=base,
                 verdict="insufficient_data",
                 julia_stage="data_inconclusive",
@@ -562,7 +573,7 @@ class IndependentReviewPipeline:
             verdict, conf = "partially_agree", 0.5
 
         return JuliaJudgment(
-            subject=claim.claim.split(":")[0],
+            subject=subject_name, subject_key=subject_key, subject_name=subject_name,
             workbench_claim=base,
             verdict=verdict,
             julia_stage=claim.julia_stage,  # P0: direct from claim, no string parsing
