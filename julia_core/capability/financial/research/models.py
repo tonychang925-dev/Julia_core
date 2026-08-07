@@ -43,16 +43,22 @@ class ResearchPlan:
     trade_date: str = ""
     triggered_card: str = ""
     candidate_hypotheses: list[dict] = field(default_factory=list)
-    capability_requests: list[CapabilityRequest] = field(default_factory=list)
+    probes: list[ResearchProbe] = field(default_factory=list)
     research_questions: list[dict] = field(default_factory=list)
     missing_requirements: list[str] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.now(CST).isoformat())
+
+    @property
+    def capability_requests(self) -> list:
+        """Compatibility: extract CapabilityRequests from probes."""
+        return [p.request for p in self.probes if p.request is not None]
 
 
 @dataclass
 class EvidenceItem:
     """One piece of evidence gathered for a research requirement."""
     requirement_id: str
+    probe_id: str = ""
     capability_request_id: str = ""
     status: str = "pending"           # pending | success | unavailable | error
     raw_value: object = None
@@ -79,4 +85,4 @@ class EvidenceBundle:
 from julia_core.capability.models import CapabilityRequest  # noqa
 
 
-__all__ = ["Hypothesis", "ResearchPlan", "EvidenceItem", "EvidenceBundle"]
+__all__ = ["Hypothesis", "ResearchProbe", "ResearchPlan", "EvidenceItem", "EvidenceBundle"]

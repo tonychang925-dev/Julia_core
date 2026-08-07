@@ -1,14 +1,7 @@
-"""M3.2.7 Strategy Research Compiler — Card → ResearchPlan → CapabilityRequest.
+"""M3.2.7 Strategy Research Compiler — Card → ResearchProbe[] → ResearchPlan.
 
-Deterministic. Zero LLM. Located in Julia_core (owns research process).
-ai_theme_app StrategyCards provide: what to investigate.
-This compiler provides: how Julia investigates.
-
-Usage:
-  compiler = StrategyResearchCompiler()
-  plan = compiler.compile(card_dict, subject_context)
-  # plan.capability_requests are native Julia CapabilityRequest objects
-  # ready for CapabilityManager.execute()
+Deterministic. Zero LLM. No regex on reason strings.
+ResearchProbe is the stable identity carrier — probe_id never parsed from text.
 """
 
 from __future__ import annotations
@@ -20,6 +13,7 @@ from typing import Any
 from julia_core.capability.models import CapabilityRequest
 from julia_core.capability.financial.research.models import (
     ResearchPlan,
+    ResearchProbe,
     EvidenceItem,
     EvidenceBundle,
 )
@@ -30,30 +24,17 @@ from julia_core.capability.financial.research.requirement_bindings import (
 
 
 class UnresolvedRequirementBinding(Exception):
-    """Template variable not resolved — capability request cannot be formed."""
+    pass
 
 
 class StrategyResearchCompiler:
     """Compiles ai_theme_app StrategyCard → executable Julia ResearchPlan.
 
-    Steps:
-      1. Card.possible_states → candidate_hypotheses (all untested)
-      2. Card.required_data → REQUIREMENT_BINDINGS → CapabilityRequest[]
-      3. Card.research_questions → included verbatim
-      4. Unrecognized requirements → plan.missing_requirements
-
-    Does NOT call LLM. Does NOT connect to external data.
+    Each required_data → RequirementBinding → ResearchProbe + CapabilityRequest.
+    Probes carry stable probe_id — no regex extraction from reason strings.
     """
 
     def compile(self, card: dict, subject: dict) -> ResearchPlan:
-        """Compile a ResearchPlan from a StrategyCard dict + subject context.
-
-        Args:
-            card: loaded StrategyCard JSON (from ai_theme_app)
-            subject: {"subject_key", "subject_name", "trade_date",
-                      "leader_code", "julia_stage", "workbench_stage"}
-        """
-        # Validate required subject fields
         for required in ("subject_key", "trade_date"):
             if not subject.get(required):
                 raise ValueError(f"subject.{required} is required")
@@ -78,7 +59,7 @@ class StrategyResearchCompiler:
                 "status": "untested",
             })
 
-        # Step 2: required_data → CapabilityRequest
+        # Step 2: required_data → ResearchProbe[] (NOT raw CapabilityRequest[])
         for req_name in card.get("required_data", []):
             binding = REQUIREMENT_BINDINGS.get(req_name)
             if binding is None:
@@ -97,19 +78,23 @@ class StrategyResearchCompiler:
                 cognitive_mode="investment_research",
                 reason=(
                     f"ResearchCase {plan.research_case_id[:12]}: "
-                    f"test {card['strategy_id']} for {subject['subject_key']} "
-                    f"(req: {req_name})"
+                    f"test {card['strategy_id']} for {subject['subject_key']}"
                 ),
             )
-            plan.capability_requests.append(cr)
 
-        # Step 3: research questions — verbatim
+            probe = ResearchProbe(
+                requirement_id=req_name,
+                binding_id=binding.requirement_id,
+                request=cr,
+                derive_metric=binding.derive_metric,
+                missing_policy=binding.missing_policy,
+            )
+            plan.probes.append(probe)
+
         plan.research_questions = card.get("research_questions", [])
-
         return plan
 
     def _resolve_args(self, binding: RequirementBinding, subject: dict) -> dict:
-        """Resolve $subject. template variables in binding arguments."""
         args = {}
         for k, v in binding.arguments_template.items():
             if isinstance(v, str) and "$subject." in v:
@@ -118,8 +103,7 @@ class StrategyResearchCompiler:
                     resolved = resolved.replace(f"$subject.{sk}", str(sv))
                 if "$subject." in resolved:
                     raise UnresolvedRequirementBinding(
-                        f"Unresolved template in '{k}': {resolved} "
-                        f"(missing subject field?)"
+                        f"Unresolved template in '{k}': {resolved}"
                     )
                 args[k] = resolved
             else:
@@ -128,27 +112,26 @@ class StrategyResearchCompiler:
 
 
 def create_evidence_bundle(plan: ResearchPlan) -> EvidenceBundle:
-    """Initialize an EvidenceBundle to track capability execution results."""
-    return EvidenceBundle(
+    """Initialize EvidenceBundle from ResearchProbes.
+
+    probe_id is the stable identity carrier.
+    No regex. No string parsing.
+    """
+    bundle = EvidenceBundle(
         research_case_id=plan.research_case_id,
         subject_key=plan.subject_key,
         as_of=plan.trade_date,
-        evidence=[
-            EvidenceItem(
-                requirement_id=_req_name_from_cr(cr),
-                capability_request_id=cr.request_id,
-            )
-            for cr in plan.capability_requests
-        ],
-        evidence_count=len(plan.capability_requests),
+        evidence_count=len(plan.probes),
     )
-
-
-def _req_name_from_cr(cr: CapabilityRequest) -> str:
-    """Extract requirement name from capability request reason."""
-    import re
-    m = re.search(r'req:\s*(\S+)', cr.reason)
-    return m.group(1) if m else cr.capability_name
+    for probe in plan.probes:
+        bundle.evidence.append(EvidenceItem(
+            requirement_id=probe.requirement_id,
+            probe_id=probe.probe_id,
+            capability_request_id=probe.request.request_id,
+            derived_metric=probe.derive_metric,
+            missing_policy=probe.missing_policy,
+        ))
+    return bundle
 
 
 __all__ = ["StrategyResearchCompiler", "UnresolvedRequirementBinding", "create_evidence_bundle"]
