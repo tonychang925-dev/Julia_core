@@ -68,6 +68,52 @@ AI_THEME_CAPABILITIES: list[dict] = [
         "input_schema": {"decision_id": "the DecisionEnvelope ID to explain"},
         "schema_version": DECISION_ENVELOPE_VERSION,
     },
+    # ── M3.2.7 Research capabilities ──────────────────────────────────────
+    {
+        "name": "market.stock.history",
+        "description": "Query historical daily data for a specific stock — OHLCV, lookback sessions",
+        "layer": CapabilityLayer.INTELLIGENCE,
+        "provider": "ai_theme_app",
+        "permission_scope": "market.observe",
+        "input_schema": {"stock_code": "stock code", "as_of": "ISO date", "lookback_sessions": "int"},
+        "schema_version": "1.0",
+    },
+    {
+        "name": "market.stock.auction",
+        "description": "Query pre-market auction data for a stock — auction strength, gap direction",
+        "layer": CapabilityLayer.INTELLIGENCE,
+        "provider": "ai_theme_app",
+        "permission_scope": "market.observe",
+        "input_schema": {"stock_code": "stock code", "as_of": "ISO date"},
+        "schema_version": "1.0",
+    },
+    {
+        "name": "market.theme.constituents",
+        "description": "Query theme constituent stocks — relative strength, breadth, emerging leaders",
+        "layer": CapabilityLayer.INTELLIGENCE,
+        "provider": "ai_theme_app",
+        "permission_scope": "market.observe",
+        "input_schema": {"subject_key": "theme subject key", "as_of": "ISO date"},
+        "schema_version": "1.0",
+    },
+    {
+        "name": "market.theme.capital",
+        "description": "Query capital flow persistence for a theme — inflow/outflow trend",
+        "layer": CapabilityLayer.INTELLIGENCE,
+        "provider": "ai_theme_app",
+        "permission_scope": "market.observe",
+        "input_schema": {"subject_key": "theme subject key", "as_of": "ISO date"},
+        "schema_version": "1.0",
+    },
+    {
+        "name": "market.regime.read",
+        "description": "Read current market regime assessment — repair/acceleration/distribution with evidence",
+        "layer": CapabilityLayer.INTELLIGENCE,
+        "provider": "ai_theme_app",
+        "permission_scope": "market.observe",
+        "input_schema": {"as_of": "ISO date"},
+        "schema_version": "1.0",
+    },
 ]
 
 

@@ -230,7 +230,7 @@ def test_all_market_capabilities_registered(registry):
 def test_registry_has_ai_theme_capabilities(registry):
     """Registry has all required ai_theme_app capabilities (M1+M3.2)."""
     ai_theme_defs = registry.by_provider("ai_theme_app")
-    assert len(ai_theme_defs) >= 4  # 3 M1 + 1 M3.2
+    assert len(ai_theme_defs) >= 9  # 3 M1 + 1 M3.2 + 5 M3.2.7 research
     names = {d.name for d in ai_theme_defs}
     assert "market.snapshot.read" in names
     assert "market.alert.query" in names
@@ -242,7 +242,7 @@ def test_registry_intelligence_layer(registry):
     """All 3 capabilities are in INTELLIGENCE layer."""
     intel_defs = registry.by_layer(CapabilityLayer.INTELLIGENCE)
     ai_theme_in_intel = [d for d in intel_defs if d.provider == "ai_theme_app"]
-    assert len(ai_theme_in_intel) >= 4  # 3 M1 + 1 M3.2
+    assert len(ai_theme_in_intel) >= 9  # 3 M1 + 1 M3.2 + 5 research
 
 
 # ── AC-M1-3: Permission ─────────────────────────────────────────────────────
