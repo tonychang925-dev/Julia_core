@@ -49,10 +49,19 @@ class TransitionDetector:
         results = []
 
         # Rule: synchronized_repair
-        prev_pos = _num(from_data.get("positive_ratio", 0))
-        t0_pos = _num(to_data.get("positive_ratio", 0))
-        delta_pos = _num(delta.get("positive_ratio", 0))
-        t0_limit = _num(to_data.get("limit_up_ratio", 0))
+        prev_pos = _num(from_data.get("positive_ratio"))
+        t0_pos = _num(to_data.get("positive_ratio"))
+        delta_pos = _num(delta.get("positive_ratio"))
+        t0_limit = _num(to_data.get("limit_up_ratio"))
+
+        # Unknown → insufficient, not zero
+        if None in (prev_pos, t0_pos, delta_pos, t0_limit):
+            return TransitionResult(
+                transition_type="INSUFFICIENT_EVIDENCE",
+                from_date=from_date,
+                to_date=to_date,
+                supported_by=["missing required breadth fields"],
+            )
 
         if (
             prev_pos <= 0.33
@@ -104,11 +113,13 @@ class TransitionDetector:
         )
 
 
-def _num(v: Any) -> float:
+def _num(v: Any) -> float | None:
+    if v is None:
+        return None
     try:
         return float(v)
     except (TypeError, ValueError):
-        return 0.0
+        return None
 
 
 __all__ = ["TransitionDetector", "TransitionResult"]

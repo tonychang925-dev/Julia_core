@@ -42,6 +42,8 @@ class ResearchPlan:
     subject_name: str = ""
     trade_date: str = ""
     triggered_card: str = ""
+    trigger_transition: str = ""
+    parent_case_id: str = ""
     candidate_hypotheses: list[dict] = field(default_factory=list)
     probes: list[ResearchProbe] = field(default_factory=list)
     research_questions: list[dict] = field(default_factory=list)
