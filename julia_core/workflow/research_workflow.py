@@ -107,12 +107,22 @@ class ResearchWorkflowBridge:
               - max_rounds: int (optional, overrides config)
               - query_budget: int (optional, overrides config)
             """
+            # Derive market_stage from blind_judgment if not explicitly given
+            blind = data.get("blind_judgment")
+            blind_market_stage = (blind or {}).get("market_stage", "") if isinstance(blind, dict) else ""
+            market_stage = data.get("market_stage") or blind_market_stage
+            if blind_market_stage and data.get("market_stage") and data.get("market_stage") != blind_market_stage:
+                raise ValueError(
+                    f"market_stage={data['market_stage']} conflicts with "
+                    f"blind_judgment.market_stage={blind_market_stage}"
+                )
+
             subject = {
                 "subject_key": data.get("subject_key", ""),
                 "trade_date": data.get("trade_date", ""),
                 "leader_code": data.get("leader_code", ""),
                 "subject_name": data.get("subject_name", ""),
-                "market_stage": data.get("market_stage", ""),
+                "market_stage": market_stage,
                 "initial_card": data.get("initial_card") or "",
             }
 
@@ -248,6 +258,11 @@ class ResearchWorkflowBridge:
                         "status": item.status,
                         "derived_value": str(item.derived_value)[:100] if item.derived_value is not None else None,
                         "source_kind": (getattr(item, 'provenance', {}) or {}).get("source_kind", ""),
+                        "capability_request_id": item.capability_request_id,
+                        "available_at": (getattr(item, 'provenance', {}) or {}).get("available_at", ""),
+                        "observed_at": (getattr(item, 'provenance', {}) or {}).get("observed_at", ""),
+                        "effective_at": (getattr(item, 'provenance', {}) or {}).get("effective_at", ""),
+                        "requested_as_of": (getattr(item, 'provenance', {}) or {}).get("requested_as_of", ""),
                         "recorded_at": datetime.now(CST).isoformat(),
                     }
                     for item in result.evidence_ledger
@@ -284,13 +299,25 @@ class ResearchWorkflowBridge:
             "correlation_id": correlation_id,
         }
         # Only include optional keys when they have non-None values
-        # (P0-1: prevents None-in-dict masking .get() defaults)
         if subject.get("max_rounds") is not None:
             input_data["max_rounds"] = subject["max_rounds"]
         if subject.get("query_budget") is not None:
             input_data["query_budget"] = subject["query_budget"]
         if subject.get("market_stage") is not None:
             input_data["market_stage"] = subject["market_stage"]
+
+        # P0: propagate blind_judgment for immutability enforcement
+        blind = subject.get("blind_judgment")
+        if blind is not None and isinstance(blind, dict):
+            input_data["blind_judgment"] = blind
+            # Derive market_stage from blind_judgment if not explicitly passed
+            if not input_data.get("market_stage") and blind.get("market_stage"):
+                input_data["market_stage"] = blind["market_stage"]
+
+        # P0: propagate full as_of timestamp for anti-hindsight gate
+        as_of = subject.get("as_of")
+        if as_of is not None and as_of:
+            input_data["as_of"] = str(as_of)
 
         return await self.runtime.execute("research.cognitive_loop", input_data)
 

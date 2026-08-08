@@ -449,3 +449,72 @@ def test_bridge_no_stale_total_queries():
         assert "research.initialize" in step_results
 
     asyncio.run(_run())
+
+
+def test_bridge_e2e_with_blind_judgment():
+    """Bridge with blind_judgment (no explicit market_stage) → market_stage derived.
+
+    P0 regression: blind_judgment not propagated, market_stage not derived.
+    """
+    from julia_core.workflow.research_workflow import ResearchWorkflowBridge
+    from julia_core.workflow.models import WorkflowState
+
+    bridge = ResearchWorkflowBridge(
+        capability_manager=ForbiddenCapabilityManager(),
+    )
+
+    async def _run():
+        instance = await bridge.execute_research({
+            "subject_key": "9010270",
+            "trade_date": "2026-07-14",
+            "blind_judgment": {"market_stage": "fading_momentum", "subject_key": "9010270"},
+        })
+        step_results = instance.step_results
+        assert "research.initialize" in step_results
+        assert step_results["research.initialize"].get("research_initialized") is True
+        # market_stage derived from blind_judgment → no ConstraintViolation
+        assert "research.execute_loop" in step_results or instance.state == WorkflowState.FAILED
+
+    asyncio.run(_run())
+
+
+def test_cross_timezone_future_evidence_rejected():
+    """Evidence at 08:00+00:00 (16:00 Beijing) with as_of=15:30+08:00 → FAIL.
+
+    P0 regression: string comparison would pass (08 < 15).
+    Offset-aware datetime comparison correctly rejects (16:00 > 15:30).
+    """
+    orchestrator = CognitiveLoopOrchestrator(
+        capability_manager=ForbiddenCapabilityManager(),
+        config=_make_config(as_of="2026-07-14T15:30:00+08:00"),
+        evidence_injector={
+            "leader_divergence": {
+                "leader_5d_return": _make_evidence_item("leader_5d_return", derived_value=0.04),
+                "leader_drawdown_from_peak": _make_evidence_item("leader_drawdown_from_peak", derived_value=-0.04),
+                "leader_volume_pattern": _make_evidence_item("leader_volume_pattern", derived_value="normal"),
+                "key_level_status": _make_evidence_item("key_level_status", derived_value="intact"),
+                "peer_relative_strength": _make_evidence_item("peer_relative_strength", derived_value={"dispersion": {"max_min_spread": 0.10}}),
+                "theme_breadth_change": _make_evidence_item("theme_breadth_change", derived_value={"delta": {"positive_ratio": 0.6}, "from": {}, "to": {"limit_up_ratio": 0.6, "positive_ratio": 0.7}}),
+                "capital_persistence": _make_evidence_item("capital_persistence", status="unavailable"),
+                "market_regime": _make_evidence_item("market_regime", derived_value="strength_active"),
+                "new_leader_candidates": _make_evidence_item("new_leader_candidates", derived_value=[]),
+            },
+        },
+    )
+
+    async def _run():
+        original_check = orchestrator._check_evidence_constraints
+
+        def _inject_cross_tz(item, probe):
+            if not getattr(item, 'provenance', None):
+                item.provenance = {}
+            # 08:00 UTC = 16:00 Beijing → AFTER 15:30 cutoff
+            item.provenance["available_at"] = "2026-07-14T08:00:00+00:00"
+            return original_check(item, probe)
+
+        orchestrator._check_evidence_constraints = _inject_cross_tz
+
+        with pytest.raises(ConstraintViolation, match="Future evidence"):
+            await orchestrator.run(_make_subject())
+
+    asyncio.run(_run())

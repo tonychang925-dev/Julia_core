@@ -186,6 +186,21 @@ class CognitiveLoopOrchestrator:
 
     # ── Main entry point ──────────────────────────────────────────────────
 
+    def _verify_blind_judgment(self, result: CognitiveLoopResult):
+        """Verify blind judgment immutability. Called at every terminal exit."""
+        if not self._blind_judgment:
+            return
+        result.blind_judgment_hash_after = _hash_dict(self._blind_judgment)
+        if (
+            self.config.blind_judgment_immutable
+            and result.blind_judgment_hash_before != result.blind_judgment_hash_after
+        ):
+            raise ConstraintViolation(
+                "Blind judgment was mutated during research. "
+                f"Hash before: {result.blind_judgment_hash_before[:16]}... "
+                f"Hash after: {result.blind_judgment_hash_after[:16]}..."
+            )
+
     async def run(self, subject: dict) -> CognitiveLoopResult:
         """Execute autonomous research loop. Returns full CognitiveLoopResult."""
         self._validate_subject(subject)
@@ -217,21 +232,14 @@ class CognitiveLoopOrchestrator:
         result.queries_executed = self._queries_executed
         result.probes_blocked_by_budget = self._probes_blocked_by_budget
 
-        # Verify blind judgment was not mutated during Round 0
-        if self._blind_judgment:
-            result.blind_judgment_hash_after = _hash_dict(self._blind_judgment)
-            if self.config.blind_judgment_immutable and \
-               result.blind_judgment_hash_before != result.blind_judgment_hash_after:
-                raise ConstraintViolation(
-                    "Blind judgment was mutated during research. "
-                    f"Hash before: {result.blind_judgment_hash_before[:16]}... "
-                    f"Hash after: {result.blind_judgment_hash_after[:16]}..."
-                )
+        # Verify blind judgment after Round 0
+        self._verify_blind_judgment(result)
 
         if round0.stop_reason:
             result.stop_reason = round0.stop_reason
             result.final_conclusion = self._build_final_conclusion(result)
             result.errors = self._errors
+            self._verify_blind_judgment(result)
             return result
 
         # ── Round N: Recursive research ────────────────────────────────────
@@ -281,6 +289,7 @@ class CognitiveLoopOrchestrator:
 
         result.final_conclusion = self._build_final_conclusion(result)
         result.errors = self._errors
+        self._verify_blind_judgment(result)
         return result
 
     # ── Round execution ───────────────────────────────────────────────────
@@ -416,11 +425,12 @@ class CognitiveLoopOrchestrator:
         comparable). No [:10] date truncation — a 15:31 evidence with a 15:30
         as_of is a violation.
         """
-        # 1. as_of gate: evidence must not be from the future (full datetime)
+        # 1. as_of gate: offset-aware UTC datetime comparison (not string)
         evidence_ts = self._extract_evidence_timestamp(item, probe)
         if evidence_ts and self.config.as_of:
-            # ISO-8601 strings are lexicographically ordered by time
-            if evidence_ts > self.config.as_of:
+            evidence_dt = _parse_aware_datetime(evidence_ts, "evidence timestamp")
+            as_of_dt = _parse_aware_datetime(self.config.as_of, "as_of")
+            if evidence_dt > as_of_dt:
                 raise ConstraintViolation(
                     f"Future evidence detected: {probe.requirement_id} "
                     f"available_at={evidence_ts} > as_of={self.config.as_of}"
@@ -593,6 +603,26 @@ class CognitiveLoopOrchestrator:
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _parse_aware_datetime(value: str, label: str) -> datetime:
+    """Parse an ISO timestamp/date into an aware UTC datetime.
+
+    ISO-8601 strings with different timezone offsets are normalized to UTC
+    before comparison. Date-only strings default to +08:00 (CST).
+    Rejects naive datetimes (no timezone offset).
+    """
+    raw = str(value)
+    try:
+        normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+        if "T" not in normalized:
+            normalized = f"{normalized}T00:00:00+08:00"
+        dt = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise ConstraintViolation(f"Invalid {label}: {raw}") from exc
+    if dt.tzinfo is None:
+        raise ConstraintViolation(f"{label} must include timezone offset: {raw}")
+    return dt.astimezone(timezone.utc)
+
 
 def _hash_dict(d: dict) -> str:
     """Stable hash of a dict for immutability verification."""
