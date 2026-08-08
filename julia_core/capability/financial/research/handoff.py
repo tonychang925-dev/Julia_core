@@ -30,7 +30,9 @@ class RecursiveResearchHandoff:
                 self.card_dir = Path(env_dir)
             else:
                 # Try relative to this file's location (julia_core repo root)
-                julia_root = Path(__file__).resolve().parents[5]
+                # handoff.py is at: <workspace>/julia_core/julia_core/capability/financial/research/handoff.py
+                # parents[4] = <workspace>/julia_core (repo root), .parent → <workspace>
+                julia_root = Path(__file__).resolve().parents[4]
                 ai_theme_root = julia_root.parent / "ai_theme_app" / "strategy_knowledge" / "cards"
                 if ai_theme_root.exists():
                     self.card_dir = ai_theme_root

@@ -1,24 +1,28 @@
-"""M3.3.0 Cognitive Loop Orchestrator — autonomous recursive research runtime.
+"""M3.3.0a Cognitive Loop Orchestrator — hardened autonomous recursive research runtime.
 
 Wraps the deterministic research pipeline into a managed loop with:
-  - max_rounds / query_budget / stop_reason
+  - max_rounds / query_budget / stop_reason (hard caps, off-by-one fixed)
   - parent_case_id lineage across rounds
-  - Replay mode: inject frozen evidence, skip live CapabilityManager
-  - Constraint enforcement: blind judgment immutability, no Workbench, no future data
+  - Replay mode: fail-closed (missing fixture → ReplayFixtureMissing)
+  - Constraint enforcement: blind judgment hash immutable, no Workbench provenance,
+    no future evidence, as_of gate on every probe
+  - Round-0 autonomous card selection (no silent leader_divergence default)
 
 Zero LLM. Zero human input after initial subject configuration.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from typing import Any
 
 from julia_core.capability.financial.research.compiler import StrategyResearchCompiler
 from julia_core.capability.financial.research.evidence_normalizer import (
     ResearchEvidenceNormalizer,
-    normalize_bundle,
 )
 from julia_core.capability.financial.research.handoff import RecursiveResearchHandoff
 from julia_core.capability.financial.research.hypothesis_evaluator import (
@@ -40,17 +44,32 @@ from julia_core.capability.financial.research.transition_detector import (
 
 CST = timezone(timedelta(hours=8))
 
+# ── Stage → initial StrategyCard mapping (Round 0 autonomous selection) ───────
+
+STAGE_TO_INITIAL_CARD: dict[str, str] = {
+    "fading_momentum": "leader_divergence",
+    "divergence": "leader_divergence",
+    "acceleration": "leader_divergence",
+    "diffusion": "leader_divergence",
+    "decline": "leader_divergence",
+    "data_inconclusive": "leader_divergence",
+}
+
 
 # ── Config & Results ──────────────────────────────────────────────────────────
 
 @dataclass
 class CognitiveLoopConfig:
-    """Immutable configuration for one cognitive loop execution."""
-    max_rounds: int = 3
+    """Immutable configuration for one cognitive loop execution.
+
+    max_rounds: total number of research rounds. max_rounds=1 → Round 0 only.
+    query_budget: max live CapabilityManager calls across all rounds.
+    """
+    max_rounds: int = 2
     query_budget: int = 20
-    as_of: str = ""                       # all evidence gated to this timestamp
+    as_of: str = ""
     blind_judgment_immutable: bool = True
-    initial_card: str = ""                # card to use for Round 0 (blank → selector picks)
+    initial_card: str = ""               # explicit override; blank → STAGE_TO_INITIAL_CARD
 
 
 @dataclass
@@ -64,7 +83,7 @@ class RoundRecord:
     evidence_bundle: EvidenceBundle | None = None
     hypothesis_evaluations: dict[str, HypothesisEvaluation] = field(default_factory=dict)
     transition_result: TransitionResult | None = None
-    stop_reason: str = ""                 # "" if continuing to next round
+    stop_reason: str = ""
 
 
 @dataclass
@@ -74,15 +93,34 @@ class CognitiveLoopResult:
     final_conclusion: dict[str, Any] = field(default_factory=dict)
     evidence_ledger: list[EvidenceItem] = field(default_factory=list)
     stop_reason: str = ""
-    total_queries: int = 0
+    queries_executed: int = 0
+    probes_blocked_by_budget: int = 0
     lineage: list[dict[str, str]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    blind_judgment_hash_before: str = ""
+    blind_judgment_hash_after: str = ""
 
 
-# ── Constraint Violations ────────────────────────────────────────────────────
+# ── Exceptions ────────────────────────────────────────────────────────────────
 
 class ConstraintViolation(Exception):
     """Hard gate violation — loop cannot continue."""
+
+
+class ReplayFixtureMissing(Exception):
+    """Replay mode: a required probe has no frozen fixture."""
+
+
+# ── Forbidden Capability Manager (replay safety) ──────────────────────────────
+
+class ForbiddenCapabilityManager:
+    """Sentinel that raises on any execute() call — used during replay to
+    guarantee no live capability is ever invoked."""
+
+    async def execute(self, request: Any) -> Any:
+        raise AssertionError(
+            f"LIVE CAPABILITY CALLED DURING REPLAY: {getattr(request, 'capability_name', str(request))}"
+        )
 
 
 # ── Orchestrator ──────────────────────────────────────────────────────────────
@@ -100,16 +138,17 @@ class CognitiveLoopOrchestrator:
             "subject_key": "9010270",
             "trade_date": "2026-07-14",
             "leader_code": "601969",
+            "market_stage": "fading_momentum",    # for Round-0 card selection
         })
 
     Usage (replay):
         orchestrator = CognitiveLoopOrchestrator(
-            capability_manager=manager,
+            capability_manager=ForbiddenCapabilityManager(),
             card_dir="/path/to/cards",
             config=CognitiveLoopConfig(max_rounds=2),
             evidence_injector={
-                "RC-001": {"leader_drawdown_from_peak": frozen_item, ...},
-                "RC-002": {"leader_key_level": frozen_item, ...},
+                "leader_divergence": {"leader_drawdown_from_peak": frozen_item, ...},
+                "weak_to_strong":    {"leader_key_level": frozen_item, ...},
             },
         )
         result = await orchestrator.run(subject)
@@ -117,7 +156,7 @@ class CognitiveLoopOrchestrator:
 
     def __init__(
         self,
-        capability_manager,                      # CapabilityManager instance
+        capability_manager,
         card_dir: str = "",
         config: CognitiveLoopConfig | None = None,
         evidence_injector: dict[str, dict[str, EvidenceItem]] | None = None,
@@ -132,12 +171,17 @@ class CognitiveLoopOrchestrator:
         self.selector = StrategySelector()
         self.handoff = RecursiveResearchHandoff(card_dir=card_dir)
 
-        # Replay mode: pre-baked evidence keyed by research_case_id → requirement_id
+        # Replay mode: pre-baked evidence.
+        # Keyed by triggered_card (strategy_id, deterministic) → requirement_id → EvidenceItem.
+        # When non-empty, _execute_probes will NOT call live CapabilityManager.
         self._injector = evidence_injector or {}
+        self._is_replay = bool(evidence_injector)
 
         # Internal state
         self._blind_judgment: dict[str, Any] = {}
-        self._query_count: int = 0
+        self._blind_judgment_hash: str = ""
+        self._queries_executed: int = 0
+        self._probes_blocked_by_budget: int = 0
         self._errors: list[str] = []
 
     # ── Main entry point ──────────────────────────────────────────────────
@@ -145,7 +189,13 @@ class CognitiveLoopOrchestrator:
     async def run(self, subject: dict) -> CognitiveLoopResult:
         """Execute autonomous research loop. Returns full CognitiveLoopResult."""
         self._validate_subject(subject)
+
+        # Snapshot blind judgment hash at start (only if not already set by set_blind_judgment)
+        if self._blind_judgment and not self._blind_judgment_hash:
+            self._blind_judgment_hash = _hash_dict(self._blind_judgment)
+
         result = CognitiveLoopResult()
+        result.blind_judgment_hash_before = self._blind_judgment_hash
 
         # ── Round 0: Initial research ─────────────────────────────────────
         round0 = await self._execute_round(
@@ -164,7 +214,19 @@ class CognitiveLoopOrchestrator:
             "child": round0.research_case_id,
             "trigger": round0.trigger_transition or "initial",
         })
-        result.total_queries = self._query_count
+        result.queries_executed = self._queries_executed
+        result.probes_blocked_by_budget = self._probes_blocked_by_budget
+
+        # Verify blind judgment was not mutated during Round 0
+        if self._blind_judgment:
+            result.blind_judgment_hash_after = _hash_dict(self._blind_judgment)
+            if self.config.blind_judgment_immutable and \
+               result.blind_judgment_hash_before != result.blind_judgment_hash_after:
+                raise ConstraintViolation(
+                    "Blind judgment was mutated during research. "
+                    f"Hash before: {result.blind_judgment_hash_before[:16]}... "
+                    f"Hash after: {result.blind_judgment_hash_after[:16]}..."
+                )
 
         if round0.stop_reason:
             result.stop_reason = round0.stop_reason
@@ -176,9 +238,9 @@ class CognitiveLoopOrchestrator:
         current_plan = round0.plan
         current_evidence = self._evidence_as_dict(round0.evidence_bundle)
 
-        for round_idx in range(1, self.config.max_rounds + 1):
-            # Budget check
-            if self._query_count >= self.config.query_budget:
+        # max_rounds=2 → range(1,2) → 1 iteration (round index 1) = 2 total rounds
+        for round_idx in range(1, self.config.max_rounds):
+            if self._queries_executed >= self.config.query_budget:
                 result.stop_reason = "budget_exhausted"
                 break
 
@@ -204,7 +266,8 @@ class CognitiveLoopOrchestrator:
                 "child": round_n.research_case_id,
                 "trigger": round_n.trigger_transition,
             })
-            result.total_queries = self._query_count
+            result.queries_executed = self._queries_executed
+            result.probes_blocked_by_budget = self._probes_blocked_by_budget
 
             if round_n.stop_reason:
                 result.stop_reason = round_n.stop_reason
@@ -231,16 +294,16 @@ class CognitiveLoopOrchestrator:
         trigger_transition: str = "",
         pre_compiled_plan: ResearchPlan | None = None,
     ) -> RoundRecord:
-        """Execute one research round: compile → execute probes → normalize → evaluate → detect transition."""
+        """Execute one research round: compile → execute probes → constrain → evaluate → detect."""
 
         # 1. Compile (or use pre-compiled from handoff)
         if pre_compiled_plan is not None:
             plan = pre_compiled_plan
         else:
-            card = self._load_initial_card(subject)
+            card = self._resolve_initial_card(subject)
             plan = self.compiler.compile(card, subject)
 
-        # 2. Execute probes → EvidenceBundle
+        # 2. Execute probes → EvidenceBundle (with constraint enforcement)
         bundle = await self._execute_probes(plan)
 
         # 3. Evaluate hypotheses
@@ -259,7 +322,7 @@ class CognitiveLoopOrchestrator:
             "no_significant_transition", "INSUFFICIENT_EVIDENCE"
         ):
             stop_reason = "no_transition"
-        elif round_index >= self.config.max_rounds:
+        elif round_index >= self.config.max_rounds - 1:
             stop_reason = "max_rounds"
         elif self._all_hypotheses_resolved(evaluations):
             stop_reason = "all_resolved"
@@ -276,23 +339,35 @@ class CognitiveLoopOrchestrator:
             stop_reason=stop_reason,
         )
 
-    # ── Probe execution ───────────────────────────────────────────────────
+    # ── Probe execution with constraint enforcement ───────────────────────
 
     async def _execute_probes(self, plan: ResearchPlan) -> EvidenceBundle:
-        """Execute all probes via CapabilityManager (or injector in replay mode)."""
-        injector_for_case = self._injector.get(plan.research_case_id, {})
+        """Execute all probes. Replay mode: inject frozen evidence (fail-closed).
+        Live mode: call CapabilityManager with budget enforcement.
+        Both modes: enforce as_of gate and provenance constraints.
+        """
+        is_replay_round = self._is_replay or bool(self._injector)
+        # Key by triggered_card (deterministic strategy_id) not research_case_id (dynamic UUID)
+        injector_for_case = self._injector.get(plan.triggered_card, {})
 
         items: list[EvidenceItem] = []
         for probe in plan.probes:
-            # Replay mode: use frozen evidence
-            if injector_for_case and probe.requirement_id in injector_for_case:
-                items.append(injector_for_case[probe.requirement_id])
+            # ── Replay mode: inject frozen evidence (fail-closed) ──────────
+            if is_replay_round:
+                if probe.requirement_id not in injector_for_case:
+                    raise ReplayFixtureMissing(
+                        f"Replay fixture missing for card={plan.triggered_card} "
+                        f"probe={probe.requirement_id}. "
+                        f"Available: {sorted(injector_for_case.keys())}"
+                    )
+                item = injector_for_case[probe.requirement_id]
+                self._check_evidence_constraints(item, probe)
+                items.append(item)
                 continue
 
-            # Live mode: execute via CapabilityManager
-            self._query_count += 1
-            if self._query_count > self.config.query_budget:
-                # Budget exceeded mid-round — record insufficient for remaining probes
+            # ── Live mode: budget check ────────────────────────────────────
+            if self._queries_executed >= self.config.query_budget:
+                self._probes_blocked_by_budget += 1
                 items.append(EvidenceItem(
                     requirement_id=probe.requirement_id,
                     probe_id=probe.probe_id,
@@ -301,9 +376,14 @@ class CognitiveLoopOrchestrator:
                 ))
                 continue
 
+            # ── Live mode: execute via CapabilityManager ───────────────────
+            self._queries_executed += 1
             try:
                 result = await self.capability_manager.execute(probe.request)
                 item = self.normalizer.normalize(probe, result)
+                self._check_evidence_constraints(item, probe)
+            except (ConstraintViolation, ReplayFixtureMissing):
+                raise
             except Exception as exc:
                 self._errors.append(f"{probe.requirement_id}: {exc}")
                 item = EvidenceItem(
@@ -326,10 +406,67 @@ class CognitiveLoopOrchestrator:
         )
         return bundle
 
+    def _check_evidence_constraints(self, item: EvidenceItem, probe: ResearchProbe):
+        """Enforce as_of gate, Workbench/human provenance block on each evidence item.
+
+        Called for every probe — both replay (injected) and live (normalized).
+        Raises ConstraintViolation on any breach.
+        """
+        # 1. as_of gate: evidence must not be from the future
+        evidence_date = self._extract_evidence_date(item, probe)
+        if evidence_date and self.config.as_of:
+            if evidence_date > self.config.as_of:
+                raise ConstraintViolation(
+                    f"Future evidence detected: {probe.requirement_id} "
+                    f"has date {evidence_date} > as_of={self.config.as_of}"
+                )
+
+        # 2. Workbench/human provenance block
+        provenance = getattr(item, 'provenance', {}) or {}
+        source_kind = provenance.get("source_kind", "")
+        if source_kind in ("workbench_review", "human_analyst"):
+            raise ConstraintViolation(
+                f"Forbidden evidence source: {probe.requirement_id} "
+                f"has source_kind={source_kind}. "
+                f"Blind research must not use Workbench or human analyst data."
+            )
+
+        # 3. Check inner payload for provenance leakage
+        if isinstance(item.derived_value, dict):
+            inner_source = item.derived_value.get("source_kind", "")
+            if inner_source in ("workbench_review", "human_analyst"):
+                raise ConstraintViolation(
+                    f"Forbidden evidence source in derived_value: "
+                    f"{probe.requirement_id} source_kind={inner_source}"
+                )
+
+    @staticmethod
+    def _extract_evidence_date(item: EvidenceItem, probe: ResearchProbe) -> str:
+        """Extract the date associated with an evidence item for as_of comparison."""
+        # Prefer provenance timestamp
+        provenance = getattr(item, 'provenance', {}) or {}
+        ts = provenance.get("available_at", "")
+        if ts:
+            return str(ts)[:10]
+
+        # Fall back to probe request arguments
+        if probe.request:
+            args = getattr(probe.request, 'arguments', {}) or {}
+            as_of = args.get("as_of", "")
+            if as_of:
+                return str(as_of)[:10]
+
+        return ""
+
     # ── Constraint enforcement ────────────────────────────────────────────
 
+    def set_blind_judgment(self, judgment: dict[str, Any]):
+        """Set the blind judgment BEFORE running the loop. Used to enforce immutability."""
+        self._blind_judgment = dict(judgment)
+        self._blind_judgment_hash = _hash_dict(self._blind_judgment)
+
     def _validate_subject(self, subject: dict):
-        """Hard-gate: subject must have required fields."""
+        """Hard-gate: subject must have required fields and valid as_of."""
         for req in ("subject_key", "trade_date"):
             if not subject.get(req):
                 raise ConstraintViolation(f"subject.{req} is required")
@@ -339,15 +476,38 @@ class CognitiveLoopOrchestrator:
                 f"subject.trade_date={subject['trade_date']} != config.as_of={self.config.as_of}"
             )
 
-    def _load_initial_card(self, subject: dict) -> dict:
-        """Load the initial StrategyCard for Round 0."""
-        import json
-        from pathlib import Path
+    def _resolve_initial_card(self, subject: dict) -> dict:
+        """Resolve the initial StrategyCard for Round 0.
 
-        card_dir = self.handoff.card_dir
-        card_name = self.config.initial_card or "leader_divergence"
-        card_path = card_dir / f"{card_name}.json"
+        Priority:
+          1. config.initial_card (explicit override)
+          2. subject.initial_card (from blind judgment output)
+          3. STAGE_TO_INITIAL_CARD[subject.market_stage] (autonomous selection)
+          4. Raise ConstraintViolation — no silent default
+        """
+        card_name = ""
 
+        if self.config.initial_card:
+            card_name = self.config.initial_card
+        elif subject.get("initial_card"):
+            card_name = subject["initial_card"]
+        elif subject.get("market_stage"):
+            market_stage = subject["market_stage"]
+            card_name = STAGE_TO_INITIAL_CARD.get(market_stage, "")
+            if not card_name:
+                raise ConstraintViolation(
+                    f"No initial card mapping for market_stage='{market_stage}'. "
+                    f"Known stages: {sorted(STAGE_TO_INITIAL_CARD.keys())}. "
+                    f"Set config.initial_card or subject.initial_card explicitly."
+                )
+
+        if not card_name:
+            raise ConstraintViolation(
+                "No initial card could be resolved. Provide config.initial_card, "
+                "subject.initial_card, or subject.market_stage."
+            )
+
+        card_path = self.handoff.card_dir / f"{card_name}.json"
         if not card_path.exists():
             raise ConstraintViolation(f"Initial card not found: {card_path}")
 
@@ -364,7 +524,7 @@ class CognitiveLoopOrchestrator:
 
     @staticmethod
     def _all_hypotheses_resolved(evaluations: dict[str, HypothesisEvaluation]) -> bool:
-        """True when all hypotheses are either decisive-CONTRADICTED or definitive."""
+        """True when all hypotheses are either decisive-CONTRADICTED or SUPPORTED."""
         if not evaluations:
             return False
         for ev in evaluations.values():
@@ -383,7 +543,6 @@ class CognitiveLoopOrchestrator:
         last_round = result.rounds[-1]
         last_evals = last_round.hypothesis_evaluations
 
-        # Find supported or partial states
         supported = [k for k, v in last_evals.items() if v.status == "SUPPORTED"]
         partial = [k for k, v in last_evals.items() if v.status == "PARTIAL"]
         contradicted = [k for k, v in last_evals.items() if v.status == "CONTRADICTED"]
@@ -403,7 +562,8 @@ class CognitiveLoopOrchestrator:
             "state_type": state_type,
             "rounds_executed": len(result.rounds),
             "stop_reason": result.stop_reason,
-            "total_queries": result.total_queries,
+            "queries_executed": result.queries_executed,
+            "probes_blocked_by_budget": result.probes_blocked_by_budget,
             "supported": supported,
             "partial": partial,
             "contradicted": contradicted,
@@ -411,10 +571,21 @@ class CognitiveLoopOrchestrator:
         }
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _hash_dict(d: dict) -> str:
+    """Stable hash of a dict for immutability verification."""
+    raw = json.dumps(d, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
 __all__ = [
     "CognitiveLoopConfig",
     "CognitiveLoopResult",
     "CognitiveLoopOrchestrator",
+    "ForbiddenCapabilityManager",
     "RoundRecord",
     "ConstraintViolation",
+    "ReplayFixtureMissing",
+    "STAGE_TO_INITIAL_CARD",
 ]

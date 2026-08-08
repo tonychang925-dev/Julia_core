@@ -114,12 +114,23 @@ class ResearchWorkflowBridge:
                 "subject_name": data.get("subject_name", ""),
             }
 
-            # Build config — data overrides take precedence
+            # Build config — explicit None checks (P0-1: Python .get() uses
+            # default only when key is absent, not when value is None)
+            default_max_rounds = self.config.max_rounds if self.config else 2
+            default_query_budget = self.config.query_budget if self.config else 20
+
+            max_rounds = data.get("max_rounds")
+            if max_rounds is None:
+                max_rounds = default_max_rounds
+            query_budget = data.get("query_budget")
+            if query_budget is None:
+                query_budget = default_query_budget
+
             loop_config = CognitiveLoopConfig(
-                max_rounds=data.get("max_rounds", (self.config.max_rounds if self.config else 3)),
-                query_budget=data.get("query_budget", (self.config.query_budget if self.config else 20)),
+                max_rounds=max_rounds,
+                query_budget=query_budget,
                 as_of=subject["trade_date"],
-                initial_card=data.get("initial_card", ""),
+                initial_card=data.get("initial_card") or "",
             )
 
             orchestrator = CognitiveLoopOrchestrator(
@@ -221,6 +232,17 @@ class ResearchWorkflowBridge:
             return {
                 "concluded": True,
                 "post_research_conclusion": post_research,
+                "evidence_ledger": [
+                    {
+                        "probe_id": item.probe_id,
+                        "requirement_id": item.requirement_id,
+                        "status": item.status,
+                        "derived_value": str(item.derived_value)[:100] if item.derived_value is not None else None,
+                        "source_kind": (getattr(item, 'provenance', {}) or {}).get("source_kind", ""),
+                        "recorded_at": datetime.now(CST).isoformat(),
+                    }
+                    for item in result.evidence_ledger
+                ],
                 "evidence_ledger_size": len(result.evidence_ledger),
             }
 
@@ -244,16 +266,24 @@ class ResearchWorkflowBridge:
         Returns:
             WorkflowInstance with step_results containing CognitiveLoopResult
         """
-        return await self.runtime.execute("research.cognitive_loop", {
+        input_data: dict[str, Any] = {
             "subject_key": subject.get("subject_key", ""),
             "trade_date": subject.get("trade_date", ""),
             "leader_code": subject.get("leader_code", ""),
             "subject_name": subject.get("subject_name", ""),
-            "max_rounds": subject.get("max_rounds", None),
-            "query_budget": subject.get("query_budget", None),
             "initial_card": subject.get("initial_card", ""),
             "correlation_id": correlation_id,
-        })
+        }
+        # Only include optional keys when they have non-None values
+        # (P0-1: prevents None-in-dict masking .get() defaults)
+        if subject.get("max_rounds") is not None:
+            input_data["max_rounds"] = subject["max_rounds"]
+        if subject.get("query_budget") is not None:
+            input_data["query_budget"] = subject["query_budget"]
+        if subject.get("market_stage") is not None:
+            input_data["market_stage"] = subject["market_stage"]
+
+        return await self.runtime.execute("research.cognitive_loop", input_data)
 
 
 __all__ = [
