@@ -51,6 +51,7 @@ class StrategyResearchCompiler:
             plan.candidate_hypotheses.append({
                 "state": f"{card['strategy_id']}.{state['state']}",
                 "canonical_state": state["state"],
+                "predicates": state.get("predicates", []),
                 "evidence_pattern": state.get("evidence_pattern", {}),
                 "strategy_guidance": {
                     "stance": state.get("action", "observe"),
