@@ -29,11 +29,20 @@ class ResearchEvidenceNormalizer:
         item = EvidenceItem(
             requirement_id=probe.requirement_id,
             probe_id=probe.probe_id,
-            # P0-1: use probe.request.request_id (not capability_name)
             capability_request_id=probe.request.request_id if probe.request else "",
             derived_metric=probe.derive_metric,
             missing_policy=probe.missing_policy,
         )
+
+        # Set requested_as_of from probe arguments (request-side provenance)
+        # Applies to all return paths: success, unavailable, error, insufficient.
+        if probe.request:
+            req_args = getattr(probe.request, "arguments", {}) or {}
+            req_as_of = req_args.get("as_of", "")
+            if req_as_of:
+                if not item.provenance:
+                    item.provenance = {}
+                item.provenance["requested_as_of"] = str(req_as_of)
 
         # Step 1: Outer status
         if hasattr(capability_result, 'status'):

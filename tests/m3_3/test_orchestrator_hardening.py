@@ -280,6 +280,7 @@ def test_bridge_none_defaults_dont_break_config():
         instance = await bridge.runtime.execute("research.cognitive_loop", {
             "subject_key": "9010270",
             "trade_date": "2026-07-14",
+            "as_of": "2026-07-14T15:30:00+08:00",
             "max_rounds": None,     # P0-1: key exists, value is None
             "query_budget": None,   # P0-1: key exists, value is None
         })
@@ -413,6 +414,7 @@ def test_bridge_e2e_with_market_stage():
         instance = await bridge.execute_research({
             "subject_key": "9010270",
             "trade_date": "2026-07-14",
+            "as_of": "2026-07-14T15:30:00+08:00",
             "market_stage": "fading_momentum",
         })
         # Should fail on replay fixture missing (no injector), not on
@@ -440,6 +442,8 @@ def test_bridge_no_stale_total_queries():
         instance = await bridge.execute_research({
             "subject_key": "9010270",
             "trade_date": "2026-07-14",
+            "as_of": "2026-07-14T15:30:00+08:00",
+            "as_of": "2026-07-14T15:30:00+08:00",
             "market_stage": "fading_momentum",
         })
         # Should fail on replay fixture missing, not on AttributeError
@@ -467,6 +471,7 @@ def test_bridge_e2e_with_blind_judgment():
         instance = await bridge.execute_research({
             "subject_key": "9010270",
             "trade_date": "2026-07-14",
+            "as_of": "2026-07-14T15:30:00+08:00",
             "blind_judgment": {"market_stage": "fading_momentum", "subject_key": "9010270"},
         })
         step_results = instance.step_results
@@ -516,5 +521,85 @@ def test_cross_timezone_future_evidence_rejected():
 
         with pytest.raises(ConstraintViolation, match="Future evidence"):
             await orchestrator.run(_make_subject())
+
+    asyncio.run(_run())
+
+
+# ── P0: as_of must be full timestamp ──────────────────────────────────────
+
+def test_omit_as_of_in_bridge_fails():
+    """Bridge with no as_of → fails (not midnight default).
+
+    P0 regression: trade_date substituted for as_of, defaulting to
+    midnight +08:00 which rejects same-day evidence at e.g. 10:00+08.
+    """
+    from julia_core.workflow.research_workflow import ResearchWorkflowBridge
+    from julia_core.workflow.models import WorkflowState
+
+    bridge = ResearchWorkflowBridge(
+        capability_manager=ForbiddenCapabilityManager(),
+    )
+
+    async def _run():
+        instance = await bridge.execute_research({
+            "subject_key": "9010270",
+            "trade_date": "2026-07-14",
+            "market_stage": "fading_momentum",
+            # Deliberately omit as_of
+        })
+        # Should fail on as_of requirement, not proceed to execute
+        assert instance.state == WorkflowState.FAILED
+
+    asyncio.run(_run())
+
+
+# ── P1: True WorkflowBridge E2E → COMPLETED ───────────────────────────────
+
+class _FakeSuccessCapability:
+    """Fake CapabilityManager that succeeds for every request."""
+
+    async def execute(self, request):
+        from types import SimpleNamespace
+        return SimpleNamespace(
+            status="success",
+            data={
+                "status": "live",
+                "source_kind": "test_fixture",
+            },
+            provider="fake",
+            schema_version="test",
+            request_id=getattr(request, "request_id", ""),
+        )
+
+
+def test_bridge_e2e_completed_with_fake_capability():
+    """Bridge with fake CapabilityManager → initialize→execute→conclude→COMPLETED.
+
+    True E2E: all 3 steps execute, workflow terminates normally.
+    """
+    from julia_core.workflow.research_workflow import ResearchWorkflowBridge
+    from julia_core.workflow.models import WorkflowState
+
+    bridge = ResearchWorkflowBridge(
+        capability_manager=_FakeSuccessCapability(),
+    )
+
+    async def _run():
+        instance = await bridge.execute_research({
+            "subject_key": "9010270",
+            "trade_date": "2026-07-14",
+            "as_of": "2026-07-14T15:30:00+08:00",
+            "market_stage": "fading_momentum",
+        })
+        assert instance.state == WorkflowState.COMPLETED, (
+            f"Expected COMPLETED, got {instance.state}. "
+            f"Error: {instance.step_results.get('_error', 'none')}"
+        )
+        assert "research.initialize" in instance.step_results
+        assert "research.execute_loop" in instance.step_results
+        assert "research.conclude" in instance.step_results
+        loop_result = instance.step_results["research.execute_loop"]
+        assert loop_result.get("loop_completed") is True
+        assert loop_result.get("total_rounds", 0) >= 1
 
     asyncio.run(_run())

@@ -138,10 +138,22 @@ class ResearchWorkflowBridge:
             if query_budget is None:
                 query_budget = default_query_budget
 
+            # P0: as_of MUST be a full timezone-aware timestamp.
+            # trade_date is the market session identity, NOT the knowledge cutoff.
+            # Date-only strings silently become midnight +08:00 and will
+            # incorrectly reject same-day evidence at 10:00+08.
+            as_of = data.get("as_of") or ""
+            if not as_of or "T" not in str(as_of):
+                raise ConstraintViolation(
+                    "research.as_of must be a full ISO-8601 timezone-aware "
+                    "timestamp (e.g. 2026-07-14T15:30:00+08:00). "
+                    "trade_date is not a substitute for as_of."
+                )
+
             loop_config = CognitiveLoopConfig(
                 max_rounds=max_rounds,
                 query_budget=query_budget,
-                as_of=data.get("as_of") or subject["trade_date"],
+                as_of=as_of,
                 initial_card=data.get("initial_card") or "",
             )
 
