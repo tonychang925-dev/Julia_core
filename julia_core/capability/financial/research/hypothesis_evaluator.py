@@ -43,10 +43,13 @@ class HypothesisEvaluator:
     def evaluate(self, state_entry: dict, evidence: dict[str, Any]) -> HypothesisEvaluation:
         state_name = state_entry["state"]
         predicates = state_entry.get("predicates", [])
-        evidence_pattern = state_entry.get("evidence_pattern", {})
 
-        if not predicates and evidence_pattern:
-            predicates = self._infer_predicates(evidence_pattern, state_name)
+        if not predicates:
+            return HypothesisEvaluation(
+                state=state_name,
+                status="CARD_NOT_EXECUTABLE",
+                missing=["no typed L3 predicates in StrategyCard"],
+            )
 
         ev = HypothesisEvaluation(state=state_name, status=EvalStatus.SUPPORTED)
 
@@ -88,7 +91,7 @@ class HypothesisEvaluator:
 
         n_s, n_c, n_m = len(ev.supported_by), len(ev.contradicted_by), len(ev.missing)
         has_decisive = any(
-            p.get("role") == "decisive" and not _eval_pred(p, evidence)
+            p.get("role") == "decisive" and _eval_pred(p, evidence) is False
             for p in predicates
         )
 
@@ -114,17 +117,6 @@ class HypothesisEvaluator:
 
         return ev
 
-    def _infer_predicates(self, pattern, state_name):
-        preds = []
-        for key, rule in pattern.items():
-            if not isinstance(rule, str):
-                continue
-            req_id = _map_key(key)
-            op, val = _parse(rule)
-            preds.append({"requirement_id": req_id, "operator": op, "value": val, "role": "core"})
-        return preds
-
-
 # ── Helpers ──
 
 def _resolve(data, path):
@@ -148,42 +140,22 @@ def _cmp(op, v, e):
         return False
     return False
 
-def _eval_pred(pred, evidence):
+def _eval_pred(pred, evidence) -> bool | None:
+    """Evaluate one predicate. Returns: True(satisfied), False(contradicted), None(unknown/missing)."""
     item = evidence.get(pred["requirement_id"])
-    if not item or item.status not in ("success", "live"):
-        return False
+    if not item:
+        return None
+    if item.status in ("unavailable", "error", "insufficient_evidence"):
+        return None
     actual = item.derived_value
     path = pred.get("path")
     if path and isinstance(actual, dict):
         actual = _resolve(actual, path)
+        if actual is None:
+            return None
     if pred.get("is_list_count") and isinstance(actual, list):
         actual = len(actual)
     return _cmp(pred.get("operator", "eq"), actual, pred.get("value"))
-
-def _map_key(key):
-    return {
-        "leader_drawdown": "leader_drawdown_from_peak",
-        "drawdown": "leader_drawdown_from_peak",
-        "key": "key_level_status", "key_level": "key_level_status",
-        "volume": "leader_volume_pattern",
-        "peer": "peer_relative_strength",
-        "breadth": "theme_breadth_change",
-        "capital": "capital_persistence",
-    }.get(key, key)
-
-def _parse(rule):
-    rule = rule.strip()
-    for op in (">=", "<=", ">", "<", "!="):
-        if op in rule:
-            val = rule.split(op)[1].strip().rstrip("%")
-            return (op, float(val) / 100 if "%" in rule else float(val))
-    if rule.lower() in ("intact", "intact_limit_up"):
-        return ("in", ["intact", "intact_limit_up"])
-    if rule.lower() in ("contracting", "contracting_not_selling"):
-        return ("in", ["contracting", "normal"])
-    if rule.lower() in ("expanding", "stable_or_expanding"):
-        return ("eq", "expanding_or_repairing")
-    return ("eq", rule)
 
 def _fmt(v):
     if isinstance(v, float): return f"{v:.3f}"
