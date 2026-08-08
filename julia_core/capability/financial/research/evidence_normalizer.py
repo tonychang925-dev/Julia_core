@@ -87,6 +87,11 @@ class ResearchEvidenceNormalizer:
                 item.provenance = {}
             item.provenance["source_kind"] = inner.get("source_kind", "")
             item.provenance["data_note"] = inner.get("data_note", "")
+            # Propagate temporal provenance for anti-hindsight as_of gate
+            for ts_field in ("available_at", "observed_at", "effective_at"):
+                val = inner.get(ts_field, "")
+                if val:
+                    item.provenance[ts_field] = str(val)
             return item
 
         item.status = "insufficient_evidence"

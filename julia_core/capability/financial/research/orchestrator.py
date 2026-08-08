@@ -411,14 +411,19 @@ class CognitiveLoopOrchestrator:
 
         Called for every probe — both replay (injected) and live (normalized).
         Raises ConstraintViolation on any breach.
+
+        as_of comparison uses full ISO-8601 datetime strings (lexicographically
+        comparable). No [:10] date truncation — a 15:31 evidence with a 15:30
+        as_of is a violation.
         """
-        # 1. as_of gate: evidence must not be from the future
-        evidence_date = self._extract_evidence_date(item, probe)
-        if evidence_date and self.config.as_of:
-            if evidence_date > self.config.as_of:
+        # 1. as_of gate: evidence must not be from the future (full datetime)
+        evidence_ts = self._extract_evidence_timestamp(item, probe)
+        if evidence_ts and self.config.as_of:
+            # ISO-8601 strings are lexicographically ordered by time
+            if evidence_ts > self.config.as_of:
                 raise ConstraintViolation(
                     f"Future evidence detected: {probe.requirement_id} "
-                    f"has date {evidence_date} > as_of={self.config.as_of}"
+                    f"available_at={evidence_ts} > as_of={self.config.as_of}"
                 )
 
         # 2. Workbench/human provenance block
@@ -441,20 +446,30 @@ class CognitiveLoopOrchestrator:
                 )
 
     @staticmethod
-    def _extract_evidence_date(item: EvidenceItem, probe: ResearchProbe) -> str:
-        """Extract the date associated with an evidence item for as_of comparison."""
-        # Prefer provenance timestamp
+    def _extract_evidence_timestamp(item: EvidenceItem, probe: ResearchProbe) -> str:
+        """Extract the full ISO-8601 timestamp for as_of comparison.
+
+        Returns the full datetime string (not date-truncated). ISO-8601
+        strings are lexicographically ordered, so string comparison is valid.
+        """
         provenance = getattr(item, 'provenance', {}) or {}
+
+        # Best: provenance.available_at from the data source
         ts = provenance.get("available_at", "")
         if ts:
-            return str(ts)[:10]
+            return str(ts)
 
-        # Fall back to probe request arguments
+        # Next: provenance.observed_at from the normalizer
+        ts = provenance.get("observed_at", "")
+        if ts:
+            return str(ts)
+
+        # Last resort: probe's requested_as_of (date-only — weak signal)
         if probe.request:
             args = getattr(probe.request, 'arguments', {}) or {}
-            as_of = args.get("as_of", "")
-            if as_of:
-                return str(as_of)[:10]
+            req_as_of = args.get("as_of", "")
+            if req_as_of:
+                return str(req_as_of)
 
         return ""
 
@@ -471,10 +486,16 @@ class CognitiveLoopOrchestrator:
             if not subject.get(req):
                 raise ConstraintViolation(f"subject.{req} is required")
 
-        if self.config.as_of and subject["trade_date"] != self.config.as_of:
-            raise ConstraintViolation(
-                f"subject.trade_date={subject['trade_date']} != config.as_of={self.config.as_of}"
-            )
+        if self.config.as_of:
+            # config.as_of may be full ISO timestamp (e.g. "2026-07-14T15:30:00+08:00")
+            # subject.trade_date may be date-only (e.g. "2026-07-14")
+            # Accept match if trade_date is a prefix of as_of (same calendar date)
+            cfg_as_of = str(self.config.as_of)
+            subj_date = str(subject["trade_date"])
+            if not cfg_as_of.startswith(subj_date):
+                raise ConstraintViolation(
+                    f"subject.trade_date={subj_date} not within config.as_of={cfg_as_of}"
+                )
 
     def _resolve_initial_card(self, subject: dict) -> dict:
         """Resolve the initial StrategyCard for Round 0.

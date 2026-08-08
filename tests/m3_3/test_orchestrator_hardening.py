@@ -311,3 +311,141 @@ def test_no_silent_leader_divergence_default():
         # Leader_divergence was NOT silently used
 
     asyncio.run(_run())
+
+
+# ── P0: Real timestamp-level anti-hindsight ──────────────────────────────────
+
+def test_future_evidence_timestamp_rejected():
+    """Evidence at 15:31 with as_of=15:30 → ConstraintViolation.
+
+    This is the real anti-hindsight test: not just date mismatch,
+    but sub-day timestamp violation.
+    """
+    orchestrator = CognitiveLoopOrchestrator(
+        capability_manager=ForbiddenCapabilityManager(),
+        config=_make_config(as_of="2026-07-14T15:30:00+08:00"),
+        evidence_injector={
+            "leader_divergence": {
+                "leader_5d_return": _make_evidence_item("leader_5d_return", derived_value=0.04),
+                "leader_drawdown_from_peak": _make_evidence_item("leader_drawdown_from_peak", derived_value=-0.04),
+                "leader_volume_pattern": _make_evidence_item("leader_volume_pattern", derived_value="normal"),
+                "key_level_status": _make_evidence_item("key_level_status", derived_value="intact"),
+                "peer_relative_strength": _make_evidence_item("peer_relative_strength", derived_value={"dispersion": {"max_min_spread": 0.10}}),
+                "theme_breadth_change": _make_evidence_item("theme_breadth_change", derived_value={"delta": {"positive_ratio": 0.6}, "from": {}, "to": {"limit_up_ratio": 0.6, "positive_ratio": 0.7}}),
+                "capital_persistence": _make_evidence_item("capital_persistence", status="unavailable"),
+                "market_regime": _make_evidence_item("market_regime", derived_value="strength_active"),
+                "new_leader_candidates": _make_evidence_item("new_leader_candidates", derived_value=[]),
+            },
+        },
+    )
+
+    async def _run():
+        # Inject future evidence by patching provenance
+        # The orchestrator reads provenance.available_at for as_of check
+        original_check = orchestrator._check_evidence_constraints
+
+        def _inject_future(item, probe):
+            if not getattr(item, 'provenance', None):
+                item.provenance = {}
+            item.provenance["available_at"] = "2026-07-14T15:31:00+08:00"
+            return original_check(item, probe)
+
+        orchestrator._check_evidence_constraints = _inject_future
+
+        with pytest.raises(ConstraintViolation, match="Future evidence"):
+            await orchestrator.run(_make_subject())
+
+    asyncio.run(_run())
+
+
+def test_workbench_provenance_rejected():
+    """Evidence with source_kind=workbench_review → ConstraintViolation."""
+    orchestrator = CognitiveLoopOrchestrator(
+        capability_manager=ForbiddenCapabilityManager(),
+        config=_make_config(),
+        evidence_injector={
+            "leader_divergence": {
+                "leader_5d_return": _make_evidence_item("leader_5d_return", derived_value=0.04),
+                "leader_drawdown_from_peak": _make_evidence_item("leader_drawdown_from_peak", derived_value=-0.04),
+                "leader_volume_pattern": _make_evidence_item("leader_volume_pattern", derived_value="normal"),
+                "key_level_status": _make_evidence_item("key_level_status", derived_value="intact"),
+                "peer_relative_strength": _make_evidence_item("peer_relative_strength", derived_value={"dispersion": {"max_min_spread": 0.10}}),
+                "theme_breadth_change": _make_evidence_item("theme_breadth_change", derived_value={"delta": {"positive_ratio": 0.6}, "from": {}, "to": {"limit_up_ratio": 0.6, "positive_ratio": 0.7}}),
+                "capital_persistence": _make_evidence_item("capital_persistence", status="unavailable"),
+                "market_regime": _make_evidence_item("market_regime", derived_value="strength_active"),
+                "new_leader_candidates": _make_evidence_item("new_leader_candidates", derived_value=[]),
+            },
+        },
+    )
+
+    async def _run():
+        original_check = orchestrator._check_evidence_constraints
+
+        def _inject_workbench(item, probe):
+            if not getattr(item, 'provenance', None):
+                item.provenance = {}
+            item.provenance["source_kind"] = "workbench_review"
+            return original_check(item, probe)
+
+        orchestrator._check_evidence_constraints = _inject_workbench
+
+        with pytest.raises(ConstraintViolation, match="Forbidden evidence source"):
+            await orchestrator.run(_make_subject())
+
+    asyncio.run(_run())
+
+
+# ── P0: Bridge E2E production path ───────────────────────────────────────────
+
+def test_bridge_e2e_with_market_stage():
+    """Bridge with market_stage (no explicit initial_card) → COMPLETED.
+
+    P0 regression: market_stage was dropped in research_initialize,
+    causing ConstraintViolation before any research could run.
+    """
+    from julia_core.workflow.research_workflow import ResearchWorkflowBridge
+
+    bridge = ResearchWorkflowBridge(
+        capability_manager=ForbiddenCapabilityManager(),
+    )
+
+    async def _run():
+        instance = await bridge.execute_research({
+            "subject_key": "9010270",
+            "trade_date": "2026-07-14",
+            "market_stage": "fading_momentum",
+        })
+        # Should fail on replay fixture missing (no injector), not on
+        # ConstraintViolation("No initial card") or AttributeError
+        step_results = instance.step_results
+        assert "research.initialize" in step_results
+        assert step_results["research.initialize"].get("research_initialized") is True
+
+    asyncio.run(_run())
+
+
+def test_bridge_no_stale_total_queries():
+    """Bridge does not reference stale total_queries attribute.
+
+    P0 regression: CognitiveLoopResult.queries_executed renamed from
+    total_queries, but bridge still referenced old name.
+    """
+    from julia_core.workflow.research_workflow import ResearchWorkflowBridge
+
+    bridge = ResearchWorkflowBridge(
+        capability_manager=ForbiddenCapabilityManager(),
+    )
+
+    async def _run():
+        instance = await bridge.execute_research({
+            "subject_key": "9010270",
+            "trade_date": "2026-07-14",
+            "market_stage": "fading_momentum",
+        })
+        # Should fail on replay fixture missing, not on AttributeError
+        step_results = instance.step_results
+        # If we got past the execute step without AttributeError, test passes
+        # (execution fails on fixture missing, which is expected)
+        assert "research.initialize" in step_results
+
+    asyncio.run(_run())

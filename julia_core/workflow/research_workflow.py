@@ -112,6 +112,8 @@ class ResearchWorkflowBridge:
                 "trade_date": data.get("trade_date", ""),
                 "leader_code": data.get("leader_code", ""),
                 "subject_name": data.get("subject_name", ""),
+                "market_stage": data.get("market_stage", ""),
+                "initial_card": data.get("initial_card") or "",
             }
 
             # Build config — explicit None checks (P0-1: Python .get() uses
@@ -129,7 +131,7 @@ class ResearchWorkflowBridge:
             loop_config = CognitiveLoopConfig(
                 max_rounds=max_rounds,
                 query_budget=query_budget,
-                as_of=subject["trade_date"],
+                as_of=data.get("as_of") or subject["trade_date"],
                 initial_card=data.get("initial_card") or "",
             )
 
@@ -138,6 +140,11 @@ class ResearchWorkflowBridge:
                 card_dir=self.card_dir,
                 config=loop_config,
             )
+
+            # Set blind judgment for immutability enforcement (P1: production path)
+            blind = data.get("blind_judgment")
+            if blind and isinstance(blind, dict):
+                orchestrator.set_blind_judgment(blind)
 
             # Store orchestrator and subject for the next step
             data["_orchestrator"] = orchestrator
@@ -186,7 +193,8 @@ class ResearchWorkflowBridge:
                 "loop_completed": True,
                 "total_rounds": len(result.rounds),
                 "stop_reason": result.stop_reason,
-                "total_queries": result.total_queries,
+                "queries_executed": result.queries_executed,
+                "probes_blocked_by_budget": result.probes_blocked_by_budget,
                 "lineage": result.lineage,
                 "final_conclusion": result.final_conclusion,
                 "errors": result.errors,
@@ -208,7 +216,8 @@ class ResearchWorkflowBridge:
                 "state_type": conclusion.get("state_type", "inconclusive"),
                 "rounds_executed": conclusion.get("rounds_executed", 0),
                 "stop_reason": conclusion.get("stop_reason", ""),
-                "total_queries": conclusion.get("total_queries", 0),
+                "queries_executed": conclusion.get("queries_executed", 0),
+                "probes_blocked_by_budget": conclusion.get("probes_blocked_by_budget", 0),
                 "lineage": conclusion.get("lineage", []),
             }
 
