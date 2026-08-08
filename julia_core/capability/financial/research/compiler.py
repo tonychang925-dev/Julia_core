@@ -39,6 +39,9 @@ class StrategyResearchCompiler:
             if not subject.get(required):
                 raise ValueError(f"subject.{required} is required")
 
+        # Card contract: all predicate requirement_ids must be in required_data
+        self._validate_card(card)
+
         plan = ResearchPlan(
             subject_key=subject["subject_key"],
             subject_name=subject.get("subject_name", ""),
@@ -94,6 +97,20 @@ class StrategyResearchCompiler:
 
         plan.research_questions = card.get("research_questions", [])
         return plan
+
+    @staticmethod
+    def _validate_card(card: dict):
+        required = set(card.get("required_data", []))
+        if not required:
+            raise ValueError(f"Card '{card.get('strategy_id')}' has no required_data")
+        for state in card.get("possible_states", []):
+            for pred in state.get("predicates", []):
+                req_id = pred.get("requirement_id", "")
+                if req_id not in required:
+                    raise ValueError(
+                        f"Card '{card['strategy_id']}' state '{state['state']}': "
+                        f"predicate '{req_id}' not in required_data"
+                    )
 
     def _resolve_args(self, binding: RequirementBinding, subject: dict) -> dict:
         args = {}
