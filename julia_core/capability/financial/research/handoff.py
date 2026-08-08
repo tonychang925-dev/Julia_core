@@ -7,6 +7,7 @@ Automatically sets lineage: parent_case_id + trigger_transition.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +21,21 @@ class RecursiveResearchHandoff:
     """Orchestrates: RC-001 evidence → Transition → Strategy → RC-002."""
 
     def __init__(self, card_dir: str = ""):
-        self.card_dir = Path(card_dir) if card_dir else Path("/Users/admin/Desktop/ai_theme_app/strategy_knowledge/cards")
+        if card_dir:
+            self.card_dir = Path(card_dir)
+        else:
+            # Resolve from env, then relative to ai_theme_app project root, then fallback
+            env_dir = os.environ.get("STRATEGY_CARD_DIR", "")
+            if env_dir:
+                self.card_dir = Path(env_dir)
+            else:
+                # Try relative to this file's location (julia_core repo root)
+                julia_root = Path(__file__).resolve().parents[5]
+                ai_theme_root = julia_root.parent / "ai_theme_app" / "strategy_knowledge" / "cards"
+                if ai_theme_root.exists():
+                    self.card_dir = ai_theme_root
+                else:
+                    self.card_dir = Path("/Users/admin/Desktop/ai_theme_app/strategy_knowledge/cards")
         self.detector = TransitionDetector()
         self.selector = StrategySelector()
         self.compiler = StrategyResearchCompiler()
