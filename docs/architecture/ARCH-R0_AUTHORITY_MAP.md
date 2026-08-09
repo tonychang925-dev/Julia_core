@@ -67,7 +67,7 @@ Runtime = top-level agent authority
               subsystem policies
 ```
 
-Seven peer subsystem authorities. Runtime orchestrates them.
+Runtime + six subsystem truth authorities. Runtime orchestrates them.
 No subsystem is subordinate to another. No chain of ownership.
 Runtime MUST NOT reimplement or override their policies.
 

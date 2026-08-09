@@ -53,17 +53,17 @@ Julia Core owns the agent. Models interpret. Providers supply facts. The runtime
 │  ┌─────────────────────────────────────────────────────────┐ │
 │  │  Layer 2: Cognitive Layer                               │ │
 │  │                                                         │ │
-│  │  Context OS          Memory OS        Persona Engine    │ │
-│  │  ─────────────       ──────────       ──────────────    │ │
-│  │  planner.py          governance/      compiler.py       │ │
-│  │  resolver.py         lifecycle/       policies.py       │ │
-│  │  compact/            retrieval/                         │ │
-│  │  budget/             persistence/                       │ │
-│  │  resurrection/       ranking/                           │ │
-│  │  provenance/         weighting/                         │ │
+│  │  Context OS    Memory OS    Persona    Continuity    Alignment │ │
+│  │  ─────────     ──────────   ────────   ──────────    ───────── │ │
+│  │  planner.py    governance/  compiler   checkpoint     contracts│ │
+│  │  resolver.py   lifecycle/   policies   recovery       registry │ │
+│  │  compact/      retrieval/             policy          adapter  │ │
+│  │  budget/       persistence/          memory_binding            │ │
+│  │  provenance/   ranking/                                        │ │
+│  │  resurrection/ weighting/                                      │ │
 │  │                                                         │ │
-│  │  Owns: what the agent knows, remembers, and how it     │ │
-│  │        thinks — independent of any single model         │ │
+│  │  Owns: what the agent knows, remembers, how it thinks,  │ │
+│  │    what survives, and how it adapts — model-independent │ │
 │  └─────────────────────────────────────────────────────────┘ │
 │                                                               │
 │  ┌─────────────────────────────────────────────────────────┐ │
@@ -75,13 +75,10 @@ Julia Core owns the agent. Models interpret. Providers supply facts. The runtime
 │  │  session.py               prosody.py                    │ │
 │  │  provider.py              (CognitiveEmotion,            │ │
 │  │                             SpeechProsodyPlanner)       │ │
-│  │  conversation_state/                                    │ │
-│  │  conversation_archive/    voice_validation/             │ │
-│  │  conversation_runtime/                                  │ │
 │  │  context_assembly/                                      │ │
 │  │                                                         │ │
 │  │  Owns: how the agent communicates — text, voice,       │ │
-│  │        emotion, prosody        │ │
+│  │        emotion, prosody                                 │ │
 │  └─────────────────────────────────────────────────────────┘ │
 │                                                               │
 │  ┌─────────────────────────────────────────────────────────┐ │
@@ -266,7 +263,7 @@ julia_core/  (public, Apache-2.0)
 | Repo | Contains | Must NOT Contain |
 |------|----------|-----------------|
 | julia_core | OS, Runtime, Protocols, Engines | Private identity, diary, financial data |
-| julia_ai_assistant | Julia persona, memory, voice profiles | Framework code |
+| julia_ai_assistant | Julia private identity data, memory records, voice profiles | Framework code; Core owns architecture authority |
 | julia_agent | Financial provider, analyst workbench | Framework code, Julia persona |
 
 ---
