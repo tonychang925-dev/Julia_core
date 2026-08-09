@@ -26,12 +26,14 @@ from typing import Optional
 
 
 class JuliaSession:
-    """One Julia. One Runtime. Any number of bodies (voice, web, app).
+    """Julia cognitive executor — stateless per-turn pipeline.
 
-    CORE-C1: self.history is now a per-turn hydrated working copy.
-    Conversation authority belongs to ConversationRuntime, not this class.
-    When conversation_id is provided, history is loaded from canonical store.
-    When conversation_id is absent, legacy singleton accumulation is used (backward compat).
+    CORE-C1.1: This class does NOT own conversation state.
+    ConversationRuntime is the sole conversation authority.
+    JuliaSession.process(text, history) is the cognitive_fn passed to process_turn().
+
+    self.history is a per-turn working copy, isolated per invocation.
+    self.turn_count is reset each turn from history length.
     """
 
     def __init__(self):
@@ -142,54 +144,23 @@ class JuliaSession:
 
     # ── Public API ────────────────────────────────────────────────────────
 
-    def chat_conversation(
-        self,
-        text: str,
-        *,
-        conversation_id: str,
-        turn_id: str = "",
-        modality: str = "text",
-    ) -> str:
-        """CORE-C1: Conversation-aware chat entry point.
+    def process(self, text: str, history: list[dict]) -> str:
+        """CORE-C1.1: Stateless cognitive executor for ConversationRuntime.
 
-        History is loaded from canonical ConversationRuntime for this conversation_id.
-        After the turn, user and assistant messages are persisted back.
+        Receives text + conversation history. Returns assistant reply.
+        Does NOT own conversation state, persist messages, or manage turns.
+        ConversationRuntime is the sole authority for all of that.
 
-        This is the authoritative entry point for Julia-native conversation turns.
+        This is the function passed as cognitive_fn to process_turn().
         """
-        from julia_core.runtime.conversation_runtime import get_conversation_runtime
-        crt = get_conversation_runtime()
+        # Per-turn isolation: reset all conversation-owned mutable state
+        self.history = list(history) if history else []
+        self.turn_count = len(history) // 2  # Approximate turn count from history
+        self._active_conversation_id = None
+        self.current_topic = "greeting"
+        self.answered_questions = []  # Critical: prevent cross-conversation leakage
 
-        # Ensure conversation exists in canonical store
-        crt.get_or_create(conversation_id)
-
-        # Load canonical history for this conversation
-        history = crt.get_history(conversation_id)
-        self.history = list(history)  # Working copy for this turn
-        self._active_conversation_id = conversation_id
-
-        # Execute cognitive pipeline with this conversation's history
-        reply = self._chat_impl(text)
-
-        # Persist both user and assistant to canonical store
-        crt._service.repo.add_message(
-            conversation_id,
-            role="user",
-            content=text,
-            turn_id=turn_id,
-            modality=modality,
-            status="completed",
-        )
-        crt._service.repo.add_message(
-            conversation_id,
-            role="assistant",
-            content=reply,
-            turn_id=turn_id,
-            modality=modality,
-            status="completed",
-        )
-
-        return reply
+        return self._chat_impl(text)
 
     async def chat_async(self, text: str) -> str:
         """Async-native chat entry point. Use this from Gateway/async contexts."""
@@ -198,7 +169,8 @@ class JuliaSession:
     def chat(self, text: str) -> str:
         """Sync chat entry point — legacy singleton accumulation.
 
-        Maintained for backward compat. New code should use chat_conversation().
+        Maintained for backward compat. New code should use
+        ConversationRuntime.process_turn() with JuliaSession.process().
         """
         return self._chat_impl(text)
 

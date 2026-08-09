@@ -1,29 +1,24 @@
 """ConversationRuntime — authoritative logical conversation owner.
 
-CORE-C1: This is the single source of truth for conversation state, history,
-and turn ordering. Clients carry conversation_id; Runtime owns everything else.
+CORE-C1.1: process_turn() is the ONLY Julia-native turn path.
+No bypass via _service.repo, chat_conversation(), or external cognition.
 
-Design:
-  ConversationRuntime wraps conversation_state (canonical persistence).
-  JuliaSession is the cognitive executor — no longer owns self.history.
-  SessionStore legacy data is read-compatible via migration.
-
-Contract (CORE-C1.0):
-  - Clients submit: conversation_id + turn_id + modality + input
-  - Clients do NOT submit: history, context window, prompt, assembled context
-  - conv-A isolation from conv-B
-  - Restart recovery
-  - Turn idempotency
+Hardening:
+  - Thread-safe single-flight (per-conversation Lock)
+  - Persistence-based turn idempotency (check canonical store)
+  - Failed turn handling (user message pending until completion)
+  - No public access to internal repository
 """
 
 from __future__ import annotations
 
 import json as _json
 import logging
+import threading
 import time as _time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 from julia_core.conversation_state.models import ConversationMessage, ConversationSession
 from julia_core.conversation_state.repository import SessionRepository
@@ -41,7 +36,7 @@ class TurnResult:
     user_message_id: str = ""
     assistant_message_id: str = ""
     assistant_content: str = ""
-    status: str = ""  # completed | interrupted | failed
+    status: str = ""  # completed | failed
     created_at: str = ""
     completed_at: str = ""
 
@@ -51,7 +46,7 @@ class TurnResult:
 @dataclass
 class ConversationHandle:
     conversation_id: str = ""
-    state: str = ""  # draft | active | consolidated | archived
+    state: str = ""
     created_at: str = ""
     updated_at: str = ""
     last_turn_id: str = ""
@@ -63,47 +58,40 @@ class ConversationHandle:
 class ConversationRuntime:
     """Authoritative conversation owner. Single instance per process.
 
+    process_turn() is the ONLY Julia-native turn path. All cognitive execution,
+    persistence, concurrency control, and idempotency flow through it.
+
     Usage:
         rt = ConversationRuntime()
-        handle = rt.get_or_create("conv-A")
 
         result = rt.process_turn(
             conversation_id="conv-A",
             turn_id="turn-001",
             modality="text",
             input="我们之前聊到哪里了？",
-            cognitive_fn=julia_session.process,
+            cognitive_fn=cognitive_pipeline,  # (text, history) -> reply
         )
     """
 
     def __init__(self, storage_path: str | Path = "data/conversations.json"):
         self._service = ConversationService(filepath=str(storage_path))
-        self._active_turns: dict[str, str] = {}  # conv_id → turn_id (single-flight)
-        self._turn_cache: dict[str, TurnResult] = {}  # turn_id → result (idempotency)
+        self._locks: dict[str, threading.Lock] = {}
+        self._locks_lock = threading.Lock()  # Guards _locks dict itself
 
     # ── Public API ───────────────────────────────────────────────────────
 
     def get_or_create(self, conversation_id: str) -> ConversationHandle:
-        """Get existing conversation or create new one. Idempotent."""
-        session = self._service.repo.get(conversation_id)
+        session = self._repo.get(conversation_id)
         if session is None:
             session = self._create_conversation(conversation_id)
         return self._to_handle(session)
 
     def get_history(
-        self,
-        conversation_id: str,
-        max_messages: int = 40,
+        self, conversation_id: str, max_messages: int = 40
     ) -> list[dict[str, str]]:
-        """Return recent conversation history as role/content dicts for LLM context.
-
-        These are plain dicts (not ConversationMessage) because the LLM provider
-        expects {"role": "...", "content": "..."} format.
-        """
-        session = self._service.repo.get(conversation_id)
+        session = self._repo.get(conversation_id)
         if session is None:
             return []
-
         messages = session.messages[-max_messages:]
         return [
             {"role": m.role, "content": m.content}
@@ -120,137 +108,47 @@ class ConversationRuntime:
         input: str,
         cognitive_fn: Callable[[str, list[dict]], str],
     ) -> TurnResult:
-        """Execute one cognitive turn with full state management.
+        """Execute one cognitive turn. THE ONLY Julia-native turn path.
 
         Pipeline:
-          1. Single-flight guard (one turn per conversation at a time)
-          2. Idempotency check (same turn_id → cached result)
-          3. Load conversation state
-          4. Get conversation history
-          5. Persist user message
-          6. Call cognitive_fn(input, history) → assistant reply
-          7. Persist assistant message
-          8. Return TurnResult
-
-        Args:
-            conversation_id: Which conversation this turn belongs to.
-            turn_id: Unique turn identifier for idempotency.
-            modality: "text" or "voice".
-            input: The user's current message text.
-            cognitive_fn: Callable(input_text, history) → assistant_response.
-                          This is JuliaSession's cognitive pipeline.
-
-        Returns:
-            TurnResult with conversation_id, turn_id, message IDs, content, status.
+          1. Acquire per-conversation lock (thread-safe single-flight)
+          2. Persistence-based idempotency check
+          3. Load conversation + history
+          4. Persist user message (status=pending)
+          5. Execute cognitive_fn(input, history)
+          6. On success: update user→completed, persist assistant→completed
+          7. On failure: mark user→failed, mark assistant→failed
+          8. Release lock
         """
-        now = _time.strftime("%Y-%m-%dT%H:%M:%S")
-
-        # 1. Single-flight: one active turn per conversation
-        active_turn = self._active_turns.get(conversation_id)
-        if active_turn and active_turn != turn_id:
-            raise ConversationBusyError(conversation_id, active_turn)
-
-        # 2. Idempotency: same turn_id → cached
-        if turn_id and turn_id in self._turn_cache:
-            cached = self._turn_cache[turn_id]
-            if cached.status == "completed":
-                return cached
-
-        self._active_turns[conversation_id] = turn_id
-
-        try:
-            # 3. Load/ensure conversation
-            session = self._service.repo.get(conversation_id)
-            if session is None:
-                session = self._create_conversation(conversation_id)
-
-            # 4. Get history for LLM context
-            history = self.get_history(conversation_id)
-
-            # 5. Persist user message
-            user_msg = self._service.repo.add_message(
-                conversation_id,
-                role="user",
-                content=input,
-                turn_id=turn_id,
-                modality=modality,
-                status="completed",
+        lock = self._get_lock(conversation_id)
+        with lock:
+            return self._process_turn_locked(
+                conversation_id, turn_id, modality, input, cognitive_fn
             )
-            user_msg_id = user_msg.messages[-1].message_id if user_msg else ""
-
-            # 6. Cognitive execution
-            try:
-                assistant_content = cognitive_fn(input, history)
-                assistant_status = "completed"
-            except Exception as exc:
-                logger.error(f"Cognitive pipeline failed for {conversation_id}/{turn_id}: {exc}")
-                assistant_content = f"[系统提示] 处理你的消息时出现了问题。请再试一次。"
-                assistant_status = "failed"
-
-            # 7. Persist assistant message
-            assistant_msg = self._service.repo.add_message(
-                conversation_id,
-                role="assistant",
-                content=assistant_content,
-                turn_id=turn_id,
-                modality=modality,
-                status=assistant_status,
-            )
-            assistant_msg_id = assistant_msg.messages[-1].message_id if assistant_msg else ""
-
-            result = TurnResult(
-                conversation_id=conversation_id,
-                turn_id=turn_id,
-                user_message_id=user_msg_id,
-                assistant_message_id=assistant_msg_id,
-                assistant_content=assistant_content,
-                status=assistant_status,
-                created_at=now,
-                completed_at=_time.strftime("%Y-%m-%dT%H:%M:%S"),
-            )
-
-            # Cache for idempotency
-            if turn_id:
-                self._turn_cache[turn_id] = result
-
-            return result
-
-        finally:
-            self._active_turns.pop(conversation_id, None)
 
     def restore(self, conversation_id: str) -> ConversationHandle | None:
-        """Restore conversation state after restart. Returns None if not found."""
-        session = self._service.repo.get(conversation_id)
+        session = self._repo.get(conversation_id)
         if session is None:
             return None
         return self._to_handle(session)
 
     def close(self, conversation_id: str) -> None:
-        """Close conversation (no more turns). State is preserved for restore."""
-        # Conversation is always persisted; close just means no active processing
-        self._active_turns.pop(conversation_id, None)
+        pass  # State preserved in persistence
 
     def list_conversations(self) -> list[ConversationHandle]:
-        """List all conversations, newest first."""
-        sessions = self._service.repo.list_all()
-        return [self._to_handle(s) for s in sessions]
+        return [self._to_handle(s) for s in self._repo.list_all()]
 
     def delete_conversation(self, conversation_id: str) -> bool:
-        """Delete a conversation and its history."""
-        return self._service.repo.delete(conversation_id)
+        return self._repo.delete(conversation_id)
 
     # ── Legacy Migration ──────────────────────────────────────────────────
 
-    def migrate_legacy_sessions(self, legacy_path: str | Path = "/Users/admin/.julia/sessions.json") -> int:
-        """Read legacy SessionStore JSON and migrate into conversation_state.
-
-        Read-compatible. Preserves IDs, ordering, roles. Non-destructive.
-        Returns count of migrated conversations.
-        """
+    def migrate_legacy_sessions(
+        self, legacy_path: str | Path = "/Users/admin/.julia/sessions.json"
+    ) -> int:
         legacy = Path(legacy_path)
         if not legacy.exists():
             return 0
-
         try:
             data = _json.loads(legacy.read_text())
             sessions = data.get("sessions", {})
@@ -259,44 +157,150 @@ class ConversationRuntime:
 
         migrated = 0
         for sid, meta in sessions.items():
-            if self._service.repo.get(sid) is not None:
-                continue  # Already exists
-
-            session = self._create_conversation(sid)
-
-            msgs = meta.get("messages", [])
-            for m in msgs:
+            if self._repo.get(sid) is not None:
+                continue
+            self._create_conversation(sid)
+            for m in meta.get("messages", []):
                 role = m.get("role", "")
                 content = m.get("content", "")
                 if role in ("user", "assistant") and content.strip():
-                    self._service.repo.add_message(
-                        sid,
-                        role=role,
-                        content=content,
-                        modality="text",  # Legacy: all text
-                        status="completed",
-                    )
-
+                    self._add_message(sid, role=role, content=content, modality="text", status="completed")
             if meta.get("title"):
-                self._service.repo.update_title(sid, str(meta["title"]))
-
+                self._repo.update_title(sid, str(meta["title"]))
             migrated += 1
 
         if migrated > 0:
             logger.info(f"Migrated {migrated} legacy sessions from {legacy}")
-
         return migrated
 
     # ── Internal ──────────────────────────────────────────────────────────
 
-    def _create_conversation(self, conversation_id: str) -> ConversationSession:
-        """Create a conversation with a specific ID."""
-        session = ConversationSession(
-            id=conversation_id,
-            title="New Conversation",
+    @property
+    def _repo(self) -> SessionRepository:
+        return self._service.repo
+
+    def _get_lock(self, conversation_id: str) -> threading.Lock:
+        with self._locks_lock:
+            if conversation_id not in self._locks:
+                self._locks[conversation_id] = threading.Lock()
+            return self._locks[conversation_id]
+
+    def _process_turn_locked(
+        self,
+        conversation_id: str,
+        turn_id: str,
+        modality: str,
+        input: str,
+        cognitive_fn: Callable[[str, list[dict]], str],
+    ) -> TurnResult:
+        now = _time.strftime("%Y-%m-%dT%H:%M:%S")
+
+        # 1. Idempotency: check canonical store for existing completed turn
+        if turn_id:
+            existing = self._find_turn_in_store(conversation_id, turn_id)
+            if existing and existing.status == "completed":
+                return existing
+
+        # 2. Load/ensure conversation
+        session = self._repo.get(conversation_id)
+        if session is None:
+            session = self._create_conversation(conversation_id)
+
+        # 3. Get history (excludes pending/failed messages)
+        history = self.get_history(conversation_id)
+
+        # 4. Persist user message as PENDING
+        user_msg = self._add_message(
+            conversation_id, role="user", content=input,
+            turn_id=turn_id, modality=modality, status="pending",
         )
-        self._service.repo._sessions[conversation_id] = session
-        self._service.repo._save()
+        user_msg_id = user_msg.messages[-1].message_id if user_msg else ""
+
+        # 5. Cognitive execution
+        try:
+            assistant_content = cognitive_fn(input, history)
+            assistant_status = "completed"
+            user_final_status = "completed"
+        except Exception as exc:
+            logger.error(f"Cognitive pipeline failed for {conversation_id}/{turn_id}: {exc}")
+            assistant_content = ""
+            assistant_status = "failed"
+            user_final_status = "failed"
+
+        # 6. Update user message to final status
+        self._update_message_status(user_msg_id, user_final_status)
+
+        # 7. Persist assistant message
+        assistant_msg = self._add_message(
+            conversation_id, role="assistant", content=assistant_content,
+            turn_id=turn_id, modality=modality, status=assistant_status,
+        )
+        assistant_msg_id = assistant_msg.messages[-1].message_id if assistant_msg else ""
+
+        result = TurnResult(
+            conversation_id=conversation_id,
+            turn_id=turn_id,
+            user_message_id=user_msg_id,
+            assistant_message_id=assistant_msg_id,
+            assistant_content=assistant_content,
+            status=assistant_status,
+            created_at=now,
+            completed_at=_time.strftime("%Y-%m-%dT%H:%M:%S"),
+        )
+
+        return result
+
+    def _find_turn_in_store(self, conversation_id: str, turn_id: str) -> TurnResult | None:
+        """Check canonical store for an existing turn with this turn_id."""
+        session = self._repo.get(conversation_id)
+        if session is None:
+            return None
+        # Find user+assistant pair for this turn_id
+        user_msg = None
+        assistant_msg = None
+        for m in session.messages:
+            if m.turn_id == turn_id:
+                if m.role == "user":
+                    user_msg = m
+                elif m.role == "assistant":
+                    assistant_msg = m
+        if user_msg and assistant_msg and assistant_msg.status == "completed":
+            return TurnResult(
+                conversation_id=conversation_id,
+                turn_id=turn_id,
+                user_message_id=user_msg.message_id,
+                assistant_message_id=assistant_msg.message_id,
+                assistant_content=assistant_msg.content,
+                status="completed",
+                created_at=user_msg.created_at,
+                completed_at=assistant_msg.created_at,
+            )
+        return None
+
+    def _add_message(
+        self, conversation_id: str, *, role: str, content: str,
+        turn_id: str = "", modality: str = "text", status: str = "completed",
+    ) -> ConversationSession | None:
+        return self._repo.add_message(
+            conversation_id, role=role, content=content,
+            turn_id=turn_id, modality=modality, status=status,
+        )
+
+    def _update_message_status(self, message_id: str, status: str) -> None:
+        """Update a persisted message's status. Best-effort."""
+        if not message_id:
+            return
+        for session in self._repo._sessions.values():
+            for m in session.messages:
+                if m.message_id == message_id:
+                    m.status = status
+                    self._repo._save()
+                    return
+
+    def _create_conversation(self, conversation_id: str) -> ConversationSession:
+        session = ConversationSession(id=conversation_id, title="New Conversation")
+        self._repo._sessions[conversation_id] = session
+        self._repo._save()
         return session
 
     def _to_handle(self, session: ConversationSession) -> ConversationHandle:
@@ -313,13 +317,9 @@ class ConversationRuntime:
 # ── Error ─────────────────────────────────────────────────────────────────────
 
 class ConversationBusyError(Exception):
-    """Raised when a second turn is submitted while one is still active."""
-    def __init__(self, conversation_id: str, active_turn_id: str):
+    def __init__(self, conversation_id: str):
         self.conversation_id = conversation_id
-        self.active_turn_id = active_turn_id
-        super().__init__(
-            f"Conversation {conversation_id} is busy with turn {active_turn_id}"
-        )
+        super().__init__(f"Conversation {conversation_id} is busy with another turn")
 
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
