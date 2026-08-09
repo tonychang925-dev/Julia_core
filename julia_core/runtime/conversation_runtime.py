@@ -111,13 +111,77 @@ class ConversationRuntime:
         return self._to_handle(session)
 
     def get_interaction_state(self, conversation_id: str) -> "ConversationInteractionState":
-        """Get or create per-conversation interaction state.
+        """Get or rebuild per-conversation interaction state.
 
-        Persists across turns within a conversation. Isolated from other convs.
+        CORE-C1B-R1: If cache is empty, rebuild from canonical message history.
+        Messages are the durable authority; interaction state is derived cache.
         """
         if conversation_id not in self._interaction_states:
-            self._interaction_states[conversation_id] = self._CIS()
+            state = self._CIS()
+            session = self._repo.get(conversation_id)
+            if session:
+                for m in session.messages:
+                    if m.role == "user" and m.status == "completed":
+                        state.update(m.content)
+            self._interaction_states[conversation_id] = state
         return self._interaction_states[conversation_id]
+
+    def append_external_turns(
+        self, conversation_id: str, turns: list[dict], *,
+        source: str = "voice-s2s", source_session_id: str = "",
+        base_last_message_id: str = "",
+    ) -> dict:
+        """CORE-C1B-R1: Atomically append external (voice) turns.
+
+        Does NOT call LLM, STT, TTS, or cognitive pipeline.
+        Only validates, appends atomically, updates interaction cache.
+
+        Returns: {conversation_id, appended_turn_ids, skipped_turn_ids,
+                  message_count, last_message_id}
+        Raises: ValueError if conversation not found.
+                TurnConflictError if same turn_id with different content.
+        """
+        # Guard: conversation must exist
+        session = self._repo.get(conversation_id)
+        if session is None:
+            raise ValueError(f"Conversation not found: {conversation_id}")
+
+        # Optional ordering guard
+        if base_last_message_id and session.messages:
+            current_last = session.messages[-1].message_id
+            if current_last != base_last_message_id:
+                logger.warning(
+                    f"base_last_message_id mismatch for {conversation_id}: "
+                    f"expected {base_last_message_id}, actual {current_last}"
+                )
+
+        lock = self._get_lock(conversation_id)
+        with lock:
+            from julia_core.conversation_state.repository import TurnConflictError
+            try:
+                appended, skipped, last_msg_id = self._repo.append_external_turns_atomic(
+                    conversation_id, turns,
+                )
+            except TurnConflictError:
+                raise
+
+            # Update interaction cache from newly appended user messages
+            if appended and conversation_id in self._interaction_states:
+                state = self._interaction_states[conversation_id]
+                session = self._repo.get(conversation_id)
+                if session:
+                    for m in session.messages:
+                        if m.turn_id in appended and m.role == "user" and m.status == "completed":
+                            state.update(m.content)
+
+            session = self._repo.get(conversation_id)
+            return {
+                "conversation_id": conversation_id,
+                "appended_turn_ids": appended,
+                "skipped_turn_ids": skipped,
+                "message_count": session.message_count if session else 0,
+                "last_message_id": last_msg_id or "",
+            }
 
     def get_history(
         self, conversation_id: str, max_messages: int = 40

@@ -17,6 +17,11 @@ from julia_core.conversation_state.models import (
 )
 
 
+class TurnConflictError(ValueError):
+    """Raised when the same turn_id has different content."""
+    pass
+
+
 class SessionRepository:
     """Thread-safe in-memory store with atomic JSON persistence.
 
@@ -147,6 +152,89 @@ class SessionRepository:
             if session is None:
                 return []
             return [m for m in session.messages if m.turn_id == turn_id]
+
+    def append_external_turns_atomic(
+        self, session_id: str, turns: list[dict],
+    ) -> tuple[list[str], list[str], str | None]:
+        """Atomically append external (voice) turns. One lock, one save.
+
+        Each turn dict: {turn_id, modality, user_content, user_created_at,
+                         assistant_content, assistant_status, assistant_created_at}
+
+        Returns: (appended_turn_ids, skipped_turn_ids, last_message_id).
+        On failure: in-memory state rolled back, no partial turns.
+        """
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                raise ValueError(f"Conversation not found: {session_id}")
+
+            # Snapshot for rollback
+            saved_messages = list(session.messages)
+
+            appended: list[str] = []
+            skipped: list[str] = []
+            last_msg_id: str | None = None
+
+            try:
+                for turn in turns:
+                    turn_id = turn.get("turn_id", "")
+                    modality = turn.get("modality", "voice")
+
+                    # Idempotency: check existing turn_id
+                    existing = [m for m in session.messages if m.turn_id == turn_id]
+                    if existing:
+                        user_existing = next((m for m in existing if m.role == "user"), None)
+                        assistant_existing = next((m for m in existing if m.role == "assistant"), None)
+                        user_new = turn.get("user_content", "")
+                        assistant_new = turn.get("assistant_content", "")
+
+                        if user_existing and user_existing.content == user_new:
+                            skipped.append(turn_id)
+                            continue
+                        else:
+                            raise TurnConflictError(
+                                f"Turn {turn_id}: content differs from persisted. "
+                                f"Existing user='{user_existing.content[:50] if user_existing else 'none'}', "
+                                f"New user='{user_new[:50]}'"
+                            )
+
+                    # Append user message
+                    user_msg = ConversationMessage(
+                        conversation_id=session_id, turn_id=turn_id,
+                        role="user", modality=modality,
+                        content=turn.get("user_content", ""),
+                        status="completed",
+                        created_at=turn.get("user_created_at", ""),
+                    )
+                    session.messages.append(user_msg)
+                    last_msg_id = user_msg.message_id
+
+                    # Append assistant message if present
+                    assistant_content = turn.get("assistant_content", "")
+                    assistant_status = turn.get("assistant_status", "completed")
+                    if assistant_content or assistant_status in ("interrupted", "failed"):
+                        assistant_msg = ConversationMessage(
+                            conversation_id=session_id, turn_id=turn_id,
+                            role="assistant", modality=modality,
+                            content=assistant_content,
+                            status=assistant_status,
+                            created_at=turn.get("assistant_created_at", ""),
+                        )
+                        session.messages.append(assistant_msg)
+                        last_msg_id = assistant_msg.message_id
+
+                    appended.append(turn_id)
+
+                session.touch()
+                session.auto_title()
+                self._save()
+                return appended, skipped, last_msg_id
+
+            except Exception:
+                # Rollback
+                session.messages = saved_messages
+                raise
 
     def delete(self, session_id: str) -> bool:
         with self._lock:
