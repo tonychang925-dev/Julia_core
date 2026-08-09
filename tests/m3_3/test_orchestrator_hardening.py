@@ -797,3 +797,22 @@ def test_config_as_of_missing_raises():
             await orchestrator.run(_make_subject())
 
     asyncio.run(_run())
+
+
+def test_date_only_config_as_of_rejected():
+    """Config.as_of = '2026-07-14' (date-only, no T) → ConstraintViolation.
+
+    P0: date-only as_of silently becomes midnight +08:00, which rejects
+    same-day evidence. Must require full timezone-aware timestamp.
+    """
+    orchestrator = CognitiveLoopOrchestrator(
+        capability_manager=ForbiddenCapabilityManager(),
+        config=_make_config(as_of="2026-07-14"),  # date-only, no T
+        evidence_injector={},
+    )
+
+    async def _run():
+        with pytest.raises(ConstraintViolation, match="full timezone-aware timestamp"):
+            await orchestrator.run(_make_subject())
+
+    asyncio.run(_run())

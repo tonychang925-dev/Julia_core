@@ -206,12 +206,15 @@ class CognitiveLoopOrchestrator:
         self._validate_subject(subject)
 
         # P0: config.as_of is the absolute temporal authority.
-        # subject.as_of must not conflict; silent override is forbidden.
+        # Must be a full timezone-aware timestamp — date-only is rejected.
         if not self.config.as_of:
             raise ConstraintViolation(
                 "config.as_of is required — every CognitiveLoop must have "
                 "a full timezone-aware as_of timestamp"
             )
+        # Parse + validate: date-only (no "T") → immediate rejection.
+        # This prevents "2026-07-14" from silently becoming midnight +08:00.
+        _parse_required_cutoff(self.config.as_of, "config.as_of")
 
         if subject.get("as_of"):
             subject_as_of = _parse_aware_datetime(subject["as_of"], "subject.as_of")
@@ -635,6 +638,29 @@ def _parse_aware_datetime(value: str, label: str) -> datetime:
         normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
         if "T" not in normalized:
             normalized = f"{normalized}T00:00:00+08:00"
+        dt = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise ConstraintViolation(f"Invalid {label}: {raw}") from exc
+    if dt.tzinfo is None:
+        raise ConstraintViolation(f"{label} must include timezone offset: {raw}")
+    return dt.astimezone(timezone.utc)
+
+
+def _parse_required_cutoff(value: str, label: str) -> datetime:
+    """Parse config.as_of — MUST be a full timezone-aware timestamp.
+
+    Unlike _parse_aware_datetime (which tolerates date-only for evidence
+    timestamps), this function REJECTS date-only values. The runtime cutoff
+    must be an explicit moment in time, not "midnight by accident."
+    """
+    raw = str(value)
+    if "T" not in raw:
+        raise ConstraintViolation(
+            f"{label} must be a full timezone-aware timestamp "
+            f"(e.g. 2026-07-14T15:30:00+08:00), got: {raw}"
+        )
+    normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+    try:
         dt = datetime.fromisoformat(normalized)
     except ValueError as exc:
         raise ConstraintViolation(f"Invalid {label}: {raw}") from exc
