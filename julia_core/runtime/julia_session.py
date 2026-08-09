@@ -26,22 +26,43 @@ from typing import Optional
 
 
 class TurnContext:
-    """CORE-C1.2: Per-turn execution state. No cross-turn/conversation sharing.
+    """CORE-C1.3: Per-turn execution state. No cross-turn/conversation sharing.
+
+    Owns ALL turn-local state: history, topic tracking, event identity,
+    relationship session-state fields, and causation chain tracking.
 
     Created fresh for each process() call. Never stored on JuliaSession.
-    This is what prevents cross-conversation race conditions.
     """
-    __slots__ = ("history", "turn_count", "current_topic", "answered_questions",
-                 "conversation_id", "modality")
+    __slots__ = (
+        # Core turn identity
+        "conversation_id", "turn_id", "modality", "correlation_id",
+        # Cognitive history (was on JuliaSession)
+        "history", "turn_count", "current_topic", "answered_questions",
+        # Event causation chain tracking
+        "last_event_id",
+        # Relationship session-local (moved from RelationshipState)
+        "last_questions", "identity_checks", "repeat_questions",
+    )
 
-    def __init__(self, history: list[dict], conversation_id: str = "",
+    def __init__(self, history: list[dict], *,
+                 conversation_id: str = "", turn_id: str = "",
                  modality: str = "text"):
+        self.conversation_id: str = conversation_id
+        self.turn_id: str = turn_id
+        self.modality: str = modality
+        self.correlation_id: str = (
+            f"conv:{conversation_id}:turn:{turn_id}"
+            if conversation_id and turn_id
+            else f"turn:{id(self)}"
+        )
         self.history: list[dict] = list(history) if history else []
         self.turn_count: int = len(history) // 2
         self.current_topic: str = "greeting"
         self.answered_questions: list[str] = []
-        self.conversation_id: str = conversation_id
-        self.modality: str = modality
+        self.last_event_id: str = ""
+        self.last_questions: list[str] = []
+        self.identity_checks: int = 0
+        self.repeat_questions: int = 0
 
 
 class JuliaSession:
@@ -156,12 +177,18 @@ class JuliaSession:
 
     # ── Public API ────────────────────────────────────────────────────────
 
-    def process(self, text: str, history: list[dict]) -> str:
-        """CORE-C1.2: Stateless cognitive executor. TurnContext is local — no shared state.
+    def process(self, text: str, history: list[dict],
+                conversation_id: str = "", turn_id: str = "",
+                modality: str = "text") -> str:
+        """CORE-C1.3: Stateless cognitive executor with full turn identity.
 
-        This is the cognitive_fn passed to ConversationRuntime.process_turn().
+        conversation_id, turn_id, modality come from ConversationRuntime.process_turn().
+        TurnContext is local — no shared state across conversations.
         """
-        ctx = TurnContext(history)
+        ctx = TurnContext(history,
+                         conversation_id=conversation_id,
+                         turn_id=turn_id,
+                         modality=modality)
         return self._chat_impl(text, ctx)
 
     async def chat_async(self, text: str) -> str:
@@ -188,19 +215,21 @@ class JuliaSession:
         )
         from julia_core.events.store import get_event_store
         event_store = get_event_store()
-        correlation_id = f"corr_{id(self)}_{ctx.turn_count}"
+        correlation_id = ctx.correlation_id
 
         # Emit: conversation.message.received
-        event_store.append(create_event(
+        ev = create_event(
             source="conversation",
             event_type=ConversationEventType.MESSAGE_RECEIVED,
             category=EventCategory.CONVERSATION,
             payload={"text": text[:200], "turn": ctx.turn_count},
             correlation_id=correlation_id,
-        ))
+        )
+        event_store.append(ev)
+        ctx.last_event_id = ev.event_id
 
         # Layer 1: Relationship — what's happening BETWEEN us?
-        rel_ctx = self.relationship.to_context()
+        rel_ctx = self.relationship.to_context(ctx)
 
         # Layer 2: Conversation state — what are we talking about?
         conv_state = self._build_conversation_state(text, ctx)
@@ -210,14 +239,16 @@ class JuliaSession:
 
         # R1: Emit capability event if market context was successfully resolved
         if market_context:
-            event_store.append(create_event(
+            ev2 = create_event(
                 source="capability",
                 event_type=CapabilityEventType.REQUESTED,
                 category=EventCategory.CAPABILITY,
                 payload={"capability": "market.snapshot.read", "turn": ctx.turn_count},
                 correlation_id=correlation_id,
-                causation_id=event_store._buffer[-1].event_id if event_store._buffer else "",
-            ))
+                causation_id=ctx.last_event_id,
+            )
+            event_store.append(ev2)
+            ctx.last_event_id = ev2.event_id
 
         # Layer 3: Build messages — identity + dynamic experiences + tools + state
         experiences = self._load_recent_experiences()
@@ -253,7 +284,7 @@ class JuliaSession:
 
         # Layer 6: Capability Execution (Pass 2 — if tool called)
         if tool_json:
-            self._execute_tool_with_action(tool_json)
+            self._execute_tool_with_action(tool_json, ctx)
             tool_result = self.capability.execute_tool(tool_json)
             if tool_result:
                 messages.append({"role": "assistant", "content": reply})
@@ -261,12 +292,12 @@ class JuliaSession:
                     "[工具执行结果 — 请基于此结果回答，不要编造]\n\n" + tool_result
                 )})
                 reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")
-                self.action.finish("完成" if "error" not in tool_result else "失败")
+                self.action.finish("完成" if "error" not in tool_result else "失败", correlation_id=ctx.correlation_id)
 
         # Layer 7: Update state
         ctx.history.append({"role": "user", "content": text})
         ctx.history.append({"role": "assistant", "content": reply})
-        self.relationship.update(text, reply, topic=ctx.current_topic)
+        self.relationship.update(text, reply, ctx=ctx)
         self._update_conversation_state(text, reply, ctx)
 
         # Layer 8: Record & consolidate
@@ -276,7 +307,7 @@ class JuliaSession:
             threading.Thread(target=lambda: self.recorder.consolidate(self.provider), daemon=True).start()
 
         # R1: Emit conversation.turn.completed
-        event_store.append(create_event(
+        ev3 = create_event(
             source="conversation",
             event_type=ConversationEventType.TURN_COMPLETED,
             category=EventCategory.CONVERSATION,
@@ -286,21 +317,23 @@ class JuliaSession:
                 "turn": ctx.turn_count,
             },
             correlation_id=correlation_id,
-            causation_id=event_store._buffer[-1].event_id if event_store._buffer else "",
-        ))
+            causation_id=ctx.last_event_id,
+        )
+        event_store.append(ev3)
+        ctx.last_event_id = ev3.event_id
 
         return reply
 
     # ── Action Presence ────────────────────────────────────────────────────
 
-    def _execute_tool_with_action(self, tool_json: str):
-        """Start action tracking for UX presence."""
+    def _execute_tool_with_action(self, tool_json: str, ctx: TurnContext):
+        """Start per-turn action tracking. Keyed by correlation_id."""
         try:
             tc = _json.loads(tool_json)
             name = tc.get("name", "?")
         except Exception:
             name = "?"
-        self.action.start(name, f"执行 {name}")
+        self.action.start(name, f"执行 {name}", correlation_id=ctx.correlation_id)
 
     # ── R0.3b: Market Context Resolution ─────────────────────────────────
 

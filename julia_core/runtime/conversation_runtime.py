@@ -111,7 +111,7 @@ class ConversationRuntime:
         turn_id: str,
         modality: str,
         input: str,
-        cognitive_fn: Callable[[str, list[dict]], str],
+        cognitive_fn: Callable[[str, list[dict], str, str, str], str],
     ) -> TurnResult:
         """Execute one cognitive turn. THE ONLY Julia-native turn path.
 
@@ -120,7 +120,7 @@ class ConversationRuntime:
           2. Persistence-based idempotency check
           3. Load conversation + history
           4. Persist user message (status=pending)
-          5. Execute cognitive_fn(input, history)
+          5. Execute cognitive_fn(input, history, conversation_id, turn_id, modality)
           6. On success: update user→completed, persist assistant→completed
           7. On failure: mark user→failed, mark assistant→failed
           8. Release lock
@@ -196,7 +196,7 @@ class ConversationRuntime:
         turn_id: str,
         modality: str,
         input: str,
-        cognitive_fn: Callable[[str, list[dict]], str],
+        cognitive_fn: Callable[[str, list[dict], str, str, str], str],
     ) -> TurnResult:
         now = _time.strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -223,7 +223,7 @@ class ConversationRuntime:
 
         # 5. Cognitive execution
         try:
-            assistant_content = cognitive_fn(input, history)
+            assistant_content = cognitive_fn(input, history, conversation_id, turn_id, modality)
             assistant_status = "completed"
             user_final_status = "completed"
         except Exception as exc:

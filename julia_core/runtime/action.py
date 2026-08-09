@@ -70,34 +70,35 @@ class Action:
 
 
 class ActionRuntime:
-    """Tracks what Julia is currently doing. Lightweight — just enough for UX presence."""
+    """Tracks what Julia is currently doing. CORE-C1.3: per-turn actions,
+    no global singleton 'current' that can race across conversations."""
 
     def __init__(self):
-        self.current: Optional[Action] = None
+        self._actions: dict[str, Action] = {}  # correlation_id → current Action
         self.history: list[Action] = []
 
-    def start(self, name: str, description: str = "") -> Action:
-        """Begin an action. Returns the action for tracking."""
+    def start(self, name: str, description: str = "", correlation_id: str = "") -> Action:
+        """Begin an action for a specific turn (keyed by correlation_id)."""
         action = Action(name=name, phase=ActionPhase.STARTED, description=description)
-        self.current = action
+        if correlation_id:
+            self._actions[correlation_id] = action
         self.history.append(action)
         return action
 
-    def finish(self, summary: str = ""):
-        """Mark current action as completed."""
-        if self.current:
-            self.current.complete(summary)
+    def finish(self, summary: str = "", correlation_id: str = ""):
+        """Mark action as completed for a specific turn."""
+        action = self._actions.pop(correlation_id, None) if correlation_id else None
+        if action:
+            action.complete(summary)
 
-    def fail(self, reason: str = ""):
-        """Mark current action as failed."""
-        if self.current:
-            self.current.fail(reason)
+    def fail(self, reason: str = "", correlation_id: str = ""):
+        """Mark action as failed for a specific turn."""
+        action = self._actions.pop(correlation_id, None) if correlation_id else None
+        if action:
+            action.fail(reason)
 
-    def status_line(self) -> str:
-        """Get current status for display."""
-        if self.current and self.current.phase == ActionPhase.STARTED:
-            return self.current.status_message()
-        return ""
+    def current_for(self, correlation_id: str) -> Optional[Action]:
+        return self._actions.get(correlation_id)
 
     @property
     def last_action(self) -> Optional[Action]:

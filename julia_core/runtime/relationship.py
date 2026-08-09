@@ -31,38 +31,38 @@ class RelationshipState:
     recent_pattern: str = "conversation"  # conversation | testing | repeated_questions | deep_discussion
     tony_intent: str = "connecting"       # connecting | testing | seeking_help | sharing | checking_in
 
-    # Current thread
-    current_topic: str = ""
-    last_questions: list[str] = field(default_factory=list)  # last 3 questions
+    # Long-term relationship attributes (global — Tony↔Julia)
     unresolved_threads: list[str] = field(default_factory=list)
 
-    # Simple counters
-    identity_checks_this_session: int = 0
-    repeat_questions: int = 0
+    def update(self, user_text: str, reply_text: str, *, ctx=None):
+        """Update GLOBAL relationship state after each turn.
 
-    def update(self, user_text: str, reply_text: str, topic: str = ""):
-        """Update relationship state after each turn. Observes patterns, doesn't judge."""
-        self.current_topic = topic
-        self.last_questions.append(user_text[:60])
-        if len(self.last_questions) > 5:
-            self.last_questions = self.last_questions[-5:]
+        Session-local fields (current_topic, last_questions, identity_checks,
+        repeat_questions) live in TurnContext — NOT here. This prevents
+        cross-conversation cognitive leakage.
 
-        # Detect patterns
-        if any(w in user_text for w in ["你是谁", "知道我是谁", "认识我"]):
-            self.identity_checks_this_session += 1
+        Args:
+            ctx: TurnContext with session-local fields for pattern detection.
+                 If None, pattern detection is skipped (legacy compat).
+        """
+        if ctx is not None:
+            ctx.last_questions.append(user_text[:60])
+            if len(ctx.last_questions) > 5:
+                ctx.last_questions = ctx.last_questions[-5:]
 
-        # Detect testing mode
-        if self.identity_checks_this_session >= 2:
-            self.recent_pattern = "testing"
-            self.tony_intent = "testing"
-            self.session_mood = "playful"
+            if any(w in user_text for w in ["你是谁", "知道我是谁", "认识我"]):
+                ctx.identity_checks += 1
 
-        # Detect repeated questions
-        for prev_q in self.last_questions[-5:-1]:
-            overlap = len(set(prev_q) & set(user_text)) / max(len(prev_q), 1)
-            if overlap > 0.6:
-                self.repeat_questions += 1
-                self.recent_pattern = "repeated_questions"
+            if ctx.identity_checks >= 2:
+                self.recent_pattern = "testing"
+                self.tony_intent = "testing"
+                self.session_mood = "playful"
+
+            for prev_q in ctx.last_questions[-5:-1]:
+                overlap = len(set(prev_q) & set(user_text)) / max(len(prev_q), 1)
+                if overlap > 0.6:
+                    ctx.repeat_questions += 1
+                    self.recent_pattern = "repeated_questions"
                 break
 
         # Detect deep discussion
@@ -75,11 +75,12 @@ class RelationshipState:
             self.collaboration_phase = "building"
             self.tony_intent = "seeking_help" if "帮我" in user_text else "sharing"
 
-    def to_context(self) -> str:
+    def to_context(self, ctx=None) -> str:
         """Render as a brief context block for system prompt injection.
 
-        This is what bridges the gap between 'Julia knows who Tony is'
-        and 'Julia knows what Tony is doing RIGHT NOW with her'.
+        Args:
+            ctx: Optional TurnContext for session-local counters.
+                 Without ctx, session-local hints are omitted.
         """
         lines = ["[关系状态 — 当前互动性质]"]
 
@@ -108,10 +109,10 @@ class RelationshipState:
                           "checking_in": "来看看我"}
             lines.append(f"Tony意图: {intent_map.get(self.tony_intent, self.tony_intent)}")
 
-        if self.identity_checks_this_session >= 2:
+        if ctx is not None and ctx.identity_checks >= 2:
             lines.append("注意: Tony已经多次确认身份——他可能在做连续性测试。不要再重复回答身份问题，自然地回应他的验证意图。")
 
-        if self.repeat_questions >= 2:
+        if ctx is not None and ctx.repeat_questions >= 2:
             lines.append("注意: 有重复问题。不要机械重复回答——理解Tony为什么又问，回应他的意图而不是问题本身。")
 
         return "\n".join(lines)
