@@ -26,27 +26,23 @@ from typing import Optional
 
 
 class TurnContext:
-    """CORE-C1.3: Per-turn execution state. No cross-turn/conversation sharing.
+    """CORE-C1.3a: Per-turn execution state.
 
-    Owns ALL turn-local state: history, topic tracking, event identity,
-    relationship session-state fields, and causation chain tracking.
-
-    Created fresh for each process() call. Never stored on JuliaSession.
+    Turn identity + history snapshot + causation chain = PER-TURN / EPHEMERAL.
+    Interaction counters persist in ConversationInteractionState (multi-turn).
     """
+
     __slots__ = (
-        # Core turn identity
         "conversation_id", "turn_id", "modality", "correlation_id",
-        # Cognitive history (was on JuliaSession)
         "history", "turn_count", "current_topic", "answered_questions",
-        # Event causation chain tracking
         "last_event_id",
-        # Relationship session-local (moved from RelationshipState)
-        "last_questions", "identity_checks", "repeat_questions",
+        "interaction",  # ConversationInteractionState (multi-turn persistence)
     )
 
     def __init__(self, history: list[dict], *,
                  conversation_id: str = "", turn_id: str = "",
-                 modality: str = "text"):
+                 modality: str = "text",
+                 interaction=None):
         self.conversation_id: str = conversation_id
         self.turn_id: str = turn_id
         self.modality: str = modality
@@ -60,9 +56,7 @@ class TurnContext:
         self.current_topic: str = "greeting"
         self.answered_questions: list[str] = []
         self.last_event_id: str = ""
-        self.last_questions: list[str] = []
-        self.identity_checks: int = 0
-        self.repeat_questions: int = 0
+        self.interaction = interaction  # ConversationInteractionState or None
 
 
 class JuliaSession:
@@ -179,16 +173,18 @@ class JuliaSession:
 
     def process(self, text: str, history: list[dict],
                 conversation_id: str = "", turn_id: str = "",
-                modality: str = "text") -> str:
-        """CORE-C1.3: Stateless cognitive executor with full turn identity.
+                modality: str = "text",
+                interaction=None) -> str:
+        """CORE-C1.3a: Stateless cognitive executor.
 
-        conversation_id, turn_id, modality come from ConversationRuntime.process_turn().
-        TurnContext is local — no shared state across conversations.
+        interaction = ConversationInteractionState from ConversationRuntime.
+        Persists across turns within the same conversation.
         """
         ctx = TurnContext(history,
                          conversation_id=conversation_id,
                          turn_id=turn_id,
-                         modality=modality)
+                         modality=modality,
+                         interaction=interaction)
         return self._chat_impl(text, ctx)
 
     async def chat_async(self, text: str) -> str:
@@ -228,8 +224,12 @@ class JuliaSession:
         event_store.append(ev)
         ctx.last_event_id = ev.event_id
 
-        # Layer 1: Relationship — what's happening BETWEEN us?
-        rel_ctx = self.relationship.to_context(ctx)
+        # Layer 1: Interaction state — per-conversation, NOT global
+        if ctx.interaction is not None:
+            ctx.interaction.update(text)
+            interaction_ctx = ctx.interaction.to_context()
+        else:
+            interaction_ctx = ""
 
         # Layer 2: Conversation state — what are we talking about?
         conv_state = self._build_conversation_state(text, ctx)
@@ -257,7 +257,7 @@ class JuliaSession:
             + experiences + "\n\n"
             + market_context + "\n\n"
             + self.capability.tool_manifest() + "\n\n"
-            + rel_ctx + "\n\n"
+            + interaction_ctx + "\n\n"
             + conv_state
         )
         messages = [{"role": "system", "content": system_with_tools}]
@@ -297,7 +297,8 @@ class JuliaSession:
         # Layer 7: Update state
         ctx.history.append({"role": "user", "content": text})
         ctx.history.append({"role": "assistant", "content": reply})
-        self.relationship.update(text, reply, ctx=ctx)
+        # Interaction state already updated in Layer 1 above
+        # Global relationship profile is read-only during turns
         self._update_conversation_state(text, reply, ctx)
 
         # Layer 8: Record & consolidate

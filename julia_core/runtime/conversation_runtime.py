@@ -78,6 +78,9 @@ class ConversationRuntime:
         self._service = ConversationService(filepath=self._storage_path)
         self._locks: dict[str, threading.Lock] = {}
         self._locks_lock = threading.Lock()
+        self._interaction_states: dict[str, "ConversationInteractionState"] = {}
+        from julia_core.runtime.relationship import ConversationInteractionState as CIS
+        self._CIS = CIS
 
     @property
     def storage_path(self) -> str:
@@ -90,6 +93,15 @@ class ConversationRuntime:
         if session is None:
             session = self._create_conversation(conversation_id)
         return self._to_handle(session)
+
+    def get_interaction_state(self, conversation_id: str) -> "ConversationInteractionState":
+        """Get or create per-conversation interaction state.
+
+        Persists across turns within a conversation. Isolated from other convs.
+        """
+        if conversation_id not in self._interaction_states:
+            self._interaction_states[conversation_id] = self._CIS()
+        return self._interaction_states[conversation_id]
 
     def get_history(
         self, conversation_id: str, max_messages: int = 40
@@ -111,7 +123,7 @@ class ConversationRuntime:
         turn_id: str,
         modality: str,
         input: str,
-        cognitive_fn: Callable[[str, list[dict], str, str, str], str],
+        cognitive_fn: Callable[[str, list[dict], str, str, str, object], str],
     ) -> TurnResult:
         """Execute one cognitive turn. THE ONLY Julia-native turn path.
 
@@ -196,7 +208,7 @@ class ConversationRuntime:
         turn_id: str,
         modality: str,
         input: str,
-        cognitive_fn: Callable[[str, list[dict], str, str, str], str],
+        cognitive_fn: Callable[[str, list[dict], str, str, str, object], str],
     ) -> TurnResult:
         now = _time.strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -223,7 +235,8 @@ class ConversationRuntime:
 
         # 5. Cognitive execution
         try:
-            assistant_content = cognitive_fn(input, history, conversation_id, turn_id, modality)
+            interaction = self.get_interaction_state(conversation_id)
+            assistant_content = cognitive_fn(input, history, conversation_id, turn_id, modality, interaction)
             assistant_status = "completed"
             user_final_status = "completed"
         except Exception as exc:
