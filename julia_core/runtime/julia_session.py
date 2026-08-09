@@ -171,6 +171,47 @@ class JuliaSession:
 
     # ── Public API ────────────────────────────────────────────────────────
 
+    async def process_stream(self, text: str, history: list[dict],
+                              conversation_id: str = "", turn_id: str = "",
+                              modality: str = "text",
+                              interaction=None):
+        """CORE-C1-S1: Streaming cognitive executor. Same pipeline as process().
+
+        Builds system context through the SAME cognitive pipeline (persona,
+        relationship, capability), then yields deltas from the provider.
+        Core owns cognition; caller only transports deltas.
+        """
+        ctx = TurnContext(history,
+                         conversation_id=conversation_id,
+                         turn_id=turn_id,
+                         modality=modality,
+                         interaction=interaction)
+        ctx.turn_count += 1
+
+        # Same context assembly as _chat_impl()
+        if ctx.interaction is not None:
+            ctx.interaction.update(text)
+            interaction_ctx = ctx.interaction.to_context()
+        else:
+            interaction_ctx = ""
+
+        experiences = self._load_recent_experiences()
+        conv_state = self._build_conversation_state(text, ctx)
+        system_with_tools = (
+            self._identity_system + "\n\n"
+            + experiences + "\n\n"
+            + self.capability.tool_manifest() + "\n\n"
+            + interaction_ctx + "\n\n"
+            + conv_state
+        )
+        messages = [{"role": "system", "content": system_with_tools}]
+        messages.extend(ctx.history[-20:])
+        messages.append({"role": "user", "content": text})
+
+        # Stream deltas from provider — caller owns transport
+        async for delta in self.provider.stream_async(messages):
+            yield delta
+
     def process(self, text: str, history: list[dict],
                 conversation_id: str = "", turn_id: str = "",
                 modality: str = "text",

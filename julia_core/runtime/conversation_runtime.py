@@ -60,10 +60,11 @@ class TurnStreamingContext:
     """Holds streaming turn state between begin/commit/cancel."""
     conversation_id: str
     turn_id: str
-    history: list[dict]
-    user_msg_id: str
-    interaction: Any  # ConversationInteractionState (working copy)
-    lock: Any  # threading.Lock
+    modality: str = "text"
+    history: list[dict] = field(default_factory=list)
+    user_msg_id: str = ""
+    interaction: Any = None  # ConversationInteractionState (working copy)
+    lock: Any = None  # threading.Lock
     already_completed_content: str = ""  # Non-empty if idempotent hit
 
 
@@ -186,7 +187,8 @@ class ConversationRuntime:
                     existing._already_completed = True
                     return TurnStreamingContext(
                         conversation_id=conversation_id, turn_id=turn_id,
-                        history=[], user_msg_id="", interaction=None, lock=None,
+                        modality=modality, history=[], user_msg_id="",
+                        interaction=None, lock=None,
                         already_completed_content=existing.assistant_content,
                     )
 
@@ -208,6 +210,7 @@ class ConversationRuntime:
 
             return TurnStreamingContext(
                 conversation_id=conversation_id, turn_id=turn_id,
+                modality=modality,
                 history=history, user_msg_id=user_msg_id,
                 interaction=working, lock=lock,
             )
@@ -225,7 +228,7 @@ class ConversationRuntime:
 
             assistant_msg = self._add_message(
                 ctx.conversation_id, role="assistant", content=assistant_content,
-                turn_id=ctx.turn_id, modality="text", status="completed",
+                turn_id=ctx.turn_id, modality=ctx.modality, status="completed",
             )
             assistant_msg_id = assistant_msg.messages[-1].message_id if assistant_msg else ""
 
