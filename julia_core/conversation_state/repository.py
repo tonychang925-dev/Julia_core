@@ -210,15 +210,20 @@ class SessionRepository:
                     session.messages.append(user_msg)
                     last_msg_id = user_msg.message_id
 
-                    # Append assistant message if present
-                    assistant_content = turn.get("assistant_content", "")
-                    assistant_status = turn.get("assistant_status", "completed")
-                    if assistant_content or assistant_status in ("interrupted", "failed"):
+                    # Append assistant message if present.
+                    # null/absent = no assistant (Tony spoke, Julia didn't respond).
+                    # Empty string = completed empty reply (different from null).
+                    assistant_content = turn.get("assistant_content")
+                    assistant_status = turn.get("assistant_status")
+                    if assistant_content is not None:
+                        status = assistant_status or "completed"
+                        if status not in ("completed", "interrupted", "failed"):
+                            status = "completed"
                         assistant_msg = ConversationMessage(
                             conversation_id=session_id, turn_id=turn_id,
                             role="assistant", modality=modality,
                             content=assistant_content,
-                            status=assistant_status,
+                            status=status,
                             created_at=turn.get("assistant_created_at", ""),
                         )
                         session.messages.append(assistant_msg)
