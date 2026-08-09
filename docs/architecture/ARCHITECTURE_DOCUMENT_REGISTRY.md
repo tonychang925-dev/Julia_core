@@ -75,6 +75,38 @@
 | `AUTODL_RESTART_CHECKLIST.md` | ACTIVE |
 | `JULIA_VOICE_SERVER_RUNBOOK.md` | ACTIVE |
 
+
+## ADR Disposition Matrix
+
+| ADR | Title | Disposition |
+|-----|-------|-------------|
+| ADR-001 | Context OS Authority | RE-ADOPTABLE — UA §8, C-03 |
+| ADR-002 | Domain Facts, Not Cognition | RE-ADOPTABLE — UA §14-15 |
+| ADR-003 | Workbench Action Context | APPLICATION-SPECIFIC |
+| ADR-004 | Voice Provider Boundary | VOICE-SPECIFIC |
+| ADR-005 | Persona/Identity Separation | PARTIAL — IdentityContract adopted; refined in UA §10 |
+| ADR-006 | Provider Alignment Boundary | PARTIAL — adaptation kept; continuity claim removed |
+| ADR-007 | Model Behavior Adaptation | PARTIAL — superseded by C-09 |
+| ADR-008 | Alignment OS Authority | PARTIAL — adaptation scope kept; "same agent" removed (UA §16) |
+| ADR-009 | Continuity OS Authority | RE-ADOPTABLE — UA §12, C-06 |
+| ADR-010 | Continuity Checkpoint Model | RE-ADOPTABLE — UA §12.6 |
+| ADR-011 | Compact Recovery Protocol | RE-ADOPTABLE — UA §8, C-06 |
+| ADR-012 | Memory Continuity Governance | RE-ADOPTABLE — UA §21 |
+| ADR-013 | Context Reconstruction Boundary | RE-ADOPTABLE — UA §8.7, C-06 |
+| ADR-020 | Production Context Reconciliation | PARTIAL — CXT-C1 adopted; superseded by UA |
+| ADR-022 | Runtime Gateway Architecture | INFRASTRUCTURE |
+| ADR-025 series | Voice Architecture | VOICE-SPECIFIC — not Core ontology |
+| ADR-026 | Capability MCP Adapter | INFRASTRUCTURE |
+| ADR-027 | Runtime Execution Model | PARTIAL — lifecycle kept; superseded by C-01 |
+| ADR-028 series | Awareness / Domain Intelligence | APPLICATION/DOMAIN-SPECIFIC |
+| ADR-029 | Observation Policy | APPLICATION-SPECIFIC |
+| ADR-030 | Market Intelligence Integration | DOMAIN-SPECIFIC |
+| ADR-031 | Experience Feedback | PARTIAL — Memory governance |
+| ADR-032 | Strategy Knowledge Model | DOMAIN-SPECIFIC |
+
+Rejected claims: LLM=interpreter, Runtime owns identity/memory/context, Voice OS owns CognitiveEmotion, Alignment owns continuity, IntentRouter decides semantic action.
+
+
 ## Normative Precedence
 
 ```
