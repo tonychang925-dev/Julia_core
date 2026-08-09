@@ -36,8 +36,8 @@ julia_core (public, Apache-2.0)         ← Agent OS Framework
 
 | Repo | Visibility | Contains | Must NOT Contain |
 |------|-----------|----------|-----------------|
-| `julia_core` | Public | Context OS, Runtime, Providers, Memory Engine, Persona Engine, Voice OS, Chat Engine | Private identity, private memory, personal diary |
-| `julia_ai_assistant` | Private | Julia persona, Julia memory, voice profiles, conversation history | Framework code (imports from core) |
+| `julia_core` | Public | Context OS, Runtime, Providers, Memory Engine, Persona Engine, Voice OS, Chat Engine, ConversationRuntime | Private identity data, private memory records, personal diary |
+| `julia_ai_assistant` | Private | Julia private identity data, Julia memory records, voice profiles, conversation transcripts | Framework code (imports from core); Core owns architecture authority |
 | `julia_agent` | Private | Financial provider, analyst workbench, ai_theme_app integration | Framework code (imports from core) |
 
 ### Dependency Direction

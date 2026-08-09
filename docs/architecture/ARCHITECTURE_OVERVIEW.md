@@ -81,7 +81,7 @@ Julia Core owns the agent. Models interpret. Providers supply facts. The runtime
 │  │  context_assembly/                                      │ │
 │  │                                                         │ │
 │  │  Owns: how the agent communicates — text, voice,       │ │
-│  │        emotion, prosody, conversation continuity        │ │
+│  │        emotion, prosody        │ │
 │  └─────────────────────────────────────────────────────────┘ │
 │                                                               │
 │  ┌─────────────────────────────────────────────────────────┐ │

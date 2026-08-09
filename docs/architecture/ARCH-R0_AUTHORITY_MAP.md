@@ -46,27 +46,30 @@ Runtime = top-level agent authority
 ```
 
 ```
-                    Runtime Authority
-                           │
-              owns / governs agent runtime
-                           │
-          ┌────────────────┼────────────────┐
-          │                │                │
-    Conversation        Persona          Memory
-    transcript truth   identity truth   memory truth
+              Julia Runtime-owned Agent Architecture
+                             │
+          ┌──────────────────┴──────────────────┐
+          │                                     │
+   Runtime Authority                  Subsystem Truth Authorities
+   lifecycle / orchestration          │
+          │               ┌───────────┼───────────┐
+          │               │           │           │
+          │         Conversation  Continuity    Memory
+          │         transcript    survival      memory
+          │         truth         policy        truth
+          │               │           │           │
+          │         Persona      Context     Alignment
+          │         behavioral   model-      provider
+          │         identity     visible     adaptation
+          │         truth        truth
           │
-    Continuity
-    preservation truth
-          │
-    Context
-    model-visible truth
-          │
-    Alignment
-    provider adaptation
+          └── orchestrates, MUST NOT reimplement or override
+              subsystem policies
 ```
 
-Runtime orchestrates these authorities.
-Runtime MUST NOT reimplement or override their subsystem policies.
+Seven peer subsystem authorities. Runtime orchestrates them.
+No subsystem is subordinate to another. No chain of ownership.
+Runtime MUST NOT reimplement or override their policies.
 
 ## Foundational Principle
 

@@ -81,7 +81,7 @@ Provider replacement verified with mock providers. No Core code changes required
 ✅ Confirmed
 ```
 
-ContextBlock is a short-lived context candidate with optional TTL/expiration. Not a long-term persisted Memory object. Memory lives in julia_ai_assistant, never in julia_core.
+ContextBlock is a short-lived context candidate with optional TTL/expiration. Not a long-term persisted Memory object. Memory OS authority lives in julia_core (governance, lifecycle, retrieval). Private memory records live in julia_ai_assistant. Data boundary ≠ authority boundary.
 
 ## 7. Current Core Shape
 

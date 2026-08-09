@@ -47,7 +47,7 @@ Julia Core OS
 
 Julia Core is **not** a chatbot framework. **Not** an LLM wrapper.
 
-It is an **Agent Operating System** — the runtime owns identity, memory, context, and voice. Models are pluggable interpreters. Providers supply facts (not cognition). When the model changes, the agent remains the same entity.
+It is an **Agent Operating System** — the Runtime owns the agent architecture. Within that architecture, canonical subsystems own their governed truth: Persona owns behavioral identity, Memory OS owns governed experience, Context OS owns model-visible context. Models are pluggable interpreters. Providers supply facts (not cognition). When the model changes, the agent remains the same entity.
 
 ---
 
