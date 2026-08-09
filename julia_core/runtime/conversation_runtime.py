@@ -148,40 +148,14 @@ class ConversationRuntime:
                 ConversationNotFoundError, InvalidTurnStateError,
             )
 
-            # Guard: conversation must exist
-            session = self._repo.get(conversation_id)
-            if session is None:
-                raise ConversationNotFoundError(f"Conversation not found: {conversation_id}")
-
             try:
                 appended, skipped, last_msg_id = self._repo.append_external_turns_atomic(
                     conversation_id, turns,
+                    base_last_message_id=base_last_message_id,
                 )
             except (TurnConflictError, ConversationAdvancedError,
                      ConversationNotFoundError, InvalidTurnStateError):
                 raise
-
-            # Base cursor check: only if new turns were actually appended
-            if appended and base_last_message_id:
-                session = self._repo.get(conversation_id)
-                # Find the message BEFORE the first appended turn
-                first_appended_turn_id = appended[0]
-                prev_msg = None
-                for i, m in enumerate(session.messages):
-                    if m.turn_id == first_appended_turn_id:
-                        if i > 0:
-                            prev_msg = session.messages[i - 1]
-                        break
-                current_base = prev_msg.message_id if prev_msg else ""
-                if current_base != base_last_message_id:
-                    # Rollback: remove the appended turns
-                    session.messages = [m for m in session.messages if m.turn_id not in appended]
-                    session.message_count = len(session.messages)
-                    self._repo._save()
-                    raise ConversationAdvancedError(
-                        f"Conversation advanced: expected base {base_last_message_id}, "
-                        f"actual {current_base}"
-                    )
 
             # Update interaction cache from newly appended user messages
             if appended and conversation_id in self._interaction_states:

@@ -170,11 +170,16 @@ class SessionRepository:
 
     def append_external_turns_atomic(
         self, session_id: str, turns: list[dict],
+        base_last_message_id: str = "",
     ) -> tuple[list[str], list[str], str | None]:
         """Atomically append external (voice) turns. One lock, one save.
 
+        base_last_message_id: if provided and new turns exist, validates that
+        the conversation's current last message matches before appending.
+
         Returns: (appended_turn_ids, skipped_turn_ids, last_message_id).
-        On failure: complete in-memory rollback (messages, title, counters, timestamp).
+        On failure BEFORE save: ZERO mutation, ZERO _save() calls.
+        On save failure: complete in-memory rollback.
         """
         from datetime import datetime, timezone, timedelta
         CST = timezone(timedelta(hours=8))
@@ -232,7 +237,6 @@ class SessionRepository:
                 existing = [m for m in session.messages if m.turn_id == turn_id]
 
                 if existing:
-                    # Full turn equality check
                     if self._turn_equals(existing, turn):
                         skipped.append(turn_id)
                         continue
@@ -243,12 +247,21 @@ class SessionRepository:
                 else:
                     new_turns_exist = True
 
-            # Phase 3: if all skipped → idempotent success (skip base cursor check)
+            # Phase 3: if all skipped → idempotent success (skip base cursor, ZERO save)
             if not new_turns_exist:
                 last = session.messages[-1] if session.messages else None
                 return [], skipped, last.message_id if last else None
 
-            # Phase 4: append new turns atomically
+            # Phase 4: base cursor check — BEFORE any mutation
+            if base_last_message_id:
+                current_last = session.messages[-1].message_id if session.messages else ""
+                if current_last != base_last_message_id:
+                    raise ConversationAdvancedError(
+                        f"Conversation advanced: expected base {base_last_message_id}, "
+                        f"actual {current_last}"
+                    )
+
+            # Phase 5: append new turns atomically
             last_msg_id: str | None = None
             now_str = datetime.now(CST).isoformat()
 
