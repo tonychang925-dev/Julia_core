@@ -1,9 +1,72 @@
 # ARCH-R0 — Canonical Authority Map
 
-**Status**: FROZEN — supersedes all prior authority claims
+**Status**: FROZEN — ARCH-R0a clarified
 **Date**: 2026-08-09
-**Supersedes**: Conflicting claims in README, ARCHITECTURE_OVERVIEW, ARCHITECTURE_STATUS, CONTEXT_OS_DESIGN, MEMORY_OS_DESIGN, PERSONA_ENGINE_DESIGN, ALIGNMENT_OS_DESIGN, Public_Contract_Model, ADR-005, Persona_API, Context_OS_API, Memory_API
-**Aligned with**: ADR-001, ADR-009, ADR-010, ADR-012, ADR-013, ADR-020, CXT-C1
+
+## Normative Precedence
+
+```
+1. JULIA_CORE_PRINCIPLES.md          SUPREME — architecture constitution
+2. ARCH-R0 Canonical Authority Map    interpretation / refinement
+3. Accepted ADRs                      subsystem decisions
+4. Frozen subsystem contracts         implementation contracts
+5. Implementation                     code
+```
+
+ARCH-R0 MUST NOT supersede, reinterpret away, or weaken JULIA_CORE_PRINCIPLES.md.
+Where any document conflicts with the Principles, the Principles govern.
+
+## Principle Compliance
+
+| Principle | Compliance | Notes |
+|-----------|-----------|-------|
+| P1 Runtime is Authority | ✅ PASS | Runtime owns agent architecture; subsystem truth delegated to canonical authorities |
+| P2 Context OS is Single Authority | ✅ PASS | Six ContextSources feed Context OS; no source bypasses it |
+| P3 Identity ≠ Memory | ✅ PASS | Persona=behavioral identity; Memory=governed experience; Knowledge=domain providers |
+| P4 Provider supplies capability | ✅ PASS | Providers supply facts/evidence; Context OS, not providers, assembles model context |
+| P5 Provider output ≠ Identity truth | ✅ PASS | All external output passes governance; Tony input has highest authority |
+
+## Runtime Authority vs Subsystem Truth Authority
+
+JULIA_CORE_PRINCIPLES.md P1 states: "Runtime owns the agent's identity, lifecycle, memory, and continuity."
+
+ARCH-R0 does not weaken this. It clarifies it.
+
+```
+Runtime = top-level agent authority
+
+  The model is not the agent authority.
+  The provider is not the agent authority.
+  The client is not the agent authority.
+
+  Julia Runtime owns the agent architecture.
+
+  Within that Runtime-owned architecture, each subsystem
+  has exclusive truth authority over its own concern:
+```
+
+```
+                    Runtime Authority
+                           │
+              owns / governs agent runtime
+                           │
+          ┌────────────────┼────────────────┐
+          │                │                │
+    Conversation        Persona          Memory
+    transcript truth   identity truth   memory truth
+          │
+    Continuity
+    preservation truth
+          │
+    Context
+    model-visible truth
+          │
+    Alignment
+    provider adaptation
+```
+
+Runtime orchestrates these authorities.
+Runtime MUST NOT reimplement or override their subsystem policies.
 
 ## Foundational Principle
 
@@ -50,10 +113,10 @@ Public/private data separation is a deployment concern. It does not determine wh
 - **Rule**: Every piece of information reaching the model MUST pass through Context OS. No domain, provider, or application surface may assemble model context independently.
 
 ### Runtime OS
-- **Owns**: execution orchestration and lifecycle authority
-- **Role**: orchestrates Conversation, Continuity, Memory, Persona, Context authorities
-- **Does NOT own**: persona truth, memory truth, context-selection policy, continuity classification
-- **Rule**: Runtime is authority over execution, not owner of every cognitive truth. "Runtime is Authority" = model is not the agent authority; runtime-owned OS contracts are.
+- **Owns**: top-level agent execution orchestration and lifecycle authority
+- **Role**: The model is not the agent authority. The provider is not the agent authority. The client is not the agent authority. Runtime is the agent authority — it orchestrates Conversation, Continuity, Memory, Persona, Context, and Alignment subsystems.
+- **Does NOT reimplement**: persona truth (delegated to Persona Engine), memory truth (delegated to Memory OS), context-selection policy (delegated to Context OS), continuity classification (delegated to Continuity OS)
+- **Rule**: Runtime owns the agent. Subsystem authorities own their governed truth. Runtime orchestrates — it does not collapse all truth into one module.
 
 ### Alignment OS
 - **Owns**: provider-specific behavioral adaptation of a governed identity/behavior contract
@@ -64,7 +127,7 @@ Public/private data separation is a deployment concern. It does not determine wh
 
 | Claim | Why Wrong | Correct |
 |-------|-----------|---------|
-| "Runtime owns identity, memory, context" | Runtime orchestrates, doesn't own cognitive truth | Persona owns identity, Memory OS owns memory, Context OS owns context |
+| "Runtime owns identity, memory, context" (imprecise) | Runtime owns agent architecture. Subsystems own specific truth domains | Persona=identity truth, Memory=memory truth, Context=context truth — all Runtime-owned at architectural level, delegated to canonical subsystems |
 | "Persona ≠ identity" (without qualification) | Persona = behavioral identity. Private facts = input | Persona = HOW. Private identity data = WHO facts (input) |
 | "Memory OS owns Identity Memory" | Identity is Persona's domain, not Memory's | Persona Engine owns behavioral identity. Memory stores governed experiences only |
 | "Alignment keeps the same agent the same agent" | This is Continuity OS's job | Alignment adapts expression; Continuity preserves identity |
