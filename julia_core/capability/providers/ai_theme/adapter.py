@@ -30,6 +30,7 @@ CAPABILITY_TO_TOOL: dict[str, str] = {
     "market.theme.constituents": "market_theme_constituents",
     "market.theme.capital":    "market_theme_capital",
     "market.regime.read":      "market_regime_read",
+    "market.intelligence.observe": "market_workbench_review",
 }
 
 TOOL_TO_CAPABILITY: dict[str, str] = {
