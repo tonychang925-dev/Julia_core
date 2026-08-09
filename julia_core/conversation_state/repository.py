@@ -17,8 +17,23 @@ from julia_core.conversation_state.models import (
 )
 
 
+class ConversationNotFoundError(ValueError):
+    """Conversation does not exist."""
+    pass
+
+
 class TurnConflictError(ValueError):
-    """Raised when the same turn_id has different content."""
+    """Same turn_id, different content."""
+    pass
+
+
+class ConversationAdvancedError(ValueError):
+    """Base cursor mismatch — conversation has advanced since snapshot."""
+    pass
+
+
+class InvalidTurnStateError(ValueError):
+    """Turn schema validation failed."""
     pass
 
 
@@ -158,73 +173,116 @@ class SessionRepository:
     ) -> tuple[list[str], list[str], str | None]:
         """Atomically append external (voice) turns. One lock, one save.
 
-        Each turn dict: {turn_id, modality, user_content, user_created_at,
-                         assistant_content, assistant_status, assistant_created_at}
-
         Returns: (appended_turn_ids, skipped_turn_ids, last_message_id).
-        On failure: in-memory state rolled back, no partial turns.
+        On failure: complete in-memory rollback (messages, title, counters, timestamp).
         """
+        from datetime import datetime, timezone, timedelta
+        CST = timezone(timedelta(hours=8))
+
         with self._lock:
             session = self._sessions.get(session_id)
             if session is None:
-                raise ValueError(f"Conversation not found: {session_id}")
+                raise ConversationNotFoundError(f"Conversation not found: {session_id}")
 
-            # Snapshot for rollback
+            # Full snapshot for rollback
             saved_messages = list(session.messages)
+            saved_title = session.title
+            saved_updated_at = session.updated_at
+            saved_message_count = session.message_count
 
+            # Phase 1: validate ALL turns first
+            for turn in turns:
+                turn_id = turn.get("turn_id", "")
+                if not turn_id:
+                    raise InvalidTurnStateError("turn_id is required")
+
+                user_content = turn.get("user_content", "")
+                if not user_content:
+                    raise InvalidTurnStateError(f"Turn {turn_id}: user_content is required")
+
+                assistant_content = turn.get("assistant_content")
+                assistant_status = turn.get("assistant_status")
+
+                # Null-assistant schema validation
+                if assistant_content is None:
+                    if assistant_status is not None:
+                        raise InvalidTurnStateError(
+                            f"Turn {turn_id}: assistant_content=null requires assistant_status=null, "
+                            f"got {assistant_status}"
+                        )
+                else:
+                    if assistant_status is None:
+                        raise InvalidTurnStateError(
+                            f"Turn {turn_id}: assistant_content present requires assistant_status, "
+                            f"got null"
+                        )
+                    if assistant_status not in ("completed", "interrupted"):
+                        raise InvalidTurnStateError(
+                            f"Turn {turn_id}: assistant_status must be completed|interrupted, "
+                            f"got {assistant_status}"
+                        )
+
+            # Phase 2: idempotency — check existing turns
             appended: list[str] = []
             skipped: list[str] = []
+            new_turns_exist = False
+
+            for turn in turns:
+                turn_id = turn.get("turn_id", "")
+                existing = [m for m in session.messages if m.turn_id == turn_id]
+
+                if existing:
+                    # Full turn equality check
+                    if self._turn_equals(existing, turn):
+                        skipped.append(turn_id)
+                        continue
+                    else:
+                        raise TurnConflictError(
+                            f"Turn {turn_id}: content differs from persisted"
+                        )
+                else:
+                    new_turns_exist = True
+
+            # Phase 3: if all skipped → idempotent success (skip base cursor check)
+            if not new_turns_exist:
+                last = session.messages[-1] if session.messages else None
+                return [], skipped, last.message_id if last else None
+
+            # Phase 4: append new turns atomically
             last_msg_id: str | None = None
+            now_str = datetime.now(CST).isoformat()
 
             try:
                 for turn in turns:
                     turn_id = turn.get("turn_id", "")
-                    modality = turn.get("modality", "voice")
-
-                    # Idempotency: check existing turn_id
                     existing = [m for m in session.messages if m.turn_id == turn_id]
                     if existing:
-                        user_existing = next((m for m in existing if m.role == "user"), None)
-                        assistant_existing = next((m for m in existing if m.role == "assistant"), None)
-                        user_new = turn.get("user_content", "")
-                        assistant_new = turn.get("assistant_content", "")
+                        continue  # Already skipped
 
-                        if user_existing and user_existing.content == user_new:
-                            skipped.append(turn_id)
-                            continue
-                        else:
-                            raise TurnConflictError(
-                                f"Turn {turn_id}: content differs from persisted. "
-                                f"Existing user='{user_existing.content[:50] if user_existing else 'none'}', "
-                                f"New user='{user_new[:50]}'"
-                            )
+                    modality = turn.get("modality", "voice")
 
-                    # Append user message
+                    # Default timestamp if not provided
+                    user_ts = turn.get("user_created_at") or now_str
+
                     user_msg = ConversationMessage(
                         conversation_id=session_id, turn_id=turn_id,
                         role="user", modality=modality,
-                        content=turn.get("user_content", ""),
+                        content=turn["user_content"],
                         status="completed",
-                        created_at=turn.get("user_created_at", ""),
+                        created_at=user_ts,
                     )
                     session.messages.append(user_msg)
                     last_msg_id = user_msg.message_id
 
-                    # Append assistant message if present.
-                    # null/absent = no assistant (Tony spoke, Julia didn't respond).
-                    # Empty string = completed empty reply (different from null).
                     assistant_content = turn.get("assistant_content")
-                    assistant_status = turn.get("assistant_status")
                     if assistant_content is not None:
-                        status = assistant_status or "completed"
-                        if status not in ("completed", "interrupted", "failed"):
-                            status = "completed"
+                        assistant_ts = turn.get("assistant_created_at") or now_str
                         assistant_msg = ConversationMessage(
                             conversation_id=session_id, turn_id=turn_id,
                             role="assistant", modality=modality,
                             content=assistant_content,
-                            status=status,
-                            created_at=turn.get("assistant_created_at", ""),
+                            status=turn["assistant_status"],
+                            created_at=assistant_ts,
                         )
                         session.messages.append(assistant_msg)
                         last_msg_id = assistant_msg.message_id
@@ -237,9 +295,42 @@ class SessionRepository:
                 return appended, skipped, last_msg_id
 
             except Exception:
-                # Rollback
+                # Complete rollback
                 session.messages = saved_messages
+                session.title = saved_title
+                session.updated_at = saved_updated_at
+                session.message_count = saved_message_count
                 raise
+
+    @staticmethod
+    def _turn_equals(existing_msgs: list, turn: dict) -> bool:
+        """Full turn identity comparison for idempotency."""
+        user_existing = next((m for m in existing_msgs if m.role == "user"), None)
+        assistant_existing = next((m for m in existing_msgs if m.role == "assistant"), None)
+
+        if user_existing is None:
+            return False
+        if user_existing.content != turn.get("user_content", ""):
+            return False
+        if user_existing.modality != turn.get("modality", "voice"):
+            return False
+
+        assistant_new_content = turn.get("assistant_content")
+        assistant_new_status = turn.get("assistant_status")
+
+        if assistant_existing is None:
+            # No existing assistant — new must also have none
+            return assistant_new_content is None
+        else:
+            # Existing assistant — must match content + status
+            if assistant_new_content is None:
+                return False
+            if assistant_existing.content != assistant_new_content:
+                return False
+            if assistant_existing.status != assistant_new_status:
+                return False
+
+        return True
 
     def delete(self, session_id: str) -> bool:
         with self._lock:
