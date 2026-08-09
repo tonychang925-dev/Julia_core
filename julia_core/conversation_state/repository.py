@@ -345,6 +345,109 @@ class SessionRepository:
 
         return True
 
+    def import_messages_atomic(
+        self, session_id: str, messages: list[dict],
+    ) -> tuple[int, int, str | None]:
+        """Atomically merge historical messages into canonical conversation.
+
+        For importing pre-existing history (Electron legacy cache, backups, etc.)
+        NOT for new realtime turns — use append_external_turns_atomic for that.
+
+        Returns: (imported_count, skipped_count, last_message_id).
+        On failure: full in-memory rollback. ZERO _save() on error.
+        """
+        from datetime import datetime, timezone, timedelta
+        CST = timezone(timedelta(hours=8))
+
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                raise ConversationNotFoundError(f"Conversation not found: {session_id}")
+
+            # Validate all messages first
+            for msg in messages:
+                role = msg.get("role", "")
+                if role not in ("user", "assistant"):
+                    raise InvalidTurnStateError(f"Invalid role: {role}")
+                if not msg.get("content", "").strip():
+                    raise InvalidTurnStateError("Message content is required")
+                status = msg.get("status", "completed")
+                if status not in ("completed", "interrupted"):
+                    raise InvalidTurnStateError(f"Invalid status for import: {status}")
+
+            # Idempotency: check existing message_ids
+            imported = 0
+            skipped = 0
+            new_messages = []
+            for msg in messages:
+                msg_id = msg.get("message_id", "")
+                if msg_id:
+                    existing = next((m for m in session.messages if m.message_id == msg_id), None)
+                    if existing:
+                        if (existing.role == msg.get("role") and
+                            existing.content == msg.get("content", "") and
+                            existing.status == msg.get("status", "completed") and
+                            existing.modality == msg.get("modality", "text")):
+                            skipped += 1
+                            continue
+                        else:
+                            raise TurnConflictError(
+                                f"Message {msg_id}: identity exists but content differs"
+                            )
+                new_messages.append(msg)
+
+            if not new_messages:
+                last = session.messages[-1] if session.messages else None
+                return 0, skipped, last.message_id if last else None
+
+            # Snapshot for rollback
+            saved_messages = list(session.messages)
+            saved_title = session.title
+            saved_updated_at = session.updated_at
+            saved_message_count = session.message_count
+
+            try:
+                # Convert new messages to ConversationMessage objects
+                new_objs = []
+                for msg in new_messages:
+                    new_objs.append(ConversationMessage(
+                        message_id=msg.get("message_id") or "",
+                        conversation_id=session_id,
+                        turn_id=msg.get("turn_id", ""),
+                        role=msg.get("role", "user"),
+                        modality=msg.get("modality", "text"),
+                        content=msg.get("content", ""),
+                        status=msg.get("status", "completed"),
+                        created_at=msg.get("created_at", ""),
+                    ))
+                    imported += 1
+
+                # Merge + stable chronological sort
+                # Primary: created_at. Secondary: turn_id grouping.
+                # Tertiary: role (user before assistant within same turn).
+                all_msgs = session.messages + new_objs
+                def _sort_key(m: ConversationMessage):
+                    ts = m.created_at or "9999"
+                    tid = m.turn_id or ""
+                    role_order = 0 if m.role == "user" else 1
+                    return (ts, tid, role_order, m.message_id)
+                all_msgs.sort(key=_sort_key)
+
+                session.messages = all_msgs
+                session.touch()
+                session.auto_title()
+                self._save()
+
+                last = session.messages[-1] if session.messages else None
+                return imported, skipped, last.message_id if last else None
+
+            except Exception:
+                session.messages = saved_messages
+                session.title = saved_title
+                session.updated_at = saved_updated_at
+                session.message_count = saved_message_count
+                raise
+
     def delete(self, session_id: str) -> bool:
         with self._lock:
             if session_id not in self._sessions:

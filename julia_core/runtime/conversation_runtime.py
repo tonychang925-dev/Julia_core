@@ -311,6 +311,40 @@ class ConversationRuntime:
             if ctx.lock:
                 ctx.lock.release()
 
+    def import_messages(
+        self, conversation_id: str, messages: list[dict], *,
+        source: str = "",
+    ) -> dict:
+        """CORE-C1B-M1: Merge historical messages into canonical conversation.
+
+        For importing pre-existing history. Does NOT call LLM or cognitive pipeline.
+        Returns: {conversation_id, imported_count, skipped_count, message_count, last_message_id}
+        """
+        from julia_core.conversation_state.repository import (
+            TurnConflictError, ConversationNotFoundError, InvalidTurnStateError,
+        )
+
+        lock = self._get_lock(conversation_id)
+        with lock:
+            try:
+                imported, skipped, last_id = self._repo.import_messages_atomic(
+                    conversation_id, messages,
+                )
+            except (TurnConflictError, ConversationNotFoundError, InvalidTurnStateError):
+                raise
+
+            # Invalidate interaction cache — will rebuild from merged history
+            self._interaction_states.pop(conversation_id, None)
+
+            session = self._repo.get(conversation_id)
+            return {
+                "conversation_id": conversation_id,
+                "imported_count": imported,
+                "skipped_count": skipped,
+                "message_count": session.message_count if session else 0,
+                "last_message_id": last_id or "",
+            }
+
     def list_conversations(self) -> list[ConversationHandle]:
         return [self._to_handle(s) for s in self._repo.list_all()]
 
