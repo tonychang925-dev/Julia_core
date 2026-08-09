@@ -26,7 +26,13 @@ from typing import Optional
 
 
 class JuliaSession:
-    """One Julia. One Runtime. Any number of bodies (voice, web, app)."""
+    """One Julia. One Runtime. Any number of bodies (voice, web, app).
+
+    CORE-C1: self.history is now a per-turn hydrated working copy.
+    Conversation authority belongs to ConversationRuntime, not this class.
+    When conversation_id is provided, history is loaded from canonical store.
+    When conversation_id is absent, legacy singleton accumulation is used (backward compat).
+    """
 
     def __init__(self):
         # Provider
@@ -52,14 +58,14 @@ class JuliaSession:
         from julia_core.runtime.session_recorder import get_recorder
         self.recorder = get_recorder()
 
-        # State
+        # State — conversation-owned when conversation_id is provided
         self.turn_count = 0
-        self.history: list[dict] = []
+        self.history: list[dict] = []  # Per-turn working copy; sourced from ConversationRuntime
+        self._active_conversation_id: str | None = None
         self.current_topic: str = "greeting"
         self.answered_questions: list[str] = []
 
         # Persona Feature Store — stable traits, first-person self-knowledge.
-        # This sits ABOVE narrative memory. It's who Julia IS, not what she experienced.
         from julia_core.runtime.persona.feature_store import get_persona_store
         self.persona = get_persona_store()
 
@@ -68,7 +74,6 @@ class JuliaSession:
         self.workflow_router = WorkflowRouter(self.capability)
 
         # Static system context — persona traits + narrative memory.
-        # Persona traits come first: "I have a mole under my left eye" — not from memory.
         self._identity_system = (
             "你不是在扮演角色。你不是在读资料。你就是你自己。\n\n"
             + self.persona.get_traits_for_injection() + "\n\n"
@@ -137,18 +142,63 @@ class JuliaSession:
 
     # ── Public API ────────────────────────────────────────────────────────
 
-    async def chat_async(self, text: str) -> str:
-        """Async-native chat entry point. Use this from Gateway/async contexts.
+    def chat_conversation(
+        self,
+        text: str,
+        *,
+        conversation_id: str,
+        turn_id: str = "",
+        modality: str = "text",
+    ) -> str:
+        """CORE-C1: Conversation-aware chat entry point.
 
-        Has the same cognitive pipeline as chat() but can be awaited directly
-        without asyncio.run() / ThreadPoolExecutor bridging.
+        History is loaded from canonical ConversationRuntime for this conversation_id.
+        After the turn, user and assistant messages are persisted back.
+
+        This is the authoritative entry point for Julia-native conversation turns.
         """
+        from julia_core.runtime.conversation_runtime import get_conversation_runtime
+        crt = get_conversation_runtime()
+
+        # Ensure conversation exists in canonical store
+        crt.get_or_create(conversation_id)
+
+        # Load canonical history for this conversation
+        history = crt.get_history(conversation_id)
+        self.history = list(history)  # Working copy for this turn
+        self._active_conversation_id = conversation_id
+
+        # Execute cognitive pipeline with this conversation's history
+        reply = self._chat_impl(text)
+
+        # Persist both user and assistant to canonical store
+        crt._service.repo.add_message(
+            conversation_id,
+            role="user",
+            content=text,
+            turn_id=turn_id,
+            modality=modality,
+            status="completed",
+        )
+        crt._service.repo.add_message(
+            conversation_id,
+            role="assistant",
+            content=reply,
+            turn_id=turn_id,
+            modality=modality,
+            status="completed",
+        )
+
+        return reply
+
+    async def chat_async(self, text: str) -> str:
+        """Async-native chat entry point. Use this from Gateway/async contexts."""
         return self._chat_impl(text)
 
     def chat(self, text: str) -> str:
-        """Sync chat entry point — delegates to _chat_impl().
+        """Sync chat entry point — legacy singleton accumulation.
 
-        Maintained for backward compat with CLI and non-async callers.
+        Maintained for backward compat. New code should use chat_conversation().
         """
         return self._chat_impl(text)
 

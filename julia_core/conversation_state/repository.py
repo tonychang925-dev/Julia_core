@@ -61,11 +61,28 @@ class SessionRepository:
         self._save()
         return session
 
-    def add_message(self, session_id: str, role: str, content: str) -> ConversationSession | None:
+    def add_message(
+        self,
+        session_id: str,
+        role: str,
+        content: str,
+        *,
+        turn_id: str = "",
+        modality: str = "text",
+        status: str = "completed",
+    ) -> ConversationSession | None:
         session = self._sessions.get(session_id)
         if not session:
             return None
-        session.messages.append(ConversationMessage(role=role, content=content))
+        msg = ConversationMessage(
+            conversation_id=session_id,
+            turn_id=turn_id,
+            role=role,
+            modality=modality,
+            content=content,
+            status=status,
+        )
+        session.messages.append(msg)
         session.touch()
         session.auto_title()
         self._save()

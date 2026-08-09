@@ -11,12 +11,19 @@ CST = timezone(timedelta(hours=8))
 
 @dataclass
 class ConversationMessage:
-    role: str          # "user" | "assistant" | "system"
-    content: str
-    timestamp: str = field(default_factory=lambda: datetime.now(CST).isoformat())
+    message_id: str = field(default_factory=lambda: f"msg_{uuid4().hex[:12]}")
+    conversation_id: str = ""
+    turn_id: str = ""
+    role: str = ""          # "user" | "assistant"
+    modality: str = "text"  # "text" | "voice"
+    content: str = ""
+    status: str = "completed"  # pending | completed | interrupted | failed
+    created_at: str = field(default_factory=lambda: datetime.now(CST).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        d = asdict(self)
+        # Remove legacy-only fields for compact storage
+        return {k: v for k, v in d.items() if v or k in ("message_id", "role", "content", "created_at")}
 
 
 @dataclass
