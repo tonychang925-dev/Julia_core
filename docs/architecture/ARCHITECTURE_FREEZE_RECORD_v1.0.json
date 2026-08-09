@@ -1,0 +1,43 @@
+{
+  "architecture": "JULIA_CORE_UNIFIED_ARCHITECTURE_v1.0.md",
+  "version": "1.0",
+  "status": "FROZEN",
+  "freeze_commit": "fafd1b8070d7fbce785faf18c96edc12c80c968a",
+  "git_blob_sha": "4e053c31838287b74ad9ef1a86169ef151050685",
+  "sha256": "5e4dc9114902bae557d28aea4a597fb5d5245f2211495b825447274ba4476e41",
+  "freeze_date": "2026-08-09",
+  "amendment_count": 7,
+  "amendments": [
+    "U0-T01: Functional cognition definition",
+    "U0-T02: A15 Effective Context Density and Causal Integrity",
+    "U0-T03: ToolResult mandatory Context OS re-entry",
+    "U0-T04: Relationship authority closure",
+    "U0-T05: Autobiographical identity vs Narrative Memory boundary",
+    "U0-T06: Normal Resume / Continuity Recovery split",
+    "U0-T07: Historical Transcript Migration scope"
+  ],
+  "acceptance_tests_added": [
+    "AT-13: Narrative Causal Integrity",
+    "AT-14: Effective Context Density",
+    "AT-15: Relationship Boundary Calibration",
+    "AT-16: Historical Conversation Recovery",
+    "AT-17: Context Source Completeness"
+  ],
+  "protocol_exception": {
+    "type": "combined_u0_amendment_and_freeze",
+    "description": "U0-A (amendments) and U0-FREEZE (metadata/placement) were combined in a single commit before the WBS v1.1 governance protocol was frozen. All amendments are substantively correct and verifiable against the frozen blob.",
+    "history_rewritten": false
+  },
+  "supersedes": [
+    "JULIA_CORE_PRINCIPLES.md",
+    "ARCH-R0_AUTHORITY_MAP.md",
+    "ARCHITECTURE_OVERVIEW.md",
+    "CONTEXT_OS_DESIGN.md",
+    "MEMORY_OS_DESIGN.md",
+    "PERSONA_ENGINE_DESIGN.md",
+    "CONTINUITY_OS_DESIGN.md",
+    "ALIGNMENT_OS_DESIGN.md",
+    "Public_Contract_Model_v1.md",
+    "all prior API contracts"
+  ]
+}
