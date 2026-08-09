@@ -175,11 +175,11 @@ class JuliaSession:
                               conversation_id: str = "", turn_id: str = "",
                               modality: str = "text",
                               interaction=None):
-        """CORE-C1-S1: Streaming cognitive executor. Same pipeline as process().
+        """CORE-C1-S2: Streaming cognitive executor. Same pipeline as process().
 
-        Builds system context through the SAME cognitive pipeline (persona,
-        relationship, capability), then yields deltas from the provider.
-        Core owns cognition; caller only transports deltas.
+        Uses _prepare_turn() for shared context assembly (identity, persona,
+        relationship, market, capability, events). Then streams deltas.
+        Skips tool_call two-pass (non-stream feature).
         """
         ctx = TurnContext(history,
                          conversation_id=conversation_id,
@@ -188,27 +188,8 @@ class JuliaSession:
                          interaction=interaction)
         ctx.turn_count += 1
 
-        # Same context assembly as _chat_impl()
-        if ctx.interaction is not None:
-            ctx.interaction.update(text)
-            interaction_ctx = ctx.interaction.to_context()
-        else:
-            interaction_ctx = ""
+        messages = self._prepare_turn(text, ctx)
 
-        experiences = self._load_recent_experiences()
-        conv_state = self._build_conversation_state(text, ctx)
-        system_with_tools = (
-            self._identity_system + "\n\n"
-            + experiences + "\n\n"
-            + self.capability.tool_manifest() + "\n\n"
-            + interaction_ctx + "\n\n"
-            + conv_state
-        )
-        messages = [{"role": "system", "content": system_with_tools}]
-        messages.extend(ctx.history[-20:])
-        messages.append({"role": "user", "content": text})
-
-        # Stream deltas from provider — caller owns transport
         async for delta in self.provider.stream_async(messages):
             yield delta
 
@@ -241,57 +222,52 @@ class JuliaSession:
         ctx = TurnContext([])
         return self._chat_impl(text, ctx)
 
-    def _chat_impl(self, text: str, ctx: TurnContext) -> str:
-        """One turn. Full cognitive pipeline. All turn state lives in ctx."""
-        ctx.turn_count += 1
-
-        # R1: Event tracking — correlation_id groups all events in this turn
+    def _prepare_turn(self, text: str, ctx: TurnContext) -> list[dict]:
+        """CORE-C1-S2: Shared turn preparation — event tracking, interaction,
+        market context, capability manifest. Used by BOTH process() and process_stream().
+        """
         from julia_core.events.models import (
             EventCategory, ConversationEventType, CapabilityEventType,
-            RuntimeEventType, create_event,
+            create_event,
         )
         from julia_core.events.store import get_event_store
         event_store = get_event_store()
-        correlation_id = ctx.correlation_id
 
-        # Emit: conversation.message.received
+        # Event: message received
         ev = create_event(
             source="conversation",
             event_type=ConversationEventType.MESSAGE_RECEIVED,
             category=EventCategory.CONVERSATION,
             payload={"text": text[:200], "turn": ctx.turn_count},
-            correlation_id=correlation_id,
+            correlation_id=ctx.correlation_id,
         )
         event_store.append(ev)
         ctx.last_event_id = ev.event_id
 
-        # Layer 1: Interaction state — per-conversation, NOT global
+        # Interaction state — per-conversation
         if ctx.interaction is not None:
             ctx.interaction.update(text)
             interaction_ctx = ctx.interaction.to_context()
         else:
             interaction_ctx = ""
 
-        # Layer 2: Conversation state — what are we talking about?
+        # Conversation state + market context
         conv_state = self._build_conversation_state(text, ctx)
-
-        # Layer 2.5: R0.3b — Market Intent → WorkflowRouter → ContextBlocks
         market_context = self._resolve_market_context(text)
 
-        # R1: Emit capability event if market context was successfully resolved
         if market_context:
             ev2 = create_event(
                 source="capability",
                 event_type=CapabilityEventType.REQUESTED,
                 category=EventCategory.CAPABILITY,
                 payload={"capability": "market.snapshot.read", "turn": ctx.turn_count},
-                correlation_id=correlation_id,
+                correlation_id=ctx.correlation_id,
                 causation_id=ctx.last_event_id,
             )
             event_store.append(ev2)
             ctx.last_event_id = ev2.event_id
 
-        # Layer 3: Build messages — identity + dynamic experiences + tools + state
+        # Build messages
         experiences = self._load_recent_experiences()
         system_with_tools = (
             self._identity_system + "\n\n"
@@ -304,6 +280,21 @@ class JuliaSession:
         messages = [{"role": "system", "content": system_with_tools}]
         messages.extend(ctx.history[-20:])
         messages.append({"role": "user", "content": text})
+        return messages
+
+    def _chat_impl(self, text: str, ctx: TurnContext) -> str:
+        """One turn. Full cognitive pipeline. All turn state lives in ctx."""
+        ctx.turn_count += 1
+
+        from julia_core.events.models import (
+            EventCategory, ConversationEventType,
+            create_event,
+        )
+        from julia_core.events.store import get_event_store
+        event_store = get_event_store()
+
+        # Shared preparation
+        messages = self._prepare_turn(text, ctx)
 
         # Layer 4: LLM (Pass 1)
         reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")

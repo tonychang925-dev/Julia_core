@@ -65,7 +65,8 @@ class TurnStreamingContext:
     user_msg_id: str = ""
     interaction: Any = None  # ConversationInteractionState (working copy)
     lock: Any = None  # threading.Lock
-    already_completed_content: str = ""  # Non-empty if idempotent hit
+    already_completed: bool = False  # True if idempotent hit
+    completed_content: str = ""  # Cached content if already_completed
 
 
 # ── Runtime ──────────────────────────────────────────────────────────────────
@@ -189,7 +190,7 @@ class ConversationRuntime:
                         conversation_id=conversation_id, turn_id=turn_id,
                         modality=modality, history=[], user_msg_id="",
                         interaction=None, lock=None,
-                        already_completed_content=existing.assistant_content,
+                        already_completed=True, completed_content=existing.assistant_content,
                     )
 
             session = self._repo.get(conversation_id)
