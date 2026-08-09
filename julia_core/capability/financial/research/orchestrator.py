@@ -205,6 +205,11 @@ class CognitiveLoopOrchestrator:
         """Execute autonomous research loop. Returns full CognitiveLoopResult."""
         self._validate_subject(subject)
 
+        # Inject config.as_of into subject for compiler binding resolution.
+        # $subject.as_of is the single source for CapabilityRequest arguments.
+        if self.config.as_of and not subject.get("as_of"):
+            subject["as_of"] = self.config.as_of
+
         # Snapshot blind judgment hash at start (only if not already set by set_blind_judgment)
         if self._blind_judgment and not self._blind_judgment_hash:
             self._blind_judgment_hash = _hash_dict(self._blind_judgment)

@@ -49,10 +49,10 @@ class ResearchEvidenceNormalizer:
             outer = capability_result.status
             if outer in ("denied", "unknown", "error", "unavailable"):
                 item.status = outer
-                item.provenance = {
+                item.provenance.update({
                     "outer_status": outer,
                     "error": getattr(capability_result, 'error_message', ''),
-                }
+                })
                 return item
 
         # Step 2: Unwrap provider envelope
@@ -67,10 +67,10 @@ class ResearchEvidenceNormalizer:
 
         if inner_status == "unavailable":
             item.status = "unavailable"
-            item.provenance = {
+            item.provenance.update({
                 "reason": inner.get("reason", ""),
                 "source_kind": inner.get("source_kind", ""),
-            }
+            })
             return item
 
         # Step 4: Value extraction via value_path (P0-3: nested support)
@@ -83,11 +83,11 @@ class ResearchEvidenceNormalizer:
                 item.status = "success"
             elif value_path:
                 item.status = "insufficient_evidence"
-                item.provenance = {
+                item.provenance.update({
                     "reason": f"value_path '{value_path}' not resolved in live payload",
                     "available_keys": _top_keys(inner),
                     "source_kind": inner.get("source_kind", ""),
-                }
+                })
             else:
                 item.status = "success"
                 item.raw_value = inner

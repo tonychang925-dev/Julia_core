@@ -29,7 +29,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         capability_name="market.stock.history",
         arguments_template={
             "stock_code": "$subject.leader_code",
-            "as_of": "$subject.trade_date",
+            "as_of": "$subject.as_of",
             "lookback_sessions": 5,
         },
         derive_metric="total_return",
@@ -41,7 +41,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         capability_name="market.stock.history",
         arguments_template={
             "stock_code": "$subject.leader_code",
-            "as_of": "$subject.trade_date",
+            "as_of": "$subject.as_of",
             "lookback_sessions": 5,
         },
         derive_metric="max_drawdown_from_peak",
@@ -53,7 +53,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         capability_name="market.stock.history",
         arguments_template={
             "stock_code": "$subject.leader_code",
-            "as_of": "$subject.trade_date",
+            "as_of": "$subject.as_of",
             "lookback_sessions": 5,
         },
         derive_metric="volume_trend",
@@ -65,7 +65,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         capability_name="market.stock.history",
         arguments_template={
             "stock_code": "$subject.leader_code",
-            "as_of": "$subject.trade_date",
+            "as_of": "$subject.as_of",
             "lookback_sessions": 5,
         },
         derive_metric="key_level_status",
@@ -78,7 +78,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         capability_name="market.stock.history",
         arguments_template={
             "stock_code": "$subject.leader_code",
-            "as_of": "$subject.trade_date",
+            "as_of": "$subject.as_of",
             "lookback_sessions": 5,
         },
         derive_metric="key_level_status",
@@ -92,7 +92,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         capability_name="market.theme.constituents",
         arguments_template={
             "subject_key": "$subject.subject_key",
-            "as_of": "$subject.trade_date",
+            "as_of": "$subject.as_of",
         },
         derive_metric="peer_relative_strength",
         output_type="dict",
@@ -103,7 +103,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         capability_name="market.theme.constituents",
         arguments_template={
             "subject_key": "$subject.subject_key",
-            "as_of": "$subject.trade_date",
+            "as_of": "$subject.as_of",
         },
         derive_metric="breadth_change",
         output_type="dict",
@@ -114,7 +114,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         capability_name="market.theme.constituents",
         arguments_template={
             "subject_key": "$subject.subject_key",
-            "as_of": "$subject.trade_date",
+            "as_of": "$subject.as_of",
         },
         derive_metric="emerging_leaders",
         output_type="list",
@@ -127,7 +127,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         capability_name="market.theme.capital",
         arguments_template={
             "subject_key": "$subject.subject_key",
-            "as_of": "$subject.trade_date",
+            "as_of": "$subject.as_of",
         },
         derive_metric="capital_flow_trend",
         output_type="categorical",
@@ -139,7 +139,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         requirement_id="market_regime",
         capability_name="market.regime.read",
         arguments_template={
-            "as_of": "$subject.trade_date",
+            "as_of": "$subject.as_of",
         },
         derive_metric="derived.regime_assessment.value",
         output_type="dict",
@@ -152,7 +152,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         capability_name="market.stock.auction",
         arguments_template={
             "stock_code": "$subject.leader_code",
-            "as_of": "$subject.trade_date",
+            "as_of": "$subject.as_of",
         },
         derive_metric="auction_trend",
         output_type="categorical",
@@ -163,7 +163,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         capability_name="market.stock.history",
         arguments_template={
             "stock_code": "$subject.leader_code",
-            "as_of": "$subject.trade_date",
+            "as_of": "$subject.as_of",
         },
         derive_metric="open_gap_vs_prev_close",
         output_type="ratio",
@@ -174,7 +174,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         capability_name="market.stock.history",
         arguments_template={
             "stock_code": "$subject.leader_code",
-            "as_of": "$subject.trade_date",
+            "as_of": "$subject.as_of",
         },
         derive_metric="intraday_volume_vs_prev",
         output_type="categorical",
@@ -185,7 +185,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         capability_name="market.stock.history",
         arguments_template={
             "stock_code": "$subject.leader_code",
-            "as_of": "$subject.trade_date",
+            "as_of": "$subject.as_of",
         },
         derive_metric="limit_up_seal",
         output_type="categorical",
@@ -196,7 +196,7 @@ REQUIREMENT_BINDINGS: dict[str, RequirementBinding] = {
         capability_name="market.theme.constituents",
         arguments_template={
             "subject_key": "$subject.subject_key",
-            "as_of": "$subject.trade_date",
+            "as_of": "$subject.as_of",
         },
         derive_metric="peer_limit_up_ratio",
         output_type="ratio",

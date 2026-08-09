@@ -113,6 +113,18 @@ class RuntimeCapabilityBridge:
             except Exception:
                 pass
 
+        # Julia Agent provider (M2.4) — Julia persona as a capability
+        if "julia_agent" not in self._providers:
+            try:
+                from julia_core.capability.providers.julia_agent import (
+                    register_julia_agent_capabilities,
+                    create_julia_agent_provider,
+                )
+                register_julia_agent_capabilities(self.registry)
+                self._providers["julia_agent"] = create_julia_agent_provider()
+            except Exception:
+                pass
+
         # Build the manager
         self._manager = CapabilityManager(
             self.registry,

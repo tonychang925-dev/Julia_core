@@ -603,3 +603,144 @@ def test_bridge_e2e_completed_with_fake_capability():
         assert loop_result.get("total_rounds", 0) >= 1
 
     asyncio.run(_run())
+
+
+# ── P0: Request cutoff integrity ──────────────────────────────────────────
+
+def test_capability_requests_use_runtime_cutoff_not_trade_date():
+    """Every CapabilityRequest as_of uses the runtime cutoff timestamp.
+
+    P0 regression: binding templates used $subject.trade_date (date-only),
+    losing the time component of the runtime as_of.
+    """
+    from julia_core.capability.financial.research.compiler import StrategyResearchCompiler
+    from julia_core.capability.financial.research.requirement_bindings import REQUIREMENT_BINDINGS
+    import json
+    from pathlib import Path
+
+    compiler = StrategyResearchCompiler()
+    card_path = Path("/Users/admin/Desktop/ai_theme_app/strategy_knowledge/cards/leader_divergence.json")
+    card = json.loads(card_path.read_text())
+
+    runtime_as_of = "2026-07-14T13:30:00+08:00"
+    subject = {
+        "subject_key": "9010270",
+        "trade_date": "2026-07-14",
+        "as_of": runtime_as_of,
+        "leader_code": "601969",
+    }
+
+    plan = compiler.compile(card, subject)
+    for probe in plan.probes:
+        req_as_of = (getattr(probe.request, "arguments", {}) or {}).get("as_of", "")
+        assert req_as_of == runtime_as_of, (
+            f"Probe {probe.requirement_id}: as_of={req_as_of} "
+            f"expected {runtime_as_of}"
+        )
+
+
+def test_rc002_preserves_same_cutoff_as_rc001():
+    """RC-002 CapabilityRequests use the exact same cutoff as RC-001."""
+    import json
+    from pathlib import Path
+    from julia_core.capability.financial.research.compiler import StrategyResearchCompiler
+
+    runtime_as_of = "2026-07-14T13:30:00+08:00"
+    subject = {
+        "subject_key": "9010270",
+        "trade_date": "2026-07-14",
+        "as_of": runtime_as_of,
+        "leader_code": "601969",
+    }
+
+    compiler = StrategyResearchCompiler()
+
+    card_base = Path("/Users/admin/Desktop/ai_theme_app/strategy_knowledge/cards")
+    card1 = json.loads((card_base / "leader_divergence.json").read_text())
+    plan1 = compiler.compile(card1, subject)
+
+    card2 = json.loads((card_base / "weak_to_strong.json").read_text())
+    plan2 = compiler.compile(card2, subject)
+
+    # Both plans' probes must use the exact same as_of
+    for plan_name, plan in [("RC-001", plan1), ("RC-002", plan2)]:
+        for probe in plan.probes:
+            req_as_of = (getattr(probe.request, "arguments", {}) or {}).get("as_of", "")
+            assert req_as_of == runtime_as_of, (
+                f"{plan_name} probe {probe.requirement_id}: "
+                f"as_of={req_as_of} expected {runtime_as_of}"
+            )
+
+
+# ── P1: Normalizer requested_as_of survival ───────────────────────────────
+
+def test_requested_as_of_survives_outer_error():
+    """Normalizer: requested_as_of survives outer error path."""
+    from julia_core.capability.financial.research.evidence_normalizer import ResearchEvidenceNormalizer
+    from julia_core.capability.financial.research.models import ResearchProbe
+    from julia_core.capability.models import CapabilityRequest
+    from types import SimpleNamespace
+
+    normalizer = ResearchEvidenceNormalizer()
+    probe = ResearchProbe(
+        requirement_id="test_req",
+        request=CapabilityRequest(
+            capability_name="test.cap",
+            arguments={"as_of": "2026-07-14T13:30:00+08:00"},
+        ),
+    )
+    result = SimpleNamespace(status="error", error_message="boom")
+
+    item = normalizer.normalize(probe, result)
+    assert item.provenance.get("requested_as_of") == "2026-07-14T13:30:00+08:00"
+    assert item.provenance.get("outer_status") == "error"
+
+
+def test_requested_as_of_survives_inner_unavailable():
+    """Normalizer: requested_as_of survives inner unavailable path."""
+    from julia_core.capability.financial.research.evidence_normalizer import ResearchEvidenceNormalizer
+    from julia_core.capability.financial.research.models import ResearchProbe
+    from julia_core.capability.models import CapabilityRequest
+    from types import SimpleNamespace
+
+    normalizer = ResearchEvidenceNormalizer()
+    probe = ResearchProbe(
+        requirement_id="test_req",
+        request=CapabilityRequest(
+            capability_name="test.cap",
+            arguments={"as_of": "2026-07-14T13:30:00+08:00"},
+        ),
+    )
+    result = SimpleNamespace(
+        status="success",
+        data={"status": "unavailable", "reason": "no_data", "source_kind": "archive"},
+    )
+
+    item = normalizer.normalize(probe, result)
+    assert item.provenance.get("requested_as_of") == "2026-07-14T13:30:00+08:00"
+
+
+def test_requested_as_of_survives_value_path_miss():
+    """Normalizer: requested_as_of survives value_path miss (insufficient)."""
+    from julia_core.capability.financial.research.evidence_normalizer import ResearchEvidenceNormalizer
+    from julia_core.capability.financial.research.models import ResearchProbe
+    from julia_core.capability.models import CapabilityRequest
+    from types import SimpleNamespace
+
+    normalizer = ResearchEvidenceNormalizer()
+    probe = ResearchProbe(
+        requirement_id="test_req",
+        request=CapabilityRequest(
+            capability_name="test.cap",
+            arguments={"as_of": "2026-07-14T13:30:00+08:00"},
+        ),
+        derive_metric="nonexistent.key.path",
+    )
+    result = SimpleNamespace(
+        status="success",
+        data={"status": "live", "some_other_field": 42},
+    )
+
+    item = normalizer.normalize(probe, result)
+    assert item.provenance.get("requested_as_of") == "2026-07-14T13:30:00+08:00"
+    assert item.status == "insufficient_evidence"
