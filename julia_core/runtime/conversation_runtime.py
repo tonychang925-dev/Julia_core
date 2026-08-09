@@ -156,6 +156,10 @@ class ConversationRuntime:
         return [self._to_handle(s) for s in self._repo.list_all()]
 
     def delete_conversation(self, conversation_id: str) -> bool:
+        """Delete conversation, history, interaction state, and lock."""
+        self._interaction_states.pop(conversation_id, None)
+        with self._locks_lock:
+            self._locks.pop(conversation_id, None)
         return self._repo.delete(conversation_id)
 
     # ── Legacy Migration ──────────────────────────────────────────────────
@@ -233,17 +237,24 @@ class ConversationRuntime:
         )
         user_msg_id = user_msg.messages[-1].message_id if user_msg else ""
 
-        # 5. Cognitive execution
+        # 5. Cognitive execution with transactional interaction state
+        # Copy canonical interaction → working copy. Commit only on success.
+        import copy
+        canonical = self.get_interaction_state(conversation_id)
+        working = copy.deepcopy(canonical)
+
         try:
-            interaction = self.get_interaction_state(conversation_id)
-            assistant_content = cognitive_fn(input, history, conversation_id, turn_id, modality, interaction)
+            assistant_content = cognitive_fn(input, history, conversation_id, turn_id, modality, working)
             assistant_status = "completed"
             user_final_status = "completed"
+            # Commit: replace canonical with working copy
+            self._interaction_states[conversation_id] = working
         except Exception as exc:
             logger.error(f"Cognitive pipeline failed for {conversation_id}/{turn_id}: {exc}")
             assistant_content = ""
             assistant_status = "failed"
             user_final_status = "failed"
+            # Rollback: canonical interaction state unchanged
 
         # 6. Update user message to final status
         self._update_message_status(user_msg_id, user_final_status)
