@@ -179,7 +179,10 @@ class JuliaSession:
 
         Uses _prepare_turn() for shared context assembly (identity, persona,
         relationship, market, capability, events). Then streams deltas.
-        Skips tool_call two-pass (non-stream feature).
+        Streaming contract: single-pass conversational cognition.
+        Tool execution (two-pass detect→execute→retry), action lifecycle,
+        and memory consolidation are non-stream features.
+        Market context from B1/B2 is pre-injected via _prepare_turn().
         """
         ctx = TurnContext(history,
                          conversation_id=conversation_id,
@@ -349,7 +352,7 @@ class JuliaSession:
                 "reply_len": len(reply) if reply else 0,
                 "turn": ctx.turn_count,
             },
-            correlation_id=correlation_id,
+            correlation_id=ctx.correlation_id,
             causation_id=ctx.last_event_id,
         )
         event_store.append(ev3)

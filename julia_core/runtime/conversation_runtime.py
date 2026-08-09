@@ -177,7 +177,8 @@ class ConversationRuntime:
         then calls complete_turn_streaming() or cancel_turn_streaming().
         """
         lock = self._get_lock(conversation_id)
-        lock.acquire()
+        if not lock.acquire(blocking=False):
+            raise ConversationBusyError(conversation_id)
 
         try:
             # Idempotency
