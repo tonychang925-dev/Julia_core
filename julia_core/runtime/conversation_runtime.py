@@ -162,6 +162,41 @@ class ConversationRuntime:
             self._locks.pop(conversation_id, None)
         return self._repo.delete(conversation_id)
 
+    # ── CORE-CM1: Management API ─────────────────────────────────────────
+
+    def create_conversation(self, conversation_id: str = "", title: str = "New Conversation") -> ConversationHandle:
+        """Create a new conversation. If conversation_id is provided, use it as the canonical ID."""
+        cid = conversation_id or f"conv_{_time.strftime('%Y%m%d_%H%M%S')}_{id(self)}"
+        self._repo.create_with_id(cid, title)
+        self._interaction_states.pop(cid, None)  # Fresh start
+        return self._to_handle(self._repo.get(cid))
+
+    def get_conversation(self, conversation_id: str) -> dict | None:
+        """Get full conversation detail including messages."""
+        session = self._repo.get(conversation_id)
+        if session is None:
+            return None
+        return session.detail()
+
+    def get_messages(self, conversation_id: str, max_messages: int = 100) -> list[dict]:
+        """Get messages as dicts with full metadata (message_id, turn_id, modality, status)."""
+        session = self._repo.get(conversation_id)
+        if session is None:
+            return []
+        return [m.to_dict() for m in session.messages[-max_messages:]]
+
+    def rename_conversation(self, conversation_id: str, title: str) -> ConversationHandle | None:
+        """Rename a conversation. Title persists across restarts."""
+        session = self._repo.update_title(conversation_id, title)
+        if session is None:
+            return None
+        return self._to_handle(session)
+
+    def search_conversations(self, query: str) -> list[ConversationHandle]:
+        """Search conversations by title or message content."""
+        sessions = self._repo.search(query)
+        return [self._to_handle(s) for s in sessions]
+
     # ── Legacy Migration ──────────────────────────────────────────────────
 
     def migrate_legacy_sessions(
