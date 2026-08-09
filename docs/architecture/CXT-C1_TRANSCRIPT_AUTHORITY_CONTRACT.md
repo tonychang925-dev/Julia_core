@@ -183,3 +183,29 @@ Continuity OS
    schema. Any future checkpoint field requires a Continuity OS contract/ADR change.
    ContinuityCheckpoint contents are governed exclusively by the Continuity OS
    checkpoint contract.
+
+## Reverse Authority Prohibition
+
+No derived or projected representation may become transcript authority:
+
+```
+ConversationMessage      = canonical durable transcript truth  ← ONLY authority
+
+ContextTurn              → derived working representation      ← NOT authority
+StructuredCompact        → lossy / reconstructable artifact    ← NOT authority
+ContextWindow / prompt   → runtime projection                  ← NOT authority
+Continuity signal        → observation, not classification     ← NOT authority
+```
+
+Forbidden reverse authority:
+
+```
+❌ StructuredCompact   →  treated as Conversation truth
+❌ ContextTurn         →  treated as Conversation truth
+❌ Prompt assembly     →  treated as Conversation truth
+❌ Continuity signal   →  triggers transcript mutation
+❌ Context artifact    →  required for ContinuityCheckpoint validity
+```
+
+The only path to canonical transcript truth is ConversationRuntime.
+Everything else is a projection — useful, but never authoritative.
