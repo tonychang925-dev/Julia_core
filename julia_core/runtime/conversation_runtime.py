@@ -53,6 +53,20 @@ class ConversationHandle:
     message_count: int = 0
 
 
+# ── Turn Streaming Context ────────────────────────────────────────────────────
+
+@dataclass
+class TurnStreamingContext:
+    """Holds streaming turn state between begin/commit/cancel."""
+    conversation_id: str
+    turn_id: str
+    history: list[dict]
+    user_msg_id: str
+    interaction: Any  # ConversationInteractionState (working copy)
+    lock: Any  # threading.Lock
+    already_completed_content: str = ""  # Non-empty if idempotent hit
+
+
 # ── Runtime ──────────────────────────────────────────────────────────────────
 
 class ConversationRuntime:
@@ -151,6 +165,90 @@ class ConversationRuntime:
 
     def close(self, conversation_id: str) -> None:
         pass  # State preserved in persistence
+
+    def begin_turn_streaming(
+        self, *, conversation_id: str, turn_id: str, modality: str, input: str,
+    ) -> TurnStreamingContext:
+        """Begin a streaming turn. Returns context for Brain to stream through.
+
+        Brain calls this, streams deltas from DeepSeek through TurnStreamingContext,
+        then calls complete_turn_streaming() or cancel_turn_streaming().
+        """
+        lock = self._get_lock(conversation_id)
+        lock.acquire()
+
+        try:
+            # Idempotency
+            if turn_id:
+                existing = self._find_turn_in_store(conversation_id, turn_id)
+                if existing and existing.status == "completed":
+                    lock.release()
+                    existing._already_completed = True
+                    return TurnStreamingContext(
+                        conversation_id=conversation_id, turn_id=turn_id,
+                        history=[], user_msg_id="", interaction=None, lock=None,
+                        already_completed_content=existing.assistant_content,
+                    )
+
+            session = self._repo.get(conversation_id)
+            if session is None:
+                session = self._create_conversation(conversation_id)
+
+            history = self.get_history(conversation_id)
+
+            import copy
+            canonical = self.get_interaction_state(conversation_id)
+            working = copy.deepcopy(canonical)
+
+            user_msg = self._add_message(
+                conversation_id, role="user", content=input,
+                turn_id=turn_id, modality=modality, status="pending",
+            )
+            user_msg_id = user_msg.messages[-1].message_id if user_msg else ""
+
+            return TurnStreamingContext(
+                conversation_id=conversation_id, turn_id=turn_id,
+                history=history, user_msg_id=user_msg_id,
+                interaction=working, lock=lock,
+            )
+        except Exception:
+            lock.release()
+            raise
+
+    def commit_streaming_turn(
+        self, ctx: "TurnStreamingContext", assistant_content: str,
+    ) -> TurnResult:
+        """Commit a successfully completed streaming turn."""
+        try:
+            self._update_message_status(ctx.user_msg_id, "completed")
+            self._interaction_states[ctx.conversation_id] = ctx.interaction
+
+            assistant_msg = self._add_message(
+                ctx.conversation_id, role="assistant", content=assistant_content,
+                turn_id=ctx.turn_id, modality="text", status="completed",
+            )
+            assistant_msg_id = assistant_msg.messages[-1].message_id if assistant_msg else ""
+
+            now = _time.strftime("%Y-%m-%dT%H:%M:%S")
+            return TurnResult(
+                conversation_id=ctx.conversation_id, turn_id=ctx.turn_id,
+                user_message_id=ctx.user_msg_id,
+                assistant_message_id=assistant_msg_id,
+                assistant_content=assistant_content,
+                status="completed",
+                created_at=now, completed_at=_time.strftime("%Y-%m-%dT%H:%M:%S"),
+            )
+        finally:
+            if ctx.lock:
+                ctx.lock.release()
+
+    def cancel_streaming_turn(self, ctx: "TurnStreamingContext"):
+        """Cancel/rollback a streaming turn."""
+        try:
+            self._update_message_status(ctx.user_msg_id, "failed")
+        finally:
+            if ctx.lock:
+                ctx.lock.release()
 
     def list_conversations(self) -> list[ConversationHandle]:
         return [self._to_handle(s) for s in self._repo.list_all()]
