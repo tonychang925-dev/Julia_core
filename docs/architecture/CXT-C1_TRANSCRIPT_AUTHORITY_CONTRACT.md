@@ -1,6 +1,6 @@
 # CXT-C1 — Transcript Authority Contract
 
-**Status**: DRAFT — CXT-C1a corrected — NO IMPLEMENTATION
+**Status**: FROZEN — Transcript Authority Contract — CXT-C1b
 **Depends on**: CXT-C0 (ADR-020)
 **Scope**: julia_core architecture only
 
@@ -160,10 +160,14 @@ Continuity OS
 4. ActiveTail size is determined by Context OS budget, not by hardcoded constant.
 5. ConversationRuntime never reads ContextTurn/StructuredCompact — it only writes/reads ConversationMessage.
 
-6. **CXT-C1a**: Continuity OS MUST NOT depend on ContextTurn, StructuredCompact,
-   or ActiveTail as continuity truth. ContinuityCheckpoint stores identity refs,
-   protected memory refs, relationship refs, and project/session continuity refs
-   — NOT Context OS projection artifact IDs.
+6. **CXT-C1b**: Continuity OS MUST NOT depend on ContextTurn, StructuredCompact,
+   or ActiveTail as continuity truth. ContinuityCheckpoint stores:
+   - identity refs
+   - protected memory refs
+   - relationship refs
+   - active project refs
+   - other refs explicitly defined by the frozen ContinuityCheckpoint schema
+   It MUST NOT store Context OS projection artifact IDs.
 
    During recovery, Context OS may reconstruct or reuse cached context artifacts,
    but ContinuityCheckpoint MUST remain valid if every Context OS derived artifact
@@ -174,3 +178,8 @@ Continuity OS
    Only ContinuityPolicy produces L0/L1/L2/L3 classification.
    Continuity OS owns: "what must survive and at what level."
    Context OS owns: "what the model sees now."
+
+8. **CXT-C1b**: Transcript Authority Contract MUST NOT extend ContinuityCheckpoint
+   schema. Any future checkpoint field requires a Continuity OS contract/ADR change.
+   ContinuityCheckpoint contents are governed exclusively by the Continuity OS
+   checkpoint contract.
