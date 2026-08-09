@@ -350,55 +350,98 @@ class SessionRepository:
     ) -> tuple[int, int, str | None]:
         """Atomically merge historical messages into canonical conversation.
 
-        For importing pre-existing history (Electron legacy cache, backups, etc.)
-        NOT for new realtime turns — use append_external_turns_atomic for that.
-
-        Returns: (imported_count, skipped_count, last_message_id).
-        On failure: full in-memory rollback. ZERO _save() on error.
+        CORE-C1B-M1a: strict identity contract.
+        Every message MUST have: message_id, turn_id, role, modality, content,
+        status, created_at. Missing any required field → InvalidTurnStateError.
         """
-        from datetime import datetime, timezone, timedelta
-        CST = timezone(timedelta(hours=8))
+        VALID_ROLES = {"user", "assistant"}
+        VALID_MODALITIES = {"text", "voice"}
+        VALID_STATUSES = {"completed", "interrupted"}
+        ISO_RE = __import__("re").compile(
+            r'^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}'
+        )
 
         with self._lock:
             session = self._sessions.get(session_id)
             if session is None:
                 raise ConversationNotFoundError(f"Conversation not found: {session_id}")
 
-            # Validate all messages first
+            # Phase 1: validate ALL messages — every field required
+            seen_in_batch: set[str] = set()
             for msg in messages:
-                role = msg.get("role", "")
-                if role not in ("user", "assistant"):
-                    raise InvalidTurnStateError(f"Invalid role: {role}")
-                if not msg.get("content", "").strip():
-                    raise InvalidTurnStateError("Message content is required")
-                status = msg.get("status", "completed")
-                if status not in ("completed", "interrupted"):
-                    raise InvalidTurnStateError(f"Invalid status for import: {status}")
+                msg_id = (msg.get("message_id") or "").strip()
+                turn_id = (msg.get("turn_id") or "").strip()
+                role = (msg.get("role") or "").strip()
+                modality = (msg.get("modality") or "text").strip()
+                content = (msg.get("content") or "").strip()
+                status = (msg.get("status") or "completed").strip()
+                created_at = (msg.get("created_at") or "").strip()
 
-            # Idempotency: check existing message_ids
+                if not msg_id:
+                    raise InvalidTurnStateError("message_id is required")
+                if not turn_id:
+                    raise InvalidTurnStateError(f"Message {msg_id}: turn_id is required")
+                if role not in VALID_ROLES:
+                    raise InvalidTurnStateError(f"Message {msg_id}: invalid role '{role}'")
+                if modality not in VALID_MODALITIES:
+                    raise InvalidTurnStateError(f"Message {msg_id}: invalid modality '{modality}'")
+                if not content:
+                    raise InvalidTurnStateError(f"Message {msg_id}: content is required")
+                if status not in VALID_STATUSES:
+                    raise InvalidTurnStateError(f"Message {msg_id}: invalid status '{status}'")
+                if not created_at or not ISO_RE.match(created_at):
+                    raise InvalidTurnStateError(
+                        f"Message {msg_id}: created_at is required (ISO-8601), got '{created_at}'"
+                    )
+
+                # Duplicate message_id within same batch
+                if msg_id in seen_in_batch:
+                    raise InvalidTurnStateError(
+                        f"Message {msg_id}: duplicate message_id in request batch"
+                    )
+                seen_in_batch.add(msg_id)
+
+            # Phase 2: idempotency — full identity comparison
             imported = 0
             skipped = 0
-            new_messages = []
+            new_messages: list[dict] = []
             for msg in messages:
-                msg_id = msg.get("message_id", "")
-                if msg_id:
-                    existing = next((m for m in session.messages if m.message_id == msg_id), None)
-                    if existing:
-                        if (existing.role == msg.get("role") and
-                            existing.content == msg.get("content", "") and
-                            existing.status == msg.get("status", "completed") and
-                            existing.modality == msg.get("modality", "text")):
-                            skipped += 1
-                            continue
-                        else:
-                            raise TurnConflictError(
-                                f"Message {msg_id}: identity exists but content differs"
-                            )
+                msg_id = msg["message_id"].strip()
+                existing = next((m for m in session.messages if m.message_id == msg_id), None)
+                if existing:
+                    if self._import_msg_equals(existing, msg):
+                        skipped += 1
+                        continue
+                    else:
+                        raise TurnConflictError(
+                            f"Message {msg_id}: identity exists but content differs"
+                        )
                 new_messages.append(msg)
 
             if not new_messages:
                 last = session.messages[-1] if session.messages else None
                 return 0, skipped, last.message_id if last else None
+
+            # Phase 3: validate turn structure (user→assistant ordering)
+            turns: dict[str, list[dict]] = {}
+            for msg in new_messages:
+                tid = msg["turn_id"].strip()
+                turns.setdefault(tid, []).append(msg)
+            for tid, tmsgs in turns.items():
+                roles = [m["role"] for m in tmsgs]
+                if len(tmsgs) > 2:
+                    raise InvalidTurnStateError(
+                        f"Turn {tid}: max 2 messages per turn (user+assistant), got {len(tmsgs)}"
+                    )
+                if roles == ["assistant", "user"]:
+                    # Swap to user→assistant order
+                    tmsgs.reverse()
+
+            # Flatten turns back in chronological order
+            ordered_new: list[dict] = []
+            for tid in sorted(turns.keys()):
+                for msg in turns[tid]:
+                    ordered_new.append(msg)
 
             # Snapshot for rollback
             saved_messages = list(session.messages)
@@ -407,24 +450,21 @@ class SessionRepository:
             saved_message_count = session.message_count
 
             try:
-                # Convert new messages to ConversationMessage objects
                 new_objs = []
-                for msg in new_messages:
+                for msg in ordered_new:
                     new_objs.append(ConversationMessage(
-                        message_id=msg.get("message_id") or "",
+                        message_id=msg["message_id"].strip(),
                         conversation_id=session_id,
-                        turn_id=msg.get("turn_id", ""),
-                        role=msg.get("role", "user"),
-                        modality=msg.get("modality", "text"),
-                        content=msg.get("content", ""),
-                        status=msg.get("status", "completed"),
-                        created_at=msg.get("created_at", ""),
+                        turn_id=msg["turn_id"].strip(),
+                        role=msg["role"].strip(),
+                        modality=msg["modality"].strip(),
+                        content=msg["content"].strip(),
+                        status=msg["status"].strip(),
+                        created_at=msg["created_at"].strip(),
                     ))
                     imported += 1
 
-                # Merge + stable chronological sort
-                # Primary: created_at. Secondary: turn_id grouping.
-                # Tertiary: role (user before assistant within same turn).
+                # Merge + sort by (created_at, turn_id, role_order)
                 all_msgs = session.messages + new_objs
                 def _sort_key(m: ConversationMessage):
                     ts = m.created_at or "9999"
@@ -447,6 +487,19 @@ class SessionRepository:
                 session.updated_at = saved_updated_at
                 session.message_count = saved_message_count
                 raise
+
+    @staticmethod
+    def _import_msg_equals(existing, msg: dict) -> bool:
+        """Full identity comparison for historical import idempotency."""
+        return (
+            existing.message_id == msg.get("message_id", "").strip() and
+            existing.turn_id == msg.get("turn_id", "").strip() and
+            existing.role == msg.get("role", "").strip() and
+            existing.modality == msg.get("modality", "text").strip() and
+            existing.content == msg.get("content", "").strip() and
+            existing.status == msg.get("status", "completed").strip() and
+            existing.created_at == msg.get("created_at", "").strip()
+        )
 
     def delete(self, session_id: str) -> bool:
         with self._lock:
