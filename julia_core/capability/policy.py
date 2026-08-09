@@ -50,12 +50,6 @@ class PermissionPolicy:
                                reason="Requires user confirmation"),
             "memory.delete":   PermissionRule("memory.delete", allow=False,
                                reason="Requires Tony explicit action"),
-            "julia.chat":      PermissionRule("julia.chat", allow=True,
-                               reason="Julia persona conversation — read-only identity"),
-            "julia.identity":  PermissionRule("julia.identity", allow=True,
-                               reason="Identity check — read-only"),
-            "julia.memory":    PermissionRule("julia.memory", allow=True,
-                               reason="Memory search — read-only diary access"),
         })
 
     def check(self, scope: str) -> tuple[bool, str]:

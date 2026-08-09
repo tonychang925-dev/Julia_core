@@ -28,7 +28,7 @@ from julia_core.capability.financial.research.models import (
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 def _make_config(**kwargs) -> CognitiveLoopConfig:
-    defaults = {"max_rounds": 1, "query_budget": 10, "as_of": "2026-07-14"}
+    defaults = {"max_rounds": 1, "query_budget": 10, "as_of": "2026-07-14T15:30:00+08:00"}
     defaults.update(kwargs)
     return CognitiveLoopConfig(**defaults)
 
@@ -163,7 +163,7 @@ def test_missing_market_stage_raises():
     """No initial_card and no market_stage → ConstraintViolation."""
     orchestrator = CognitiveLoopOrchestrator(
         capability_manager=ForbiddenCapabilityManager(),
-        config=CognitiveLoopConfig(max_rounds=1, initial_card=""),  # empty
+        config=CognitiveLoopConfig(max_rounds=1, initial_card="", as_of="2026-07-14T15:30:00+08:00"),  # empty
     )
 
     async def _run():
@@ -300,7 +300,7 @@ def test_no_silent_leader_divergence_default():
     """Empty initial_card + no market_stage → ConstraintViolation, not silent default."""
     orchestrator = CognitiveLoopOrchestrator(
         capability_manager=ForbiddenCapabilityManager(),
-        config=CognitiveLoopConfig(max_rounds=1, initial_card=""),
+        config=CognitiveLoopConfig(max_rounds=1, initial_card="", as_of="2026-07-14T15:30:00+08:00"),
     )
 
     async def _run():
@@ -744,3 +744,56 @@ def test_requested_as_of_survives_value_path_miss():
     item = normalizer.normalize(probe, result)
     assert item.provenance.get("requested_as_of") == "2026-07-14T13:30:00+08:00"
     assert item.status == "insufficient_evidence"
+
+
+# ── P0: config.as_of absolute temporal authority ──────────────────────────
+
+def test_subject_as_of_conflict_with_config_raises():
+    """subject.as_of != config.as_of → ConstraintViolation.
+
+    P0: Orchestrator must not silently use subject.as_of when it
+    conflicts with config.as_of. Config is the single authority.
+    """
+    orchestrator = CognitiveLoopOrchestrator(
+        capability_manager=ForbiddenCapabilityManager(),
+        config=_make_config(as_of="2026-07-14T13:30:00+08:00"),
+        evidence_injector={
+            "leader_divergence": {
+                "leader_5d_return": _make_evidence_item("leader_5d_return", derived_value=0.04),
+                "leader_drawdown_from_peak": _make_evidence_item("leader_drawdown_from_peak", derived_value=-0.04),
+                "leader_volume_pattern": _make_evidence_item("leader_volume_pattern", derived_value="normal"),
+                "key_level_status": _make_evidence_item("key_level_status", derived_value="intact"),
+                "peer_relative_strength": _make_evidence_item("peer_relative_strength", derived_value={"dispersion": {"max_min_spread": 0.10}}),
+                "theme_breadth_change": _make_evidence_item("theme_breadth_change", derived_value={"delta": {"positive_ratio": 0.6}, "from": {}, "to": {"limit_up_ratio": 0.6, "positive_ratio": 0.7}}),
+                "capital_persistence": _make_evidence_item("capital_persistence", status="unavailable"),
+                "market_regime": _make_evidence_item("market_regime", derived_value="strength_active"),
+                "new_leader_candidates": _make_evidence_item("new_leader_candidates", derived_value=[]),
+            },
+        },
+    )
+
+    async def _run():
+        with pytest.raises(ConstraintViolation, match="conflicts with config.as_of"):
+            await orchestrator.run(_make_subject(
+                as_of="2026-07-14T15:00:00+08:00",  # different from config 13:30
+            ))
+
+    asyncio.run(_run())
+
+
+def test_config_as_of_missing_raises():
+    """Config.as_of is empty → ConstraintViolation.
+
+    P0: Every CognitiveLoop must have an explicit as_of.
+    """
+    orchestrator = CognitiveLoopOrchestrator(
+        capability_manager=ForbiddenCapabilityManager(),
+        config=_make_config(as_of=""),  # empty
+        evidence_injector={},
+    )
+
+    async def _run():
+        with pytest.raises(ConstraintViolation, match="config.as_of is required"):
+            await orchestrator.run(_make_subject())
+
+    asyncio.run(_run())

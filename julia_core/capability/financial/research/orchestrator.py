@@ -205,10 +205,24 @@ class CognitiveLoopOrchestrator:
         """Execute autonomous research loop. Returns full CognitiveLoopResult."""
         self._validate_subject(subject)
 
-        # Inject config.as_of into subject for compiler binding resolution.
-        # $subject.as_of is the single source for CapabilityRequest arguments.
-        if self.config.as_of and not subject.get("as_of"):
-            subject["as_of"] = self.config.as_of
+        # P0: config.as_of is the absolute temporal authority.
+        # subject.as_of must not conflict; silent override is forbidden.
+        if not self.config.as_of:
+            raise ConstraintViolation(
+                "config.as_of is required — every CognitiveLoop must have "
+                "a full timezone-aware as_of timestamp"
+            )
+
+        if subject.get("as_of"):
+            subject_as_of = _parse_aware_datetime(subject["as_of"], "subject.as_of")
+            config_as_of = _parse_aware_datetime(self.config.as_of, "config.as_of")
+            if subject_as_of != config_as_of:
+                raise ConstraintViolation(
+                    f"subject.as_of={subject['as_of']} conflicts with "
+                    f"config.as_of={self.config.as_of}"
+                )
+
+        subject["as_of"] = self.config.as_of
 
         # Snapshot blind judgment hash at start (only if not already set by set_blind_judgment)
         if self._blind_judgment and not self._blind_judgment_hash:
