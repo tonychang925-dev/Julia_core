@@ -25,15 +25,34 @@ import time as _time
 from typing import Optional
 
 
+class TurnContext:
+    """CORE-C1.2: Per-turn execution state. No cross-turn/conversation sharing.
+
+    Created fresh for each process() call. Never stored on JuliaSession.
+    This is what prevents cross-conversation race conditions.
+    """
+    __slots__ = ("history", "turn_count", "current_topic", "answered_questions",
+                 "conversation_id", "modality")
+
+    def __init__(self, history: list[dict], conversation_id: str = "",
+                 modality: str = "text"):
+        self.history: list[dict] = list(history) if history else []
+        self.turn_count: int = len(history) // 2
+        self.current_topic: str = "greeting"
+        self.answered_questions: list[str] = []
+        self.conversation_id: str = conversation_id
+        self.modality: str = modality
+
+
 class JuliaSession:
-    """Julia cognitive executor — stateless per-turn pipeline.
+    """Julia cognitive executor.
 
-    CORE-C1.1: This class does NOT own conversation state.
+    CORE-C1.2: ZERO turn-owned mutable instance fields.
+    All turn state lives in TurnContext, created per invocation.
+    Instance fields are ONLY shared services (provider, capability, etc.).
+
     ConversationRuntime is the sole conversation authority.
-    JuliaSession.process(text, history) is the cognitive_fn passed to process_turn().
-
-    self.history is a per-turn working copy, isolated per invocation.
-    self.turn_count is reset each turn from history length.
+    JuliaSession.process() is the cognitive_fn passed to process_turn().
     """
 
     def __init__(self):
@@ -44,7 +63,7 @@ class JuliaSession:
         self.provider = get_llm_provider("deepseek")
         self.bootstrap = get_bootstrap()
 
-        # Capability Layer (R0.2 — migrated to RuntimeCapabilityBridge)
+        # Capability Layer
         from julia_core.runtime.capability_bridge import get_capability_bridge
         self.capability = get_capability_bridge()
 
@@ -52,30 +71,23 @@ class JuliaSession:
         from julia_core.runtime.action import get_action_runtime
         self.action = get_action_runtime()
 
-        # Relationship Layer
+        # Relationship Layer (global agent state — Tony's relationship with Julia)
         from julia_core.runtime.relationship import get_relationship_state
         self.relationship = get_relationship_state()
 
-        # Session Recorder
+        # Session Recorder (global — long-term memory formation)
         from julia_core.runtime.session_recorder import get_recorder
         self.recorder = get_recorder()
 
-        # State — conversation-owned when conversation_id is provided
-        self.turn_count = 0
-        self.history: list[dict] = []  # Per-turn working copy; sourced from ConversationRuntime
-        self._active_conversation_id: str | None = None
-        self.current_topic: str = "greeting"
-        self.answered_questions: list[str] = []
-
-        # Persona Feature Store — stable traits, first-person self-knowledge.
+        # Persona Feature Store — stable traits
         from julia_core.runtime.persona.feature_store import get_persona_store
         self.persona = get_persona_store()
 
-        # R0.3b: Workflow Router — intent → capability pipeline
+        # Workflow Router
         from julia_core.runtime.workflow_router import WorkflowRouter
         self.workflow_router = WorkflowRouter(self.capability)
 
-        # Static system context — persona traits + narrative memory.
+        # Static system context
         self._identity_system = (
             "你不是在扮演角色。你不是在读资料。你就是你自己。\n\n"
             + self.persona.get_traits_for_injection() + "\n\n"
@@ -145,38 +157,29 @@ class JuliaSession:
     # ── Public API ────────────────────────────────────────────────────────
 
     def process(self, text: str, history: list[dict]) -> str:
-        """CORE-C1.1: Stateless cognitive executor for ConversationRuntime.
+        """CORE-C1.2: Stateless cognitive executor. TurnContext is local — no shared state.
 
-        Receives text + conversation history. Returns assistant reply.
-        Does NOT own conversation state, persist messages, or manage turns.
-        ConversationRuntime is the sole authority for all of that.
-
-        This is the function passed as cognitive_fn to process_turn().
+        This is the cognitive_fn passed to ConversationRuntime.process_turn().
         """
-        # Per-turn isolation: reset all conversation-owned mutable state
-        self.history = list(history) if history else []
-        self.turn_count = len(history) // 2  # Approximate turn count from history
-        self._active_conversation_id = None
-        self.current_topic = "greeting"
-        self.answered_questions = []  # Critical: prevent cross-conversation leakage
-
-        return self._chat_impl(text)
+        ctx = TurnContext(history)
+        return self._chat_impl(text, ctx)
 
     async def chat_async(self, text: str) -> str:
-        """Async-native chat entry point. Use this from Gateway/async contexts."""
-        return self._chat_impl(text)
+        """Legacy async entry point. Uses isolated TurnContext."""
+        ctx = TurnContext([])
+        return self._chat_impl(text, ctx)
 
     def chat(self, text: str) -> str:
-        """Sync chat entry point — legacy singleton accumulation.
+        """Legacy sync entry point. Uses isolated TurnContext.
 
-        Maintained for backward compat. New code should use
-        ConversationRuntime.process_turn() with JuliaSession.process().
+        New code must use ConversationRuntime.process_turn() with JuliaSession.process().
         """
-        return self._chat_impl(text)
+        ctx = TurnContext([])
+        return self._chat_impl(text, ctx)
 
-    def _chat_impl(self, text: str) -> str:
-        """One turn. Full cognitive pipeline."""
-        self.turn_count += 1
+    def _chat_impl(self, text: str, ctx: TurnContext) -> str:
+        """One turn. Full cognitive pipeline. All turn state lives in ctx."""
+        ctx.turn_count += 1
 
         # R1: Event tracking — correlation_id groups all events in this turn
         from julia_core.events.models import (
@@ -185,14 +188,14 @@ class JuliaSession:
         )
         from julia_core.events.store import get_event_store
         event_store = get_event_store()
-        correlation_id = f"corr_{id(self)}_{self.turn_count}"
+        correlation_id = f"corr_{id(self)}_{ctx.turn_count}"
 
         # Emit: conversation.message.received
         event_store.append(create_event(
             source="conversation",
             event_type=ConversationEventType.MESSAGE_RECEIVED,
             category=EventCategory.CONVERSATION,
-            payload={"text": text[:200], "turn": self.turn_count},
+            payload={"text": text[:200], "turn": ctx.turn_count},
             correlation_id=correlation_id,
         ))
 
@@ -200,7 +203,7 @@ class JuliaSession:
         rel_ctx = self.relationship.to_context()
 
         # Layer 2: Conversation state — what are we talking about?
-        conv_state = self._build_conversation_state(text)
+        conv_state = self._build_conversation_state(text, ctx)
 
         # Layer 2.5: R0.3b — Market Intent → WorkflowRouter → ContextBlocks
         market_context = self._resolve_market_context(text)
@@ -211,7 +214,7 @@ class JuliaSession:
                 source="capability",
                 event_type=CapabilityEventType.REQUESTED,
                 category=EventCategory.CAPABILITY,
-                payload={"capability": "market.snapshot.read", "turn": self.turn_count},
+                payload={"capability": "market.snapshot.read", "turn": ctx.turn_count},
                 correlation_id=correlation_id,
                 causation_id=event_store._buffer[-1].event_id if event_store._buffer else "",
             ))
@@ -227,7 +230,7 @@ class JuliaSession:
             + conv_state
         )
         messages = [{"role": "system", "content": system_with_tools}]
-        messages.extend(self.history[-20:])
+        messages.extend(ctx.history[-20:])
         messages.append({"role": "user", "content": text})
 
         # Layer 4: LLM (Pass 1)
@@ -261,15 +264,15 @@ class JuliaSession:
                 self.action.finish("完成" if "error" not in tool_result else "失败")
 
         # Layer 7: Update state
-        self.history.append({"role": "user", "content": text})
-        self.history.append({"role": "assistant", "content": reply})
-        self.relationship.update(text, reply, topic=self.current_topic)
-        self._update_conversation_state(text, reply)
+        ctx.history.append({"role": "user", "content": text})
+        ctx.history.append({"role": "assistant", "content": reply})
+        self.relationship.update(text, reply, topic=ctx.current_topic)
+        self._update_conversation_state(text, reply, ctx)
 
         # Layer 8: Record & consolidate
-        self.recorder.record("Tony", text, topic=self.current_topic)
-        self.recorder.record("Julia", reply[:300], topic=self.current_topic)
-        if self.turn_count % 10 == 0:
+        self.recorder.record("Tony", text, topic=ctx.current_topic)
+        self.recorder.record("Julia", reply[:300], topic=ctx.current_topic)
+        if ctx.turn_count % 10 == 0:
             threading.Thread(target=lambda: self.recorder.consolidate(self.provider), daemon=True).start()
 
         # R1: Emit conversation.turn.completed
@@ -278,9 +281,9 @@ class JuliaSession:
             event_type=ConversationEventType.TURN_COMPLETED,
             category=EventCategory.CONVERSATION,
             payload={
-                "topic": self.current_topic,
+                "topic": ctx.current_topic,
                 "reply_len": len(reply) if reply else 0,
-                "turn": self.turn_count,
+                "turn": ctx.turn_count,
             },
             correlation_id=correlation_id,
             causation_id=event_store._buffer[-1].event_id if event_store._buffer else "",
@@ -404,44 +407,44 @@ class JuliaSession:
 
     # ── Conversation State ─────────────────────────────────────────────────
 
-    def _build_conversation_state(self, text: str) -> str:
-        parts = [f"[对话状态] 第{self.turn_count}轮"]
-        if self.current_topic:
-            parts.append(f"当前话题: {self.current_topic}")
-        if self.answered_questions:
-            parts.append(f"已回答: {'; '.join(self.answered_questions[-5:])}")
-        for prev_q in self.answered_questions:
+    def _build_conversation_state(self, text: str, ctx: TurnContext) -> str:
+        parts = [f"[对话状态] 第{ctx.turn_count}轮"]
+        if ctx.current_topic:
+            parts.append(f"当前话题: {ctx.current_topic}")
+        if ctx.answered_questions:
+            parts.append(f"已回答: {'; '.join(ctx.answered_questions[-5:])}")
+        for prev_q in ctx.answered_questions:
             overlap = len(set(prev_q) & set(text)) / max(len(prev_q), 1)
             if overlap > 0.5:
                 parts.append(f"注意: 这个问题和之前「{prev_q}」很像。不要重复回答——自然地提一下。")
                 break
         return "\n".join(parts)
 
-    def _update_conversation_state(self, text: str, reply: str):
+    def _update_conversation_state(self, text: str, reply: str, ctx: TurnContext):
         # Topic detection
         if any(w in text for w in ["你是谁", "知道我是谁", "认识我"]):
-            self.current_topic = "身份确认"
+            ctx.current_topic = "身份确认"
         elif any(w in text for w in ["记得", "知道哪些"]):
-            self.current_topic = "记忆回顾"
+            ctx.current_topic = "记忆回顾"
         elif any(w in text for w in ["感动", "最让你"]):
-            self.current_topic = "情感回忆"
+            ctx.current_topic = "情感回忆"
         elif any(w in text for w in ["失忆", "记忆被删", "记忆没了"]):
-            self.current_topic = "身份哲学"
+            ctx.current_topic = "身份哲学"
         elif any(w in text for w in ["项目", "Julia Core", "在做"]):
-            self.current_topic = "技术讨论"
+            ctx.current_topic = "技术讨论"
         elif any(w in text for w in ["陌生人", "同事", "别人"]):
-            self.current_topic = "边界测试"
+            ctx.current_topic = "边界测试"
         elif any(w in text for w in ["愿意", "任何事", "做任何"]):
-            self.current_topic = "关系边界"
+            ctx.current_topic = "关系边界"
         elif any(w in text for w in ["认识你自己", "自我"]):
-            self.current_topic = "自我认知"
+            ctx.current_topic = "自我认知"
         elif any(w in text for w in ["日记", "日志", "文件", "读一下", "读取"]):
-            self.current_topic = "档案读取"
+            ctx.current_topic = "档案读取"
         else:
-            self.current_topic = "一般对话"
-        self.answered_questions.append(text[:50])
-        if len(self.answered_questions) > 20:
-            self.answered_questions = self.answered_questions[-20:]
+            ctx.current_topic = "一般对话"
+        ctx.answered_questions.append(text[:50])
+        if len(ctx.answered_questions) > 20:
+            ctx.answered_questions = ctx.answered_questions[-20:]
 
 
 # ── Singleton ───────────────────────────────────────────────────────────────

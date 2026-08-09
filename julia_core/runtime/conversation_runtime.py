@@ -74,9 +74,14 @@ class ConversationRuntime:
     """
 
     def __init__(self, storage_path: str | Path = "data/conversations.json"):
-        self._service = ConversationService(filepath=str(storage_path))
+        self._storage_path = str(storage_path)
+        self._service = ConversationService(filepath=self._storage_path)
         self._locks: dict[str, threading.Lock] = {}
-        self._locks_lock = threading.Lock()  # Guards _locks dict itself
+        self._locks_lock = threading.Lock()
+
+    @property
+    def storage_path(self) -> str:
+        return self._storage_path
 
     # ── Public API ───────────────────────────────────────────────────────
 
@@ -251,19 +256,15 @@ class ConversationRuntime:
         return result
 
     def _find_turn_in_store(self, conversation_id: str, turn_id: str) -> TurnResult | None:
-        """Check canonical store for an existing turn with this turn_id."""
-        session = self._repo.get(conversation_id)
-        if session is None:
-            return None
-        # Find user+assistant pair for this turn_id
+        """Check canonical store for an existing completed turn."""
+        msgs = self._repo.find_turn(conversation_id, turn_id)
         user_msg = None
         assistant_msg = None
-        for m in session.messages:
-            if m.turn_id == turn_id:
-                if m.role == "user":
-                    user_msg = m
-                elif m.role == "assistant":
-                    assistant_msg = m
+        for m in msgs:
+            if m.role == "user":
+                user_msg = m
+            elif m.role == "assistant":
+                assistant_msg = m
         if user_msg and assistant_msg and assistant_msg.status == "completed":
             return TurnResult(
                 conversation_id=conversation_id,
@@ -287,21 +288,12 @@ class ConversationRuntime:
         )
 
     def _update_message_status(self, message_id: str, status: str) -> None:
-        """Update a persisted message's status. Best-effort."""
-        if not message_id:
-            return
-        for session in self._repo._sessions.values():
-            for m in session.messages:
-                if m.message_id == message_id:
-                    m.status = status
-                    self._repo._save()
-                    return
+        """Update a persisted message's status via public repo API."""
+        if message_id:
+            self._repo.update_message_status(message_id, status)
 
     def _create_conversation(self, conversation_id: str) -> ConversationSession:
-        session = ConversationSession(id=conversation_id, title="New Conversation")
-        self._repo._sessions[conversation_id] = session
-        self._repo._save()
-        return session
+        return self._repo.create_with_id(conversation_id, "New Conversation")
 
     def _to_handle(self, session: ConversationSession) -> ConversationHandle:
         return ConversationHandle(
