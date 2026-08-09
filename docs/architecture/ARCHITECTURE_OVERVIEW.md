@@ -51,19 +51,19 @@ Julia Core owns the agent. Models interpret. Providers supply facts. The runtime
 │  └─────────────────────────────────────────────────────────┘ │
 │                                                               │
 │  ┌─────────────────────────────────────────────────────────┐ │
-│  │  Layer 2: Cognitive Layer                               │ │
+│  │  Layer 2: Subsystem Truth Authorities                   │ │
 │  │                                                         │ │
-│  │  Context OS    Memory OS    Persona    Continuity    Alignment │ │
-│  │  ─────────     ──────────   ────────   ──────────    ───────── │ │
-│  │  planner.py    governance/  compiler   checkpoint     contracts│ │
-│  │  resolver.py   lifecycle/   policies   recovery       registry │ │
-│  │  compact/      retrieval/             policy          adapter  │ │
-│  │  budget/       persistence/          memory_binding            │ │
-│  │  provenance/   ranking/                                        │ │
-│  │  resurrection/ weighting/                                      │ │
+│  │  Conversation  Continuity  Memory    Persona    Context   Alignment│ │
+│  │  ────────────  ──────────  ──────    ────────   ───────   ─────────│ │
+│  │  Conversation  checkpoint  governance compiler   planner   contracts│ │
+│  │  Runtime       recovery    lifecycle  policies   resolver  registry │ │
+│  │  SessionRepo   policy      retrieval             budget    adapter  │ │
+│  │  transcript    memory_     persistence           provenance          │ │
+│  │  truth         binding              ranking                          │ │
 │  │                                                         │ │
-│  │  Owns: what the agent knows, remembers, how it thinks,  │ │
-│  │    what survives, and how it adapts — model-independent │ │
+│  │  Owns: transcript truth, survival policy, governed     │ │
+│  │    memory, behavioral identity, model-visible context,  │ │
+│  │    and provider adaptation — model-independent          │ │
 │  └─────────────────────────────────────────────────────────┘ │
 │                                                               │
 │  ┌─────────────────────────────────────────────────────────┐ │
@@ -156,9 +156,8 @@ julia_core/julia_core/
 ├── situation/                  Situational awareness
 ├── relationship/               Relationship state modeling
 ├── reflection/                 Self-reflection engine
-├── conversation_state/         Conversation state machine
-├── conversation_archive/       Long-term conversation storage
-├── conversation_runtime/       Active conversation management
+├── conversation_state/         ConversationMessage — durable transcript model + SessionRepository atomic persistence
+├── conversation_runtime/       ConversationRuntime — canonical transcript authority
 ├── context_assembly/           Multi-source context assembly
 ├── response_quality/           Response quality assessment
 ├── voice_validation/           Voice output validation
