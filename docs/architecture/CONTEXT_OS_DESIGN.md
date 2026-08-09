@@ -62,112 +62,78 @@ The boundary is clear:
 
 ## 3. Core Pipeline
 
+Context OS is the single authority for ALL model-visible context.
+Six ContextSources produce ContextBlock candidates. No source bypasses Context OS.
+
 ```
-User Input / Domain Event
-        │
-        ▼
-┌─────────────────────────────────────────────┐
-│                                             │
-│  1. ContextRequest                          │
-│     "What does the agent need?"             │
-│                                             │
-│     task_intent:  "market_review"           │
-│     intent:       "analysis"               │
-│     domain:       "financial"              │
-│     domain_object_type: "theme"             │
-│     domain_object_id:   "9043089"           │
-│     target_budget_tokens: 4000              │
-│                                             │
-└────────────────────┬────────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────────┐
-│                                             │
-│  2. ContextPlanner                          │
-│     "What kinds of context are needed?"     │
-│                                             │
-│     Plans context needs:                    │
-│     - Required blocks (must have)           │
-│     - Optional blocks (nice to have)        │
-│     - Evidence intents (what to prove)      │
-│     - Required capabilities (what to do)    │
-│     - Exclusions (what to skip)             │
-│                                             │
-│     Domain-independent.                     │
-│     No knowledge of financial/medical/etc.  │
-│                                             │
-└────────────────────┬────────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────────┐
-│                                             │
-│  3. ProviderRegistry Lookup                 │
-│     "Which providers can supply this?"      │
-│                                             │
-│     registry.query(request)                 │
-│     → [DomainProvider, DomainProvider, ...] │
-│                                             │
-│     Lookup only. No domain routing.         │
-│     No embedded domain logic.               │
-│                                             │
-└────────────────────┬────────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────────┐
-│                                             │
-│  4. Domain Providers                        │
-│     "Here are the facts and evidence."      │
-│                                             │
-│     Each provider returns:                  │
-│     ContextBlock(                           │
-│       source="financial_v1",                │
-│       content={market_data},                │
-│       authority="market_intelligence",      │
-│       evidence_refs=["src_001", ...],       │
-│       authority_score=0.85,                 │
-│       ttl_seconds=3600                      │
-│     )                                       │
-│                                             │
-│     Providers supply facts, not prompts.    │
-│                                             │
-└────────────────────┬────────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────────┐
-│                                             │
-│  5. ContextResolver                         │
-│     "Assemble, de-duplicate, rank."         │
-│                                             │
-│     - De-duplicate overlapping blocks       │
-│     - Rank by authority_score               │
-│     - Apply budget (target_budget_tokens)   │
-│     - Check TTL — drop expired blocks       │
-│     - Ensure required blocks are present    │
-│     - Resolve conflicts (same source,       │
-│       different content → keep higher score)│
-│                                             │
-└────────────────────┬────────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────────┐
-│                                             │
-│  6. ContextBlock[] — Frozen Candidates      │
-│     Ready for context assembly.             │
-│     Each block carries:                     │
-│     - source, content, authority            │
-│     - evidence_refs (traceable)             │
-│     - TTL (when it expires)                 │
-│     - authority_score (how much to trust)   │
-│                                             │
-└────────────────────┬────────────────────────┘
-                     │
-                     ▼
-              Context Assembly
-              (adds persona, formats for model)
-                     │
-                     ▼
-               Model Provider
+                    Runtime
+                       │
+                 ContextRequest
+                       │
+                       ▼
+                  Context OS
+                       │
+        ┌──────────────┼──────────────┐
+        │              │              │
+   PersonaSource  ConversationSource  InteractionSource
+   (behavioral     (ActiveTail,       (derived session
+    identity)       Compact)           state)
+        │              │              │
+   ExperienceSource  CapabilitySource  DomainEvidenceSource
+   (governed memory  (tool manifest,   (Market Brain,
+    refs)             capability list)  provider facts)
+        │              │              │
+        └──────────────┴──────────────┘
+                       │
+                  ContextBlock[]
+                       │
+                     Planner
+                  "What is needed?"
+                       │
+                     Resolver
+             "De-duplicate, rank, budget"
+                       │
+                     Budget
+                "Apply token limits"
+                       │
+                   Projection
+            "Format for model consumption"
+                       │
+                    Assembly
+           "Single model-visible context"
+                       │
+                 Alignment OS
+           "Provider-specific adaptation"
+                       │
+                  Model Provider
 ```
+
+### ContextBlock
+
+ContextBlock is a generic governed model-context unit. It can originate from
+any of the six ContextSources — not only from domain providers.
+
+```
+ContextBlock(
+    source:        str       — "persona", "conversation", "memory", "capability", "domain", "interaction"
+    content:       object    — opaque to Context OS
+    authority:     str       — provenance label
+    block_type:    str       — "identity", "transcript", "evidence", "reference", "capability"
+    evidence_refs: tuple     — traceable source references
+    authority_score: float   — 0.0 - 1.0
+    ttl_seconds:   int|None  — expiration
+    required:      bool      — must be included
+    estimated_tokens: int    — budget hint
+)
+```
+
+### Key Rules
+
+1. Persona must enter Context OS as a source, not be added after assembly.
+2. Conversation transcript enters Context OS via ConversationContextSource — never bypasses.
+3. Domain/Provider evidence is one of six sources — Context OS is NOT a ProviderRegistry wrapper.
+4. Context Assembly is an execution stage of Context OS — not an independent authority.
+5. Alignment OS adapts the finalized projection for a specific provider — it does not select what Julia should know.
 
 ---
 

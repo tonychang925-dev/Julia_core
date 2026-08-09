@@ -4,7 +4,7 @@
 
 | API | Input | Output | Authority |
 |-----|-------|--------|-----------|
-| Context OS | ContextRequest | ContextBlock(s) | Single context authority |
+| Context OS | ContextRequest | ContextBlock(s) from six ContextSources | Single context authority — all model-visible input passes through it |
 | Provider | ContextRequest | ContextBlock(s) | Facts & evidence |
 | Runtime | — | Lifecycle + Session | Agent lifecycle |
 | Memory | — | Stored experience | Separate from context |

@@ -170,65 +170,33 @@ julia_core/julia_core/
 ## 4. Data Flow
 
 ```
-User Input / Domain Event
-        │
-        ▼
-┌───────────────────┐
-│  ContextRequest   │  "What does Julia need to know right now?"
-│  (context_os)     │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  ContextPlanner   │  Plans context needs — domain-independent
-│  (context_os)     │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  ProviderRegistry │  Lookup: which providers can handle this?
-│  (providers)      │  Returns: [DomainProvider, ...]
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  DomainProvider   │  Supply facts + evidence
-│  (external)       │  Returns: ContextBlock(s) with provenance
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  ContextResolver  │  Assemble, de-duplicate, rank
-│  (context_os)     │  Apply budget, TTL checks
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  ContextBlock[]   │  Frozen context candidates
-│  (context_os)     │  With provenance, evidence_refs, TTL
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  Persona Engine   │  Apply persona (tone, style, behavior)
-│  (persona)        │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  Model Provider   │  LLM inference (DeepSeek, GPT, Claude, ...)
-│  (external)       │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  Voice OS         │  If voice output: emotion → prosody → TTS
-│  (voice_os)       │
-└────────┬──────────┘
-         │
-         ▼
-┌───────────────────┐
-│  Memory OS        │  Governance check → persist if warranted
+                    Runtime
+                       │
+                 ContextRequest
+                       │
+                       ▼
+                  Context OS  (sole model-visible authority)
+                       │
+        ┌──────────────┼──────────────┐
+        │              │              │
+   PersonaSource  ConversationSource  InteractionSource
+        │              │              │
+   ExperienceSource  CapabilitySource  DomainEvidenceSource
+        │              │              │
+        └──────────────┴──────────────┘
+                       │
+                  ContextBlock[]
+                       │
+                     Planner → Resolver → Budget → Projection
+                       │
+                    Assembly
+                       │
+                 Alignment OS
+                       │
+                  Model Provider
+                       │
+                       ▼
+                  Voice OS / Response
 │  (memory)         │
 └───────────────────┘
 ```
