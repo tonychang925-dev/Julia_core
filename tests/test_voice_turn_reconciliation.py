@@ -19,8 +19,8 @@ from julia_core.runtime.conversation_runtime import (
 def clear_repo():
     """Reset repository state before each test."""
     crt = get_conversation_runtime()
-    crt._repo._sessions.clear()
-    crt._repo._lock = type(crt._repo._lock)()
+    crt._repository._repo._sessions.clear()
+    crt._repository._repo._lock = type(crt._repository._repo._lock)()
 
 
 def _make_turn(turn_id: str, user: str, assistant: str = "",

@@ -10,6 +10,7 @@ import threading
 import pytest
 
 from julia_core.runtime.conversation_runtime import ConversationRuntime
+from julia_core.conversation_state.legacy_json_repository import LegacyJsonConversationRepository
 
 
 # ── Mock cognitive function ──────────────────────────────────────────────
@@ -30,7 +31,7 @@ def mock_cognitive(text, history, conversation_id="", turn_id="", modality="", i
 def runtime():
     """Fresh runtime with temp storage."""
     path = tempfile.mktemp(suffix=".json")
-    rt = ConversationRuntime(storage_path=path)
+    rt = ConversationRuntime(repository=LegacyJsonConversationRepository(path))
     yield rt
 
 
@@ -146,11 +147,11 @@ class TestConversationIsolation:
         assert "蓝鲸42" in contents_a, "conv-A must recall its own 蓝鲸42"
 
     def test_restart_persistence(self, runtime):
-        path = runtime.storage_path
+        path = runtime._repository._repo._filepath
         runtime.process_turn(conversation_id="A", turn_id="a1", modality="text",
                              input="项目代号是蓝鲸42", cognitive_fn=mock_cognitive)
 
-        rt2 = ConversationRuntime(storage_path=path)
+        rt2 = ConversationRuntime(repository=LegacyJsonConversationRepository(path))
         h = rt2.get_history("A")
         assert any("蓝鲸42" in m["content"] for m in h), "Restart must recover history"
 
@@ -255,8 +256,8 @@ class TestP1ConversationConvergence:
         """P1-7: Normal reopen requires no ContinuityCheckpoint."""
         runtime.process_turn(conversation_id="R1", turn_id="r1", modality="text",
                              input="project code is 青竹27", cognitive_fn=mock_cognitive)
-        path = runtime.storage_path
-        rt2 = ConversationRuntime(storage_path=path)
+        path = runtime._repository._repo._filepath
+        rt2 = ConversationRuntime(repository=LegacyJsonConversationRepository(path))
         h = rt2.get_history("R1")
         assert len(h) == 2
         assert any("青竹27" in m["content"] for m in h)
@@ -267,7 +268,7 @@ class TestP1ConversationConvergence:
                              input="first", cognitive_fn=mock_cognitive)
         runtime.process_turn(conversation_id="C1", turn_id="c2", modality="text",
                              input="second", cognitive_fn=mock_cognitive)
-        rt2 = ConversationRuntime(storage_path=runtime.storage_path)
+        rt2 = ConversationRuntime(repository=runtime._repository)
         h = rt2.get_history("C1")
         assert len(h) == 4  # 2 turns = 4 messages
         assert h[0]["content"] == "first"
@@ -404,7 +405,7 @@ class TestP2SemanticClosure:
         msgs_before = rt.get_messages("J1")
         assert len(msgs_before) == 2
         # Restart (simulates deleting derived context artifacts)
-        rt2 = ConversationRuntime(storage_path=rt.storage_path)
+        rt2 = ConversationRuntime(repository=rt._repository)
         msgs_after = rt2.get_messages("J1")
         assert len(msgs_after) == 2
         assert msgs_after[0]["content"] == "important fact"
@@ -415,7 +416,7 @@ class TestP2SemanticClosure:
         rt.process_turn(conversation_id="J2", turn_id="j2", modality="text",
                         input="canonical record", cognitive_fn=mock_cognitive)
         # Simulate full restart — new runtime, no derived cache
-        rt2 = ConversationRuntime(storage_path=rt.storage_path)
+        rt2 = ConversationRuntime(repository=rt._repository)
         h = rt2.get_history("J2")
         assert len(h) == 2
         assert h[0]["content"] == "canonical record"

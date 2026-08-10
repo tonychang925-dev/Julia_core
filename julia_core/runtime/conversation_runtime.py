@@ -21,8 +21,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from julia_core.conversation_state.models import ConversationMessage, ConversationSession
-from julia_core.conversation_state.repository import SessionRepository
-from julia_core.conversation_state.service import ConversationService
+from julia_core.conversation_state.repository_protocol import ConversationRepository
+from julia_core.conversation_state.legacy_json_repository import LegacyJsonConversationRepository
 
 logger = logging.getLogger("julia.conversation_runtime")
 
@@ -89,23 +89,20 @@ class ConversationRuntime:
         )
     """
 
-    def __init__(self, storage_path: str | Path = "data/conversations.json"):
-        self._storage_path = str(storage_path)
-        self._service = ConversationService(filepath=self._storage_path)
+    def __init__(self, repository: ConversationRepository | None = None):
+        self._repository: ConversationRepository = (
+            repository or LegacyJsonConversationRepository("data/conversations.json")
+        )
         self._locks: dict[str, threading.Lock] = {}
         self._locks_lock = threading.Lock()
         self._interaction_states: dict[str, "ConversationInteractionState"] = {}
         from julia_core.runtime.relationship import ConversationInteractionState as CIS
         self._CIS = CIS
 
-    @property
-    def storage_path(self) -> str:
-        return self._storage_path
-
     # ── Public API ───────────────────────────────────────────────────────
 
     def get_or_create(self, conversation_id: str) -> ConversationHandle:
-        session = self._repo.get(conversation_id)
+        session = self._repository.get(conversation_id)
         if session is None:
             session = self._create_conversation(conversation_id)
         return self._to_handle(session)
@@ -118,7 +115,7 @@ class ConversationRuntime:
         """
         if conversation_id not in self._interaction_states:
             state = self._CIS()
-            session = self._repo.get(conversation_id)
+            session = self._repository.get(conversation_id)
             if session:
                 for m in session.messages:
                     if m.role == "user" and m.status == "completed":
@@ -149,7 +146,7 @@ class ConversationRuntime:
             )
 
             try:
-                appended, skipped, last_msg_id = self._repo.append_external_turns_atomic(
+                appended, skipped, last_msg_id = self._repository.append_external_turns_atomic(
                     conversation_id, turns,
                     base_last_message_id=base_last_message_id,
                 )
@@ -160,13 +157,13 @@ class ConversationRuntime:
             # Update interaction cache from newly appended user messages
             if appended and conversation_id in self._interaction_states:
                 state = self._interaction_states[conversation_id]
-                session = self._repo.get(conversation_id)
+                session = self._repository.get(conversation_id)
                 if session:
                     for m in session.messages:
                         if m.turn_id in appended and m.role == "user" and m.status == "completed":
                             state.update(m.content)
 
-            session = self._repo.get(conversation_id)
+            session = self._repository.get(conversation_id)
             return {
                 "conversation_id": conversation_id,
                 "appended_turn_ids": appended,
@@ -178,7 +175,7 @@ class ConversationRuntime:
     def get_history(
         self, conversation_id: str, max_messages: int = 40
     ) -> list[dict[str, str]]:
-        session = self._repo.get(conversation_id)
+        session = self._repository.get(conversation_id)
         if session is None:
             return []
         messages = session.messages[-max_messages:]
@@ -216,7 +213,7 @@ class ConversationRuntime:
             )
 
     def restore(self, conversation_id: str) -> ConversationHandle | None:
-        session = self._repo.get(conversation_id)
+        session = self._repository.get(conversation_id)
         if session is None:
             return None
         return self._to_handle(session)
@@ -250,7 +247,7 @@ class ConversationRuntime:
                         already_completed=True, completed_content=existing.assistant_content,
                     )
 
-            session = self._repo.get(conversation_id)
+            session = self._repository.get(conversation_id)
             if session is None:
                 session = self._create_conversation(conversation_id)
 
@@ -327,7 +324,7 @@ class ConversationRuntime:
         lock = self._get_lock(conversation_id)
         with lock:
             try:
-                imported, skipped, last_id = self._repo.import_messages_atomic(
+                imported, skipped, last_id = self._repository.import_messages_atomic(
                     conversation_id, messages,
                 )
             except (TurnConflictError, ConversationNotFoundError, InvalidTurnStateError):
@@ -336,7 +333,7 @@ class ConversationRuntime:
             # Invalidate interaction cache — will rebuild from merged history
             self._interaction_states.pop(conversation_id, None)
 
-            session = self._repo.get(conversation_id)
+            session = self._repository.get(conversation_id)
             return {
                 "conversation_id": conversation_id,
                 "imported_count": imported,
@@ -346,48 +343,48 @@ class ConversationRuntime:
             }
 
     def list_conversations(self) -> list[ConversationHandle]:
-        return [self._to_handle(s) for s in self._repo.list_all()]
+        return [self._to_handle(s) for s in self._repository.list_all()]
 
     def delete_conversation(self, conversation_id: str) -> bool:
         """Delete conversation, history, interaction state, and lock."""
         self._interaction_states.pop(conversation_id, None)
         with self._locks_lock:
             self._locks.pop(conversation_id, None)
-        return self._repo.delete(conversation_id)
+        return self._repository.delete(conversation_id)
 
     # ── CORE-CM1: Management API ─────────────────────────────────────────
 
     def create_conversation(self, conversation_id: str = "", title: str = "New Conversation") -> ConversationHandle:
         """Create a new conversation. If conversation_id is provided, use it as the canonical ID."""
         cid = conversation_id or f"conv_{_time.strftime('%Y%m%d_%H%M%S')}_{id(self)}"
-        self._repo.create_with_id(cid, title)
+        self._repository.create_with_id(cid, title)
         self._interaction_states.pop(cid, None)  # Fresh start
-        return self._to_handle(self._repo.get(cid))
+        return self._to_handle(self._repository.get(cid))
 
     def get_conversation(self, conversation_id: str) -> dict | None:
         """Get full conversation detail including messages."""
-        session = self._repo.get(conversation_id)
+        session = self._repository.get(conversation_id)
         if session is None:
             return None
         return session.detail()
 
     def get_messages(self, conversation_id: str, max_messages: int = 100) -> list[dict]:
         """Get messages as dicts with full metadata (message_id, turn_id, modality, status)."""
-        session = self._repo.get(conversation_id)
+        session = self._repository.get(conversation_id)
         if session is None:
             return []
         return [m.to_dict() for m in session.messages[-max_messages:]]
 
     def rename_conversation(self, conversation_id: str, title: str) -> ConversationHandle | None:
         """Rename a conversation. Title persists across restarts."""
-        session = self._repo.update_title(conversation_id, title)
+        session = self._repository.update_title(conversation_id, title)
         if session is None:
             return None
         return self._to_handle(session)
 
     def search_conversations(self, query: str) -> list[ConversationHandle]:
         """Search conversations by title or message content."""
-        sessions = self._repo.search(query)
+        sessions = self._repository.search(query)
         return [self._to_handle(s) for s in sessions]
 
     # ── Legacy Migration ──────────────────────────────────────────────────
@@ -406,7 +403,7 @@ class ConversationRuntime:
 
         migrated = 0
         for sid, meta in sessions.items():
-            if self._repo.get(sid) is not None:
+            if self._repository.get(sid) is not None:
                 continue
             self._create_conversation(sid)
             for m in meta.get("messages", []):
@@ -415,7 +412,7 @@ class ConversationRuntime:
                 if role in ("user", "assistant") and content.strip():
                     self._add_message(sid, role=role, content=content, modality="text", status="completed")
             if meta.get("title"):
-                self._repo.update_title(sid, str(meta["title"]))
+                self._repository.update_title(sid, str(meta["title"]))
             migrated += 1
 
         if migrated > 0:
@@ -423,10 +420,6 @@ class ConversationRuntime:
         return migrated
 
     # ── Internal ──────────────────────────────────────────────────────────
-
-    @property
-    def _repo(self) -> SessionRepository:
-        return self._service.repo
 
     def _get_lock(self, conversation_id: str) -> threading.Lock:
         with self._locks_lock:
@@ -451,7 +444,7 @@ class ConversationRuntime:
                 return existing
 
         # 2. Load/ensure conversation
-        session = self._repo.get(conversation_id)
+        session = self._repository.get(conversation_id)
         if session is None:
             session = self._create_conversation(conversation_id)
 
@@ -509,7 +502,7 @@ class ConversationRuntime:
 
     def _find_turn_in_store(self, conversation_id: str, turn_id: str) -> TurnResult | None:
         """Check canonical store for an existing completed turn."""
-        msgs = self._repo.find_turn(conversation_id, turn_id)
+        msgs = self._repository.find_turn(conversation_id, turn_id)
         user_msg = None
         assistant_msg = None
         for m in msgs:
@@ -534,7 +527,7 @@ class ConversationRuntime:
         self, conversation_id: str, *, role: str, content: str,
         turn_id: str = "", modality: str = "text", status: str = "completed",
     ) -> ConversationSession | None:
-        return self._repo.add_message(
+        return self._repository.add_message(
             conversation_id, role=role, content=content,
             turn_id=turn_id, modality=modality, status=status,
         )
@@ -542,10 +535,10 @@ class ConversationRuntime:
     def _update_message_status(self, message_id: str, status: str) -> None:
         """Update a persisted message's status via public repo API."""
         if message_id:
-            self._repo.update_message_status(message_id, status)
+            self._repository.update_message_status(message_id, status)
 
     def _create_conversation(self, conversation_id: str) -> ConversationSession:
-        return self._repo.create_with_id(conversation_id, "New Conversation")
+        return self._repository.create_with_id(conversation_id, "New Conversation")
 
     def _to_handle(self, session: ConversationSession) -> ConversationHandle:
         return ConversationHandle(
