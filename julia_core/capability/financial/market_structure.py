@@ -152,7 +152,10 @@ class CalibrationHypothesis:
         return cls.hypotheses.get(hid)
 
 
-# ── H-PRED-001: Top-end fragility ──
+# ── H-PRED-001: Top-end fragility (SUPERSEDED) ──
+# Original hypothesis conditioned on 'strength_active', but that label is not
+# part of the canonical historical market-context taxonomy used by production
+# replay. Not rejected — ontology mismatch, not hypothesis false.
 CalibrationHypothesis.register(
     "H-PRED-001",
     hypothesis="strength_active with thin top-end (above_0_8_ratio < 0.05) "
@@ -163,8 +166,33 @@ CalibrationHypothesis.register(
         "2026-07-16 → 07-17: strength_active → divergent (direction_error)",
     ],
     sample_size=2,
-    status="SUPPORTED_BY_INITIAL_EVIDENCE",
-    next_action="Back-test 20-30 strength_active dates with above_0_8_ratio buckets",
+    status="SUPERSEDED_SPECIFICATION_MISMATCH",
+    superseded_by="H-PRED-002",
+    superseded_reason="'strength_active' not in canonical historical taxonomy. "
+                      "Empirical verdict: NOT TESTED, NOT REJECTED.",
+    preserved_date="2026-08-10",
+)
+
+# ── H-PRED-002: Broad-Strength Fragility ──
+# Canonical-native: no regime dependency. Population = broad participation,
+# predictor = thin top-end, outcome = next-day loss of breadth.
+CalibrationHypothesis.register(
+    "H-PRED-002",
+    hypothesis="Among broad-participation days (above_0_6_ratio >= 0.50), "
+               "thin top-end (above_0_8_ratio < 0.05) predicts higher "
+               "probability of losing broad participation on T+1.",
+    candidate_factor="above_0_8_ratio",
+    population_condition="above_0_6_ratio >= 0.50",
+    thin_threshold=0.05,
+    primary_truth="above_0_6_ratio_T+1 < 0.50",
+    secondary_truth="Δ above_0_6_ratio (T+1 - T)",
+    buckets=["B1:<2%", "B2:2-3%", "B3:3-5%", "B4:5-10%", "B5:>=10%"],
+    sample_size=0,
+    status="REGISTERED",
+    parent_hypothesis="H-PRED-001",
+    lineage_note="Replaces H-PRED-001 with canonical-native observables. "
+                 "Same structural intuition (thin top-end → fragility), "
+                 "different population definition (breadth-based, not regime-based).",
 )
 
 

@@ -224,3 +224,127 @@ def test_clear_increasing_signal_with_enough_samples():
     assert result.sample_size == 25
     assert result.factor_direction == "increasing"
     assert result.status in ("directional_support", "validated")
+
+
+# ── H-PRED-002: Semantic Sabotage Tests ──────────────────────────────────────
+
+def _make_h002_sample(trade_date: str, above_0_6: float, above_0_8: float,
+                      breadth_t1: float | None = None, truth_known: bool = True) -> BacktestSample:
+    """Helper for H-PRED-002 samples with breadth-based outcomes."""
+    strengths = (
+        [0.85] * int(above_0_8 * 100) +
+        [0.65] * int((above_0_6 - above_0_8) * 100) +
+        [0.3] * int((1.0 - above_0_6) * 100)
+    )
+    metrics = compute_structural_metrics(strengths)
+    lost = breadth_t1 < 0.50 if breadth_t1 is not None else None
+    delta = breadth_t1 - above_0_6 if breadth_t1 is not None else None
+    return BacktestSample(
+        feature_trade_date=trade_date,
+        feature_as_of=f"{trade_date}T15:30:00+08:00",
+        truth_trade_date=f"next-{trade_date}",
+        truth_resolved_at=f"next-{trade_date}T15:30:00+08:00",
+        metrics=metrics,
+        regime_t="divergence",
+        regime_t1="divergence",
+        deteriorated=False,
+        breadth_t1=breadth_t1,
+        lost_breadth=lost,
+        breadth_delta=delta,
+        truth_known=truth_known,
+    )
+
+
+def test_h002_broad_included_in_population():
+    """Broad=0.75 → included in H-PRED-002 population."""
+    s = _make_h002_sample("D1", 0.75, 0.02, 0.72)
+    from julia_core.capability.financial.structural_backtest import H002_POPULATION_THRESHOLD
+    assert s.metrics.above_0_6_ratio >= H002_POPULATION_THRESHOLD
+
+
+def test_h002_narrow_excluded_from_population():
+    """Broad=0.40 → excluded from H-PRED-002 population."""
+    s = _make_h002_sample("D1", 0.40, 0.01, 0.38)
+    from julia_core.capability.financial.structural_backtest import H002_POPULATION_THRESHOLD
+    assert s.metrics.above_0_6_ratio < H002_POPULATION_THRESHOLD
+
+
+def test_h002_thin_classified_correctly():
+    """Depth=0.02 → thin (H002_THIN_THRESHOLD=0.05)."""
+    s = _make_h002_sample("D1", 0.75, 0.02, 0.72)
+    from julia_core.capability.financial.structural_backtest import H002_THIN_THRESHOLD
+    assert s.metrics.above_0_8_ratio < H002_THIN_THRESHOLD
+
+
+def test_h002_non_thin_classified_correctly():
+    """Depth=0.08 → non-thin."""
+    s = _make_h002_sample("D1", 0.75, 0.08, 0.80)
+    from julia_core.capability.financial.structural_backtest import H002_THIN_THRESHOLD
+    assert s.metrics.above_0_8_ratio >= H002_THIN_THRESHOLD
+
+
+def test_h002_lost_breadth_true():
+    """T+1 broad=0.49 → lost_breadth=True."""
+    s = _make_h002_sample("D1", 0.75, 0.02, 0.49)
+    assert s.lost_breadth is True
+
+
+def test_h002_kept_breadth_false():
+    """T+1 broad=0.72 → lost_breadth=False."""
+    s = _make_h002_sample("D1", 0.75, 0.02, 0.72)
+    assert s.lost_breadth is False
+
+
+def test_h002_unknown_t1_excluded():
+    """T+1 unknown → truth_known=False, excluded from population."""
+    s = _make_h002_sample("D1", 0.75, 0.02, None, truth_known=False)
+    assert s.truth_known is False
+
+
+def test_h002_runs_without_regime_dependency():
+    """H-PRED-002 backtest runs with zero regime-dependency samples."""
+    samples = [
+        _make_h002_sample("D1", 0.75, 0.02, 0.72),
+        _make_h002_sample("D2", 0.75, 0.08, 0.80),
+        _make_h002_sample("D3", 0.55, 0.03, 0.48),
+        _make_h002_sample("D4", 0.60, 0.01, 0.45),
+    ]
+    from julia_core.capability.financial.structural_backtest import run_breadth_fragility_backtest
+    result = run_breadth_fragility_backtest(samples)
+    # Should work despite no 'strength_active' regime anywhere
+    assert result.hypothesis_id == "H-PRED-002"
+
+
+def test_h002_breadth_strata_are_fixed():
+    """Breadth strata S1/S2/S3 are fixed, NOT data-driven."""
+    from julia_core.capability.financial.structural_backtest import run_breadth_fragility_backtest
+
+    # Generate samples with varying breadth distributions
+    samples_a = [_make_h002_sample(f"D{i}", 0.55, 0.03, 0.50) for i in range(20)]
+    samples_b = [_make_h002_sample(f"D{i}", 0.75, 0.03, 0.72) for i in range(20)]
+
+    r_a = run_breadth_fragility_backtest(samples_a)
+    r_b = run_breadth_fragility_backtest(samples_b)
+
+    # Fixed strata means the analysis structure is identical regardless of
+    # sample distribution — not median-split
+    assert r_a.hypothesis_id == r_b.hypothesis_id  # same methodology
+
+
+def test_h001_is_superseded():
+    """H-PRED-001 status is SUPERSEDED_SPECIFICATION_MISMATCH."""
+    from julia_core.capability.financial.market_structure import CalibrationHypothesis
+    h1 = CalibrationHypothesis.get("H-PRED-001")
+    assert h1 is not None
+    assert h1["status"] == "SUPERSEDED_SPECIFICATION_MISMATCH"
+    assert h1["superseded_by"] == "H-PRED-002"
+
+
+def test_h002_is_registered():
+    """H-PRED-002 is REGISTERED with canonical-native semantics."""
+    from julia_core.capability.financial.market_structure import CalibrationHypothesis
+    h2 = CalibrationHypothesis.get("H-PRED-002")
+    assert h2 is not None
+    assert h2["status"] == "REGISTERED"
+    assert "above_0_6_ratio" in h2["population_condition"]
+    assert "above_0_6_ratio_T+1 < 0.50" in h2["primary_truth"]

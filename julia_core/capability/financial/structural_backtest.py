@@ -60,8 +60,14 @@ class BacktestSample:
     # Regime at T+1 (truth)
     regime_t1: str
 
-    # Derived outcome
+    # Derived outcome (H-PRED-001, SUPERSEDED)
     deteriorated: bool       # regime_t1 != regime_t when regime_t is "strength_active"
+
+    # H-PRED-002 outcomes (canonical-native, no regime dependency)
+    breadth_t1: float | None = None    # above_0_6_ratio at T+1
+    lost_breadth: bool | None = None   # above_0_6_ratio_T+1 < 0.50
+    breadth_delta: float | None = None # T+1 - T above_0_6_ratio delta
+
     truth_known: bool = True # False when T+1 data unavailable (exclude from analysis)
 
     # Provenance
@@ -334,6 +340,206 @@ def run_structural_backtest(
     )
 
 
+# ── H-PRED-002: Breadth Fragility Backtest ───────────────────────────────────
+
+H002_POPULATION_THRESHOLD = 0.50       # above_0_6_ratio >= this → "broad"
+H002_THIN_THRESHOLD = 0.05             # above_0_8_ratio < this → "thin top-end"
+H002_BREADTH_LOSS_THRESHOLD = 0.50     # T+1 below this → "lost breadth"
+
+
+def run_breadth_fragility_backtest(
+    samples: list[BacktestSample],
+) -> StructuralBacktestResult:
+    """Run H-PRED-002 backtest over historical samples.
+
+    Population: above_0_6_ratio >= 0.50 (canonical broad participation).
+    Factor: above_0_8_ratio buckets (thin → deep).
+    Primary truth: above_0_6_ratio_T+1 < 0.50 (lost breadth).
+    Secondary truth: Δ above_0_6_ratio (T+1 - T).
+
+    No regime dependency. All inputs from canonical replay.
+    """
+    # ── Filter: broad participation, known T+1 ────────────────────────────
+    population = [
+        s for s in samples
+        if s.metrics.above_0_6_ratio >= H002_POPULATION_THRESHOLD
+        and s.truth_known
+        and s.breadth_t1 is not None
+    ]
+    n = len(population)
+    gate = classification_gate(n)
+
+    # Baseline: unconditional loss-of-breadth rate among broad days
+    loss_count = sum(1 for s in population if s.lost_breadth)
+    baseline_loss_rate = loss_count / n if n > 0 else 0.0
+
+    # ── Bucket analysis ──────────────────────────────────────────────────
+    bucket_results: list[BucketResult] = []
+    for label, lo, hi in BUCKETS:
+        bucket = [
+            s for s in population
+            if (lo is None or s.metrics.above_0_8_ratio >= lo)
+            and (hi is None or s.metrics.above_0_8_ratio < hi)
+        ]
+        bc = len(bucket)
+        if bc == 0:
+            continue
+        lost = sum(1 for s in bucket if s.lost_breadth)
+        rate = lost / bc
+        ci_low, ci_high = _wilson_ci(lost, bc)
+        avg_delta = sum(s.breadth_delta for s in bucket if s.breadth_delta is not None) / bc if bc else 0.0
+        bucket_results.append(BucketResult(
+            bucket_label=label,
+            min_ratio=lo,
+            max_ratio=hi,
+            sample_count=bc,
+            deterioration_count=lost,
+            deterioration_rate=rate,
+            continuation_count=bc - lost,
+            continuation_rate=1.0 - rate,
+            ci_lower=ci_low,
+            ci_upper=ci_high,
+            avg_next_day_change=avg_delta,
+        ))
+
+    # ── Direction + monotonicity ─────────────────────────────────────────
+    rates = [(b.min_ratio or 0.0, b.deterioration_rate) for b in bucket_results]
+    if len(rates) >= 2:
+        pairs = 0
+        inversions = 0
+        for i in range(len(rates)):
+            for j in range(i + 1, len(rates)):
+                pairs += 1
+                if (rates[i][0] < rates[j][0]) != (rates[i][1] < rates[j][1]):
+                    inversions += 1
+        monotonicity = 1.0 - (2 * inversions / pairs) if pairs > 0 else 0.0
+    else:
+        monotonicity = 0.0
+
+    if len(rates) >= 2:
+        first_rate = rates[0][1]
+        last_rate = rates[-1][1]
+        if first_rate > last_rate * 1.2:
+            direction = "increasing"
+        elif last_rate > first_rate * 1.2:
+            direction = "decreasing"
+        else:
+            direction = "flat"
+    else:
+        direction = "insufficient_data"
+
+    # ── Thin vs Non-Thin comparison (H-PRED-002 core test) ────────────────
+    thin = [s for s in population if s.metrics.above_0_8_ratio < H002_THIN_THRESHOLD]
+    non_thin = [s for s in population if s.metrics.above_0_8_ratio >= H002_THIN_THRESHOLD]
+    thin_loss = sum(1 for s in thin if s.lost_breadth) / max(len(thin), 1)
+    non_thin_loss = sum(1 for s in non_thin if s.lost_breadth) / max(len(non_thin), 1)
+    lift = (thin_loss - baseline_loss_rate) / baseline_loss_rate if baseline_loss_rate > 0 else 0.0
+
+    # ── Secondary: breadth delta ──────────────────────────────────────────
+    thin_delta = sum(s.breadth_delta for s in thin if s.breadth_delta is not None) / max(len(thin), 1)
+    non_thin_delta = sum(s.breadth_delta for s in non_thin if s.breadth_delta is not None) / max(len(non_thin), 1)
+
+    # ── Leave-one-out ────────────────────────────────────────────────────
+    loo_stable = True
+    if n >= 5:
+        full_dir = direction
+        for i in range(n):
+            loo_pop = population[:i] + population[i + 1:]
+            loo_thin = [s for s in loo_pop if s.metrics.above_0_8_ratio < H002_THIN_THRESHOLD]
+            loo_non = [s for s in loo_pop if s.metrics.above_0_8_ratio >= H002_THIN_THRESHOLD]
+            loo_tl = sum(1 for s in loo_thin if s.lost_breadth) / max(len(loo_thin), 1)
+            loo_ntl = sum(1 for s in loo_non if s.lost_breadth) / max(len(loo_non), 1)
+            loo_dir = "increasing" if loo_tl > loo_ntl * 1.2 else "decreasing" if loo_ntl > loo_tl * 1.2 else "flat"
+            if loo_dir != full_dir:
+                loo_stable = False
+                break
+
+    # ── Fixed breadth strata baseline (H-PRED-002 frozen) ─────────────────
+    # Pre-registered strata — NOT data-driven. Prove depth adds signal
+    # beyond raw breadth level, without letting the sample distribution
+    # choose the strata boundaries.
+    BREADTH_STRATA = [
+        ("S1", 0.50, 0.60),
+        ("S2", 0.60, 0.70),
+        ("S3", 0.70, 1.00),
+    ]
+    strata_results: dict[str, dict[str, float]] = {}
+    total_weighted_effect = 0.0
+    total_weight = 0
+    for s_label, s_lo, s_hi in BREADTH_STRATA:
+        stratum = [s for s in population if s_lo <= s.metrics.above_0_6_ratio < s_hi]
+        if len(stratum) < 4:
+            continue
+        s_thin = [s for s in stratum if s.metrics.above_0_8_ratio < H002_THIN_THRESHOLD]
+        s_non = [s for s in stratum if s.metrics.above_0_8_ratio >= H002_THIN_THRESHOLD]
+        s_tl = sum(1 for s in s_thin if s.lost_breadth) / max(len(s_thin), 1)
+        s_nt = sum(1 for s in s_non if s.lost_breadth) / max(len(s_non), 1)
+        effect = s_tl - s_nt
+        strata_results[s_label] = {
+            "n": len(stratum), "thin_n": len(s_thin), "non_thin_n": len(s_non),
+            "thin_loss": s_tl, "non_thin_loss": s_nt, "effect": effect,
+        }
+        total_weighted_effect += effect * len(stratum)
+        total_weight += len(stratum)
+    # Weighted incremental effect of depth beyond breadth
+    breadth_lift = total_weighted_effect / total_weight if total_weight > 0 else 0.0
+
+    # ── Status ────────────────────────────────────────────────────────────
+    status = "insufficient"
+    reason = ""
+    if n < 20:
+        status = "insufficient"
+        reason = f"n={n} < 20 minimum for directional validation"
+    elif direction == "decreasing":
+        status = "rejected"
+        reason = "Direction opposite to hypothesis — thin top-end associated with LOWER breadth loss"
+    elif direction == "flat":
+        status = "inconclusive"
+        reason = "No directional relationship between thin top-end and breadth loss"
+    elif lift <= 0.05:
+        status = "inconclusive"
+        reason = f"Lift vs baseline ({lift:.1%}) too small to support hypothesis"
+    elif not loo_stable:
+        status = "directional_support"
+        reason = f"Direction supports hypothesis but not leave-one-out stable (n={n})"
+    elif n < 50:
+        status = "directional_support"
+        reason = f"Direction supports hypothesis (n={n}), monotonicity={monotonicity:.2f}, lift={lift:.1%}. Need n>=50 for calibration."
+    else:
+        status = "validated"
+        reason = f"Hypothesis validated: thin_loss={thin_loss:.1%} vs non_thin_loss={non_thin_loss:.1%}, n={n}"
+
+    CalibrationHypothesis.update(
+        "H-PRED-002",
+        sample_size=n,
+        backtest_status=status,
+        thin_count=len(thin),
+        non_thin_count=len(non_thin),
+        thin_loss_rate=thin_loss,
+        non_thin_loss_rate=non_thin_loss,
+        thin_delta=thin_delta,
+        non_thin_delta=non_thin_delta,
+        backtest_date=datetime.now(CST).isoformat(),
+    )
+
+    return StructuralBacktestResult(
+        hypothesis_id="H-PRED-002",
+        sample_window=f"{population[0].feature_trade_date} to {population[-1].feature_trade_date}" if population else "N/A",
+        sample_size=n,
+        filter_regime=f"above_0_6_ratio >= {H002_POPULATION_THRESHOLD}",
+        baseline_deterioration_rate=baseline_loss_rate,
+        breadth_only_lift=breadth_lift,
+        buckets=tuple(bucket_results),
+        factor_direction=direction,
+        monotonicity_score=monotonicity,
+        lift_vs_baseline=lift,
+        leave_one_out_stable=loo_stable,
+        status=status,
+        status_reason=reason,
+        generated_at=datetime.now(CST).isoformat(),
+    )
+
+
 # ── Sample extraction helpers ────────────────────────────────────────────────
 
 def extract_samples_from_workbench(
@@ -413,6 +619,24 @@ def extract_samples_from_workbench(
 
         deteriorated = (regime_t1 != canonical_regime) if truth_known else False
 
+        # H-PRED-002: breadth-based outcomes (canonical-native)
+        breadth_t1_val = None
+        lost_breadth_val = None
+        breadth_delta_val = None
+        if truth_known and i + 1 < len(date_dirs):
+            try:
+                next_d = date_dirs[i + 1]
+                next_ctx = json.load(open(os.path.join(base, next_d, "draft_context.json")))
+                next_snap = json.load(open(os.path.join(base, next_d, "snapshot.json"))) if os.path.exists(os.path.join(base, next_d, "snapshot.json")) else None
+                next_replayed = replay_snapshot(next_ctx, next_snap, trade_date=next_d)
+                next_strengths = [t["raw_metrics"]["mainline_strength_score"] for t in next_replayed.themes]
+                next_metrics = compute_structural_metrics(next_strengths)
+                breadth_t1_val = next_metrics.above_0_6_ratio
+                lost_breadth_val = breadth_t1_val < 0.50
+                breadth_delta_val = breadth_t1_val - metrics.above_0_6_ratio
+            except Exception:
+                pass
+
         sample = BacktestSample(
             feature_trade_date=d,
             feature_as_of=as_of,
@@ -422,6 +646,9 @@ def extract_samples_from_workbench(
             regime_t=canonical_regime,
             regime_t1=regime_t1,
             deteriorated=deteriorated,
+            breadth_t1=breadth_t1_val,
+            lost_breadth=lost_breadth_val,
+            breadth_delta=breadth_delta_val,
             truth_known=truth_known,
             source_refs=("draft_context.json", "snapshot.json"),
         )
