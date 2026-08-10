@@ -237,3 +237,101 @@ class TestDelete:
         fresh = runtime.get_interaction_state("D")
         assert fresh.identity_checks == 0, \
             f"After delete+recreate, identity_checks should be 0, got {fresh.identity_checks}"
+
+
+class TestP1ConversationConvergence:
+    """P1 — Conversation Authority production convergence tests."""
+
+    def test_canonical_write_is_single_authority(self, runtime):
+        """P1-1: Only ConversationRuntime writes canonical transcript."""
+        runtime.process_turn(conversation_id="W1", turn_id="w1", modality="text",
+                             input="test", cognitive_fn=mock_cognitive)
+        msgs = runtime.get_history("W1")
+        assert len(msgs) == 2  # user + assistant
+        assert msgs[0]["role"] == "user" and msgs[1]["role"] == "assistant"
+        # No duplicate messages from secondary write paths
+
+    def test_normal_reopen_no_checkpoint(self, runtime):
+        """P1-7: Normal reopen requires no ContinuityCheckpoint."""
+        runtime.process_turn(conversation_id="R1", turn_id="r1", modality="text",
+                             input="project code is 青竹27", cognitive_fn=mock_cognitive)
+        path = runtime.storage_path
+        rt2 = ConversationRuntime(storage_path=path)
+        h = rt2.get_history("R1")
+        assert len(h) == 2
+        assert any("青竹27" in m["content"] for m in h)
+
+    def test_restart_preserves_chronology(self, runtime):
+        """P1-4: Restart preserves canonical chronology."""
+        runtime.process_turn(conversation_id="C1", turn_id="c1", modality="text",
+                             input="first", cognitive_fn=mock_cognitive)
+        runtime.process_turn(conversation_id="C1", turn_id="c2", modality="text",
+                             input="second", cognitive_fn=mock_cognitive)
+        rt2 = ConversationRuntime(storage_path=runtime.storage_path)
+        h = rt2.get_history("C1")
+        assert len(h) == 4  # 2 turns = 4 messages
+        assert h[0]["content"] == "first"
+        assert h[2]["content"] == "second"
+
+    def test_interrupted_preserved_not_deleted(self, runtime):
+        """P1-3: Interrupted assistant is preserved in transcript."""
+        rt = runtime
+        rt.process_turn(conversation_id="I1", turn_id="i1", modality="text",
+                        input="test", cognitive_fn=mock_cognitive)
+        # External turn with interrupted assistant
+        rt.append_external_turns("I1", [{
+            "turn_id": "v_int", "modality": "voice",
+            "user_content": "voice test",
+            "assistant_content": "partial reply was emitted",
+            "assistant_status": "interrupted",
+        }])
+        h = rt.get_history("I1")
+        interrupted = [m for m in rt.get_messages("I1") if m.get("status") == "interrupted"]
+        assert len(interrupted) == 1
+        assert interrupted[0]["content"] == "partial reply was emitted"
+
+    def test_retry_idempotency_no_duplicate(self, runtime):
+        """P1-4: Same turn_id retry produces no duplicate canonical messages."""
+        rt = runtime
+        r1 = rt.process_turn(conversation_id="D1", turn_id="dup", modality="text",
+                             input="idempotent test", cognitive_fn=mock_cognitive)
+        r2 = rt.process_turn(conversation_id="D1", turn_id="dup", modality="text",
+                             input="idempotent test", cognitive_fn=mock_cognitive)
+        assert r1.user_message_id == r2.user_message_id
+        assert r1.assistant_message_id == r2.assistant_message_id
+        h = rt.get_history("D1")
+        assert len(h) == 2  # Only one turn, not two
+
+    def test_tool_loop_same_turn(self, runtime):
+        """P1-3: Tool continuation preserves same turn_id."""
+        # ConversationRuntime maintains turn_id through tool continuation
+        rt = runtime
+        rt.process_turn(conversation_id="T1", turn_id="tool-turn", modality="text",
+                        input="needs tool", cognitive_fn=mock_cognitive)
+        msgs = rt.get_messages("T1")
+        turn_ids = set(m["turn_id"] for m in msgs if m["turn_id"])
+        assert len(turn_ids) == 1  # All messages share same turn_id
+        assert "tool-turn" in turn_ids
+
+    def test_reverse_authority_rejected(self, runtime):
+        """P1-6: Context/Memory/Continuity paths cannot overwrite transcript."""
+        rt = runtime
+        rt.process_turn(conversation_id="X1", turn_id="x1", modality="text",
+                        input="canonical fact", cognitive_fn=mock_cognitive)
+        original = rt.get_messages("X1")
+        # External turn with different content for same turn_id must conflict
+        from julia_core.conversation_state.repository import TurnConflictError
+        try:
+            rt.append_external_turns("X1", [{
+                "turn_id": "x1", "modality": "text",
+                "user_content": "DIFFERENT canonical fact",
+                "assistant_content": "different reply",
+                "assistant_status": "completed",
+            }])
+            assert False, "Should have raised TurnConflictError"
+        except TurnConflictError:
+            pass
+        # Transcript unchanged
+        after = rt.get_messages("X1")
+        assert len(after) == len(original)
+        assert after[0]["content"] == "canonical fact"
