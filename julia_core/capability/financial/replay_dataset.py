@@ -103,19 +103,49 @@ class DatasetManifest:
 def generate_replay_dataset(
     raw_data_dir: str,
     *,
-    generate_backtest_samples: bool = True,
+    study_window_start: str = "",
+    study_window_end: str = "",
 ) -> tuple[list[ReplaySnapshot], list[BacktestSample], DatasetManifest]:
     """Generate canonical replay snapshots from raw workbench data.
 
+    R3.1: TradingCalendar is T+1 authority. T+1 = next_trading_day(T),
+    NOT next_available_directory(). Enforces HR-02 anti-hindsight.
+
     Does NOT run any aggregate analysis. Produces blind manifest only.
     """
+    from julia_core.capability.financial.trading_calendar import (
+        next_trading_day,
+        trading_days_between,
+    )
+
     base = raw_data_dir
-    date_dirs = sorted([
+    # R3.1: discover ALL available raw date dirs, not hardcoded >= 2026-07-01
+    all_date_dirs = sorted([
         d for d in os.listdir(base)
         if os.path.isdir(os.path.join(base, d))
-        and d >= "2026-07-01"
         and not d.endswith(".bak")
+        and len(d) >= 10  # plausible YYYY-MM-DD
     ])
+
+    # Apply study window filter if set
+    if study_window_start:
+        all_date_dirs = [d for d in all_date_dirs if d >= study_window_start]
+    if study_window_end:
+        all_date_dirs = [d for d in all_date_dirs if d <= study_window_end]
+
+    date_dirs = all_date_dirs
+
+    # Expected trading days in window
+    calendar_dates: list[str] = []
+    calendar_missing: list[str] = []
+    if study_window_start and study_window_end:
+        sw_start = date.fromisoformat(study_window_start)
+        sw_end = date.fromisoformat(study_window_end)
+        for td in trading_days_between(sw_start, sw_end):
+            d_str = td.isoformat()
+            calendar_dates.append(d_str)
+            if d_str not in set(date_dirs):
+                calendar_missing.append(d_str)
 
     snapshots: list[ReplaySnapshot] = []
     failed_dates: list[str] = []
@@ -138,20 +168,26 @@ def generate_replay_dataset(
 
             replayed = replay_snapshot(ctx, snap, trade_date=d)
 
-            # Provenance validation
+            # HR-07: provenance must exist
             if not replayed.snapshot_digest:
                 invalid_prov.append(d)
                 continue
+
+            # HR-02: anti-hindsight — source must not exceed as_of
+            if replayed.source_max_observed_at and replayed.as_of:
+                if replayed.source_max_observed_at > replayed.as_of:
+                    invalid_prov.append(d)
+                    continue
 
             snapshots.append(replayed)
         except Exception:
             failed_dates.append(d)
 
-    # ── T/T+1 pairing ────────────────────────────────────────────────────
+    # ── T/T+1 pairing (R3.1: TradingCalendar authority) ──────────────────
     snap_by_date = {s.trade_date: s for s in snapshots}
     samples: list[BacktestSample] = []
 
-    for i, d in enumerate(date_dirs):
+    for d in date_dirs:
         if d not in snap_by_date:
             continue
 
@@ -163,19 +199,21 @@ def generate_replay_dataset(
         strengths_t = [t["raw_metrics"]["mainline_strength_score"] for t in themes_t]
         metrics_t = compute_structural_metrics(strengths_t)
 
-        # Canonical regime from stage signals (dominant)
         from collections import Counter
         stages = [t["derived_signals"]["stage_signal"]["value"] for t in themes_t]
         regime_t = Counter(stages).most_common(1)[0][0] if stages else "unknown"
 
-        # T+1 lookup
-        t1_date = date_dirs[i + 1] if i + 1 < len(date_dirs) else None
+        # R3.1: T+1 = next_trading_day(D) — NOT next_available_directory
+        t1_calendar = next_trading_day(date.fromisoformat(d))
+        t1_date = t1_calendar.isoformat() if t1_calendar else None
+
         breadth_t1 = None
         lost_breadth = None
         breadth_delta = None
         truth_known = False
         regime_t1 = "unknown"
 
+        # Only pair if exact T+1 has a replay snapshot
         if t1_date and t1_date in snap_by_date:
             s_t1 = snap_by_date[t1_date]
             themes_t1 = list(s_t1.themes)
@@ -194,7 +232,8 @@ def generate_replay_dataset(
             feature_trade_date=d,
             feature_as_of=s_t.as_of,
             truth_trade_date=t1_date or "",
-            truth_resolved_at=s_t.source_max_observed_at,
+            # R3.1: truth_resolved_at from T+1 source, not T
+            truth_resolved_at=s_t1.source_max_observed_at if (t1_date and t1_date in snap_by_date) else "",
             metrics=metrics_t,
             regime_t=regime_t,
             regime_t1=regime_t1,
@@ -215,13 +254,14 @@ def generate_replay_dataset(
     }, sort_keys=True).encode()
     dataset_digest = hashlib.sha256(digest_input).hexdigest()
 
+    exact_pairs = len([s for s in samples if s.truth_known])
     manifest = DatasetManifest(
         raw_dates_available=len(date_dirs),
         replay_successful=len(snapshots),
         replay_failed=len(failed_dates),
         missing_source=len(missing_source),
         invalid_provenance=len(invalid_prov),
-        valid_pairs=len([s for s in samples if s.truth_known]),
+        valid_pairs=exact_pairs,
         missing_t1=len([s for s in samples if not s.truth_known]),
         generator_version=GENERATOR_VERSION,
         primary_window_start=date_dirs[0] if date_dirs else "",
