@@ -61,7 +61,8 @@ class BacktestSample:
     regime_t1: str
 
     # Derived outcome
-    deteriorated: bool  # regime_t1 != regime_t when regime_t is "strength_active"
+    deteriorated: bool       # regime_t1 != regime_t when regime_t is "strength_active"
+    truth_known: bool = True # False when T+1 data unavailable (exclude from analysis)
 
     # Provenance
     source_refs: tuple[str, ...] = ()
@@ -168,8 +169,11 @@ def run_structural_backtest(
     """
     gate = classification_gate(len(samples))
 
-    # ── Filter to target regime ──────────────────────────────────────────
-    population = [s for s in samples if s.regime_t == filter_regime]
+    # ── Filter to target regime, exclude unknown T+1 ─────────────────────
+    population = [
+        s for s in samples
+        if s.regime_t == filter_regime and s.truth_known
+    ]
     n = len(population)
     baseline_deterioration = (
         sum(1 for s in population if s.deteriorated) / n if n > 0 else 0.0
@@ -240,8 +244,25 @@ def run_structural_backtest(
         lift = (thinnest.deterioration_rate - baseline_deterioration) / baseline_deterioration
 
     # ── Breadth-only baseline ────────────────────────────────────────────
+    # Compare: does above_0_8_ratio add signal beyond above_0_6_ratio?
+    # Split population by median above_0_6_ratio, compute deterioration for each half.
     breadth_lift = 0.0
-    # Computed by comparing above_0_8_ratio buckets vs above_0_6_ratio-only
+    if n >= 10:
+        sorted_by_breadth = sorted(population, key=lambda s: s.metrics.above_0_6_ratio)
+        mid = n // 2
+        low_breadth = sorted_by_breadth[:mid]
+        high_breadth = sorted_by_breadth[mid:]
+        low_det = sum(1 for s in low_breadth if s.deteriorated) / max(len(low_breadth), 1)
+        high_det = sum(1 for s in high_breadth if s.deteriorated) / max(len(high_breadth), 1)
+        # Breadth alone explains this much of the deterioration spread
+        breadth_spread = abs(low_det - high_det)
+        # Depth spread = extra signal beyond breadth
+        if bucket_results:
+            depth_spread = abs(
+                bucket_results[0].deterioration_rate -
+                bucket_results[-1].deterioration_rate
+            ) if len(bucket_results) >= 2 else 0.0
+            breadth_lift = depth_spread - breadth_spread  # positive = depth adds signal
 
     # ── Leave-one-out ────────────────────────────────────────────────────
     loo_stable = True
@@ -318,13 +339,15 @@ def run_structural_backtest(
 def extract_samples_from_workbench(
     base_dir: str,
 ) -> list[BacktestSample]:
-    """Extract historical samples from analyst workbench snapshots.
+    """Extract historical samples using CANONICAL replay normalization.
 
-    Uses draft_context.json for structural metrics and snapshot.json for
-    regime data. Scores are on 0-100 scale from the workbench.
+    Uses canonical_replay.replay_snapshot() which normalizes
+    mainline_strength_score / 64.0 (NOT /100.0).
     """
     import json
     import os
+
+    from julia_core.capability.financial.canonical_replay import replay_snapshot
 
     base = base_dir
     date_dirs = sorted([
@@ -345,62 +368,62 @@ def extract_samples_from_workbench(
 
         try:
             ctx = json.load(open(ctx_path))
+            snap = json.load(open(snap_path)) if os.path.exists(snap_path) else None
         except Exception:
             continue
 
-        # Extract theme strengths (0-100 scale → normalize to 0-1)
-        themes = ctx.get("themes", [])
-        strengths: list[float] = []
-        for t in themes:
-            s_raw = t.get("mainline_strength_score", "0")
-            try:
-                strengths.append(float(s_raw) / 100.0)
-            except (ValueError, TypeError):
-                pass
-
-        if not strengths:
+        # Use canonical replay for proper normalization (/64.0 not /100.0)
+        replayed = replay_snapshot(ctx, snap, trade_date=d)
+        themes = list(replayed.themes)
+        if not themes:
             continue
 
+        strengths = [t["raw_metrics"]["mainline_strength_score"] for t in themes]
         metrics = compute_structural_metrics(strengths)
 
-        # Determine regime from workbench data
-        market_state = ctx.get("market_state", {})
-        regime_t = market_state.get("emotion_node", "unknown")
-        score = market_state.get("emotion_score", 0)
+        # Canonical regime from stage signals (not workbench emotion)
+        stages = [t["derived_signals"]["stage_signal"]["value"] for t in themes]
+        from collections import Counter
+        stage_counts = Counter(stages)
+        dominant = stage_counts.most_common(1)[0][0] if stage_counts else "unknown"
+        canonical_regime = dominant
 
-        # Map workbench taxonomy to canonical regime
-        # CHAOS/ICE_POINT → not strength_active
-        # REBOUND/CONTINUATION → strength_active
-        # DIVERGENCE → divergence
-        canonical_regime = _map_workbench_regime(regime_t, float(score) if score else 0)
+        # Use real as_of from source, not inferred
+        as_of = replayed.as_of
 
-        # Look up T+1 regime
+        # Look up T+1 using same canonical replay
         regime_t1 = "unknown"
+        truth_known = False
         if i + 1 < len(date_dirs):
             next_d = date_dirs[i + 1]
             next_ctx_path = os.path.join(base, next_d, "draft_context.json")
+            next_snap_path = os.path.join(base, next_d, "snapshot.json")
             if os.path.exists(next_ctx_path):
                 try:
                     next_ctx = json.load(open(next_ctx_path))
-                    next_ms = next_ctx.get("market_state", {})
-                    next_regime = next_ms.get("emotion_node", "unknown")
-                    next_score = next_ms.get("emotion_score", 0)
-                    regime_t1 = _map_workbench_regime(next_regime, float(next_score) if next_score else 0)
+                    next_snap = json.load(open(next_snap_path)) if os.path.exists(next_snap_path) else None
+                    next_replayed = replay_snapshot(next_ctx, next_snap, trade_date=next_d)
+                    next_themes = list(next_replayed.themes)
+                    next_stages = [t["derived_signals"]["stage_signal"]["value"] for t in next_themes]
+                    next_counts = Counter(next_stages)
+                    regime_t1 = next_counts.most_common(1)[0][0] if next_counts else "unknown"
+                    truth_known = (regime_t1 != "unknown")
                 except Exception:
                     pass
 
-        deteriorated = regime_t1 != canonical_regime
+        deteriorated = (regime_t1 != canonical_regime) if truth_known else False
 
         sample = BacktestSample(
             feature_trade_date=d,
-            feature_as_of=f"{d}T15:30:00+08:00",
+            feature_as_of=as_of,
             truth_trade_date=date_dirs[i + 1] if i + 1 < len(date_dirs) else "",
-            truth_resolved_at=f"{date_dirs[i + 1]}T15:30:00+08:00" if i + 1 < len(date_dirs) else "",
+            truth_resolved_at=replayed.source_max_observed_at,
             metrics=metrics,
             regime_t=canonical_regime,
             regime_t1=regime_t1,
             deteriorated=deteriorated,
-            source_refs=(os.path.basename(ctx_path),),
+            truth_known=truth_known,
+            source_refs=("draft_context.json", "snapshot.json"),
         )
         samples.append(sample)
 
