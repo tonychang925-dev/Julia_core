@@ -37,6 +37,7 @@ class TurnContext:
         "history", "turn_count", "current_topic", "answered_questions",
         "last_event_id",
         "interaction",  # ConversationInteractionState (multi-turn persistence)
+        "_last_package",  # P2: CognitiveContextPackage ref for tool continuation (C-03)
     )
 
     def __init__(self, history: list[dict], *,
@@ -57,6 +58,7 @@ class TurnContext:
         self.answered_questions: list[str] = []
         self.last_event_id: str = ""
         self.interaction = interaction  # ConversationInteractionState or None
+        self._last_package = None  # P2: CognitiveContextPackage for tool continuation
 
 
 class JuliaSession:
