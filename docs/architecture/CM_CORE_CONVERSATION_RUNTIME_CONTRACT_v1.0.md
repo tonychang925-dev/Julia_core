@@ -324,4 +324,55 @@ CFR                                   ✅ COMPLETE
 
 ---
 
+## 8. Implementation Program — Stage 1
+
+CM-Core Contract freezes what must be true. This section defines the implementation order that makes it true in production.
+
+```
+RT2-R0  Repository Boundary           🟢 GO
+        ConversationRepository abstraction:
+        create_conversation / get_conversation / list_conversations
+        append_user_message / append_assistant_message
+        find_turn / get_messages / iterate_messages
+        Backend: conversations.json (existing), abstracted behind repository.
+
+RT2-R1  ConversationRuntime v2 core    ⏳
+        1. accept_user_turn() — durable USER → ACK → cognition
+        2. User accepted ≠ assistant success
+        3. Remove get_history(40) cognitive cap
+        4. Core create conversation → durable id → client bind
+
+RT2-R2  Storage v2 + Migration        ⏳
+        Target: per-conversation JSONL + rebuildable catalog
+        (SQLite catalog + JSONL transcript preferred; final decision
+        after benchmark.)
+        Canonical authority: transcript JSONL segments only.
+        Catalog is derived/index, rebuildable from transcripts.
+        38 legacy sessions: 100% migration with digest verification.
+        Legacy conversations.json → read-only backup after migration.
+
+RT2-R3  Core Acceptance               ⏳
+        AT: kill Core after ACK, user survives
+        AT: LLM failure, user survives
+        AT: duplicate turn_id → exactly one
+        AT: conflict turn_id → rejected
+        AT: >40 messages, Context OS access beyond cap
+        AT: 38 sessions migrated, digest match
+        AT: delete catalog, rebuild from transcripts
+
+Electron convergence                  ⛔ WAIT RT2-R3
+Voice convergence                     ⛔ WAIT RT2-R3
+```
+
+### Storage v2 Status
+
+```
+Stage 1 Freeze (contract):           ⏸ NOT PART OF CONTRACT
+Runtime v2 Implementation:           ✅ IN SCOPE
+Storage v2 backend:                  🟡 REQUIRED BEFORE PRODUCTION CUTOVER
+Diary / Compact / Archive:           ⏸ OUT OF SCOPE (Stage 2)
+```
+
+---
+
 *End CM-CORE-v1*
