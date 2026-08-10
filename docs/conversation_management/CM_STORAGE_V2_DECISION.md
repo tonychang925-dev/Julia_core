@@ -70,10 +70,18 @@ memory/conversations/
 
 ## 4. Rejected: SQLite-only
 
-SQLite as sole canonical store violates the portability and human-readability
-goals that distinguish Julia from platform-locked assistants. A single `.db`
-file cannot be casually inspected, backed up per-conversation, or migrated
-without SQLite tooling.
+SQLite is highly portable as a library and file format. It is rejected NOT
+because it is non-portable, but because:
+
+- Canonical transcript is tied to a database engine representation
+- Human inspection requires SQLite tooling (`sqlite3` CLI, etc.)
+- Per-conversation isolation is weaker (all in one `.db` file)
+- Weaker fit for Julia's model-independent, platform-independent migration goal
+
+A single `.db` file cannot be casually inspected line-by-line, backed up
+per-conversation, or verified without SQLite-specific knowledge. JSONL
+transcripts survive any database technology change — copy the folder, Julia
+can read her own history.
 
 ## 5. Rejected: Pure JSONL
 
