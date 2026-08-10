@@ -429,3 +429,21 @@ def test_validated_requires_positive_breadth_lift():
     from julia_core.capability.financial.structural_backtest import run_breadth_fragility_backtest
     result = run_breadth_fragility_backtest(samples)
     assert result.status != "validated"
+
+
+def test_insufficient_exposure_arms_block_validated():
+    """n>=50 but thin_n=48 non_thin_n=2 → insufficient_data → NOT validated."""
+    from julia_core.capability.financial.structural_backtest import (
+        run_breadth_fragility_backtest, H002_THIN_THRESHOLD
+    )
+    samples = []
+    for i in range(48):
+        samples.append(_make_h002_sample(f"D{i}a", 0.75, 0.02, 0.40))   # thin
+    for i in range(2):
+        samples.append(_make_h002_sample(f"D{i}b", 0.75, 0.08, 0.80))   # non_thin (only 2)
+    result = run_breadth_fragility_backtest(samples)
+    # With non_thin_n=2 (<4 minimum), direction should be insufficient_data
+    # and status MUST NOT reach VALIDATED
+    assert result.factor_direction == "insufficient_data"
+    assert result.status != "validated"
+    assert result.status in ("insufficient", "inconclusive", "directional_support")

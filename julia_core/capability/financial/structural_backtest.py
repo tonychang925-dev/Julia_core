@@ -510,6 +510,16 @@ def run_breadth_fragility_backtest(
     elif direction == "flat":
         status = "inconclusive"
         reason = "No directional relationship between thin top-end and breadth loss"
+    elif direction == "insufficient_data":
+        status = "insufficient"
+        reason = (
+            f"Primary exposure arms insufficient for directional comparison: "
+            f"thin_n={len(thin)}, non_thin_n={len(non_thin)}"
+        )
+    elif direction != "increasing":
+        # Safety: VALIDATED requires direction == "increasing"
+        status = "inconclusive"
+        reason = f"Unexpected direction={direction} — cannot validate"
     elif lift <= 0.05:
         status = "inconclusive"
         reason = f"Lift vs baseline ({lift:.1%}) too small to support hypothesis"
