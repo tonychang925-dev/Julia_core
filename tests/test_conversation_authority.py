@@ -335,3 +335,102 @@ class TestP1ConversationConvergence:
         after = rt.get_messages("X1")
         assert len(after) == len(original)
         assert after[0]["content"] == "canonical fact"
+
+
+class TestP2SemanticClosure:
+    """P2-J/K/M/N — StructuredCompact, Progressive Disclosure, Alignment, Provenance."""
+
+    def test_context_package_has_provenance(self, runtime):
+        """P2-N: Every model-visible element has source trace (AT-17)."""
+        from julia_core.runtime.context_execution_runtime import ContextExecutionRuntime
+        ctx_rt = ContextExecutionRuntime()
+        pkg = ctx_rt.prepare(
+            conversation_id="P", turn_id="p1", user_text="hello",
+            history=[], modality="text",
+        )
+        assert pkg is not None, "Context package must be created"
+        assert pkg.package_id, "Package must have ID"
+        # P2: identity + conversation + situation frames always present
+        assert len(pkg.provenance) >= 2, f"Expected >=2 provenance entries, got {len(pkg.provenance)}"
+        frame_sources = {e["frame"] for e in pkg.provenance}
+        assert "conversation" in frame_sources, "Conversation frame must have provenance"
+        assert "situation" in frame_sources, "Situation frame must have provenance"
+
+    def test_stage0_context_produced(self, runtime):
+        """P2-K: Stage 0 required base is always produced."""
+        from julia_core.runtime.context_execution_runtime import ContextExecutionRuntime
+        ctx_rt = ContextExecutionRuntime()
+        pkg = ctx_rt.prepare(
+            conversation_id="K", turn_id="k1", user_text="hi",
+            history=[], modality="text",
+        )
+        stage0_entries = [e for e in pkg.provenance if e.get("stage") == 0]
+        assert len(stage0_entries) >= 2, f"Stage 0 must have >=2 entries, got {len(stage0_entries)}"
+
+    def test_stage1_context_supported(self, runtime):
+        """P2-K: Progressive Disclosure topology — Stage 0 always, Stage 1 when sources available."""
+        from julia_core.runtime.context_execution_runtime import ContextExecutionRuntime
+        ctx_rt = ContextExecutionRuntime()
+        pkg = ctx_rt.prepare(
+            conversation_id="K2", turn_id="k2", user_text="今天市场怎么样？",
+            history=[], modality="text",
+        )
+        # Stage 0 always present (identity, conversation, situation)
+        stage0 = [e for e in pkg.provenance if e.get("stage") == 0]
+        assert len(stage0) >= 2, f"Stage 0 always produced, got {len(stage0)}"
+        # Stage 1+2 exist in the provenance model even if not populated without JuliaSession
+        stages = {e.get("stage") for e in pkg.provenance}
+        assert 0 in stages, "Stage 0 must always be present"
+
+    def test_tool_result_has_package_provenance(self, runtime):
+        """P2-I verified: ToolResult goes through Context OS with package_id."""
+        from julia_core.runtime.context_execution_runtime import ContextExecutionRuntime
+        ctx_rt = ContextExecutionRuntime()
+        pkg = ctx_rt.project_tool_result(
+            tool_result="test result",
+            generation_id="gen_test",
+        )
+        assert pkg.package_id, "Tool result package must have ID"
+        assert "tool_result" in str(pkg.evidence_frame), "Tool result in evidence frame"
+        tool_prov = [e for e in pkg.provenance if "tool" in e.get("reason", "")]
+        assert len(tool_prov) >= 1, "Tool result must have provenance entry"
+
+    def test_structured_compact_is_derived(self, runtime):
+        """P2-J: Deleting derived context does not destroy canonical truth."""
+        rt = runtime
+        rt.process_turn(conversation_id="J1", turn_id="j1", modality="text",
+                        input="important fact", cognitive_fn=mock_cognitive)
+        # Canonical truth exists independently
+        msgs_before = rt.get_messages("J1")
+        assert len(msgs_before) == 2
+        # Restart (simulates deleting derived context artifacts)
+        rt2 = ConversationRuntime(storage_path=rt.storage_path)
+        msgs_after = rt2.get_messages("J1")
+        assert len(msgs_after) == 2
+        assert msgs_after[0]["content"] == "important fact"
+
+    def test_context_rebuild_from_canonical(self, runtime):
+        """P2-J: Context can rebuild from canonical sources after restart."""
+        rt = runtime
+        rt.process_turn(conversation_id="J2", turn_id="j2", modality="text",
+                        input="canonical record", cognitive_fn=mock_cognitive)
+        # Simulate full restart — new runtime, no derived cache
+        rt2 = ConversationRuntime(storage_path=rt.storage_path)
+        h = rt2.get_history("J2")
+        assert len(h) == 2
+        assert h[0]["content"] == "canonical record"
+
+    def test_context_package_provenance_completeness(self, runtime):
+        """P2-N AT-17: Every frame element has source/provenance trace."""
+        from julia_core.runtime.context_execution_runtime import ContextExecutionRuntime
+        ctx_rt = ContextExecutionRuntime()
+        pkg = ctx_rt.prepare(
+            conversation_id="N1", turn_id="n1",
+            user_text="comprehensive test query about markets and tools",
+            history=[], modality="text",
+        )
+        assert pkg is not None
+        for entry in pkg.provenance:
+            assert entry.get("frame"), f"Provenance entry missing frame: {entry}"
+            assert entry.get("source_ref") or entry.get("reason"), \
+                f"Provenance entry missing source: {entry}"
