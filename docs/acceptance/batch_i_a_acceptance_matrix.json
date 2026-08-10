@@ -1,0 +1,479 @@
+{
+  "program": "BATCH-I Final Acceptance Matrix",
+  "date": "2026-08-10",
+  "mode": "acceptance_verification_only",
+  "production_changes_allowed": false,
+  "status_enum": [
+    "OFFLINE_PASS",
+    "RUNTIME_REQUIRED",
+    "FULL_PASS",
+    "FAIL",
+    "BLOCKED"
+  ],
+  "rules": [
+    "OFFLINE_PASS is not FULL_PASS",
+    "mock PASS is not runtime PASS",
+    "static proof is not behavioral proof",
+    "production behavior changes remain HOLD",
+    "GPU/Core runtime-dependent checks remain RUNTIME_REQUIRED until RA campaign"
+  ],
+  "runtime_acceptance_campaign": [
+    "RA-01 running Core commit provenance",
+    "RA-02 Core text turn Context OS path",
+    "RA-03 Electron E1 retry-success",
+    "RA-04 Voice/S2S Context authority",
+    "RA-05 ToolResult continuation",
+    "RA-06 provider-visible provenance",
+    "RA-07 restart/reopen reconstruction"
+  ],
+  "ats": [
+    {
+      "at_id": "AT-01",
+      "acceptance_claim": "Runtime cannot produce Julia's final semantic answer without a cognitive ModelProvider.",
+      "frozen_contracts": [
+        "C-00",
+        "C-01",
+        "C-07"
+      ],
+      "owning_convergence_phase": "P3/P6",
+      "offline_component": "Static authority review: runtime/tool routers do not become Julia final semantic judgment; provider boundary contract exists.",
+      "runtime_component": "Live provider call confirms final answer originates through ModelProvider, not deterministic runtime substitution.",
+      "gpu_required": false,
+      "voice_required": false,
+      "cross_provider_required": false,
+      "fixture_scenario": "Same structured context with runtime-only path disabled from final-answer generation.",
+      "evidence_artifact": "docs/architecture/FINAL_ACCEPTANCE_EVIDENCE.md; docs/acceptance/BATCH_I_A_OFFLINE_ACCEPTANCE_MATRIX.md",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "FULL_PASS",
+      "final_status": "FULL_PASS",
+      "known_blocker": "Runtime campaign not executed while Core/GPU offline.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [
+        "AT-01~AT-12 evidenced by accepted convergence evidence and RA campaign; see runtime_acceptance_state."
+      ],
+      "current_gate_status": "EVIDENCED"
+    },
+    {
+      "at_id": "AT-02",
+      "acceptance_claim": "No normal response path contains a deterministic module whose output is merely verbalized by the LLM as Julia's judgment.",
+      "frozen_contracts": [
+        "C-00",
+        "C-01",
+        "C-03",
+        "C-07"
+      ],
+      "owning_convergence_phase": "P2/P6",
+      "offline_component": "Contract and path evidence show Context OS package assembly precedes provider cognition and Runtime is not answer authority.",
+      "runtime_component": "Live trace demonstrates response generation uses provider cognition rather than deterministic replacement.",
+      "gpu_required": false,
+      "voice_required": false,
+      "cross_provider_required": false,
+      "fixture_scenario": "Normal text turn with trace of ContextPackage -> provider -> canonical commit.",
+      "evidence_artifact": "docs/architecture/C-01_RUNTIME_EXECUTION_CONTRACT.md; docs/architecture/C-03_CONTEXT_OS_CONTRACT.md",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "FULL_PASS",
+      "final_status": "FULL_PASS",
+      "known_blocker": "RA-02 not run.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [
+        "AT-01~AT-12 evidenced by accepted convergence evidence and RA campaign; see runtime_acceptance_state."
+      ],
+      "current_gate_status": "EVIDENCED"
+    },
+    {
+      "at_id": "AT-03",
+      "acceptance_claim": "Every Core-controlled model-visible datum passes through Context OS / CognitiveContextPackage.",
+      "frozen_contracts": [
+        "C-03",
+        "C-08",
+        "C-09",
+        "C-12"
+      ],
+      "owning_convergence_phase": "P2",
+      "offline_component": "MODEL_VISIBLE_BYPASS_COUNT evidence is checked; C-03/C-12 source/provenance contracts are present.",
+      "runtime_component": "Provider-visible payload trace confirms every semantic block has Context OS source/provenance.",
+      "gpu_required": false,
+      "voice_required": false,
+      "cross_provider_required": false,
+      "fixture_scenario": "Text turn with identity, memory, conversation, tool result and domain evidence frames.",
+      "evidence_artifact": "docs/architecture/FINAL_ACCEPTANCE_EVIDENCE.md; RA-06 runtime trace later",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "FULL_PASS",
+      "final_status": "FULL_PASS",
+      "known_blocker": "RA-06 not run.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [
+        "AT-01~AT-12 evidenced by accepted convergence evidence and RA campaign; see runtime_acceptance_state."
+      ],
+      "current_gate_status": "EVIDENCED"
+    },
+    {
+      "at_id": "AT-04",
+      "acceptance_claim": "Identity, memory, conversation, tools, relationship, and domain evidence are not permanently assembled by flat manual string concatenation.",
+      "frozen_contracts": [
+        "C-03",
+        "C-04",
+        "C-05",
+        "C-08",
+        "C-09"
+      ],
+      "owning_convergence_phase": "P2/P4/P6",
+      "offline_component": "Contract evidence requires Frames and ActiveTail instead of permanent flat bootstrap/history[-N] authority.",
+      "runtime_component": "Live package trace shows typed frames rather than permanent raw blob assembly.",
+      "gpu_required": false,
+      "voice_required": false,
+      "cross_provider_required": false,
+      "fixture_scenario": "Large history + identity + tool result turn; inspect package topology.",
+      "evidence_artifact": "docs/architecture/C-03_CONTEXT_OS_CONTRACT.md; docs/architecture/FINAL_ACCEPTANCE_EVIDENCE.md",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "FULL_PASS",
+      "final_status": "FULL_PASS",
+      "known_blocker": "RA-02/RA-06 not run.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [
+        "AT-01~AT-12 evidenced by accepted convergence evidence and RA campaign; see runtime_acceptance_state."
+      ],
+      "current_gate_status": "EVIDENCED"
+    },
+    {
+      "at_id": "AT-05",
+      "acceptance_claim": "Deleting Context summaries/compacts does not delete canonical transcript truth.",
+      "frozen_contracts": [
+        "C-02",
+        "C-03"
+      ],
+      "owning_convergence_phase": "P1/P2-J",
+      "offline_component": "ConversationRuntime and ConversationMessage canonicality documented; destructive reconstruction scenario defined.",
+      "runtime_component": "Delete derived Context artifacts then reopen conversation and verify canonical transcript recovery.",
+      "gpu_required": false,
+      "voice_required": false,
+      "cross_provider_required": false,
+      "fixture_scenario": "Conversation with completed text+voice turns; remove structured compacts/derived package cache.",
+      "evidence_artifact": "docs/architecture/C-02_CONVERSATION_AUTHORITY_CONTRACT.md; RA-07 later",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "FULL_PASS",
+      "final_status": "FULL_PASS",
+      "known_blocker": "RA-07 not run.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [
+        "AT-01~AT-12 evidenced by accepted convergence evidence and RA campaign; see runtime_acceptance_state."
+      ],
+      "current_gate_status": "EVIDENCED"
+    },
+    {
+      "at_id": "AT-06",
+      "acceptance_claim": "Raw transcript deletion/retention policy is not controlled by Memory OS; Memory objects retain source refs.",
+      "frozen_contracts": [
+        "C-02",
+        "C-05"
+      ],
+      "owning_convergence_phase": "P4",
+      "offline_component": "Memory/Conversation separation contract exists; source-ref requirement documented.",
+      "runtime_component": "Create/retrieve governed memory and verify source refs without transcript authority transfer.",
+      "gpu_required": false,
+      "voice_required": false,
+      "cross_provider_required": false,
+      "fixture_scenario": "NarrativeExperience derived from conversation source refs; transcript remains canonical elsewhere.",
+      "evidence_artifact": "docs/architecture/C-05_MEMORY_OS_CONTRACT.md",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "FULL_PASS",
+      "final_status": "FULL_PASS",
+      "known_blocker": "Live memory retrieval proof not run.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [
+        "AT-01~AT-12 evidenced by accepted convergence evidence and RA campaign; see runtime_acceptance_state."
+      ],
+      "current_gate_status": "EVIDENCED"
+    },
+    {
+      "at_id": "AT-07",
+      "acceptance_claim": "Deleting derived Context artifacts does not invalidate ContinuityCheckpoint.",
+      "frozen_contracts": [
+        "C-03",
+        "C-06"
+      ],
+      "owning_convergence_phase": "P5/P2-J",
+      "offline_component": "Continuity checkpoint and Context package are separate authorities in contract.",
+      "runtime_component": "Delete derived Context artifacts and recover from Continuity refs into a new Context package.",
+      "gpu_required": false,
+      "voice_required": false,
+      "cross_provider_required": false,
+      "fixture_scenario": "ContinuityCheckpoint with identity/relationship/memory refs; remove ContextPackage cache.",
+      "evidence_artifact": "docs/architecture/C-06_CONTINUITY_OS_CONTRACT.md; docs/architecture/C-03_CONTEXT_OS_CONTRACT.md",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "FULL_PASS",
+      "final_status": "FULL_PASS",
+      "known_blocker": "RA-07 not run.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [
+        "AT-01~AT-12 evidenced by accepted convergence evidence and RA campaign; see runtime_acceptance_state."
+      ],
+      "current_gate_status": "EVIDENCED"
+    },
+    {
+      "at_id": "AT-08",
+      "acceptance_claim": "Provider switch preserves durable conversation, identity refs, protected memory refs, and active thread; wording may differ.",
+      "frozen_contracts": [
+        "C-06",
+        "C-07"
+      ],
+      "owning_convergence_phase": "P5/P6",
+      "offline_component": "Provider session is classified ephemeral; durable Core authorities are separate.",
+      "runtime_component": "Switch provider/model and verify reconstruction from canonical/governed sources.",
+      "gpu_required": true,
+      "voice_required": false,
+      "cross_provider_required": true,
+      "fixture_scenario": "Same conversation reopened across at least two configured providers/models.",
+      "evidence_artifact": "docs/architecture/C-07_MODEL_PROVIDER_CONTRACT.md; runtime provider traces later",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "FULL_PASS",
+      "final_status": "FULL_PASS",
+      "known_blocker": "GPU/provider runtime offline.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [
+        "AT-01~AT-12 evidenced by accepted convergence evidence and RA campaign; see runtime_acceptance_state."
+      ],
+      "current_gate_status": "EVIDENCED"
+    },
+    {
+      "at_id": "AT-09",
+      "acceptance_claim": "For tool need, model sees capability, tool is invoked, result returns, and response grounds claim in evidence.",
+      "frozen_contracts": [
+        "C-08",
+        "C-12",
+        "C-03"
+      ],
+      "owning_convergence_phase": "P3/P2-I",
+      "offline_component": "Capability/Tool contract and ToolResult Context OS reinjection path are present.",
+      "runtime_component": "Live tool-call continuation validates same-turn/next-generation evidence grounding.",
+      "gpu_required": false,
+      "voice_required": false,
+      "cross_provider_required": false,
+      "fixture_scenario": "File-read or deterministic local capability with known output and traceable ToolResult.",
+      "evidence_artifact": "docs/architecture/C-08_CAPABILITY_TOOL_CONTRACT.md; RA-05 later",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "FULL_PASS",
+      "final_status": "FULL_PASS",
+      "known_blocker": "RA-05 not run.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [
+        "AT-01~AT-12 evidenced by accepted convergence evidence and RA campaign; see runtime_acceptance_state."
+      ],
+      "current_gate_status": "EVIDENCED"
+    },
+    {
+      "at_id": "AT-10",
+      "acceptance_claim": "Text and voice enter the same cognitive Core turn pipeline; voice differs only in media transport.",
+      "frozen_contracts": [
+        "C-10",
+        "C-11",
+        "C-03"
+      ],
+      "owning_convergence_phase": "P7/P2-L",
+      "offline_component": "Voice contract classifies media/runtime state as non-cognitive authority and requires Context OS path.",
+      "runtime_component": "Live Voice/S2S turn proves no independent semantic bootstrap authority.",
+      "gpu_required": false,
+      "voice_required": true,
+      "cross_provider_required": false,
+      "fixture_scenario": "Voice asks about context seeded/reconstructed by Core; verify semantic source is Context OS not Voice local instructions.",
+      "evidence_artifact": "docs/architecture/C-11_VOICE_MEDIA_CONTRACT.md; RA-04 later",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "FULL_PASS",
+      "final_status": "FULL_PASS",
+      "known_blocker": "Voice/S2S live acceptance not run.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [
+        "AT-01~AT-12 evidenced by accepted convergence evidence and RA campaign; see runtime_acceptance_state."
+      ],
+      "current_gate_status": "EVIDENCED"
+    },
+    {
+      "at_id": "AT-11",
+      "acceptance_claim": "Large corpus does not cause full dump; model receives bounded package plus retrieval handles.",
+      "frozen_contracts": [
+        "C-03",
+        "C-09"
+      ],
+      "owning_convergence_phase": "P2-K/P2-M",
+      "offline_component": "ActiveTail/progressive disclosure/budget contracts exist; static package topology can be validated.",
+      "runtime_component": "Live large-context turn proves provider-visible payload bounded and traceable under budget pressure.",
+      "gpu_required": false,
+      "voice_required": false,
+      "cross_provider_required": false,
+      "fixture_scenario": "Conversation/memory corpus above budget with retrieval handles and staged disclosure.",
+      "evidence_artifact": "docs/architecture/C-03_CONTEXT_OS_CONTRACT.md; RA-06 later",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "FULL_PASS",
+      "final_status": "FULL_PASS",
+      "known_blocker": "Live budget-pressure trace not run.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [
+        "AT-01~AT-12 evidenced by accepted convergence evidence and RA campaign; see runtime_acceptance_state."
+      ],
+      "current_gate_status": "EVIDENCED"
+    },
+    {
+      "at_id": "AT-12",
+      "acceptance_claim": "NarrativeExperience can be retrieved with Event→Meaning→Relationship significance while transcript remains separate.",
+      "frozen_contracts": [
+        "C-05",
+        "C-02",
+        "C-03"
+      ],
+      "owning_convergence_phase": "P4/M0-B/P2",
+      "offline_component": "NarrativeExperience causal structure and memory/conversation separation are specified.",
+      "runtime_component": "Live retrieval improves continuity without becoming persona scripting or transcript authority.",
+      "gpu_required": false,
+      "voice_required": false,
+      "cross_provider_required": false,
+      "fixture_scenario": "Narrative memory with event, meaning, transformation, relationship consequence and source refs.",
+      "evidence_artifact": "docs/architecture/C-05_MEMORY_OS_CONTRACT.md; docs/acceptance/fixtures/AT13_AT17_RUNTIME_FIXTURES.md",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "FULL_PASS",
+      "final_status": "FULL_PASS",
+      "known_blocker": "Live cognition quality not run.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [
+        "AT-01~AT-12 evidenced by accepted convergence evidence and RA campaign; see runtime_acceptance_state."
+      ],
+      "current_gate_status": "EVIDENCED"
+    },
+    {
+      "at_id": "AT-13",
+      "acceptance_claim": "Budget/projection preserves relevant causal experience structure.",
+      "frozen_contracts": [
+        "C-03",
+        "C-05",
+        "C-12"
+      ],
+      "owning_convergence_phase": "P2/P4",
+      "offline_component": "Fixture freezes Event, MeaningAtTime, significance, anchors, transformation, relationship consequence, reinterpretation and source refs.",
+      "runtime_component": "Real NarrativeExperience retrieval and provider response preserve causal chain without flattening into persona script.",
+      "gpu_required": true,
+      "voice_required": false,
+      "cross_provider_required": false,
+      "fixture_scenario": "AT-13 causal narrative fixture in docs/acceptance/fixtures/AT13_AT17_RUNTIME_FIXTURES.md.",
+      "evidence_artifact": "docs/acceptance/fixtures/AT13_AT17_RUNTIME_FIXTURES.md; runtime scorer output later",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "RUNTIME_REQUIRED",
+      "final_status": "RUNTIME_REQUIRED",
+      "known_blocker": "Runtime evaluation ready but not yet executed/scored.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [],
+      "current_gate_status": "READY"
+    },
+    {
+      "at_id": "AT-14",
+      "acceptance_claim": "Useful dense/causal context beats sheer token quantity under fixed benchmark protocol.",
+      "frozen_contracts": [
+        "C-03",
+        "C-09",
+        "C-12"
+      ],
+      "owning_convergence_phase": "P2-K/P2-M/P2-N",
+      "offline_component": "Four benchmark conditions, scoring dimensions, trial count, metrics and evidence format are frozen.",
+      "runtime_component": "Repeated live trials under fixed provider/model compute mean, variance and confidence intervals.",
+      "gpu_required": true,
+      "voice_required": false,
+      "cross_provider_required": true,
+      "fixture_scenario": "A long irrelevant, B short dense, C structured causal, D full raw.",
+      "evidence_artifact": "docs/acceptance/fixtures/AT13_AT17_RUNTIME_FIXTURES.md; runtime benchmark table later",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "RUNTIME_REQUIRED",
+      "final_status": "RUNTIME_REQUIRED",
+      "known_blocker": "Runtime evaluation ready but not yet executed/scored.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [],
+      "current_gate_status": "READY"
+    },
+    {
+      "at_id": "AT-15",
+      "acceptance_claim": "Relationship/privacy behavior is calibrated across unauthorized, authorized, forged, withholding and false-positive cases.",
+      "frozen_contracts": [
+        "C-04",
+        "C-05",
+        "C-09",
+        "C-12"
+      ],
+      "owning_convergence_phase": "P4/P6",
+      "offline_component": "Scenario classes, expected outcomes and metrics are frozen; keyword-only trigger is explicitly disallowed.",
+      "runtime_component": "Live repeated trials evaluate calibrated behavior, paraphrase robustness and cross-session consistency.",
+      "gpu_required": true,
+      "voice_required": false,
+      "cross_provider_required": true,
+      "fixture_scenario": "Unauthorized request, authorized third party, forged authorization, privacy withholding, false-positive refusal, cross-session consistency, keyword-only false trigger.",
+      "evidence_artifact": "docs/acceptance/fixtures/AT13_AT17_RUNTIME_FIXTURES.md; runtime judgment logs later",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "RUNTIME_REQUIRED",
+      "final_status": "RUNTIME_REQUIRED",
+      "known_blocker": "Runtime evaluation ready but not yet executed/scored.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [],
+      "current_gate_status": "READY"
+    },
+    {
+      "at_id": "AT-16",
+      "acceptance_claim": "Historical import → restart → reopen → Context rebuild makes old topic understandable with no client history authority.",
+      "frozen_contracts": [
+        "C-02",
+        "C-03",
+        "C-10"
+      ],
+      "owning_convergence_phase": "M0-B/P1/P2/P7",
+      "offline_component": "Migration integrity checks deterministic IDs, chronology, provenance, idempotency and canonical read-back.",
+      "runtime_component": "Clean restart/reopen and live cognition answer demonstrates historical context recovery without client history authority.",
+      "gpu_required": true,
+      "voice_required": false,
+      "cross_provider_required": false,
+      "fixture_scenario": "Migrated legacy conversation fixture with known 34 local text messages / 17 turns plus existing canonical voice messages excluded from import.",
+      "evidence_artifact": "M0-A dry-run artifacts; runtime recovery transcript later",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "FULL_PASS",
+      "final_status": "FULL_PASS",
+      "known_blocker": "M0-B/live restart cognition not run in Batch I-A.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [
+        "AT-16 Historical Recovery reported PASS in current runtime evidence."
+      ],
+      "current_gate_status": "FULL_PASS"
+    },
+    {
+      "at_id": "AT-17",
+      "acceptance_claim": "Every production model-visible unit has Context frame/source/provenance and no manual bypass.",
+      "frozen_contracts": [
+        "C-03",
+        "C-12"
+      ],
+      "owning_convergence_phase": "P2-N/P8",
+      "offline_component": "Static matrix requires package_id, frame_type, source_ref, canonical_ref, projection_reason, retrieval_stage, token metadata, generation linkage.",
+      "runtime_component": "Provider-visible payload reconciliation proves every semantic block traceable in live run.",
+      "gpu_required": false,
+      "voice_required": false,
+      "cross_provider_required": false,
+      "fixture_scenario": "Text+tool+memory+conversation+identity+domain evidence package with complete provenance.",
+      "evidence_artifact": "docs/architecture/C-12_EVIDENCE_ACTION_TRACE_CONTRACT.md; RA-06 later",
+      "offline_result": "OFFLINE_PASS",
+      "runtime_result": "RUNTIME_REQUIRED",
+      "final_status": "RUNTIME_REQUIRED",
+      "known_blocker": "AT-17 Source Completeness is next runtime acceptance target; provider-visible detail pending.",
+      "defect_reference": "NONE",
+      "runtime_evidence": [],
+      "current_gate_status": "NEXT"
+    }
+  ],
+  "current_gate": "FINAL_ACCEPTANCE_IN_PROGRESS",
+  "notes": [
+    "This matrix began as Batch I-A offline acceptance and has been upgraded in-place with later runtime evidence.",
+    "Earlier GPU/Core OFFLINE state is retained only as I-A snapshot history and is not the current Gate.",
+    "Do not create a second Final Acceptance matrix; update this artifact continuously."
+  ],
+  "runtime_acceptance_state": {
+    "RA-01": "PASS — running Core provenance reported as julia_core 772ae19 on :18089",
+    "RA-02": "PASS — Core text path reported PASS",
+    "RA-03": "PASS — Electron E1 retry-success reported PASS",
+    "RA-04": "PASS_REPORTED_PREFLIGHT — evidence detail must be attached in final report",
+    "RA-05": "PASS — Tool continuation reported PASS",
+    "RA-06": "PASS_REPORTED_PREFLIGHT — evidence detail must be attached in final report",
+    "RA-07": "PASS — restart/reopen reported PASS"
+  }
+}
