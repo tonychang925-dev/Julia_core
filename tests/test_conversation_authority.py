@@ -139,13 +139,13 @@ class TestConversationIsolation:
         runtime.process_turn(conversation_id="B", turn_id="b1", modality="text",
                              input="项目代号是什么？", cognitive_fn=mock_cognitive)
 
-        h_b = runtime.get_history("B")
+        h_b = runtime.get_canonical_history("B")
         contents_b = " ".join(m["content"] for m in h_b)
         assert "蓝鲸42" not in contents_b, "conv-B history must not contain conv-A data"
 
         runtime.process_turn(conversation_id="A", turn_id="a2", modality="text",
                              input="项目代号是什么？", cognitive_fn=mock_cognitive)
-        h_a = runtime.get_history("A")
+        h_a = runtime.get_canonical_history("A")
         contents_a = " ".join(m["content"] for m in h_a)
         assert "蓝鲸42" in contents_a, "conv-A must recall its own 蓝鲸42"
 
@@ -155,7 +155,7 @@ class TestConversationIsolation:
                              input="项目代号是蓝鲸42", cognitive_fn=mock_cognitive)
 
         rt2 = ConversationRuntime(repository=LegacyJsonConversationRepository(path))
-        h = rt2.get_history("A")
+        h = rt2.get_canonical_history("A")
         assert any("蓝鲸42" in m["content"] for m in h), "Restart must recover history"
 
 
@@ -186,7 +186,7 @@ class TestIdempotency:
 
         contents = set(r.assistant_content for r in results)
         assert len(contents) == 1, f"All concurrent same-turn_id calls must return same result"
-        h = runtime.get_history("C")
+        h = runtime.get_canonical_history("C")
         assert len(h) == 2, f"Exactly 2 messages (1 turn) expected, got {len(h)}"
 
 
@@ -251,7 +251,7 @@ class TestP1ConversationConvergence:
         """P1-1: Only ConversationRuntime writes canonical transcript."""
         runtime.process_turn(conversation_id="W1", turn_id="w1", modality="text",
                              input="test", cognitive_fn=mock_cognitive)
-        msgs = runtime.get_history("W1")
+        msgs = runtime.get_canonical_history("W1")
         assert len(msgs) == 2  # user + assistant
         assert msgs[0]["role"] == "user" and msgs[1]["role"] == "assistant"
         # No duplicate messages from secondary write paths
@@ -262,7 +262,7 @@ class TestP1ConversationConvergence:
                              input="project code is 青竹27", cognitive_fn=mock_cognitive)
         path = runtime._repository._repo._filepath
         rt2 = ConversationRuntime(repository=LegacyJsonConversationRepository(path))
-        h = rt2.get_history("R1")
+        h = rt2.get_canonical_history("R1")
         assert len(h) == 2
         assert any("青竹27" in m["content"] for m in h)
 
@@ -273,7 +273,7 @@ class TestP1ConversationConvergence:
         runtime.process_turn(conversation_id="C1", turn_id="c2", modality="text",
                              input="second", cognitive_fn=mock_cognitive)
         rt2 = ConversationRuntime(repository=runtime._repository)
-        h = rt2.get_history("C1")
+        h = rt2.get_canonical_history("C1")
         assert len(h) == 4  # 2 turns = 4 messages
         assert h[0]["content"] == "first"
         assert h[2]["content"] == "second"
@@ -290,7 +290,7 @@ class TestP1ConversationConvergence:
             "assistant_content": "partial reply was emitted",
             "assistant_status": "interrupted",
         }])
-        h = rt.get_history("I1")
+        h = rt.get_canonical_history("I1")
         interrupted = [m for m in rt.get_messages("I1") if m.get("status") == "interrupted"]
         assert len(interrupted) == 1
         assert interrupted[0]["content"] == "partial reply was emitted"
@@ -304,7 +304,7 @@ class TestP1ConversationConvergence:
                              input="idempotent test", cognitive_fn=mock_cognitive)
         assert r1.user_message_id == r2.user_message_id
         assert r1.assistant_message_id == r2.assistant_message_id
-        h = rt.get_history("D1")
+        h = rt.get_canonical_history("D1")
         assert len(h) == 2  # Only one turn, not two
 
     def test_tool_loop_same_turn(self, runtime):
@@ -421,7 +421,7 @@ class TestP2SemanticClosure:
                         input="canonical record", cognitive_fn=mock_cognitive)
         # Simulate full restart — new runtime, no derived cache
         rt2 = ConversationRuntime(repository=rt._repository)
-        h = rt2.get_history("J2")
+        h = rt2.get_canonical_history("J2")
         assert len(h) == 2
         assert h[0]["content"] == "canonical record"
 

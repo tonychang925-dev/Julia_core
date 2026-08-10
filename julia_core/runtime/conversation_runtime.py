@@ -179,16 +179,22 @@ class ConversationRuntime:
                 "last_message_id": last_msg_id or "",
             }
 
-    def get_history(
-        self, conversation_id: str, max_messages: int = 40
+    def get_canonical_history(
+        self, conversation_id: str,
     ) -> list[dict[str, str]]:
+        """R1-C: Return FULL completed canonical history for Context OS.
+
+        Does NOT impose a fixed-N message cap. Context OS alone applies
+        ActiveTail budget, retrieval policy, and cognitive selection.
+
+        This replaces the old get_history(max_messages=40) cognitive cap.
+        """
         session = self._repository.get(conversation_id)
         if session is None:
             return []
-        messages = session.messages[-max_messages:]
         return [
             {"role": m.role, "content": m.content}
-            for m in messages
+            for m in session.messages
             if m.role in ("user", "assistant") and m.status == "completed"
         ]
 
@@ -261,7 +267,7 @@ class ConversationRuntime:
             if session is None:
                 session = self._create_conversation(conversation_id)
 
-            history = self.get_history(conversation_id)
+            history = self.get_canonical_history(conversation_id)
 
             import copy
             canonical = self.get_interaction_state(conversation_id)
@@ -530,7 +536,7 @@ class ConversationRuntime:
         user_msg_id = accepted.user_message_id
 
         # Get history for cognition
-        history = self.get_history(conversation_id)
+        history = self.get_canonical_history(conversation_id)
 
         # Cognitive execution with transactional interaction state
         import copy

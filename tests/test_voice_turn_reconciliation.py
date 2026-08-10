@@ -50,7 +50,7 @@ def test_append_one_completed_turn():
     assert result["appended_turn_ids"] == ["voice:vws:0001"]
     assert result["skipped_turn_ids"] == []
 
-    history = crt.get_history(conv.conversation_id)
+    history = crt.get_canonical_history(conv.conversation_id)
     texts = [m["content"] for m in history]
     assert "Hello" in texts
     assert "Hi there" in texts
@@ -71,7 +71,7 @@ def test_append_multiple_turns_preserves_order():
         "voice:vws:0001", "voice:vws:0002", "voice:vws:0003",
     ]
 
-    history = crt.get_history(conv.conversation_id)
+    history = crt.get_canonical_history(conv.conversation_id)
     user_messages = [m["content"] for m in history if m["role"] == "user"]
     assert user_messages == ["First", "Second", "Third"]
 
@@ -91,7 +91,7 @@ def test_retry_identical_batch_is_idempotent():
     assert r2["appended_turn_ids"] == []
     assert r2["skipped_turn_ids"] == ["voice:vws:0001"]
 
-    history = crt.get_history(conv.conversation_id)
+    history = crt.get_canonical_history(conv.conversation_id)
     # Only one copy
     assert len([m for m in history if m["content"] == "Hello"]) == 1
 
@@ -127,7 +127,7 @@ def test_atomic_failure_no_partial_turn():
     except Exception:
         pass
 
-    history = crt.get_history(conv.conversation_id)
+    history = crt.get_canonical_history(conv.conversation_id)
     user_texts = [m["content"] for m in history if m["role"] == "user"]
     # First turn should NOT be present (atomic rollback)
     assert "First" not in user_texts
@@ -144,7 +144,7 @@ def test_conv_a_import_does_not_affect_conv_b():
         [_make_turn("voice:vws:0001", "A secret", "Reply A")],
     )
 
-    history_b = crt.get_history(conv_b.conversation_id)
+    history_b = crt.get_canonical_history(conv_b.conversation_id)
     texts_b = [m["content"] for m in history_b]
     assert "A secret" not in texts_b
     assert "Reply A" not in texts_b
@@ -159,7 +159,7 @@ def test_imported_history_present_in_get_history():
         [_make_turn("voice:vws:0001", "Remember this", "OK")],
     )
 
-    history = crt.get_history(conv.conversation_id)
+    history = crt.get_canonical_history(conv.conversation_id)
     assert len(history) == 2  # user + assistant
     assert history[0]["content"] == "Remember this"
     assert history[0]["modality"] == "voice"
@@ -178,7 +178,7 @@ def test_restart_recovers_voice_history():
 
     # Simulate restart
     crt2 = ConversationRuntime()
-    history = crt2.get_history(conv.conversation_id)
+    history = crt2.get_canonical_history(conv.conversation_id)
     texts = [m["content"] for m in history]
     assert "Will this survive?" in texts
     assert "Yes" in texts
@@ -214,7 +214,7 @@ def test_interrupted_assistant():
                      "I was going to say a lot but got", "interrupted")],
     )
 
-    history = crt.get_history(conv.conversation_id)
+    history = crt.get_canonical_history(conv.conversation_id)
     assistant_msgs = [m for m in history if m["role"] == "assistant"]
     assert len(assistant_msgs) == 1
     assert assistant_msgs[0]["status"] == "interrupted"
@@ -266,6 +266,6 @@ def test_modality_is_voice_by_default():
         [_make_turn("voice:vws:0001", "Voice message", "Voice reply")],
     )
 
-    history = crt.get_history(conv.conversation_id)
+    history = crt.get_canonical_history(conv.conversation_id)
     for m in history:
         assert m["modality"] == "voice"
