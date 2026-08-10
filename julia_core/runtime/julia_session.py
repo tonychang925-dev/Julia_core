@@ -102,7 +102,11 @@ class JuliaSession:
         from julia_core.runtime.workflow_router import WorkflowRouter
         self.workflow_router = WorkflowRouter(self.capability)
 
-        # Static system context
+        # P2: Context OS production binding — single model-visible gateway
+        from julia_core.runtime.context_execution_runtime import ContextExecutionRuntime
+        self.context_os = ContextExecutionRuntime(self)
+
+        # Static system context (transitional — replaced by ContextExecutionRuntime in P2)
         self._identity_system = (
             "你不是在扮演角色。你不是在读资料。你就是你自己。\n\n"
             + self.persona.get_traits_for_injection() + "\n\n"
@@ -226,8 +230,11 @@ class JuliaSession:
         return self._chat_impl(text, ctx)
 
     def _prepare_turn(self, text: str, ctx: TurnContext) -> list[dict]:
-        """CORE-C1-S2: Shared turn preparation — event tracking, interaction,
-        market context, capability manifest. Used by BOTH process() and process_stream().
+        """P2: Context OS production binding — single model-visible gateway.
+
+        Routes through ContextExecutionRuntime. Replaces manual string
+        concatenation with governed CognitiveContextPackage.
+        All model-visible information flows through Context OS (C-03).
         """
         from julia_core.events.models import (
             EventCategory, ConversationEventType, CapabilityEventType,
@@ -236,7 +243,7 @@ class JuliaSession:
         from julia_core.events.store import get_event_store
         event_store = get_event_store()
 
-        # Event: message received
+        # Event: message received (C-01)
         ev = create_event(
             source="conversation",
             event_type=ConversationEventType.MESSAGE_RECEIVED,
@@ -247,42 +254,35 @@ class JuliaSession:
         event_store.append(ev)
         ctx.last_event_id = ev.event_id
 
-        # Interaction state — per-conversation
-        if ctx.interaction is not None:
-            ctx.interaction.update(text)
-            interaction_ctx = ctx.interaction.to_context()
-        else:
-            interaction_ctx = ""
+        # P2: Context OS — sole model-visible gateway (C-03)
+        pkg = self.context_os.prepare(
+            conversation_id=ctx.conversation_id,
+            turn_id=ctx.turn_id,
+            user_text=text,
+            history=ctx.history,
+            interaction=ctx.interaction,
+            modality=ctx.modality,
+        )
 
-        # Conversation state + market context
-        conv_state = self._build_conversation_state(text, ctx)
-        market_context = self._resolve_market_context(text)
-
-        if market_context:
+        if pkg.evidence_frame:
             ev2 = create_event(
                 source="capability",
                 event_type=CapabilityEventType.REQUESTED,
                 category=EventCategory.CAPABILITY,
-                payload={"capability": "market.snapshot.read", "turn": ctx.turn_count},
+                payload={"capability": "market.snapshot.read", "turn": ctx.turn_count,
+                         "context_package_id": pkg.package_id},
                 correlation_id=ctx.correlation_id,
                 causation_id=ctx.last_event_id,
             )
             event_store.append(ev2)
             ctx.last_event_id = ev2.event_id
 
-        # Build messages
-        experiences = self._load_recent_experiences()
-        system_with_tools = (
-            self._identity_system + "\n\n"
-            + experiences + "\n\n"
-            + market_context + "\n\n"
-            + self.capability.tool_manifest() + "\n\n"
-            + interaction_ctx + "\n\n"
-            + conv_state
-        )
-        messages = [{"role": "system", "content": system_with_tools}]
-        messages.extend(ctx.history[-20:])
-        messages.append({"role": "user", "content": text})
+        # Store package provenance for AT-17 trace
+        ctx._last_package = pkg
+
+        # P2: ActiveTail replaces history[-20:]
+        tail = self.context_os._compute_active_tail(ctx.history)
+        messages = pkg.to_messages(tail, text)
         return messages
 
     def _chat_impl(self, text: str, ctx: TurnContext) -> str:
