@@ -46,12 +46,14 @@ class StructuralMetrics:
 
     @property
     def structure_type(self) -> str:
-        """Structural classification combining breadth + depth.
+        """Structural classification: 3 breadth x 3 depth → 4 output classes.
 
-        A: broad + deep   → healthy strength
-        B: broad + shallow → fragile strength (MB-P2 discovery)
-        C: narrow + deep  → concentrated leadership
-        D: narrow + shallow → weak / chaotic
+        A: broad + non-shallow       → healthy strength
+        B: broad + shallow           → fragile strength (MB-P2 discovery)
+        C: non-broad + non-shallow   → concentrated leadership
+        D: non-broad + shallow       → weak / chaotic
+
+        Thresholds: >= (inclusive) for all comparisons.
         """
         b = self.breadth_class
         d = self.depth_class
@@ -74,13 +76,26 @@ class FragilityAssessment:
 
     above_0_8_ratio: float = 0.0
     fragility_level: str = "none"       # none | low | medium | high | very_high
-    confidence_penalty: float = 0.0     # subtract from base confidence
+    confidence_penalty: float = 0.0     # provisional heuristic (n=2), not calibrated
     deterioration_risk: str = "unknown" # low | elevated | high
+    calibration_status: str = "provisional"  # provisional | validated | rejected
 
     @classmethod
-    def assess(cls, metrics: StructuralMetrics) -> "FragilityAssessment":
-        """Assess fragility from structural metrics."""
+    def assess(
+        cls, metrics: StructuralMetrics, regime: str = "strength_active",
+    ) -> "FragilityAssessment":
+        """Assess fragility from structural metrics (H-PRED-001).
+
+        Penalties are PROVISIONAL (n=2), not empirically calibrated.
+        The hypothesis is regime-conditioned: only applies to strength_active.
+        Other regimes return no penalty — structural evidence is still recorded
+        but prediction calibration is regime-specific.
+        """
         ratio = metrics.above_0_8_ratio
+
+        if regime != "strength_active":
+            return cls(ratio, "none", 0.0, "low")
+
         if ratio >= 0.10:
             return cls(ratio, "none", 0.0, "low")
         elif ratio >= 0.05:
