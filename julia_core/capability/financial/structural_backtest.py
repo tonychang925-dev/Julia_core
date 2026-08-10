@@ -167,14 +167,14 @@ def run_structural_backtest(
     Only samples with regime_t == filter_regime are included in the analysis.
     Other regimes are excluded (the hypothesis is regime-conditioned).
     """
-    gate = classification_gate(len(samples))
-
     # ── Filter to target regime, exclude unknown T+1 ─────────────────────
     population = [
         s for s in samples
         if s.regime_t == filter_regime and s.truth_known
     ]
     n = len(population)
+    gate = classification_gate(n)  # R4: gate on hypothesis population, not total
+
     baseline_deterioration = (
         sum(1 for s in population if s.deteriorated) / n if n > 0 else 0.0
     )
