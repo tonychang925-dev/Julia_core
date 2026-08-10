@@ -191,6 +191,33 @@ class ContextExecutionRuntime:
 
         return pkg
 
+    def project_tool_result(
+        self,
+        *,
+        parent_package: CognitiveContextPackage | None = None,
+        tool_result: str = "",
+        generation_id: str = "",
+    ) -> CognitiveContextPackage:
+        """P2-I: Incremental Context projection for ToolResult (C-03 §11).
+
+        Creates a ContextPackageDelta with the tool result in EvidenceFrame.
+        Same turn_id, new generation_id. ToolResult must pass through Context OS.
+        """
+        pkg = CognitiveContextPackage(
+            conversation_id=parent_package.conversation_id if parent_package else "",
+            turn_id=parent_package.turn_id if parent_package else "",
+            generation_id=generation_id,
+        )
+        pkg.evidence_frame = {
+            "tool_result": tool_result[:2000],
+            "source": "capability_execution",
+        }
+        pkg.situation_frame = {"mode": "tool_continuation"}
+        pkg.add_provenance("evidence", "capability:tool_result",
+                          reason="tool execution result", stage=2,
+                          token_estimate=len(tool_result) // 4)
+        return pkg
+
     def _compute_active_tail(self, history: list[dict], max_turns: int = 20) -> list[dict]:
         """C-03 ActiveTail: budget-driven recent turns. Replaces history[-20:]."""
         # P2 transitional: use budget-aware selection

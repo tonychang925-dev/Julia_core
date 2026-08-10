@@ -322,10 +322,16 @@ class JuliaSession:
             self._execute_tool_with_action(tool_json, ctx)
             tool_result = self.capability.execute_tool(tool_json)
             if tool_result:
-                messages.append({"role": "assistant", "content": reply})
-                messages.append({"role": "user", "content": (
-                    "[工具执行结果 — 请基于此结果回答，不要编造]\n\n" + tool_result
-                )})
+                # P2-I: ToolResult must re-enter via Context OS (C-03 §11)
+                # NOT: messages.append(tool_result) bypassing Context OS
+                delta = self.context_os.project_tool_result(
+                    parent_package=ctx._last_package,
+                    tool_result=tool_result,
+                    generation_id=f"gen_tool_{ctx.turn_count}",
+                )
+                messages = delta.to_messages(self.context_os._compute_active_tail(ctx.history), "")
+                # Re-append the prior assistant reply for context
+                messages.insert(-1, {"role": "assistant", "content": reply}) if messages else None
                 reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")
                 self.action.finish("完成" if "error" not in tool_result else "失败", correlation_id=ctx.correlation_id)
 
