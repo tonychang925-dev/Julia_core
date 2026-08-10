@@ -402,7 +402,7 @@ def run_breadth_fragility_backtest(
             avg_next_day_change=avg_delta,
         ))
 
-    # ── Direction + monotonicity ─────────────────────────────────────────
+    # ── B1-B5 dose-response monotonicity (secondary) ─────────────────────
     rates = [(b.min_ratio or 0.0, b.deterioration_rate) for b in bucket_results]
     if len(rates) >= 2:
         pairs = 0
@@ -416,41 +416,42 @@ def run_breadth_fragility_backtest(
     else:
         monotonicity = 0.0
 
-    if len(rates) >= 2:
-        first_rate = rates[0][1]
-        last_rate = rates[-1][1]
-        if first_rate > last_rate * 1.2:
-            direction = "increasing"
-        elif last_rate > first_rate * 1.2:
-            direction = "decreasing"
+    # ── Primary direction: THIN(<5%) vs NON_THIN(>=5%) ────────────────────
+    thin = [s for s in population if s.metrics.above_0_8_ratio < H002_THIN_THRESHOLD]
+    non_thin = [s for s in population if s.metrics.above_0_8_ratio >= H002_THIN_THRESHOLD]
+    thin_loss = sum(1 for s in thin if s.lost_breadth) / max(len(thin), 1)
+    non_thin_loss = sum(1 for s in non_thin if s.lost_breadth) / max(len(non_thin), 1)
+
+    if len(thin) >= 4 and len(non_thin) >= 4:
+        if thin_loss > non_thin_loss * 1.2:
+            direction = "increasing"   # thin → more loss ✅ predicted
+        elif non_thin_loss > thin_loss * 1.2:
+            direction = "decreasing"   # opposite of prediction
         else:
             direction = "flat"
     else:
         direction = "insufficient_data"
 
-    # ── Thin vs Non-Thin comparison (H-PRED-002 core test) ────────────────
-    thin = [s for s in population if s.metrics.above_0_8_ratio < H002_THIN_THRESHOLD]
-    non_thin = [s for s in population if s.metrics.above_0_8_ratio >= H002_THIN_THRESHOLD]
-    thin_loss = sum(1 for s in thin if s.lost_breadth) / max(len(thin), 1)
-    non_thin_loss = sum(1 for s in non_thin if s.lost_breadth) / max(len(non_thin), 1)
     lift = (thin_loss - baseline_loss_rate) / baseline_loss_rate if baseline_loss_rate > 0 else 0.0
 
     # ── Secondary: breadth delta ──────────────────────────────────────────
     thin_delta = sum(s.breadth_delta for s in thin if s.breadth_delta is not None) / max(len(thin), 1)
     non_thin_delta = sum(s.breadth_delta for s in non_thin if s.breadth_delta is not None) / max(len(non_thin), 1)
 
-    # ── Leave-one-out ────────────────────────────────────────────────────
+    # ── Leave-one-out: same THIN vs NON_THIN estimand ─────────────────────
     loo_stable = True
-    if n >= 5:
-        full_dir = direction
+    if n >= 5 and direction != "insufficient_data":
+        full_effect_is_positive = thin_loss > non_thin_loss
         for i in range(n):
             loo_pop = population[:i] + population[i + 1:]
             loo_thin = [s for s in loo_pop if s.metrics.above_0_8_ratio < H002_THIN_THRESHOLD]
             loo_non = [s for s in loo_pop if s.metrics.above_0_8_ratio >= H002_THIN_THRESHOLD]
-            loo_tl = sum(1 for s in loo_thin if s.lost_breadth) / max(len(loo_thin), 1)
-            loo_ntl = sum(1 for s in loo_non if s.lost_breadth) / max(len(loo_non), 1)
-            loo_dir = "increasing" if loo_tl > loo_ntl * 1.2 else "decreasing" if loo_ntl > loo_tl * 1.2 else "flat"
-            if loo_dir != full_dir:
+            if len(loo_thin) < 4 or len(loo_non) < 4:
+                continue
+            loo_tl = sum(1 for s in loo_thin if s.lost_breadth) / len(loo_thin)
+            loo_ntl = sum(1 for s in loo_non if s.lost_breadth) / len(loo_non)
+            loo_effect_is_positive = loo_tl > loo_ntl
+            if loo_effect_is_positive != full_effect_is_positive:
                 loo_stable = False
                 break
 
@@ -461,28 +462,41 @@ def run_breadth_fragility_backtest(
     BREADTH_STRATA = [
         ("S1", 0.50, 0.60),
         ("S2", 0.60, 0.70),
-        ("S3", 0.70, 1.00),
+        ("S3", 0.70, None),    # None = no upper bound — captures 1.0
     ]
-    strata_results: dict[str, dict[str, float]] = {}
+    strata_results: dict[str, dict[str, Any]] = {}
     total_weighted_effect = 0.0
     total_weight = 0
+    strata_sufficient_count = 0
     for s_label, s_lo, s_hi in BREADTH_STRATA:
-        stratum = [s for s in population if s_lo <= s.metrics.above_0_6_ratio < s_hi]
+        if s_hi is None:
+            stratum = [s for s in population if s.metrics.above_0_6_ratio >= s_lo]
+        else:
+            stratum = [s for s in population if s_lo <= s.metrics.above_0_6_ratio < s_hi]
         if len(stratum) < 4:
+            strata_results[s_label] = {"status": "insufficient_samples", "n": len(stratum)}
             continue
         s_thin = [s for s in stratum if s.metrics.above_0_8_ratio < H002_THIN_THRESHOLD]
         s_non = [s for s in stratum if s.metrics.above_0_8_ratio >= H002_THIN_THRESHOLD]
-        s_tl = sum(1 for s in s_thin if s.lost_breadth) / max(len(s_thin), 1)
-        s_nt = sum(1 for s in s_non if s.lost_breadth) / max(len(s_non), 1)
+        if not s_thin or not s_non:
+            strata_results[s_label] = {
+                "n": len(stratum), "thin_n": len(s_thin), "non_thin_n": len(s_non),
+                "status": "insufficient_comparison",
+            }
+            continue  # no effect estimate — fake 0% control arm
+        s_tl = sum(1 for s in s_thin if s.lost_breadth) / len(s_thin)
+        s_nt = sum(1 for s in s_non if s.lost_breadth) / len(s_non)
         effect = s_tl - s_nt
         strata_results[s_label] = {
             "n": len(stratum), "thin_n": len(s_thin), "non_thin_n": len(s_non),
             "thin_loss": s_tl, "non_thin_loss": s_nt, "effect": effect,
+            "status": "sufficient",
         }
         total_weighted_effect += effect * len(stratum)
         total_weight += len(stratum)
-    # Weighted incremental effect of depth beyond breadth
+        strata_sufficient_count += 1
     breadth_lift = total_weighted_effect / total_weight if total_weight > 0 else 0.0
+    strata_sufficient = strata_sufficient_count >= 1
 
     # ── Status ────────────────────────────────────────────────────────────
     status = "insufficient"
@@ -505,9 +519,15 @@ def run_breadth_fragility_backtest(
     elif n < 50:
         status = "directional_support"
         reason = f"Direction supports hypothesis (n={n}), monotonicity={monotonicity:.2f}, lift={lift:.1%}. Need n>=50 for calibration."
+    elif not strata_sufficient:
+        status = "directional_support"
+        reason = f"Primary effect supports hypothesis but breadth-controlled strata insufficient for VALIDATED. n={n}, lift={lift:.1%}"
+    elif breadth_lift <= 0:
+        status = "inconclusive"
+        reason = f"Primary effect positive but breadth-controlled effect reversed (breadth_lift={breadth_lift:.3f}). Depth may not add signal beyond breadth."
     else:
         status = "validated"
-        reason = f"Hypothesis validated: thin_loss={thin_loss:.1%} vs non_thin_loss={non_thin_loss:.1%}, n={n}"
+        reason = f"Hypothesis validated: thin_loss={thin_loss:.1%} vs non_thin_loss={non_thin_loss:.1%}, n={n}, breadth_lift={breadth_lift:.3f}"
 
     CalibrationHypothesis.update(
         "H-PRED-002",

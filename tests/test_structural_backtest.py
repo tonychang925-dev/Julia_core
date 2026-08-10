@@ -348,3 +348,84 @@ def test_h002_is_registered():
     assert h2["status"] == "REGISTERED"
     assert "above_0_6_ratio" in h2["population_condition"]
     assert "above_0_6_ratio_T+1 < 0.50" in h2["primary_truth"]
+
+
+# ── MB-P2.2b-0a: Statistical evaluator sabotage ──────────────────────────────
+
+def test_s3_includes_breadth_one_point_zero():
+    """S3 = [0.70, +∞) — breadth=1.0 must belong to S3."""
+    s = _make_h002_sample("D1", 1.0, 0.02, 0.95)
+    assert s.metrics.above_0_6_ratio >= 0.70
+    # Force the backtest to confirm S3 captures it
+    from julia_core.capability.financial.structural_backtest import run_breadth_fragility_backtest
+    result = run_breadth_fragility_backtest([s])
+    # Sample is in population (broad >= 0.50, n=1 → insufficient but no crash)
+    assert result.hypothesis_id == "H-PRED-002"
+
+
+def test_s2_excludes_below_boundary():
+    """breadth=0.699 → S2 (NOT S3)."""
+    s = _make_h002_sample("D1", 0.699, 0.02, 0.65)
+    assert s.metrics.above_0_6_ratio < 0.70
+    assert s.metrics.above_0_6_ratio >= 0.60
+
+
+def test_empty_arm_stratum_not_counted_as_zero_effect():
+    """non_thin_n=0 → 'insufficient_comparison', excluded from effect."""
+    # All samples are thin — no non_thin control arm exists
+    samples = [_make_h002_sample(f"D{i}", 0.65, 0.02, 0.60) for i in range(10)]
+    from julia_core.capability.financial.structural_backtest import run_breadth_fragility_backtest
+    result = run_breadth_fragility_backtest(samples)
+    # With no non_thin arm in any stratum, breadth_lift should stay 0 (no fake effect)
+    assert result.breadth_only_lift == 0.0
+
+
+def test_strata_with_both_arms_produces_effect():
+    """Both thin and non_thin present → effect is computed."""
+    samples = []
+    for i in range(10):
+        samples.append(_make_h002_sample(f"D{i}a", 0.65, 0.02, 0.40))  # thin→lost
+    for i in range(10):
+        samples.append(_make_h002_sample(f"D{i}b", 0.65, 0.08, 0.70))  # non_thin→kept
+    from julia_core.capability.financial.structural_backtest import run_breadth_fragility_backtest
+    result = run_breadth_fragility_backtest(samples)
+    assert result.breadth_only_lift != 0.0
+
+
+def test_primary_direction_is_thin_vs_non_thin():
+    """Primary direction comes from THIN vs NON_THIN, not B1 vs B5."""
+    samples = []
+    # Thin (0.02) → all lost breadth
+    for i in range(15):
+        samples.append(_make_h002_sample(f"D{i}a", 0.75, 0.02, 0.40))
+    # Non-thin (0.08) → all kept breadth
+    for i in range(15):
+        samples.append(_make_h002_sample(f"D{i}b", 0.75, 0.08, 0.80))
+    from julia_core.capability.financial.structural_backtest import run_breadth_fragility_backtest
+    result = run_breadth_fragility_backtest(samples)
+    assert result.factor_direction == "increasing"
+
+
+def test_loo_uses_same_thin_vs_non_thin_estimand():
+    """LOO and full direction both use THIN vs NON_THIN (not B1 vs B5)."""
+    samples = []
+    for i in range(15):
+        samples.append(_make_h002_sample(f"D{i}a", 0.75, 0.02, 0.40))
+    for i in range(15):
+        samples.append(_make_h002_sample(f"D{i}b", 0.75, 0.08, 0.80))
+    from julia_core.capability.financial.structural_backtest import run_breadth_fragility_backtest
+    result = run_breadth_fragility_backtest(samples)
+    assert result.leave_one_out_stable
+
+
+def test_validated_requires_positive_breadth_lift():
+    """With n>=50 but breadth_lift <= 0 → not VALIDATED."""
+    samples = []
+    # Both thin and non-thin have same loss rate: no real depth signal
+    for i in range(30):
+        samples.append(_make_h002_sample(f"D{i}a", 0.65, 0.02, 0.60))
+    for i in range(30):
+        samples.append(_make_h002_sample(f"D{i}b", 0.65, 0.08, 0.60))
+    from julia_core.capability.financial.structural_backtest import run_breadth_fragility_backtest
+    result = run_breadth_fragility_backtest(samples)
+    assert result.status != "validated"
