@@ -375,10 +375,15 @@ class ConversationRuntime:
     # ── CORE-CM1: Management API ─────────────────────────────────────────
 
     def create_conversation(self, conversation_id: str = "", title: str = "New Conversation") -> ConversationHandle:
-        """Create a new conversation. If conversation_id is provided, use it as the canonical ID."""
+        """R1-D Core-first create: durable canonical conversation before client bind.
+
+        Success means the conversation already exists in the canonical repository
+        and survives Core restart. Idempotent: same conversation_id returns the
+        existing conversation. Conversation exists independently of any message.
+        """
         cid = conversation_id or f"conv_{_time.strftime('%Y%m%d_%H%M%S')}_{id(self)}"
         self._repository.create_with_id(cid, title)
-        self._interaction_states.pop(cid, None)  # Fresh start
+        self._interaction_states.pop(cid, None)
         return self._to_handle(self._repository.get(cid))
 
     def get_conversation(self, conversation_id: str) -> dict | None:
