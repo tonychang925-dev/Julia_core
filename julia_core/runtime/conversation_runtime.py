@@ -36,9 +36,16 @@ class TurnResult:
     user_message_id: str = ""
     assistant_message_id: str = ""
     assistant_content: str = ""
-    status: str = ""  # completed | failed
+    status: str = ""  # completed | failed | accepted
     created_at: str = ""
     completed_at: str = ""
+    # Internal: R1-B idempotency support
+    _user_content: str = ""
+    _idempotent_replay: bool = False
+
+    def _user_content_match(self, content: str) -> bool:
+        """Check if the stored user content matches the given content."""
+        return self._user_content == content
 
 
 # ── Conversation Handle ───────────────────────────────────────────────────────
@@ -234,17 +241,20 @@ class ConversationRuntime:
             raise ConversationBusyError(conversation_id)
 
         try:
-            # Idempotency
+            # R1-B: Idempotency — any existing turn with user message
             if turn_id:
                 existing = self._find_turn_in_store(conversation_id, turn_id)
-                if existing and existing.status == "completed":
+                if existing is not None:
                     lock.release()
-                    existing._already_completed = True
+                    existing._already_completed = (
+                        existing.assistant_content.strip() != ""
+                    )
                     return TurnStreamingContext(
                         conversation_id=conversation_id, turn_id=turn_id,
                         modality=modality, history=[], user_msg_id="",
                         interaction=None, lock=None,
-                        already_completed=True, completed_content=existing.assistant_content,
+                        already_completed=existing._already_completed,
+                        completed_content=existing.assistant_content,
                     )
 
             session = self._repository.get(conversation_id)
@@ -257,9 +267,10 @@ class ConversationRuntime:
             canonical = self.get_interaction_state(conversation_id)
             working = copy.deepcopy(canonical)
 
+            # R1-B: user message is completed immediately (durable before cognition)
             user_msg = self._add_message(
                 conversation_id, role="user", content=input,
-                turn_id=turn_id, modality=modality, status="pending",
+                turn_id=turn_id, modality=modality, status="completed",
             )
             user_msg_id = user_msg.messages[-1].message_id if user_msg else ""
 
@@ -276,9 +287,12 @@ class ConversationRuntime:
     def commit_streaming_turn(
         self, ctx: "TurnStreamingContext", assistant_content: str,
     ) -> TurnResult:
-        """Commit a successfully completed streaming turn."""
+        """Commit a successfully completed streaming turn.
+
+        R1-B: user message already completed on begin_turn_streaming.
+        No user status update needed. Assistant only.
+        """
         try:
-            self._update_message_status(ctx.user_msg_id, "completed")
             self._interaction_states[ctx.conversation_id] = ctx.interaction
 
             assistant_msg = self._add_message(
@@ -427,6 +441,70 @@ class ConversationRuntime:
                 self._locks[conversation_id] = threading.Lock()
             return self._locks[conversation_id]
 
+    # ── R1-B: Durable User Acceptance ──────────────────────────────────
+
+    def accept_user_turn(
+        self, *, conversation_id: str, turn_id: str,
+        modality: str = "text", content: str,
+    ) -> TurnResult:
+        """CM-I05: Accept a user turn as durable canonical fact BEFORE cognition.
+
+        Returns AcceptedUserTurn once the user message is durably persisted.
+        Idempotent: same turn_id + same content → returns existing result.
+        Raises TurnConflictError: same turn_id + different content.
+
+        User message status = completed immediately. Assistant lifecycle is
+        independent — cognition failure does not erase or downgrade the user.
+        """
+        lock = self._get_lock(conversation_id)
+        with lock:
+            return self._accept_user_turn_locked(
+                conversation_id=conversation_id, turn_id=turn_id,
+                modality=modality, content=content,
+            )
+
+    def _accept_user_turn_locked(
+        self, *, conversation_id: str, turn_id: str,
+        modality: str = "text", content: str,
+    ) -> TurnResult:
+        """Internal: caller must hold per-conversation lock."""
+        from julia_core.conversation_state.repository import TurnConflictError
+
+        # Idempotency: check canonical store for existing turn
+        if turn_id:
+            existing = self._find_turn_in_store(conversation_id, turn_id)
+            if existing is not None:
+                if existing._user_content_match(content):
+                    existing.status = "completed"
+                    existing._idempotent_replay = True
+                    return existing
+                raise TurnConflictError(
+                    f"Turn {turn_id}: content differs from persisted"
+                )
+
+        # Ensure conversation exists
+        if self._repository.get(conversation_id) is None:
+            self._create_conversation(conversation_id)
+
+        now = _time.strftime("%Y-%m-%dT%H:%M:%S")
+
+        # Durable canonical user append — status = completed immediately
+        user_msg = self._add_message(
+            conversation_id, role="user", content=content,
+            turn_id=turn_id, modality=modality, status="completed",
+        )
+        user_msg_id = user_msg.messages[-1].message_id if user_msg else ""
+
+        return TurnResult(
+            conversation_id=conversation_id,
+            turn_id=turn_id,
+            user_message_id=user_msg_id,
+            assistant_message_id="",
+            assistant_content="",
+            status="accepted",
+            created_at=now,
+        )
+
     def _process_turn_locked(
         self,
         conversation_id: str,
@@ -435,52 +513,46 @@ class ConversationRuntime:
         input: str,
         cognitive_fn: Callable[[str, list[dict], str, str, str, object], str],
     ) -> TurnResult:
+        # R1-B: accept user turn first (durable, canonical, completed)
         now = _time.strftime("%Y-%m-%dT%H:%M:%S")
 
-        # 1. Idempotency: check canonical store for existing completed turn
-        if turn_id:
-            existing = self._find_turn_in_store(conversation_id, turn_id)
-            if existing and existing.status == "completed":
-                return existing
+        try:
+            accepted = self._accept_user_turn_locked(
+                conversation_id=conversation_id, turn_id=turn_id,
+                modality=modality, content=input,
+            )
+        except Exception:
+            raise  # TurnConflictError propagates; caller handles
 
-        # 2. Load/ensure conversation
-        session = self._repository.get(conversation_id)
-        if session is None:
-            session = self._create_conversation(conversation_id)
+        if getattr(accepted, '_idempotent_replay', False):
+            return accepted
 
-        # 3. Get history (excludes pending/failed messages)
+        user_msg_id = accepted.user_message_id
+
+        # Get history for cognition
         history = self.get_history(conversation_id)
 
-        # 4. Persist user message as PENDING
-        user_msg = self._add_message(
-            conversation_id, role="user", content=input,
-            turn_id=turn_id, modality=modality, status="pending",
-        )
-        user_msg_id = user_msg.messages[-1].message_id if user_msg else ""
-
-        # 5. Cognitive execution with transactional interaction state
-        # Copy canonical interaction → working copy. Commit only on success.
+        # Cognitive execution with transactional interaction state
         import copy
         canonical = self.get_interaction_state(conversation_id)
         working = copy.deepcopy(canonical)
 
+        # R1-B: assistant lifecycle independent of user durability
         try:
-            assistant_content = cognitive_fn(input, history, conversation_id, turn_id, modality, working)
+            assistant_content = cognitive_fn(
+                input, history, conversation_id, turn_id, modality, working,
+            )
             assistant_status = "completed"
-            user_final_status = "completed"
-            # Commit: replace canonical with working copy
             self._interaction_states[conversation_id] = working
         except Exception as exc:
-            logger.error(f"Cognitive pipeline failed for {conversation_id}/{turn_id}: {exc}")
+            logger.error(
+                f"Cognitive pipeline failed for {conversation_id}/{turn_id}: {exc}"
+            )
             assistant_content = ""
             assistant_status = "failed"
-            user_final_status = "failed"
-            # Rollback: canonical interaction state unchanged
+            # USER MESSAGE UNCHANGED. No user_final_status mutation.
 
-        # 6. Update user message to final status
-        self._update_message_status(user_msg_id, user_final_status)
-
-        # 7. Persist assistant message
+        # Persist assistant message
         assistant_msg = self._add_message(
             conversation_id, role="assistant", content=assistant_content,
             turn_id=turn_id, modality=modality, status=assistant_status,
@@ -501,7 +573,12 @@ class ConversationRuntime:
         return result
 
     def _find_turn_in_store(self, conversation_id: str, turn_id: str) -> TurnResult | None:
-        """Check canonical store for an existing completed turn."""
+        """Check canonical store for an existing turn.
+
+        R1-B: user messages are status=completed on accept.
+        Finds any turn by turn_id with a user message.
+        Returns TurnResult with _user_content set for idempotency comparison.
+        """
         msgs = self._repository.find_turn(conversation_id, turn_id)
         user_msg = None
         assistant_msg = None
@@ -510,18 +587,20 @@ class ConversationRuntime:
                 user_msg = m
             elif m.role == "assistant":
                 assistant_msg = m
-        if user_msg and assistant_msg and assistant_msg.status == "completed":
-            return TurnResult(
-                conversation_id=conversation_id,
-                turn_id=turn_id,
-                user_message_id=user_msg.message_id,
-                assistant_message_id=assistant_msg.message_id,
-                assistant_content=assistant_msg.content,
-                status="completed",
-                created_at=user_msg.created_at,
-                completed_at=assistant_msg.created_at,
-            )
-        return None
+        if user_msg is None:
+            return None
+        result = TurnResult(
+            conversation_id=conversation_id,
+            turn_id=turn_id,
+            user_message_id=user_msg.message_id,
+            assistant_message_id=assistant_msg.message_id if assistant_msg else "",
+            assistant_content=assistant_msg.content if assistant_msg else "",
+            status=assistant_msg.status if assistant_msg else "accepted",
+            created_at=user_msg.created_at,
+            completed_at=assistant_msg.created_at if assistant_msg else "",
+            _user_content=user_msg.content,
+        )
+        return result
 
     def _add_message(
         self, conversation_id: str, *, role: str, content: str,
