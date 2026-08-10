@@ -13,7 +13,23 @@
 
 | Document | Status |
 |----------|--------|
-| `VOICE_C1B_L_CORE_LIVE_TURN_DESIGN.md` | 📝 DRAFT — supersedes C1B-R, pending review |
+| `VOICE_C1B_L_CORE_LIVE_TURN_DESIGN.md` | 📝 DRAFT — supersedes C1B-R, rebased under CM-Core |
+
+## CM PROGRAM — PRODUCTION REALITY AUDIT
+
+| Document | Status |
+|----------|--------|
+| `CM00_REALITY_MAP.md` | ✅ COMPLETE — production audit (6 batches) |
+| `CM00_AUTHORITY_GRAPH.md` | ✅ COMPLETE — 15 objects classified |
+| `CM00_CONFLICT_REGISTER.md` | ✅ COMPLETE — 7 conflicts registered |
+| `CM00_E_SWITCH_RESTART.md` | ✅ COMPLETE — 8 switch/restart scenarios |
+| `CM00_F_CONTEXT_COMPACT.md` | ✅ COMPLETE — full context chain traced |
+
+## CM CORE CONTRACT
+
+| Document | Status |
+|----------|--------|
+| `CM_CORE_CONVERSATION_RUNTIME_CONTRACT_v1.0.md` | 📝 DRAFT — 15 invariants, 7 conflict dispositions, 10 ATs |
 
 ## CONTRACTS (to be derived from Unified Architecture)
 
