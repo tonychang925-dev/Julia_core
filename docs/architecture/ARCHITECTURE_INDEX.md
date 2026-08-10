@@ -1,13 +1,19 @@
 # Julia Core Architecture Index
 
 **Status**: GOVERNED
-**Date**: 2026-08-09
+**Date**: 2026-08-10
 
 ## CANONICAL
 
 | Document | Status |
 |----------|--------|
 | `JULIA_CORE_UNIFIED_ARCHITECTURE_v1.0.md` | 🔒 FROZEN — sole canonical architecture |
+
+## VOICE CONTINUITY DESIGN
+
+| Document | Status |
+|----------|--------|
+| `VOICE_C1B_L_CORE_LIVE_TURN_DESIGN.md` | 📝 DRAFT — supersedes C1B-R, pending review |
 
 ## CONTRACTS (to be derived from Unified Architecture)
 
