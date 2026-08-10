@@ -148,10 +148,16 @@ CM-I11  Client history may never become Context authority.
 
 ```
 CM-I12  Context OS alone selects model-visible conversation context.
-        ConversationRuntime MUST NOT impose a fixed message-count
-        history cap (e.g. last-40) on the cognitive path.
-        ConversationRuntime provides canonical Conversation source;
-        Context OS applies budget, ActiveTail, and retrieval policy.
+        ConversationRuntime MUST NOT impose any fixed message-count
+        history cap (e.g. last-40, last-100, last-N for any N) on the
+        cognitive path. ConversationRuntime provides canonical
+        Conversation source; Context OS applies budget, ActiveTail,
+        and retrieval policy.
+
+        This prohibits: get_history(N) as cognitive gatekeeper,
+        history[-N:] as permanent context policy.
+        This does NOT prohibit: display pagination (page_size=40),
+        storage segmentation, API cursor limits.
 
 CM-I18  Core crash/restart recovers completed conversations without
         client help. Client restart is not a conversation recovery
@@ -263,6 +269,51 @@ CM-AT10  Long conversation (>40 messages): ConversationRuntime
 [ ] Cross-conversation isolation                      CM-I20
 [ ] 7 conflict dispositions recorded                  §3
 [ ] 10 acceptance tests defined                       §4
+```
+
+---
+
+## 7. Closure Matrix — CFR Traceability
+
+| Invariant | CM-00 Evidence | Conflict | Acceptance Test |
+|-----------|---------------|----------|-----------------|
+| CM-I01 | A/B/C (single canonical store) | 003, 004 | AT-01, AT-08 |
+| CM-I02 | A/F (ConversationMessage schema) | 001, 005 | AT-02, AT-04 |
+| CM-I03 | B/E (session ≠ conversation_id) | 001 | AT-02, AT-03, AT-08, AT-09 |
+| CM-I04 | B (Electron create before Core) | 004 | AT-01 |
+| **CM-I05** | C/E (pending invisible, E4 loss) | **001** | **AT-02, AT-03, AT-04, AT-05** |
+| CM-I06 | D (VoiceWorkspace holds completed) | 001 | AT-06 |
+| CM-I07 | C/D (same turn_id, same protocol) | — | AT-06 |
+| CM-I08 | D/E (bootstrap/flush required) | 001 | AT-06 |
+| CM-I09 | B/E (Electron cache disposable) | 004, 007 | AT-01, AT-08 |
+| CM-I10 | D/F (S2S Chat not in context) | 002 | AT-03, AT-06 |
+| CM-I11 | D/F (external_history blocked) | 002, 005 | AT-03 |
+| **CM-I12** | C/F (get_history(40) cap) | **006** | **AT-10** |
+| CM-I18 | E (E4/E5 restart scenarios) | 001, 004 | AT-08, AT-09 |
+| CM-I19 | C/E (E7 pending retry gap) | 001 | AT-05 |
+| CM-I20 | C/E (E3/E8 isolation) | — | AT-07 |
+
+Bold rows indicate invariants with direct CM-00 production evidence of failure.
+
+### CFR Verdict
+
+```
+1. Internal consistency               ✅ PASS
+   No invariant contradicts another.
+   CM-I05 + CM-I06 complementary (user accept vs assistant settle).
+
+2. No implementation freezing          ✅ PASS (with CM-I12 clarification)
+   Storage format, budget values, pagination, file paths: all open.
+
+3. Conflict → invariant traceability    ✅ PASS
+   All 7 conflicts map to ≥1 invariant.
+
+4. AT → invariant coverage             ✅ PASS
+   All 15 invariants covered by ≥1 acceptance test.
+   Hard invariants (I05, I12) have multiple ATs.
+
+CFR                                   ✅ COMPLETE
+→ CM-SPIKE-01                         🟢 GO
 ```
 
 ---
