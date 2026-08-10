@@ -1,8 +1,9 @@
 # VOICE-C1B-L — Core Runtime-Turn Convergence Design
 
-**Status:** DRAFT — R1 review corrections applied  
-**Date:** 2026-08-10  
-**Supersedes:** C1B-R workspace-reconcile model (C1B-R retained as historical, not as active path)  
+**Status:** 🔒 SUPERSEDED AS ARCHITECTURE — RETAINED AS VOICE CONVERGENCE HISTORY  
+**Superseded by:** CM-CORE-v1 Conversation Core Runtime Contract (FROZEN 2026-08-10)  
+**Date:** 2026-08-10 (original), superseded 2026-08-10  
+**Reason:** C1B-L's core problem (persist gap between VoiceWorkspace and Core) is solved more cleanly by CM-Core's durable-user-before-ACK. VoiceWorkspace removal and S2S de-authorization are now CM-Core conflict dispositions 001/002. LiveTurnJournal is no longer needed — CM-Core + existing C-01 RuntimeTurn cover the execution state without introducing a fifth conversation-like object. Future Voice convergence should use ConversationRuntime v2 directly, not implement a separate TurnIngress + LiveTurnJournal + /live-state mechanism.  
 **Parent Architecture:** JULIA_CORE_UNIFIED_ARCHITECTURE_v1.0.md §5-8, §11, §12, §19  
 
 ---

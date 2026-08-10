@@ -13,7 +13,7 @@
 
 | Document | Status |
 |----------|--------|
-| `VOICE_C1B_L_CORE_LIVE_TURN_DESIGN.md` | 📝 DRAFT — supersedes C1B-R, rebased under CM-Core |
+| `VOICE_C1B_L_CORE_LIVE_TURN_DESIGN.md` | 🔒 SUPERSEDED — core problem solved by CM-Core; retained as Voice convergence history |
 
 ## CM PROGRAM — PRODUCTION REALITY AUDIT
 
@@ -24,12 +24,13 @@
 | `CM00_CONFLICT_REGISTER.md` | ✅ COMPLETE — 7 conflicts registered |
 | `CM00_E_SWITCH_RESTART.md` | ✅ COMPLETE — 8 switch/restart scenarios |
 | `CM00_F_CONTEXT_COMPACT.md` | ✅ COMPLETE — full context chain traced |
+| `CM_SPIKE_01_DURABLE_ACCEPTANCE.md` | ✅ COMPLETE — CM-I05 feasibility proven (p50 3.9ms) |
 
 ## CM CORE CONTRACT
 
 | Document | Status |
 |----------|--------|
-| `CM_CORE_CONVERSATION_RUNTIME_CONTRACT_v1.0.md` | 📝 DRAFT — 15 invariants, 7 conflict dispositions, 10 ATs |
+| `CM_CORE_CONVERSATION_RUNTIME_CONTRACT_v1.0.md` | 🔒 FROZEN — 15 invariants, 7 conflict dispositions, 10 ATs |
 
 ## CONTRACTS (to be derived from Unified Architecture)
 

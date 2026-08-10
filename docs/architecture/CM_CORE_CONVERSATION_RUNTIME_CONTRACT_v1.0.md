@@ -1,11 +1,17 @@
 # CM-CORE-v1 — Conversation Core Runtime Contract
 
-**Status:** DRAFT — pending review  
-**Date:** 2026-08-10  
+**Status:** 🔒 FROZEN  
+**Date:** 2026-08-10 (frozen)  
 **Derived from:** CM-00 Production Reality Audit (CLOSED)  
+**Implementation feasibility:** CM-SPIKE-01 (PASS — p50 3.9ms, p95 7.7ms, p99 10.0ms)  
 **Parent:** JULIA_CORE_UNIFIED_ARCHITECTURE_v1.0  
 **References:** C-01 Runtime Execution, C-02 Conversation Authority, C-03 Context OS, C-10 Gateway/Client, C-11 Voice/Media  
 **Scope:** Stage 1 only — Storage v2, Compact, Diary, Archive/Delete are Stage 2 (CM-Extended)
+
+**Known implementation limitation (NOT contract violation):**
+Single-file conversations.json whole-rewrite scales linearly with store size.
+Future storage evolution (Stage 2) may change persistence format. CM-I05
+durability semantics remain unchanged regardless of storage implementation.
 
 ---
 
