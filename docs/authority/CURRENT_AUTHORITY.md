@@ -5,7 +5,12 @@ UPDATED: 2026-08-11
 REPOSITORY: Julia_core
 ROLE: Core runtime, ConversationRuntime, Context OS, canonical architecture authority
 AUTHORITATIVE BRANCH: main
-AUTHORITATIVE COMMIT AT CLOSEOUT: 0d72b05534c79c22e58b2e4e95dca97171d8489a
+CURRENT REPOSITORY / DOCUMENTATION AUTHORITY AT CLOSEOUT: 7d29fb9dcb2719c406ac2cd66cd32ddc1e663662
+HISTORICAL MAIN SNAPSHOT MENTIONED BY EARLIER G0: 0d72b05534c79c22e58b2e4e95dca97171d8489a
+PRODUCTION CONVERSATION RUNTIME FLOOR: b463a3f702f9cfcb8db3cda870d8f570fc92483d
+RMD-1-SC PRODUCTION AUTHORITY: b463a3f702f9cfcb8db3cda870d8f570fc92483d
+
+IMPORTANT: `0d72b05534c79c22e58b2e4e95dca97171d8489a` MUST NOT be interpreted as production ConversationRuntime authority. It is not a supersession of the RMD-1-SC floor unless a later manifest explicitly proves ancestry/content inclusion of `b463a3f...`.
 
 ## Production/development status
 
@@ -37,6 +42,14 @@ HISTORICAL / SUPERSEDED:
 - Earlier workspace/live-turn proposal documents are historical unless referenced by this manifest or the cross-repo manifest as CANONICAL.
 
 ## Current production code authority
+
+Authority roles are deliberately separate:
+
+- REPOSITORY / DOCUMENTATION HEAD: current `main` authority manifest head.
+- PRODUCTION CONVERSATION RUNTIME FLOOR: `b463a3f702f9cfcb8db3cda870d8f570fc92483d`.
+- RMD-1-SC AUTHORITY: `b463a3f702f9cfcb8db3cda870d8f570fc92483d`.
+
+Do not derive live production runtime bytes from repository HEAD alone. Runtime binding must prove loaded file paths and hashes.
 
 ACTIVE:
 

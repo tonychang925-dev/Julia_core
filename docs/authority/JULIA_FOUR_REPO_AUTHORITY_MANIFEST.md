@@ -8,9 +8,9 @@ PURPOSE: one cross-repository entry point for current code/document authority.
 
 | Repo | Role | Branch | Current authority commit | Manifest |
 |---|---|---|---|---|
-| Julia_core | Core runtime, canonical architecture, ConversationRuntime, Context OS | `main` | `0d72b05534c79c22e58b2e4e95dca97171d8489a` plus this G0 closeout successor commit | `docs/authority/CURRENT_AUTHORITY.md` |
+| Julia_core | Core runtime, canonical architecture, ConversationRuntime, Context OS | `main` | repo/doc head `7d29fb9dcb2719c406ac2cd66cd32ddc1e663662`; production ConversationRuntime floor `b463a3f702f9cfcb8db3cda870d8f570fc92483d` | `docs/authority/CURRENT_AUTHORITY.md` |
 | Julia-AI-Assistant | Brain/OpenAI-compatible API, CRT bridge, Brain observability | `phase5/rmd-3g-observability` | `2ca61102682f3ed5ee73b1034c3d13ea45c1e643` | `docs/authority/CURRENT_AUTHORITY.md` |
-| Julia-Voice-S2S | Voice/S2S runtime, production artifact, AutoDL supervisor/watchdog | `phase5/rmd-3g-observability` | `a5a90803794cdc7e8dd3b3ead534801c7f7bf85b` plus G0 closeout successor commit | `docs/authority/CURRENT_AUTHORITY.md` |
+| Julia-Voice-S2S | Voice/S2S runtime, production artifact, AutoDL supervisor/watchdog | `phase5/rmd-3g-observability` | authority-doc head `09373281c6e8342c0728f4c2be54f4c94b9178f4`; C1 source `1552470f3f8f4e33a9cb90181daa1353f0702eb2`; artifact `b18d1e42ca2e1383829b6d5f0670652efa066944ba92823a815a35253291c9ac` | `docs/authority/CURRENT_AUTHORITY.md` |
 | Julia_client / local `julia_electron_v2` | Electron desktop client | `codex/bugfix/electron-c10-c11-projection` | `12fd0fbc99043302a10ba4659c9114819d4730ce` plus G0 closeout successor commit | `docs/authority/CURRENT_AUTHORITY.md` |
 
 Legacy confusion source:
@@ -19,7 +19,18 @@ Legacy confusion source:
 
 ## Current production runtime authorities
 
+Global rule: REPO HEAD is not automatically SOURCE AUTHORITY, ARTIFACT AUTHORITY, DEPLOYMENT AUTHORITY, or LIVE RUNTIME AUTHORITY. Each must be named separately.
+
+
 ### Voice/S2S
+
+Authority roles are deliberately separate:
+
+- AUTHORITY-DOCUMENT HEAD: `09373281c6e8342c0728f4c2be54f4c94b9178f4` plus later metadata-only successors.
+- C1 PRODUCTION SOURCE AUTHORITY: `1552470f3f8f4e33a9cb90181daa1353f0702eb2`.
+- C1 PRODUCTION ARTIFACT AUTHORITY: `b18d1e42ca2e1383829b6d5f0670652efa066944ba92823a815a35253291c9ac`.
+- CANONICAL LAUNCHER AUTHORITY: `90077d209cafcc428e9cb29498e75414973bbac9`, later superseded operationally by supervisor/watchdog commits through `09373281...`.
+- INTERMEDIATE OPS COMMIT: `a5a90803794cdc7e8dd3b3ead534801c7f7bf85b` is historical/intermediate documentation commit, not C1 production source authority and not artifact authority.
 
 - Source: `1552470f3f8f4e33a9cb90181daa1353f0702eb2`
 - Artifact: `b18d1e42ca2e1383829b6d5f0670652efa066944ba92823a815a35253291c9ac`
