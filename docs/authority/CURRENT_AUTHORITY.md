@@ -5,7 +5,7 @@ UPDATED: 2026-08-11
 REPOSITORY: Julia_core
 ROLE: Core runtime, ConversationRuntime, Context OS, canonical architecture authority
 AUTHORITATIVE BRANCH: main
-CURRENT REPOSITORY / DOCUMENTATION AUTHORITY AT CLOSEOUT: 7d29fb9dcb2719c406ac2cd66cd32ddc1e663662
+CURRENT REPOSITORY / DOCUMENTATION AUTHORITY AT CLOSEOUT: c79859897b7b907cc5553fd8f4ab5295553eff5c plus this CC-1 delta successor
 HISTORICAL MAIN SNAPSHOT MENTIONED BY EARLIER G0: 0d72b05534c79c22e58b2e4e95dca97171d8489a
 PRODUCTION CONVERSATION RUNTIME FLOOR: b463a3f702f9cfcb8db3cda870d8f570fc92483d
 RMD-1-SC PRODUCTION AUTHORITY: b463a3f702f9cfcb8db3cda870d8f570fc92483d
@@ -17,6 +17,7 @@ IMPORTANT: `0d72b05534c79c22e58b2e4e95dca97171d8489a` MUST NOT be interpreted as
 - RMD-3G source/artifact/staging/live recovery work has superseded earlier Aug-11 freeze status language.
 - This file is the current per-repository authority entry point.
 - The cross-repository authority entry point is `docs/authority/JULIA_FOUR_REPO_AUTHORITY_MANIFEST.md`.
+- CC-1 targeted delta authority is `docs/authority/CC1_CONVERSATION_CONVERGENCE_DELTA.md`.
 
 ## Authoritative architecture docs
 
@@ -67,7 +68,7 @@ LEGACY / DO-NOT-USE FOR NEW WORK:
 
 ## Current open remediation items
 
-- CC-1 Canonical Conversation Convergence remains next permitted feature/convergence package after G0 closeout.
+- CC-1 Canonical Conversation Convergence is active; source authority for the targeted delta is `docs/authority/CC1_CONVERSATION_CONVERGENCE_DELTA.md`.
 - Existing uncommitted runtime data and experimental worktree dirt are not source authority.
 
 ## Precedence
