@@ -323,7 +323,12 @@ class ConversationRuntime:
     def cancel_streaming_turn(self, ctx: "TurnStreamingContext"):
         """Cancel/rollback a streaming turn."""
         try:
-            self._update_message_status(ctx.user_msg_id, "failed")
+            # RMD-1 / CM-I05:
+            # begin_turn_streaming() has already accepted the user message as a
+            # durable canonical fact (status=completed). Assistant cancellation
+            # is an independent lifecycle event and must not downgrade or erase
+            # that accepted user turn.
+            pass
         finally:
             if ctx.lock:
                 ctx.lock.release()
