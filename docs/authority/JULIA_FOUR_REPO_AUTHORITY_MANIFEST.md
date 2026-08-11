@@ -11,7 +11,7 @@ PURPOSE: one cross-repository entry point for current code/document authority.
 | Julia_core | Core runtime, canonical architecture, ConversationRuntime, Context OS | `main` | repo/doc head `39e0263af92e223e15d2402ff7a5bede7ad6dcd5` plus this CC-1 metadata successor; production ConversationRuntime floor `b463a3f702f9cfcb8db3cda870d8f570fc92483d` | `docs/authority/CURRENT_AUTHORITY.md` |
 | Julia-AI-Assistant | Brain/OpenAI-compatible API, CRT bridge, Brain observability | `phase5/rmd-3g-observability` | `2ca61102682f3ed5ee73b1034c3d13ea45c1e643` | `docs/authority/CURRENT_AUTHORITY.md` |
 | Julia-Voice-S2S | Voice/S2S runtime, production artifact, AutoDL supervisor/watchdog | `phase5/rmd-3g-observability` | authority-doc head `09373281c6e8342c0728f4c2be54f4c94b9178f4`; C1 source `1552470f3f8f4e33a9cb90181daa1353f0702eb2`; artifact `b18d1e42ca2e1383829b6d5f0670652efa066944ba92823a815a35253291c9ac` | `docs/authority/CURRENT_AUTHORITY.md` |
-| Julia_client / local `julia_electron_v2` | Electron desktop client | `codex/bugfix/electron-c10-c11-projection` | code `56cac30f3f467d28f9eacca0e4a4b6167038c9d4`; authority-doc head `381484ee3f0474d7daee7e2ee33e1ded53b5547b` | `docs/authority/CURRENT_AUTHORITY.md` |
+| Julia_client / local `julia_electron_v2` | Electron desktop client | `codex/bugfix/electron-c10-c11-projection` | code `56cac30f3f467d28f9eacca0e4a4b6167038c9d4`; authority-doc head `381484ea03746456e7e5eed6adb4946e9d300cca` | `docs/authority/CURRENT_AUTHORITY.md` |
 
 Legacy confusion source:
 
