@@ -9,7 +9,7 @@ PURPOSE: one cross-repository entry point for current code/document authority.
 | Repo | Role | Branch | Current authority commit | Manifest |
 |---|---|---|---|---|
 | Julia_core | Core runtime, canonical architecture, ConversationRuntime, Context OS | `main` | `0d72b05534c79c22e58b2e4e95dca97171d8489a` plus this G0 closeout successor commit | `docs/authority/CURRENT_AUTHORITY.md` |
-| Julia-AI-Assistant | Brain/OpenAI-compatible API, CRT bridge, Brain observability | `phase5/rmd-3g-observability` | `37a1f72a4b505ad0b5ceb2fdd423b150a40db96c` | `docs/authority/CURRENT_AUTHORITY.md` |
+| Julia-AI-Assistant | Brain/OpenAI-compatible API, CRT bridge, Brain observability | `phase5/rmd-3g-observability` | `2ca61102682f3ed5ee73b1034c3d13ea45c1e643` | `docs/authority/CURRENT_AUTHORITY.md` |
 | Julia-Voice-S2S | Voice/S2S runtime, production artifact, AutoDL supervisor/watchdog | `phase5/rmd-3g-observability` | `a5a90803794cdc7e8dd3b3ead534801c7f7bf85b` plus G0 closeout successor commit | `docs/authority/CURRENT_AUTHORITY.md` |
 | Julia_client / local `julia_electron_v2` | Electron desktop client | `codex/bugfix/electron-c10-c11-projection` | `12fd0fbc99043302a10ba4659c9114819d4730ce` plus G0 closeout successor commit | `docs/authority/CURRENT_AUTHORITY.md` |
 
@@ -35,8 +35,9 @@ Historical failed Voice candidates:
 ### Brain
 
 - Source authority: `9c8764af35c702a60d778b2148846d7728794f30`
-- Production lifecycle commit: `37a1f72a4b505ad0b5ceb2fdd423b150a40db96c`
+- Production lifecycle commit: `2ca61102682f3ed5ee73b1034c3d13ea45c1e643`
 - Runtime: Mac launchd `com.julia.brain.18089`
+- Secret loader: committed; real `DEEPSEEK_API_KEY` lives only in `/Users/admin/.julia_ops/brain.env` mode `600`
 - Clean checkout: `/Users/admin/julia_ai_assistant_rmd3g_prod @ 9c8764af...`
 - Production port: `127.0.0.1:18089`
 - Retired legacy port: `127.0.0.1:8088`
