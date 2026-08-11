@@ -9,7 +9,7 @@ PURPOSE: one cross-repository entry point for current code/document authority.
 | Repo | Role | Branch | Current authority commit | Manifest |
 |---|---|---|---|---|
 | Julia_core | Core runtime, canonical architecture, ConversationRuntime, Context OS | `main` | repo/doc head `39e0263af92e223e15d2402ff7a5bede7ad6dcd5` plus this CC-1 metadata successor; production ConversationRuntime floor `b463a3f702f9cfcb8db3cda870d8f570fc92483d` | `docs/authority/CURRENT_AUTHORITY.md` |
-| Julia-AI-Assistant | Brain/OpenAI-compatible API, CRT bridge, Brain observability | `phase5/rmd-3g-observability` | `a4625da0dc7ed9bf336c3ed2ec51e0ba5ef1cb31` | `docs/authority/CURRENT_AUTHORITY.md` |
+| Julia-AI-Assistant | Brain/OpenAI-compatible API, CRT bridge, Brain observability | `phase5/rmd-3g-observability` | `9bd8963a8dcfed82ffddc79127617f0e983f24c5` | `docs/authority/CURRENT_AUTHORITY.md` |
 | Julia-Voice-S2S | Voice/S2S runtime, production artifact, AutoDL supervisor/watchdog | `phase5/rmd-3g-observability` | authority-doc head `09373281c6e8342c0728f4c2be54f4c94b9178f4` plus C2 metadata successor; C1 production source `1552470f3f8f4e33a9cb90181daa1353f0702eb2`; CC-1-C2 code `850a94b516ef71d57f74960a8161cc46be7ba03b`; CC-1-C2 source package HEAD `a4afa86173cc4321210ee96ac515f07a53a39533`; current production artifact `b18d1e42ca2e1383829b6d5f0670652efa066944ba92823a815a35253291c9ac` until C2 artifact is built/deployed | `docs/authority/CURRENT_AUTHORITY.md` |
 | Julia_client / local `julia_electron_v2` | Electron desktop client | `codex/bugfix/electron-c10-c11-projection` | CC-1 code `56cac30f3f467d28f9eacca0e4a4b6167038c9d4`; CC-1-C2 code `d8ec4e28d178ccb31b361efdfb6dd81d33227d0b`; tunnel lifecycle source `245cfc16d7bc173ab489d1f28af7715ff8d418e2`; authority-doc head `381484ea03746456e7e5eed6adb4946e9d300cca` plus C2/TUNNEL-L1 metadata successors | `docs/authority/CURRENT_AUTHORITY.md` |
 
@@ -40,7 +40,7 @@ STATUS: SOURCE COMMITTED / DEPLOYMENT ACCEPTANCE REQUIRED
 
 Manual SSH tunnels are HISTORICAL / NON-AUTHORITATIVE. Production tunnel lifecycle is split by responsibility:
 
-- Brain reverse tunnel source authority: Julia-AI-Assistant `a4625da0dc7ed9bf336c3ed2ec51e0ba5ef1cb31`
+- Brain reverse tunnel source authority: Julia-AI-Assistant `9bd8963a8dcfed82ffddc79127617f0e983f24c5`
   - launchd `com.julia.tunnel.brain-reverse`
   - watchdog `com.julia.tunnel.brain-reverse.watchdog`
   - Mac `127.0.0.1:18089` -> AutoDL `127.0.0.1:8089`
@@ -87,7 +87,7 @@ Historical failed Voice candidates:
 
 - Source authority: `9c8764af35c702a60d778b2148846d7728794f30`
 - Production lifecycle commit: `2ca61102682f3ed5ee73b1034c3d13ea45c1e643`
-- Tunnel lifecycle source commit: `a4625da0dc7ed9bf336c3ed2ec51e0ba5ef1cb31`
+- Tunnel lifecycle source commit: `9bd8963a8dcfed82ffddc79127617f0e983f24c5`
 - Runtime: Mac launchd `com.julia.brain.18089`
 - Secret loader: committed; real `DEEPSEEK_API_KEY` lives only in `/Users/admin/.julia_ops/brain.env` mode `600`
 - Clean checkout: `/Users/admin/julia_ai_assistant_rmd3g_prod @ 9c8764af...`
