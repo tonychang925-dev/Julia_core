@@ -1717,6 +1717,59 @@ def begin_turn_streaming(
 
 ---
 
+# PART VIII — ADR-002: AUTHORITY CUTOVER CONTRACT (RP-3)
+
+**Date:** 2026-08-12
+**Status:** ACCEPTED
+**Trigger:** VOICE-C1 CUTOVER INCIDENT — RC-2 confirmed
+
+## Decision
+
+Any authority switch (Brain restart, CRT migration, context source change) MUST be an explicit transaction. Never assume continuity across authority boundaries.
+
+## Invariant
+
+```
+NO AUTHORITY SWITCH
+UNTIL
+LAST ACCEPTED TURN IS ACCOUNTED FOR
+```
+
+## Procedure
+
+```
+1. FREEZE old authority
+   → Stop accepting new turns on old path
+   → Record last accepted turn_id + conversation_id boundary
+
+2. RECONCILE
+   → Determine which turns exist in old authority but not in new canonical source
+   → IF turns can be deterministically mapped (turn_id, role, timestamp, content):
+       import into canonical Conversation
+   → ELSE:
+       explicitly terminate old conversation, start new canonical conversation
+
+3. VERIFY
+   → Confirm canonical truth matches expected state
+   → All imported turns must have valid turn_id, modality, status
+
+4. ACTIVATE new authority
+   → Switch cognition to new canonical source
+   → Old authority is now retired
+
+5. RETIRE old authority
+   → Old path must not serve future turns
+   → Retain as historical reference only
+```
+
+## Prohibited
+
+- ❌ Activate new authority while old authority still holds un-reconciled turns
+- ❌ Assume new authority "naturally" has old authority's history
+- ❌ Switch authority mid-conversation without explicit boundary
+
+---
+
 # APPENDIX C — PHASE 5 FREEZE-CANDIDATE DELTA
 
 Before v1.1 may change from `DRAFT` to `FROZEN`, reviewers must close all items below:
