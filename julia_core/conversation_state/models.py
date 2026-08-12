@@ -23,7 +23,7 @@ class ConversationMessage:
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         # Remove legacy-only fields for compact storage
-        return {k: v for k, v in d.items() if v or k in ("message_id", "role", "content", "created_at")}
+        return {k: v for k, v in d.items() if v or k in ("message_id", "role", "content", "created_at", "turn_id", "modality", "status")}
 
 
 @dataclass
