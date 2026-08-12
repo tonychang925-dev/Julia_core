@@ -126,7 +126,7 @@ def create_app() -> "FastAPI":
                 if msg_type == "user.message":
                     text = msg.get("content", "")
                     sid = msg.get("session_id", session_id)
-                    gs = gateway.get_or_create(sid)
+                    gs = gateway._ensure_session(sid)
 
                     # Notify: Julia is thinking
                     await ws.send_text(_json.dumps({
