@@ -10,7 +10,7 @@ PURPOSE: one cross-repository entry point for current code/document authority.
 |---|---|---|---|---|
 | Julia_core | Core runtime, canonical architecture, ConversationRuntime, Context OS | `main` | repo/doc head `7d29fb9dcb2719c406ac2cd66cd32ddc1e663662`; production ConversationRuntime floor `b463a3f702f9cfcb8db3cda870d8f570fc92483d` | `docs/authority/CURRENT_AUTHORITY.md` |
 | Julia-AI-Assistant | Brain/OpenAI-compatible API, CRT bridge, Brain observability | `phase5/rmd-3g-observability` | `2ca61102682f3ed5ee73b1034c3d13ea45c1e643` | `docs/authority/CURRENT_AUTHORITY.md` |
-| Julia-Voice-S2S | Voice/S2S runtime, production artifact, AutoDL supervisor/watchdog | `phase5/rmd-3g-observability` | authority-doc head `09373281c6e8342c0728f4c2be54f4c94b9178f4`; C1 source `1552470f3f8f4e33a9cb90181daa1353f0702eb2`; artifact `b18d1e42ca2e1383829b6d5f0670652efa066944ba92823a815a35253291c9ac` | `docs/authority/CURRENT_AUTHORITY.md` |
+| Julia-Voice-S2S | Voice/S2S runtime, production artifact, AutoDL supervisor/watchdog | `phase5/rmd-3g-observability` | C4 source `47c03e0357c13f97b3e584935cf7d5d98567ab51`; authority-doc head `f2e00a7e0977597a2989a9f3067419d1dfbe238a`; C1 artifact `b18d1e42ca2e1383829b6d5f0670652efa066944ba92823a815a35253291c9ac` | `docs/authority/CURRENT_AUTHORITY.md` |
 | Julia_client / local `julia_electron_v2` | Electron desktop client | `codex/bugfix/electron-c10-c11-projection` | `12fd0fbc99043302a10ba4659c9114819d4730ce` plus G0 closeout successor commit | `docs/authority/CURRENT_AUTHORITY.md` |
 
 Legacy confusion source:
@@ -26,8 +26,10 @@ Global rule: REPO HEAD is not automatically SOURCE AUTHORITY, ARTIFACT AUTHORITY
 
 Authority roles are deliberately separate:
 
-- AUTHORITY-DOCUMENT HEAD: `09373281c6e8342c0728f4c2be54f4c94b9178f4` plus later metadata-only successors.
+- AUTHORITY-DOCUMENT HEAD: `f2e00a7e0977597a2989a9f3067419d1dfbe238a`.
 - C1 PRODUCTION SOURCE AUTHORITY: `1552470f3f8f4e33a9cb90181daa1353f0702eb2`.
+- C3 DEPLOYED OBSERVABILITY SOURCE: `9721fc7aa4fa3277305b56f7217be6a4a2b80d40`; release `/root/julia_voice_v2/releases/cc1-c3-87971eb3`; artifact `87971eb33489be32d8ffea5cf51b88336da29c194efe0c6859e4697399543fe6`.
+- C4 FAIL-CLOSED SOURCE AUTHORITY: `47c03e0357c13f97b3e584935cf7d5d98567ab51`; production deployment NOT STARTED.
 - C1 PRODUCTION ARTIFACT AUTHORITY: `b18d1e42ca2e1383829b6d5f0670652efa066944ba92823a815a35253291c9ac`.
 - CANONICAL LAUNCHER AUTHORITY: `90077d209cafcc428e9cb29498e75414973bbac9`, later superseded operationally by supervisor/watchdog commits through `09373281...`.
 - INTERMEDIATE OPS COMMIT: `a5a90803794cdc7e8dd3b3ead534801c7f7bf85b` is historical/intermediate documentation commit, not C1 production source authority and not artifact authority.
