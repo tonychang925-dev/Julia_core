@@ -111,7 +111,7 @@ class RuntimeCapabilityBridge:
                 register_ai_theme_capabilities(self.registry)
                 self._providers["ai_theme_app"] = create_ai_theme_provider()
             except Exception:
-                pass
+                import logging; logging.getLogger("julia.failclosed").warning("silent fallback removed at julia_core.julia_core.runtime.capability_bridge:113", exc_info=True)
 
         # Build the manager
         self._manager = CapabilityManager(

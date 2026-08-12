@@ -172,8 +172,8 @@ class JuliaSession:
             if parts:
                 return "\n".join(parts)
         except Exception:
-            pass
-        return ""
+            # Context OS catches this and marks frame failure
+            raise
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -422,7 +422,7 @@ class JuliaSession:
                 self.workflow_router.route(text)
             )
         except Exception:
-            return ""
+            raise
 
         if result.workflow != "market_brief" or result.status != "completed":
             return ""

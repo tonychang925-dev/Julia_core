@@ -109,7 +109,7 @@ class SessionRecorder:
                     self._write_diary(data)
                     return data.get("diary_entry")
         except Exception:
-            pass
+            import logging; logging.getLogger("julia.failclosed").warning("silent fallback removed at julia_core.julia_core.runtime.session_recorder:111", exc_info=True)
         return None
 
     def _write_diary(self, data: dict):

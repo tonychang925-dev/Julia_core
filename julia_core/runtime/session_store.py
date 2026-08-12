@@ -29,8 +29,8 @@ class SessionStore:
         if self._path.exists():
             try:
                 return _json.loads(self._path.read_text())
-            except Exception:
-                pass
+            except Exception as exc:
+                import logging; logging.getLogger("julia.session_store").warning("Failed to load sessions.json: %s", exc)
         return {"sessions": {}}
 
     def save(self):
