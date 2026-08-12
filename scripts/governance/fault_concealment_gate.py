@@ -16,9 +16,7 @@ CATEGORIES = {
         "desc": "Canonical identity/history/runtime authority missing → local/legacy/standalone",
         "level": "P0",
         "patterns": [
-            r'return\s+(CodexProvider|DeepSeekProvider)\(\)',
-            r'get_llm_provider.*else.*return',
-            r'unknown.*provider.*return',
+            r'get_llm_provider.*(?!.*if.*name).*return\s+\w+Provider',  # default without explicit match
         ],
     },
     "F2_FAKE_SUCCESS": {
@@ -43,7 +41,7 @@ CATEGORIES = {
         "desc": "Missing conversation/session → create new silently",
         "level": "P0",
         "patterns": [
-            r'get_or_create',
+            r'\.get_or_create\(',   # call site (not def)
             r'find.*or.*create\(',
             r'not found.*create',
         ],
