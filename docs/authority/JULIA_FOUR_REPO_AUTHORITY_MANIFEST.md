@@ -52,8 +52,9 @@ Global rule: REPO HEAD is not automatically SOURCE AUTHORITY, ARTIFACT AUTHORITY
 ## Storage Program (2026-08-13)
 
 - Entry point: `docs/architecture/JULIA_CONVERSATION_STORAGE_AND_DIARY_DEVELOPMENT_PLAN_v1.0.md`
-- Wave 0 (authority & design freeze) is the immediate next gate.
-- Physical persistence ownership model frozen by ADR-003 (pending).
+- Wave 0 authority reconciliation: **STO-A0 CLOSED** (`e4ca952`).
+- Physical persistence ownership model frozen by **ADR-033**.
+- Next: STO-D0 (implementation decision freeze).
 
 ## Document status vocabulary
 

@@ -1,11 +1,11 @@
 # Julia Core Current Authority
 
 STATUS: CANONICAL
-UPDATED: 2026-08-11
+UPDATED: 2026-08-13
 REPOSITORY: Julia_core
-ROLE: Core runtime, ConversationRuntime, Context OS, canonical architecture authority
-AUTHORITATIVE BRANCH: main
-CURRENT REPOSITORY / DOCUMENTATION AUTHORITY AT CLOSEOUT: 7d29fb9dcb2719c406ac2cd66cd32ddc1e663662
+ROLE: Core runtime, ConversationRuntime, Context OS, Memory OS, Continuity OS, canonical architecture authority
+AUTHORITATIVE BRANCH: cm-r0-fix
+CURRENT REPOSITORY / DOCUMENTATION AUTHORITY AT CLOSEOUT: 4937f8f
 HISTORICAL MAIN SNAPSHOT MENTIONED BY EARLIER G0: 0d72b05534c79c22e58b2e4e95dca97171d8489a
 PRODUCTION CONVERSATION RUNTIME FLOOR: b463a3f702f9cfcb8db3cda870d8f570fc92483d
 RMD-1-SC PRODUCTION AUTHORITY: b463a3f702f9cfcb8db3cda870d8f570fc92483d
@@ -67,7 +67,8 @@ LEGACY / DO-NOT-USE FOR NEW WORK:
 
 ## Current open remediation items
 
-- CC-1 Canonical Conversation Convergence remains next permitted feature/convergence package after G0 closeout.
+- VOICE-C1 remediation CLOSED (RC-1 runtime drift → RP-1; RC-2 cutover → ADR-002; RC-3 turn_id collision → RP-2 UUID).
+- Storage Program is the next permitted work: entry point `docs/architecture/JULIA_CONVERSATION_STORAGE_AND_DIARY_DEVELOPMENT_PLAN_v1.0.md`.
 - Existing uncommitted runtime data and experimental worktree dirt are not source authority.
 
 ## Precedence

@@ -1,7 +1,7 @@
 # ADR-033 — Application Persistence Host Binding
 
 **Date:** 2026-08-13
-**Status:** PROPOSED FOR FREEZE
+**Status:** FROZEN / ACCEPTED
 **Supersedes:** none (fills a gap not previously resolved)
 
 ## Context
