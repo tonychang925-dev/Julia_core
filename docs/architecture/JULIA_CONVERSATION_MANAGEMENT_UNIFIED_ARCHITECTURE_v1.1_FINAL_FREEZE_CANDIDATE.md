@@ -1634,6 +1634,89 @@ CC-2 (Experience Sync)
 
 ---
 
+# PART VII — ADR-001: S2S EPHEMERAL TURN CONTEXT
+
+**Date:** 2026-08-12  
+**Status:** ACCEPTED / IMPLEMENTATION PENDING  
+**Trigger:** 2026-08-12 deployment incident — Brain CRT path migration dropped S2S session context
+
+## Decision
+
+S2S realtime session context is **ephemeral turn metadata**, not canonical conversation history. It belongs in a new `ActiveTurnContext` concept inside `julia_core/ConversationRuntime`, not in S2S and not passed as raw `messages[]` to the LLM.
+
+## Context
+
+Prior to `bbd90af`, S2S voice requests flowed through Brain's legacy path:
+```
+S2S → Brain → _stream_openai_sse(user_text, messages, model) → LLM
+```
+S2S `messages[]` carried the current session context directly to the LLM.
+
+`bbd90af` routed S2S through the CRT path:
+```
+S2S → Brain → _stream_turn(crt, js, cid, tid, modality, user_text) → LLM
+```
+This correctly uses CRT for canonical history, but the S2S `messages[]` (ephemeral session context) was dropped at the routing boundary. Context OS receives only CRT history, which is empty for new conversations or polluted with cross-session messages for old conversations.
+
+## Architecture Requirement
+
+```
+Voice/S2S                         julia_core
+─────────                         ──────────
+InteractionEvent                  ConversationRuntime
+  conversation_id ──────────────→   begin_turn_streaming()
+  turn_id                             │
+  modality                            ├── Canonical History (CRT)
+  transcript                          ├── Active Turn Context (NEW)
+  ephemeral_metadata                  │
+                                      ↓
+                                  Context OS
+                                      │
+                                      ↓
+                                  LLM Payload
+```
+
+## Ownership
+
+| Layer | Owns | Does NOT Own |
+|---|---|---|
+| S2S | audio, STT, TTS, session transport | conversation context, history |
+| CRT | canonical messages, turn lifecycle | ephemeral turn state |
+| Context OS | final LLM-visible context assembly | raw S2S messages injection |
+| ActiveTurnContext (NEW) | current turn ephemeral state | canonical history authority |
+
+## Interface (Target)
+
+```python
+# julia_core ConversationRuntime — NOT S2S, NOT Brain
+def begin_turn_streaming(
+    self, *,
+    conversation_id: str,
+    turn_id: str,
+    modality: str,
+    input: str,
+    ephemeral_context: dict | None = None,  # ← NEW: S2S session metadata
+) -> TurnStreamingContext:
+```
+
+`ephemeral_context` carries S2S session metadata (voice_session_id, partial transcript refs, latency markers). Context OS may use it as a supplementary frame — it is NOT appended as raw messages.
+
+## Prohibited
+
+- ❌ `_stream_turn(messages=[...])` — S2S history injected as LLM context bypass
+- ❌ Brain-side context merge before Context OS
+- ❌ S2S maintaining multi-turn history as cognitive authority
+
+## Migration Path
+
+1. Define `ActiveTurnContext` dataclass in `julia_core`
+2. Extend `begin_turn_streaming()` to accept `ephemeral_context`
+3. Context OS `prepare()` reads ephemeral context as a supplementary frame
+4. Brain `openai_compat.py` passes S2S metadata (NOT raw messages) as ephemeral_context
+5. Remove `get_canonical_history` cap of 30 — scale control belongs to Context OS ActiveTail
+
+---
+
 # APPENDIX C — PHASE 5 FREEZE-CANDIDATE DELTA
 
 Before v1.1 may change from `DRAFT` to `FROZEN`, reviewers must close all items below:
