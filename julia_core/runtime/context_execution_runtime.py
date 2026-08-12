@@ -38,6 +38,17 @@ class CognitiveContextPackage:
     # Provenance: every model-visible block is traceable (AT-17)
     _provenance_entries: list[dict] = field(default_factory=list, repr=False)
 
+    # CM-FAILCLOSED: frame failures are recorded, never silently swallowed
+    _frame_failures: list[dict] = field(default_factory=list, repr=False)
+
+    def mark_frame_failure(self, frame: str, error: str, required: bool = False) -> None:
+        self._frame_failures.append({"frame": frame, "error": error, "required": required})
+        self.add_provenance("frame_failure", frame, reason=f"degraded: {error}", stage=-1)
+
+    def validate(self) -> list[str]:
+        """Return list of required frame failures. Empty = all required frames available."""
+        return [f["frame"] for f in self._frame_failures if f["required"]]
+
     def to_messages(self, history: list[dict], user_text: str) -> list[dict]:
         """Render the package as model messages. Transitional — will be replaced
         by structured Alignment projection (C-09) in P6."""
@@ -145,12 +156,17 @@ class ContextExecutionRuntime:
         # ── ExperienceFrame — recent experiences (C-05) ──
         if self._js is not None:
             try:
+                # Wake state: recent session summaries
                 experiences = self._js._load_recent_experiences()
+                # Density restoration: high-density conversation memories
+                density_context = self._load_density_experience()
+                if density_context:
+                    experiences = (experiences or "") + "\n\n" + density_context
                 if experiences:
-                    pkg.experience_frame = {"recent_context": experiences[:500]}
-                    pkg.add_provenance("experience", "session_store:wake_state", reason="recent experience", stage=1)
-            except Exception:
-                pass
+                    pkg.experience_frame = {"recent_context": experiences[:3000]}
+                    pkg.add_provenance("experience", "session_store:wake_state+density", reason="recent + high-density experience", stage=1)
+            except Exception as exc:
+                pkg.mark_frame_failure("experience", str(exc), required=False)
 
         # ── SituationFrame — current state (C-03) ──
         pkg.situation_frame = {
@@ -160,8 +176,8 @@ class ContextExecutionRuntime:
         if interaction is not None:
             try:
                 pkg.situation_frame["interaction_state"] = interaction.to_context()[:300]
-            except Exception:
-                pass
+            except Exception as exc:
+                pkg.mark_frame_failure("situation:interaction", str(exc), required=False)
         pkg.add_provenance("situation", "runtime:turn_context", reason="current state", stage=0)
 
         # ── EvidenceFrame — market/domain evidence (C-03) ──
@@ -172,8 +188,8 @@ class ContextExecutionRuntime:
                     pkg.evidence_frame = {"market_context": market_ctx[:800]}
                     pkg.add_provenance("evidence", "domain:market_brain", reason="market context", stage=1,
                                       token_estimate=len(market_ctx) // 4)
-            except Exception:
-                pass
+            except Exception as exc:
+                pkg.mark_frame_failure("evidence:market", str(exc), required=False)
 
         # ── CapabilityFrame — tool manifest (C-08) ──
         if self._js is not None:
@@ -183,8 +199,8 @@ class ContextExecutionRuntime:
                     pkg.capability_frame = {"available_tools": manifest[:600]}
                     pkg.add_provenance("capability", "capability:manifest", reason="available tools", stage=0,
                                       token_estimate=len(manifest) // 4)
-            except Exception:
-                pass
+            except Exception as exc:
+                pkg.mark_frame_failure("capability", str(exc), required=False)
 
         # ── ContinuityFrame — when applicable (C-06) ──
         # Reserved for P5 Continuity binding
@@ -217,6 +233,28 @@ class ContextExecutionRuntime:
                           reason="tool execution result", stage=2,
                           token_estimate=len(tool_result) // 4)
         return pkg
+
+    def _load_density_experience(self) -> str:
+        """Load high-density experience context for identity restoration.
+
+        Called once per turn preparation. The experience context is cached
+        after first load — subsequent calls return the cached version.
+
+        Returns a formatted string of high-density conversation memories,
+        or empty string if artifacts are not available.
+        """
+        if hasattr(self, "_density_cache"):
+            return self._density_cache  # type: ignore[attr-defined]
+
+        self._density_cache = ""  # type: ignore[attr-defined]
+        try:
+            from julia_core.context_assembly.density_restorer import get_experience_context_block
+            ctx = get_experience_context_block(max_tokens=2000)
+            if ctx:
+                self._density_cache = ctx  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return self._density_cache  # type: ignore[attr-defined]
 
     def _compute_active_tail(self, history: list[dict], max_turns: int = 20) -> list[dict]:
         """C-03 ActiveTail: budget-driven recent turns. Replaces history[-20:]."""
