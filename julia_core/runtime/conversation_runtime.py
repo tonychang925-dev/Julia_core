@@ -197,11 +197,13 @@ class ConversationRuntime:
         session = self._repository.get(conversation_id)
         if session is None:
             return []
-        return [
+        completed = [
             {"role": m.role, "content": m.content}
             for m in session.messages
             if m.role in ("user", "assistant") and m.status == "completed"
         ]
+        # Cap to prevent LLM context overflow. Most recent messages first.
+        return completed[-30:] if len(completed) > 30 else completed
 
     def process_turn(
         self,
