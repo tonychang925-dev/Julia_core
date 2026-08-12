@@ -1494,6 +1494,148 @@ Before implementation, reviewers must answer PASS to all:
 
 # APPENDIX C — PHASE 5 FREEZE-CANDIDATE DELTA
 
+---
+
+# PART VI — CC-2: VOICE EXPERIENCE SYNC ARCHITECTURE
+
+**Date:** 2026-08-12  
+**Status:** DESIGN ACCEPTED / IMPLEMENTATION PENDING  
+**Depends on:** CC-1 (Identity Binding / host.attach)  
+**Scope:** Voice turn realtime display, Text mode sync, incremental CRT commit
+
+## CC-2.1 Design Principle
+
+```text
+Frontend Cache = "what the user sees now" (realtime experience)
+CRT             = "what actually happened" (canonical memory)
+
+Never block the user on CRT. Never let CRT drift from the user.
+```
+
+CC-1 solved "which conversation does this Voice session belong to?"  
+CC-2 solves "how does the user see Voice content in real-time, and how does it reach durable memory?"
+
+## CC-2.2 Dual-Path Model
+
+```
+User speaks
+    │
+    ▼
+┌──────────────────────────────────────────────┐
+│              Electron Frontend                │
+│                                               │
+│  ┌─────────────────┐   ┌──────────────────┐  │
+│  │ Realtime Path   │   │ Canonical Path   │  │
+│  │ (Voice Cache)   │   │ (Async Commit)   │  │
+│  │                 │   │                  │  │
+│  │ user turn ──────┼───┼─► S2S ──► Brain │  │
+│  │   ↓             │   │        ↓         │  │
+│  │ immediate show  │   │   CRT.commit()   │  │
+│  │   ↓             │   │        ↓         │  │
+│  │ assistant ◄─────┼───┼─ stream back     │  │
+│  │   ↓             │   │                  │  │
+│  │ live display    │   │  sync_status:    │  │
+│  │                 │   │  pending→synced  │  │
+│  └─────────────────┘   └──────────────────┘  │
+│                                               │
+│  Text View reads Cache → instant display       │
+│  Background SyncWorker → batch commit to CRT  │
+└──────────────────────────────────────────────┘
+```
+
+### Realtime Path (VoiceSessionCache)
+
+- Created on Voice session start, released on session end
+- In-memory only (with localStorage snapshot for crash recovery, max 10 min TTL)
+- Turns display in Text history immediately (0–50ms)
+- No CRT dependency for display
+
+### Canonical Path (Async Commit)
+
+- Voice turns flow through S2S → Brain → CRT at natural pace
+- SyncWorker commits pending cache entries in batches
+- Triggers: idle 2s, 3-turn accumulation, 5s interval, or mode switch
+- On commit: `sync_status` transitions `pending` → `committed`, CRT ID stored
+
+## CC-2.3 Data Structures
+
+### VoiceCacheMessage
+
+```
+{
+  local_id:        string,       // client-generated UUID
+  conversation_id: string,       // canonical conversation
+  role:            "user"|"assistant",
+  content:         string,
+  modality:        "voice",
+  timestamp:       number,       // Date.now()
+  status:          "streaming"|"completed",
+  sync_status:     "pending"|"committed",
+  crt_message_id:  string|null   // filled on CRT ack
+}
+```
+
+### Idempotency
+
+```
+client_message_id: UUID (stored in CRT as unique key)
+On duplicate: return existing CRT record, mark cache entry as committed
+Never commit the same turn twice.
+```
+
+## CC-2.4 Sync Triggers
+
+| Trigger | Condition | Behavior |
+|---|---|---|
+| Idle | 2s after last user speech | Commit pending turns |
+| Batch | 3 accumulated turns | Commit batch |
+| Interval | Every 5s | Commit if pending > 0 |
+| Mode switch | Voice → Text | Flush + commit + delayed re-sync (2s) |
+
+## CC-2.5 Text View Display Order
+
+```
+1. Voice Cache (pending + streaming) — immediate, 0ms
+2. CRT history (committed) — from syncCanonicalConversation
+3. Merge: CRT supersedes cache entries with matching local_id
+4. Render: no duplicates, streaming entries show live, committed show final
+```
+
+## CC-2.6 Crash Recovery
+
+```text
+localStorage snapshot:
+  conversation_id
+  pending messages (max 10 min age)
+  created_at timestamp
+
+On Electron restart:
+  if snapshot exists and age < 10 min:
+    restore pending to VoiceSessionCache
+    trigger immediate sync
+  else:
+    discard
+```
+
+## CC-2.7 Relationship to CC-1
+
+```text
+CC-1 (Identity Binding)
+  host.attach → canonical conversation_id
+  workspace.bootstrap → conversation context
+  Required BEFORE any CC-2 activity
+
+CC-2 (Experience Sync)
+  Uses conversation_id from CC-1
+  Manages display timeline
+  Drives async CRT commit
+  Independent of transport (works with workspace.bootstrap OR host.attach)
+```
+
+---
+
+# APPENDIX C — PHASE 5 FREEZE-CANDIDATE DELTA
+
 Before v1.1 may change from `DRAFT` to `FROZEN`, reviewers must close all items below:
 
 ```text
