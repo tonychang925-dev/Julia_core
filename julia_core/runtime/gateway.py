@@ -48,14 +48,15 @@ class RuntimeGateway:
     def __init__(self):
         self.sessions: dict[str, GatewaySession] = {}
 
-    def get_or_create(self, session_id: str) -> GatewaySession:
+    def _ensure_session(self, session_id: str) -> GatewaySession:
+        """Create new session if not exists. Gateway sessions are ephemeral — not canonical conversations."""
         if session_id not in self.sessions:
             self.sessions[session_id] = GatewaySession()
         return self.sessions[session_id]
 
     def handle_message(self, session_id: str, text: str) -> dict:
         """Process a user message through JuliaSession. Returns reply + metadata."""
-        gs = self.get_or_create(session_id)
+        gs = self._ensure_session(session_id)
         reply = gs.chat(text)
         js = gs._js
 

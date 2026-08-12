@@ -108,9 +108,14 @@ class ConversationRuntime:
 
     # ── Public API ───────────────────────────────────────────────────────
 
-    def get_or_create(self, conversation_id: str) -> ConversationHandle:
+    def get_or_create(self, conversation_id: str, *, create: bool = False) -> ConversationHandle:
+        """Get conversation handle. With create=True, explicitly create if absent.
+        CM-FAILCLOSED F4: resume/bind/turn paths must NOT auto-create.
+        """
         session = self._repository.get(conversation_id)
         if session is None:
+            if not create:
+                raise ValueError(f"Conversation not found: {conversation_id}")
             session = self._create_conversation(conversation_id)
         return self._to_handle(session)
 
@@ -265,7 +270,7 @@ class ConversationRuntime:
 
             session = self._repository.get(conversation_id)
             if session is None:
-                session = self._create_conversation(conversation_id)
+                raise ValueError(f"Conversation not found for turn: {conversation_id}")
 
             history = self.get_canonical_history(conversation_id)
 
@@ -323,7 +328,12 @@ class ConversationRuntime:
     def cancel_streaming_turn(self, ctx: "TurnStreamingContext"):
         """Cancel/rollback a streaming turn."""
         try:
-            self._update_message_status(ctx.user_msg_id, "failed")
+            # RMD-1 / CM-I05:
+            # begin_turn_streaming() has already accepted the user message as a
+            # durable canonical fact (status=completed). Assistant cancellation
+            # is an independent lifecycle event and must not downgrade or erase
+            # that accepted user turn.
+            pass
         finally:
             if ctx.lock:
                 ctx.lock.release()
