@@ -62,16 +62,8 @@ class SessionStore:
             if len(meta["topics"]) > 10:
                 meta["topics"] = meta["topics"][-10:]
 
-        # Store last 20 messages for session replay
-        msgs = meta.setdefault("messages", [])
-        if user_msg:
-            msgs.append({"role": "user", "content": user_msg[:500]})
-        if assistant_msg:
-            msgs.append({"role": "assistant", "content": assistant_msg[:500]})
-        if len(msgs) > 40:  # 20 user + 20 assistant
-            msgs = msgs[-40:]
-        meta["messages"] = msgs
-
+        # CM-R1: shadow transcript retired. ConversationRuntime owns sole durable
+        # transcript authority. SessionStore retains only derived catalog metadata.
         self.save()
 
     def set_title(self, session_id: str, title: str):
@@ -104,7 +96,11 @@ class SessionStore:
         if not meta:
             return None
 
+        # CM-R1: messages[] shadow transcript retired. Title generation now
+        # relies on canonical ConversationRuntime transcript, not SessionStore.
         msgs = meta.get("messages", [])
+        if not msgs:
+            return None
         user_msgs = [m["content"][:80] for m in msgs if m.get("role") == "user"][:3]
         if len(user_msgs) < 1:
             return None
