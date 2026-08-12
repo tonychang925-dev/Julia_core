@@ -42,6 +42,7 @@ Authority roles are deliberately separate:
 Historical failed Voice candidates:
 
 - `5f343195...` / `3a2feaf7...` = HISTORICAL RMD-3G LIVE FAILED CANDIDATE, not next production authority.
+- CC-1-C3 production evidence confirmed `session.update` emitted `conversation_id=EMPTY`; C4 is the approved source-level remediation candidate.
 
 ### Brain
 
