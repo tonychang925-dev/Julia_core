@@ -17,13 +17,14 @@ class ConversationMessage:
     role: str = ""          # "user" | "assistant"
     modality: str = "text"  # "text" | "voice"
     content: str = ""
+    source: str = ""          # "voice" | "text" | "system" — origin channel
     status: str = "completed"  # pending | completed | interrupted | failed
     created_at: str = field(default_factory=lambda: datetime.now(CST).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         # Remove legacy-only fields for compact storage
-        return {k: v for k, v in d.items() if v or k in ("message_id", "role", "content", "created_at", "turn_id", "modality", "status")}
+        return {k: v for k, v in d.items() if v or k in ("message_id", "role", "content", "created_at", "turn_id", "modality", "status", "source")}
 
 
 @dataclass
@@ -35,6 +36,7 @@ class ConversationSession:
     tags: list[str] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.now(CST).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(CST).isoformat())
+    summary_status: str = ""  # "none" | "pending" | "completed"
     message_count: int = 0
 
     def touch(self) -> None:
