@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export JULIA_BRAIN_AUTHORITY="bbd90af9853bf709089b78b208b4c6b6347cf6b3"
+export JULIA_BRAIN_ROOT="/Users/admin/julia_ai_assistant_rmd3g_prod"
+export PYTHONPATH="/Users/admin/julia_ai_assistant_rmd3g_prod"
+export PYTHONDONTWRITEBYTECODE=1
+export NO_PROXY="127.0.0.1,localhost"
+export no_proxy="127.0.0.1,localhost"
+
+PRIVATE_ENV="${JULIA_BRAIN_PRIVATE_ENV:-/Users/admin/.julia_ops/brain.env}"
+if [[ -f "$PRIVATE_ENV" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$PRIVATE_ENV"
+  set +a
+fi
+if [[ -z "${DEEPSEEK_API_KEY:-}" ]]; then
+  echo "missing DEEPSEEK_API_KEY; create $PRIVATE_ENV" >&2
+  exit 2
+fi
+cd "$JULIA_BRAIN_ROOT"
+
+# ── RP-1: Runtime Authority Hardening ──────────────────────────────────────
+# 1. Verify working tree is clean (no uncommitted CC1_DIAG-style drift)
+if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+  echo "FATAL: Brain working tree is dirty — uncommitted changes detected" >&2
+  echo "Refusing to start. Commit or stash changes first." >&2
+  exit 3
+fi
+
+# 2. Verify HEAD matches approved authority SHA
+CURRENT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo 'NO_GIT')"
+if [[ "$CURRENT_SHA" != "${JULIA_BRAIN_AUTHORITY:0:7}"* ]]; then
+  echo "FATAL: Brain HEAD ($CURRENT_SHA) does not match approved authority (${JULIA_BRAIN_AUTHORITY:0:7}...)" >&2
+  exit 4
+fi
+
+# 3. Verify julia_core import provenance (not from site-packages or stray install)
+EXPECTED_CORE="/Users/admin/julia_core"
+ACTUAL_CRT="$(
+  /opt/miniconda3/bin/python3.13 -c "import julia_core.runtime.conversation_runtime as m; print(m.__file__)" 2>/dev/null || echo "IMPORT_FAILED"
+)"
+ACTUAL_CTX="$(
+  /opt/miniconda3/bin/python3.13 -c "import julia_core.runtime.context_execution_runtime as m; print(m.__file__)" 2>/dev/null || echo "IMPORT_FAILED"
+)"
+for actual in "$ACTUAL_CRT" "$ACTUAL_CTX"; do
+  case "$actual" in
+    "$EXPECTED_CORE"/*) ;;
+    *) echo "FATAL: julia_core import provenance failed" >&2
+       echo "  expected: $EXPECTED_CORE/*" >&2
+       echo "  actual:   $actual" >&2
+       exit 5 ;;
+  esac
+done
+
+# 4. Log runtime identity for attestation
+echo "BRAIN START: SHA=$CURRENT_SHA CRT=$ACTUAL_CRT PATH=$JULIA_BRAIN_ROOT" >&2
+
+exec /opt/miniconda3/bin/python3.13 voice_api/server.py --port 18089
