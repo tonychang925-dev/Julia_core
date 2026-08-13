@@ -1,6 +1,6 @@
 # STO-D0 Decision Register v1.0
 
-STATUS: ACTIVE
+STATUS: FROZEN
 UPDATED: 2026-08-13
 PROGRAM: Conversation Storage + Management + Julia Diary
 PHASE: STO-D0 — Implementation Decision Freeze (Wave 0)
@@ -550,7 +550,7 @@ recoverable by retrying the same logical turn identity without
 creating a duplicate canonical message.
 ```
 
-### 2.15 Acceptance tests (AT-DUR-01…08)
+### 2.15 Acceptance tests (AT-DUR-01…09)
 
 ```text
 AT-DUR-01  write → fsync → ACK → kill -9 → message survives           ✅
@@ -561,6 +561,31 @@ AT-DUR-05  same turn_id + different content → conflict / fail closed  ✅
 AT-DUR-06  corrupt partial JSONL tail → earlier records survive + evidence ✅
 AT-DUR-07  catalog/index write fails after fsync → message remains truth ✅
 AT-DUR-08  new segment → crash after ACK → segment + message discoverable ✅
+AT-DUR-09  short-write completion / fail-closed (full spec below)     ✅
+```
+
+**AT-DUR-09 — Short-Write Completion / Fail-Closed**
+
+```text
+Given: canonical ConversationMessage serialized into one immutable byte
+       buffer including the terminating newline.
+
+When:  the underlying write operation performs one or more short writes.
+
+Then:  the writer MUST continue until the entire immutable buffer has been
+       durably written, OR fail closed before CORE_ACCEPTED.
+
+MUST NOT:
+  - ACK a partially written canonical record
+  - treat one successful partial write as record completion
+  - silently truncate the record
+  - append a second logical copy during retry
+  - rely on one write() syscall being complete
+
+If completion becomes indeterminate: close/reopen/reconcile per D0-03 I05/I07.
+
+Expected: zero partial accepted record, zero duplicate canonical message,
+          zero false CORE_ACCEPTED.
 ```
 
 ### 2.16 Freeze table
@@ -2769,21 +2794,63 @@ AT-MIG-18  verified complete → remove active legacy source, semantics unchange
 
 ---
 
-## 9. Next Gate — STO-D0 Final Freeze Review
+## 9. STO-D0 Final Freeze Review — CLOSED
 
-All 8 STO-D0 decisions are ACCEPTED. Before any implementation, run a final closeout review checking exactly three things:
+All 8 STO-D0 decisions ACCEPTED. Final closeout review ran three checks:
 
 ```text
-1. D0-01..08 invariant consistency — no mutually contradictory invariants
-2. sabotage numbering / ownership / implementation Gate completeness
-3. STO-F1 / CM-S1 / CM-S2 / DIA implementation input contracts sufficiency
+Check 1  invariant consistency (I01–I55, no contradictions)      ✅ PASS
+Check 2  sabotage completeness (AT-DUR-09 added, total 104)       ✅ PASS
+Check 3  implementation input contracts sufficiency              ✅ PASS
 ```
 
-On PASS → `STO-D0 🔒 CLOSED` → Claude-B RED baseline and Implementation lane converge.
+Sabotage case accounting:
+
+```text
+AT-DUR-01~09       9
+AT-ROT-01~12      12
+AT-DEL-01~14      14
+AT-FTS-01~16      16
+AT-BKP-01~18      18
+AT-DIA-01~17      17
+AT-MIG-01~18      18
+────────────────────
+TOTAL            104
+```
+
+---
+
+## STO-D0 — IMPLEMENTATION DECISION FREEZE
+
+```text
+D0-01  Private Data Root              ✅ 🔒
+D0-02  Diary Physical Format          ✅ 🔒
+D0-03  Accepted-User Durability       ✅ 🔒
+D0-04  Segment Rotation               ✅ 🔒
+D0-05  Archive/Delete Governance      ✅ 🔒
+D0-06  Derived Search Index           ✅ 🔒
+D0-07  Backup/Restore/Retention       ✅ 🔒
+D0-08  Legacy Migration Taxonomy      ✅ 🔒
+
+Invariants       I01–I55               ✅
+Sabotage Cases   104                   ✅
+Cross-check      PASS                  ✅
+
+STATUS
+STO-D0 FROZEN 🔒
+```
+
+From this point the Freeze lane no longer "optimizes" these decisions. Any implementation problem discovered later must go through:
+
+```text
+CONTRACT_GAP_REPORT → explicit adjudication → new amendment / successor decision
+```
+
+Never a silent back-edit of STO-D0.
 
 ---
 
 ## Document status vocabulary
 
-- ACTIVE: decisions being added.
-- FROZEN: all 8 decisions accepted; register sealed into baseline.
+- FROZEN: register sealed into baseline; STO-D0 closed (current).
+- ACTIVE: decisions being added (pre-closeout state, historical).
