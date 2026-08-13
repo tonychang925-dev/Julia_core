@@ -55,6 +55,20 @@ class ConversationBusyError(Exception):
         super().__init__(detail)
 
 
+class CreateIdempotencyConflict(Exception):
+    """Semantic idempotency conflict (corrupt/conflicting reservation) → 409."""
+
+    def __init__(self, detail: str = "idempotency conflict"):
+        super().__init__(detail)
+
+
+class CreateIdempotencyPersistenceFailure(Exception):
+    """Physical persistence/unavailability failure in the idempotency port → 500."""
+
+    def __init__(self, detail: str = "idempotency persistence failure"):
+        super().__init__(detail)
+
+
 class CreateIdempotencyPort(Protocol):
     """Core semantic port for create idempotency.
 
@@ -95,9 +109,12 @@ class ConversationManagementService:
         if idempotency_key is not None:
             try:
                 cid = self._idempotency.get_or_reserve(idempotency_key, cid)
+            except CreateIdempotencyConflict as e:
+                raise ConversationStateConflictError(str(e)) from e   # 409
+            except CreateIdempotencyPersistenceFailure as e:
+                raise CreateFailedError(str(e)) from e                 # 500
             except Exception as e:
-                # idempotency reservation conflict/corruption → state conflict (409)
-                raise ConversationStateConflictError(str(e)) from e
+                raise CreateFailedError(str(e)) from e                 # unclassified → 500, never 409
         try:
             self._runtime.create_conversation(conversation_id=cid, title=title)
         except Exception as e:  # AT-CMS-02: governed failure, no local fallback id
