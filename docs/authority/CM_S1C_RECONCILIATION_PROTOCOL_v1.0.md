@@ -129,7 +129,7 @@ same outcome and MUST NOT duplicate or mutate canonical truth.
 
 S1C is read-only over frozen inputs + a projection. Writing canonical truth is S1D ACTIVATE, out of S1C scope.
 
-## 7. Port behavioral parity (13-method observable behavior)
+## 7. Port behavioral parity (full ConversationRepository protocol)
 
 Snapshot equivalence is necessary but not sufficient. AT-BIND-20 also requires that the segmented adapter's observable behavior over the Core port is contract-equivalent to legacy for:
 
@@ -155,7 +155,7 @@ Each method's return shape, identity semantics, ordering, and failure mode must 
 ```text
 AT-BIND-20 ACCEPTED iff:
   1. snapshot equivalence (§3) VERIFIED, AND
-  2. port behavioral parity (§7) VERIFIED for all 13 methods.
+  2. port behavioral parity (§7) VERIFIED for the full protocol surface (current: 12 methods).
 
 Physical representation differences (segment files vs aggregate JSON)
 are invisible to Core ports.
@@ -251,7 +251,7 @@ AT-RECON-12  unimplemented lifecycle → NOT_APPLICABLE (no synthetic state)  [R
 [ ] equivalence unit complete (conversation + message + source)
 [ ] lifecycle NOT_APPLICABLE rule enforced
 [ ] atomic mismatch classification (one entity, many discrepancies)
-[ ] 13-method port behavioral parity required
+[ ] full-port behavioral parity required (current: 12 methods)
 [ ] outcome ∈ {VERIFIED, REPAIRABLE, BLOCKED}; never best-effort
 [ ] retry idempotent, zero canonical mutation
 [ ] BLOCKED reconciliation halts S1D progression

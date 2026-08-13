@@ -161,8 +161,9 @@ AT-BIND-17 CLOSED = only after S1D implementation evidence
 **CM-S1D-I01 — No Dual Authority**
 
 ```text
-At every instant, exactly one repository is the ACTIVE canonical authority.
-ACTIVATE and rollback are atomic authority switches, never overlapping.
+At every instant, exactly one repository holds canonical authority.
+Write acceptance MAY be disabled during governed freeze states.
+Never more than one repository may accept canonical writes.
 ```
 
 **CM-S1D-I02 — Fail-Closed Gate**
