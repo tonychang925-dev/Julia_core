@@ -1659,11 +1659,434 @@ AT-FTS-16  Context OS path inspection → UI search index does not become implic
 
 ---
 
-## 6. Pending Decisions
+## 6. STO-D0-07 — Backup / Restore / Retention
+
+**Decision: ACCEPT**
+
+One-sentence goal:
 
 ```text
-STO-D0-07   Backup retention policy                                              NEXT
-STO-D0-02   Diary file format (one append-only daily file vs date directory)     PENDING
+Backup 可以保存 Julia 的 canonical truth，但永远不能成为第二套 truth；
+Restore 可以恢复历史，但绝不能把已经删除的历史"复活"。
+```
+
+Closes D0-05 I18 (Hard Delete ≠ Backup Erasure) and D0-06's derived-index rule.
+
+### 6.1 Backup identity
+
+```text
+Live canonical store = authority
+Backup = point-in-time recovery copy of canonical authority
+       ≠ active authority
+       ≠ alternate writable history
+       ≠ cognition source
+```
+
+Forbidden: canonical store fails to open → Brain secretly reads `backups/` transcript → keeps running.
+
+Correct: canonical store invalid → STARTUP/STORAGE BLOCKED → explicit restore procedure → VERIFY → ACTIVATE restored canonical store. (Fail-closed family.)
+
+### 6.2 Backup scope
+
+```text
+memory/                  ✅ MUST (conversations, diary, experiences, identity, continuity)
+migrations/              ✅ selected durable state / reports
+layout metadata          ✅
+deletion/erasure ledger  ✅ MUST
+indexes/                 ❌ NOT REQUIRED (rebuild per D0-06)
+runtime/                 ❌
+logs/                    ❌
+backups/                 ❌ NEVER recursively
+```
+
+### 6.3 Consistent cut
+
+Each backup must represent one coherent application-level durable cut. Never:
+
+```text
+copy conv_A → Tony speaks → copy Memory → Julia writes Diary → copy conv_B
+```
+
+Frozen logical flow:
+
+```text
+BACKUP_REQUEST → acquire consistency barrier → finish/block semantic durable writers
+→ verify all accepted writes crossed durability boundary → capture cut watermark
+→ snapshot/copy canonical durable set → write manifest → verify integrity → release barrier
+```
+
+Mechanism (plain copy / APFS clone / fs snapshot / reflink) is not frozen; the requirement is a coherent cut.
+
+### 6.4 No long-term blocking
+
+Separate:
+
+```text
+CONSISTENCY CAPTURE        (needs the barrier)
+compression/packaging/off-device transfer  (does not need to hold the writer)
+```
+
+```text
+short consistency barrier → immutable staging snapshot → release Julia
+→ hash/compress/encrypt/copy asynchronously
+```
+
+`BACKUP_COMPLETE` only after final verification — never just because staging was created.
+
+### 6.5 Backup manifest
+
+```text
+backup_id, created_at, backup_cut_id, layout_version
+source: application, source_commit, core_contract_version
+contents: memory=included, indexes=excluded, runtime=excluded, logs=excluded
+deletion_ledger_watermark
+integrity: algorithm=sha256, manifest_status=verified
+```
+
+Per-canonical-file checksums, so Restore relies on verification evidence, not "the directory looks right".
+
+### 6.6 Old backup MUST NOT resurrect deleted conversation (P0)
+
+```text
+Aug 1  backup contains conv_A
+Aug 5  Tony HARD DELETE conv_A
+Aug 13  machine dies → restore Aug 1 → conv_A returns  ← P0 semantic bug
+```
+
+This would let Backup bypass D0-05's Hard Delete. Solution: **deletion / erasure ledger**.
+
+### 6.7 Deletion ledger (restore protection, not transcript)
+
+Each hard delete leaves a minimal non-content receipt:
+
+```text
+conversation_id, purged_at, purge_id, state=PURGED
+```
+
+Never: message content, summary, embedding, transcript shadow.
+
+Aggregated into the deletion/erasure ledger (or governed metadata region). Meaning: "this canonical identity was explicitly purged; old backups MUST NOT reactivate it."
+
+### 6.8 Restore MUST replay erasure state
+
+```text
+select backup → stage → verify hashes/schema
+→ obtain latest authoritative erasure ledger
+→ apply all purge receipts newer than backup cut
+→ verify no purged object resurrected
+→ rebuild derived indexes → activate restored root
+```
+
+```text
+old backup contains conv_A + latest ledger says conv_A PURGED
+= restored canonical root MUST NOT contain conv_A
+```
+(strongest invariant of D0-07)
+
+### 6.9 Ledger must survive total machine loss
+
+The ledger cannot live only in the live root's last copy. Every subsequent backup includes the **cumulative erasure ledger**, and backup-set management keeps the latest ledger watermark:
+
+```text
+Backup B1 contains conv_A → hard delete → purge receipt P1
+Backup B2 contains cumulative P1 → Backup B3 contains cumulative P1
+restoring old B1 uses the newest verified erasure ledger in the available backup set
+```
+
+Backups may keep old bytes until retention expires, but must not restore them as active truth.
+
+### 6.10 Physical backup deletion ≠ logical anti-resurrection
+
+```text
+physical bytes still in old backup
+but ledger blocks restore
+
+honest states:
+  LIVE_CANONICAL_PURGE    ✅
+  RESTORE_RESURRECTION    ✅ BLOCKED
+  BACKUP_PHYSICAL_ERASURE ⏳ retention pending
+  GLOBAL_ERASURE_COMPLETE ❌
+```
+
+This is D0-05 I18's true closure.
+
+### 6.11 Retention policy (v1 operational default)
+
+```text
+7 daily  + 4 weekly + 12 monthly
+MANUAL CHECKPOINT  → retained until explicit delete
+```
+
+Rationale: fine-grained 7-day recovery for accidental delete, 1-month weekly for project errors, 1-year monthly anchors for long-term schema/migration disaster, without unbounded private-data accumulation. Operational default, not semantic invariant; user-configurable.
+
+### 6.12 Retention deletion fail-closed
+
+Retention worker problems → old backups linger (RETENTION_LAG), never a system failure, never:
+
+```text
+delete canonical / delete manual checkpoint / delete wrong generation
+```
+
+Retention applies only to: verified backup artifacts, explicitly eligible generations, never live root, never MANUAL/PINNED.
+
+### 6.13 Restore never in-place
+
+Wrong: `rm -rf memory/ ; cp backup/memory/* memory/` (half-dead Julia on failure).
+
+```text
+RESTORE STAGING ROOT → materialize backup → verify → apply erasure ledger
+→ validate references → rebuild derived indexes → full acceptance tests
+→ atomic/governed activation → old root retained temporarily as rollback evidence
+```
+
+Reuses ADR-002 spirit: FREEZE → RECONCILE → VERIFY → ACTIVATE → RETIRE. Restore is an authority cutover.
+
+### 6.14 No automatic timeline merge
+
+Default Restore = one restored canonical state. Never auto-merge `current live + old backup` by timestamp (produces duplicate messages/turns, forked conversations, resurrected state). v1: automatic timeline merge = FORBIDDEN. Selective restore/import, if ever needed, goes through the Migration contract, not normal Restore.
+
+### 6.15 Identity preservation
+
+Full restore preserves exactly:
+
+```text
+conversation_id, message_id, turn_id, source_refs
+Diary refs, Memory refs, Continuity refs
+```
+
+Restore MUST NOT regenerate semantic identities (would break the whole provenance graph).
+
+### 6.16 Don't trust derived metadata after restore
+
+Even if backup contains `meta.json` counters, after restore:
+
+```text
+verify canonical segments → reconcile meta → verify refs → rebuild FTS
+```
+
+`message_count / segment_count / last_message_id` never override actual canonical files (inherits D0-04).
+
+### 6.17 Encryption / privacy
+
+Backup contains Julia's complete private history:
+
+```text
+derived/copy ≠ less private
+local managed backups → same private permission boundary
+external/off-device backup → MUST be encrypted before leaving trusted root/device
+encryption key → MUST NOT be stored plaintext inside the same archive
+```
+
+### 6.18 Same-disk backup ≠ disaster recovery
+
+`<PRIVATE_JULIA_DATA>/backups/` may share the SSD with canonical data. It protects against accidental delete / bad migration / corruption, but NOT SSD death / machine loss.
+
+```text
+LOCAL MANAGED BACKUP ≠ OFF-DEVICE DISASTER RECOVERY
+```
+
+### 6.19 Backup complete definition
+
+`BACKUP_COMPLETE` iff:
+
+```text
+consistent cut captured
+AND required canonical artifacts present
+AND manifest finalized
+AND integrity verification passes
+AND backup destination durability succeeds
+```
+
+Any uncertainty → `BACKUP_FAILED` (no fake success).
+
+### 6.20 Restore complete definition
+
+`RESTORE_COMPLETE` at least requires:
+
+```text
+backup verified
+layout compatible/migrated
+canonical refs valid
+latest purge ledger replayed
+zero forbidden resurrection
+derived indexes rebuilt or explicitly unavailable
+activation completed
+runtime points only to restored canonical root
+```
+
+Never "files copied → RESTORE COMPLETE".
+
+### 6.21 Backup failure isolation
+
+Backup/sync/snapshot is NOT on the CORE_ACCEPTED critical path (inherits D0-03). `CORE_ACCEPTED` never waits on backup.
+
+### 6.22 Invariants
+
+**STO-D0-I27 — Backup Is Not Authority**
+
+```text
+Backup artifacts are recovery copies only.
+
+They MUST NOT become active Conversation, Memory, Diary, Identity,
+Continuity, or cognition authority without an explicit verified
+Restore activation.
+```
+
+**STO-D0-I28 — Consistent Backup Cut**
+
+```text
+Every completed backup MUST correspond to a coherent durable
+application-level cut.
+
+A backup assembled from mutually inconsistent semantic write states
+MUST NOT be reported as complete.
+```
+
+**STO-D0-I29 — Restore Must Not Resurrect Purged Truth**
+
+```text
+Restore MUST apply the latest authoritative purge/deletion ledger
+available for the backup set before activation.
+
+Content previously hard-purged MUST NOT be resurrected merely because
+an older backup still contains its bytes.
+```
+
+**STO-D0-I30 — No In-Place Restore**
+
+```text
+Restore MUST be staged, verified, and explicitly activated.
+
+Production canonical data MUST NOT be destructively replaced in place
+before restore validation succeeds.
+```
+
+**STO-D0-I31 — Identity Preservation**
+
+```text
+Normal full restore MUST preserve canonical conversation_id, message_id,
+turn_id, and durable source-reference identities.
+
+Restore MUST NOT regenerate semantic identities.
+```
+
+**STO-D0-I32 — Derived Artifacts Are Optional**
+
+```text
+Derived indexes, caches, and runtime state MUST NOT be required for backup
+completeness.
+
+They MAY be rebuilt after restore from canonical artifacts.
+```
+
+**STO-D0-I33 — No False Global Erasure**
+
+```text
+Live-store hard purge, restore-resurrection prevention, backup physical
+erasure, and global erasure are distinct states.
+
+The system MUST NOT claim global erasure while managed backup copies
+containing the deleted content may still exist.
+```
+
+**STO-D0-I34 — Backup Failure Isolation**
+
+```text
+Backup creation, packaging, transfer, retention, or verification failure
+MUST NOT invalidate already-durable canonical Conversation acceptance.
+
+Backup MUST NOT enter the CORE_ACCEPTED critical path.
+```
+
+**STO-D0-I35 — No Automatic Timeline Merge**
+
+```text
+Restore MUST NOT automatically merge a backup timeline with an
+independently advanced live canonical timeline.
+
+Any such reconciliation requires a separately governed migration/import
+contract.
+```
+
+### 6.23 Acceptance tests (AT-BKP-01…18)
+
+```text
+AT-BKP-01  backup during active conversations → coherent cut, no half-state   ✅
+AT-BKP-02  crash during backup capture → not COMPLETE, canonical unaffected   ✅
+AT-BKP-03  corrupt backup file/checksum → restore blocked                     ✅
+AT-BKP-04  delete all indexes before backup → backup still COMPLETE           ✅
+AT-BKP-05  restore without indexes → canonical valid, indexes rebuild         ✅
+AT-BKP-06  old backup has conv_A, later PURGED → restore → conv_A not resurrected ✅
+AT-BKP-07  latest purge ledger unavailable/unverified, backup predates deletions → restore BLOCKED ✅
+AT-BKP-08  live purge complete, old backup still has content → GLOBAL_ERASURE_COMPLETE stays false ✅
+AT-BKP-09  retention expires backup with purged content → physical removal updates erasure state ✅
+AT-BKP-10  MANUAL/PINNED backup → automatic retention never deletes          ✅
+AT-BKP-11  restore crash halfway through staging → current canonical root untouched ✅
+AT-BKP-12  restore verification fails → no authority activation              ✅
+AT-BKP-13  restore success → conversation_id/message_id/turn_id unchanged    ✅
+AT-BKP-14  restored meta counters stale → canonical files win, metadata rebuilt ✅
+AT-BKP-15  backup worker fails while user append succeeds → CORE_ACCEPTED valid ✅
+AT-BKP-16  external backup write succeeds but verification fails → BACKUP_COMPLETE false ✅
+AT-BKP-17  attempt auto-merge of divergent live+backup histories → rejected / migration required ✅
+AT-BKP-18  external backup leaves trusted device unencrypted → blocked       ✅
+```
+
+### 6.24 Retention freeze matrix
+
+| Item | v1 |
+|---|---|
+| daily | 7 |
+| weekly | 4 |
+| monthly | 12 |
+| manual checkpoint | retained until explicit delete |
+| indexes in canonical backup | ❌ |
+| runtime/cache/logs | ❌ |
+| canonical memory/ | ✅ |
+| cumulative deletion ledger | ✅ |
+| backup before CORE_ACCEPTED | ❌ |
+| restore in place | ❌ |
+| automatic timeline merge | ❌ |
+| old backup resurrection of PURGED | ❌ |
+| same-disk backup called disaster recovery | ❌ |
+| off-device encryption | ✅ mandatory |
+
+Retention numbers are configurable operational defaults; invalid explicit config (`daily=-1`) → fail validation, never silent nonsense.
+
+### 6.25 Backup state model
+
+```text
+CREATING → VERIFYING → COMPLETE        (only COMPLETE is restorable)
+CREATING / VERIFYING → FAILED
+
+Restore:
+STAGING → VERIFYING → RECONCILING_DELETIONS → READY_TO_ACTIVATE → ACTIVE
+```
+
+Intermediate states are never canonical authority.
+
+### 6.26 Four-layer erasure state (D0-07's core value)
+
+```text
+1. LIVE PURGE                 live canonical bytes removed
+2. RESTORE BLOCK              deletion ledger prevents resurrection
+3. BACKUP PHYSICAL EXPIRY     old copies actually disappear (retention)
+4. GLOBAL ERASURE COMPLETE    only when all managed copies are accounted for
+```
+
+Neither "pretend the user didn't delete" (for backup retention) nor "live file gone → claim all copies gone forever" (false erasure). This is correct evidence discipline.
+
+### 6.27 Resolver / implementation notes (OPS-1, not decision changes)
+
+1. **Deletion-ledger entry is a D0-03-class durable mutation**: the purge receipt MUST be durably written (write + flush + fsync) as part of hard-delete completion. A lost or un-flushed receipt is a resurrection hole — it must never be written "best effort" after `HARD_DELETE_COMPLETE`.
+2. **Cumulative ledger capture must be atomic per backup**: each backup must contain the full monotonic ledger up to its own cut watermark. A partial ledger snapshot risks missing an earlier purge receipt, which is indistinguishable from "no deletion ever happened".
+3. **Ledger selection at restore must be deterministic and verified**: the "latest authoritative erasure ledger" is chosen by verified identity/watermark (hash/version), never "the newest file found on disk". AT-BKP-07 already blocks unverified ledgers; the selection rule itself must be pinned so a stale/tampered ledger cannot silently enable resurrection.
+
+---
+
+## 7. Pending Decisions
+
+```text
+STO-D0-02   Diary file format (one append-only daily file vs date directory)     NEXT
 STO-D0-08   Claude Julia legacy artifact migration classification rules          PENDING
 ```
 
