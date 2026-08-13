@@ -8,7 +8,7 @@ PURPOSE: one cross-repository entry point for current code/document authority.
 
 | Repo | Role | Branch | Current authority commit | Manifest |
 |---|---|---|---|---|
-| Julia_core | Core runtime, canonical architecture, ConversationRuntime, Context OS, Memory OS, Continuity OS | `cm-r0-fix` | branch `4937f8f` · STO-D0 `261521f` · STO-F1 `23ecc1f` | `docs/authority/CURRENT_AUTHORITY.md` |
+| Julia_core | Core runtime, canonical architecture, ConversationRuntime, Context OS, Memory OS, Continuity OS | `cm-r0-fix` | branch `4937f8f` · D0 `261521f` · F1 `23ecc1f` · F2 `edc0692` | `docs/authority/CURRENT_AUTHORITY.md` |
 | Julia-AI-Assistant | Brain/OpenAI-compatible API, CRT bridge, application composition root, physical persistence host | `phase5/rmd-3g-observability` | `44cea89` | `docs/authority/CURRENT_AUTHORITY.md` |
 | Julia-Voice-S2S | Voice/S2S media transport | `phase5/rmd-3g-observability` | `315f359` | `docs/authority/CURRENT_AUTHORITY.md` |
 | Julia_client / `julia_electron_v2` | Electron desktop client / projection | `codex/bugfix/electron-c10-c11-projection` | `4a08967` | `docs/authority/CURRENT_AUTHORITY.md` |
@@ -56,7 +56,8 @@ Global rule: REPO HEAD is not automatically SOURCE AUTHORITY, ARTIFACT AUTHORITY
 - Physical persistence ownership model frozen by **ADR-033**.
 - **STO-D0 (Implementation Decision Freeze): FROZEN @ `261521f`** — register `docs/authority/STO_D0_DECISION_REGISTER_v1.0.md` (I01–I55, 104 sabotage cases).
 - **STO-F1 (Private Filesystem Contract): FROZEN @ `23ecc1f`** — contract `docs/authority/STO_F1_PRIVATE_FILESYSTEM_CONTRACT_v1.0.md` (F1-I01–I12, 24 AT-FS cases).
-- Next: STO-F2.
+- **STO-F2 (Application Persistence Binding): FROZEN @ `edc0692`** — contract `docs/authority/STO_F2_APPLICATION_PERSISTENCE_BINDING_v1.0.md` (F2-I01–I12, 20 AT-BIND cases).
+- Next: WAVE-0 FINAL CLOSEOUT.
 
 ## Document status vocabulary
 
@@ -82,5 +83,6 @@ Global rule: REPO HEAD is not automatically SOURCE AUTHORITY, ARTIFACT AUTHORITY
 - STO-A0 (Authority Reconciliation) — CLOSED.
 - STO-D0 (Implementation Decision Freeze) — CLOSED / FROZEN @ `261521f`.
 - STO-F1 (Private Filesystem Contract) — CLOSED / FROZEN @ `23ecc1f`.
-- STO-F2 (Application Persistence Binding) — NEXT.
+- STO-F2 (Application Persistence Binding) — CLOSED / FROZEN @ `edc0692`.
+- WAVE-0 FINAL CLOSEOUT — NEXT.
 - CM-S1 onward only after Wave 0 gates PASS.
