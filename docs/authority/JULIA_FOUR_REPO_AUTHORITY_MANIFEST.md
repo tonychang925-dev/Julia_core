@@ -57,7 +57,8 @@ Global rule: REPO HEAD is not automatically SOURCE AUTHORITY, ARTIFACT AUTHORITY
 - **STO-D0 (Implementation Decision Freeze): FROZEN @ `261521f`** — register `docs/authority/STO_D0_DECISION_REGISTER_v1.0.md` (I01–I55, 104 sabotage cases).
 - **STO-F1 (Private Filesystem Contract): FROZEN @ `23ecc1f`** — contract `docs/authority/STO_F1_PRIVATE_FILESYSTEM_CONTRACT_v1.0.md` (F1-I01–I12, 24 AT-FS cases).
 - **STO-F2 (Application Persistence Binding): FROZEN @ `edc0692`** — contract `docs/authority/STO_F2_APPLICATION_PERSISTENCE_BINDING_v1.0.md` (F2-I01–I12, 20 AT-BIND cases).
-- Next: WAVE-0 FINAL CLOSEOUT.
+- **WAVE-0 (Authority & Contracts): CLOSED / FROZEN** — record `docs/authority/WAVE0_CLOSEOUT_RECORD_v1.0.md` (W0-1..W0-6 PASS).
+- Next: WAVE 1 — STORAGE IMPLEMENTATION.
 
 ## Document status vocabulary
 
@@ -84,5 +85,6 @@ Global rule: REPO HEAD is not automatically SOURCE AUTHORITY, ARTIFACT AUTHORITY
 - STO-D0 (Implementation Decision Freeze) — CLOSED / FROZEN @ `261521f`.
 - STO-F1 (Private Filesystem Contract) — CLOSED / FROZEN @ `23ecc1f`.
 - STO-F2 (Application Persistence Binding) — CLOSED / FROZEN @ `edc0692`.
-- WAVE-0 FINAL CLOSEOUT — NEXT.
+- WAVE-0 (Authority & Contracts) — CLOSED / FROZEN.
+- WAVE 1 — STORAGE IMPLEMENTATION (STO-F1 impl → STO-F2 binding → CM-S1) — NEXT.
 - CM-S1 onward only after Wave 0 gates PASS.
