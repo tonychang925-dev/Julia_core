@@ -669,6 +669,17 @@ class ConversationBusyError(Exception):
         super().__init__(f"Conversation {conversation_id} is busy with another turn")
 
 
+class ConversationCutoverRequired(Exception):
+    """F2-I11: replacing an active canonical adapter is an authority cutover."""
+
+    def __init__(self):
+        super().__init__(
+            "PERSISTENCE_CUTOVER_REQUIRED: active repository binding is "
+            "immutable; replacement requires a governed FREEZE→RECONCILE→"
+            "VERIFY→ACTIVATE→RETIRE sequence"
+        )
+
+
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
 _runtime: ConversationRuntime | None = None
@@ -677,13 +688,15 @@ _runtime_lock = threading.Lock()
 
 def configure_conversation_runtime(repository: ConversationRepository) -> ConversationRuntime:
     """F2-I01/I07: the Assistant composition root injects the bound physical
-    repository. First configuration establishes the binding epoch; subsequent
-    calls MUST NOT silently rebind (F2-I10/I11) — adapter replacement is a
-    governed cutover, not a re-configure."""
+    repository. First configuration establishes the binding epoch. Re-binding
+    the SAME repository is idempotent; re-binding a DIFFERENT repository is a
+    governed adapter cutover and MUST raise (F2-I10/I11 / F2A-R3)."""
     global _runtime
     with _runtime_lock:
         if _runtime is not None:
-            return _runtime  # binding epoch immutable — no silent rebind
+            if _runtime.repository is repository:
+                return _runtime  # idempotent same binding
+            raise ConversationCutoverRequired()
         _runtime = ConversationRuntime(repository=repository)
         return _runtime
 
@@ -703,6 +716,7 @@ __all__ = [
     "ConversationHandle",
     "TurnResult",
     "ConversationBusyError",
+    "ConversationCutoverRequired",
     "configure_conversation_runtime",
     "get_conversation_runtime",
 ]
