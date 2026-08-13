@@ -42,7 +42,7 @@ host.attach(conversation_id)
 S2S binds media session to that canonical conversation
 ```
 
-Electron never sends a local/fallback conversation_id to Voice. Voice binds to the canonical id Electron received from Core/Brain.
+Electron never sends a local/fallback conversation_id to Voice. Voice binds to the canonical id Electron received from the canonical management API backed by Core semantics.
 
 ## Invariants
 
@@ -56,7 +56,7 @@ disposable and never canonical authority.
 **CM-S5-I02 — Canonical Identity From Core**
 
 ```text
-Electron receives canonical conversation_id from Core/Brain create/open.
+Electron receives canonical conversation_id from the canonical management API backed by Core semantics.
 It never manufactures a local fallback canonical id.
 ```
 
@@ -89,7 +89,7 @@ AT-ELEC-06  Text/Voice share one canonical timeline (projection only)        [RE
 
 ```text
 [ ] Electron = presentation only
-[ ] canonical conversation_id sourced from Core/Brain
+[ ] canonical conversation_id sourced from the canonical management API backed by Core semantics
 [ ] no local fallback id, no copied-transcript authority
 [ ] Voice binds canonical id (host.attach)
 [ ] Text/Voice unified projection, one canonical timeline

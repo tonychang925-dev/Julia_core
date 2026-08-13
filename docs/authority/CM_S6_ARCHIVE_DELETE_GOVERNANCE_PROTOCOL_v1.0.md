@@ -5,7 +5,7 @@ UPDATED: 2026-08-13
 PROGRAM: Conversation Storage + Management + Julia Diary
 PHASE: Wave 2 — CM-S6 Protocol Freeze (Claude-A)
 BASE: cm-r0-fix @ `c5f0fbd`
-FROZEN INPUTS: STO-D0 @ `261521f` (D0-05) · CM-S2 (this lane, search visibility gate)
+FROZEN INPUTS: STO-D0 @ `261521f` (D0-05) · CM-S2 protocol authority @ Wave-1 lane FINAL `f1d5734`
 
 ## Governing principle
 
@@ -18,7 +18,13 @@ leaves dangling provenance or resurrects purged truth.
 ## Lifecycle states
 
 ```text
-ACTIVE → ARCHIVED → TOMBSTONED → PURGED
+ACTIVE ↔ ARCHIVED → TOMBSTONED → PURGED
+```
+
+```text
+ARCHIVED → ACTIVE   = governed restore
+TOMBSTONED → ACTIVE = NOT implied by archive restore
+PURGED              = terminal
 ```
 
 ```text
@@ -101,7 +107,7 @@ AT-DEL2-08  restore archived → same conversation_id, no transcript rewrite   [
 ## Acceptance gate
 
 ```text
-[ ] ACTIVE → ARCHIVED → TOMBSTONED → PURGED governed
+[ ] ACTIVE ↔ ARCHIVED → TOMBSTONED → PURGED governed
 [ ] archive ≠ delete; tombstone ≠ purge; purge ≠ bare rm
 [ ] reference governance before hard purge
 [ ] no cascade delete, no dangling provenance
