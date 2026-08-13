@@ -4,14 +4,14 @@ Governed orchestration surface over ConversationRuntime. It NEVER invents
 canonical truth, NEVER mutates ConversationRepository directly, and NEVER
 auto-creates on an unknown conversation_id (GAP-8).
 
-Canonical-message mutation and canonical conversation_id allocation flow
-through ConversationRuntime (sole semantic authority).
+Canonical conversation_id allocation and canonical-message mutation flow
+through ConversationRuntime (sole semantic authority). Durable idempotency
+persistence is delegated to a CreateIdempotencyPort whose physical
+implementation belongs to the Assistant composition layer (F2 path opacity).
 """
 from __future__ import annotations
 
-import json
-import os
-from pathlib import Path
+from typing import Protocol
 
 from .conversation_runtime import ConversationRuntime
 
@@ -35,71 +35,55 @@ class LifecycleUnavailableError(Exception):
 
 class CreateFailedError(Exception):
     """AT-CMS-02: canonical create failure propagates a governed failure.
-    No local-fallback id, no idempotency mapping recorded."""
+    No local-fallback id is ever manufactured."""
 
     def __init__(self, detail: str = ""):
         super().__init__(detail or "canonical conversation create failed")
 
 
-class CreateIdempotencyStore:
-    """Management-level durable idempotency_key → canonical conversation_id.
+class CreateIdempotencyPort(Protocol):
+    """Core semantic port for create idempotency.
 
-    Deliberately OUTSIDE the frozen 12-method ConversationRepository port.
-    This is Wave-2 management state, not canonical transcript truth.
+    Core decides WHAT: a given idempotency_key MUST converge to one reserved
+    canonical conversation identity. The port exposes an atomic put-if-absent
+    reservation. It knows NOTHING about Path / JSON / fsync / filesystem.
+
+    Physical implementation belongs to Julia-AI-Assistant.
     """
 
-    def __init__(self, path: Path | str):
-        self._path = Path(path)
-        self._data: dict[str, str] = self._load()
+    def get_or_reserve(self, idempotency_key: str, candidate_id: str) -> str:
+        """Atomically reserve candidate_id for idempotency_key.
 
-    def _load(self) -> dict[str, str]:
-        if self._path.exists():
-            try:
-                data = json.loads(self._path.read_text())
-                if isinstance(data, dict):
-                    return {str(k): str(v) for k, v in data.items()}
-            except (json.JSONDecodeError, OSError):
-                return {}
-        return {}
-
-    def get(self, key: str) -> str | None:
-        return self._data.get(key)
-
-    def put(self, key: str, cid: str) -> None:
-        self._data[key] = cid
-        tmp = self._path.with_suffix(self._path.suffix + ".tmp")
-        tmp.write_text(json.dumps(self._data))
-        os.replace(tmp, self._path)  # atomic durable write
+        Returns the reserved canonical conversation_id: candidate_id if this is
+        the first reservation, else the already-reserved id. Raises on
+        corruption/unavailability (fail-closed — never treats corruption as empty).
+        """
+        ...
 
 
 class ConversationManagementService:
     """CM-S3-I02/I05/I06: orchestrate, never invent; fail-closed; idempotent create."""
 
-    def __init__(self, runtime: ConversationRuntime, idempotency_store: CreateIdempotencyStore):
+    def __init__(self, runtime: ConversationRuntime, idempotency_port: CreateIdempotencyPort):
         self._runtime = runtime
-        self._idempotency = idempotency_store
+        self._idempotency = idempotency_port
 
     # ── create ────────────────────────────────────────────────────────────
     def create(self, idempotency_key: str | None = None, title: str = "New Conversation") -> dict:
-        """CM-S3-I06: idempotency_key ≠ conversation_id.
+        """CM-S3-I06 + W2-IDEMP reserve-before-create order:
 
-        Same idempotency_key returns the same canonical conversation (durable
-        across reconstruction). Canonical conversation_id is allocated by
-        ConversationRuntime, never by this layer.
+            allocate candidate cid → get_or_reserve(key, cid) → create(reserved cid)
+
+        Reservation precedes canonical creation, so any crash window converges
+        to a single canonical conversation for the same idempotency_key.
         """
+        cid = self._runtime.allocate_conversation_id()  # Core allocates identity
         if idempotency_key is not None:
-            existing = self._idempotency.get(idempotency_key)
-            if existing is not None:
-                return self.get(existing)
-
+            cid = self._idempotency.get_or_reserve(idempotency_key, cid)
         try:
-            handle = self._runtime.create_conversation(title=title)
-        except Exception as e:  # AT-CMS-02: no mapping recorded on failure
+            self._runtime.create_conversation(conversation_id=cid, title=title)
+        except Exception as e:  # AT-CMS-02: governed failure, no local fallback id
             raise CreateFailedError(str(e)) from e
-
-        cid = handle.conversation_id  # Core-allocated canonical id
-        if idempotency_key is not None:
-            self._idempotency.put(idempotency_key, cid)
         return self._runtime.get_conversation(cid)  # type: ignore[return-value]
 
     # ── get / open / resume ───────────────────────────────────────────────
@@ -129,8 +113,6 @@ class ConversationManagementService:
 
     # ── lifecycle (CM-S6 authority; fail-closed until implemented) ────────
     def delete(self, conversation_id: str) -> bool:
-        """CM-S3-I08 / AT-CMS-08: archive/delete governance is NOT implemented.
-        Fail-closed — zero canonical mutation, conversation remains intact."""
         if self._runtime.get_conversation(conversation_id) is None:
             raise ConversationNotFoundError(conversation_id)
         raise LifecycleUnavailableError("delete")
