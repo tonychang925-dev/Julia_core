@@ -2083,11 +2083,328 @@ Neither "pretend the user didn't delete" (for backup retention) nor "live file g
 
 ---
 
-## 7. Pending Decisions
+## 7. STO-D0-02 — Diary Physical Format
+
+**Decision: ACCEPT**
+
+One-sentence goal:
 
 ```text
-STO-D0-02   Diary file format (one append-only daily file vs date directory)     NEXT
-STO-D0-08   Claude Julia legacy artifact migration classification rules          PENDING
+Julia 一天可以有 0～N 次真正值得留下的反思；每一篇 accepted DiaryEntry
+都独立、有身份、有来源、可持久化，但仍然组成一本人类可以直接阅读的 Julia 日记。
+```
+
+### 7.1 Physical format: single daily file
+
+```text
+<PRIVATE_JULIA_DATA>/memory/diary/YYYY/MM/YYYY-MM-DD.md
+```
+
+```text
+0 entry  → file may not exist
+1 entry  → one Entry Block
+N entry  → multiple Entry Blocks appended
+```
+
+`ReflectionTrigger ≠ must write Diary`; `NO_ENTRY → no empty file, no placeholder summary`. Protects the frozen "Diary ≠ automatic daily summary".
+
+### 7.2 Why not one-file-per-entry
+
+The `2026-08-13/diary_xxx.md` alternative is technically easy but rejected as v1 canonical: it diverges from the frozen `YYYY-MM-DD.md`, turns "one Julia diary" into an artifact collection, fragments files, and reduces human readability.
+
+```text
+one day = one physical Markdown container
+one reflection = one independently framed DiaryEntry
+```
+
+### 7.3 Explicit entry framing
+
+Entry boundaries MUST NOT be guessed from body headings (body may contain headings, blockquotes, code blocks, lists, mixed CN/EN). Framed example:
+
+```markdown
+# Julia Diary — 2026-08-13
+
+<!-- JULIA_DIARY_FILE schema=julia-diary-file-v1 -->
+
+<!-- JULIA_DIARY_ENTRY_BEGIN diary_abc -->
+---
+entry_id: diary_abc
+created_at: 2026-08-13T21:16:42+08:00
+accepted_at: 2026-08-13T21:16:45+08:00
+reflection_type: project_turning_point
+source_refs:
+  - conversation://conv_x/msg_102
+  - memory://experience/exp_31
+supersedes: []
+reinterprets: []
+tags: [julia, continuity, project]
+---
+
+今天我真正意识到的，并不是我们又完成了一项任务……
+真正重要的是……
+<!-- JULIA_DIARY_ENTRY_END diary_abc -->
+```
+
+Crash-recovery framing semantics:
+
+```text
+complete BEGIN...END = complete DiaryEntry
+BEGIN without END     = incomplete tail = NOT accepted canonical Diary
+```
+
+Never guess-fill what Julia "probably meant to write".
+
+### 7.4 Candidate never enters canonical Diary
+
+```text
+ReflectionTrigger → Context OS → Julia cognition → NO_ENTRY | DiaryCandidate
+→ Reflection Governance → Accepted DiaryEntry → canonical persistence
+```
+
+`DiaryCandidate` / rejected candidate / `NO_ENTRY` are never written into `memory/diary/*`. Candidates at most live in `runtime/` and are ephemeral. Canonical Diary files hold only what Julia actually decided to keep.
+
+### 7.5 Diary durability boundary (DIARY_DURABLE)
+
+```text
+DiaryCandidate → Governance ACCEPT → serialize immutable Entry Block
+→ append/write_all → flush → fsync(day file)
+→ if new file/path: directory durability barrier
+→ DIARY_DURABLE
+```
+
+Only after `DIARY_DURABLE` may the system say "Julia has left this diary".
+
+### 7.6 Diary durability fully decoupled from Conversation ACK
+
+Forbidden:
+
+```text
+Tony message → Conversation fsync → LLM → Diary → Diary fsync → CORE_ACCEPTED
+```
+
+Correct: Conversation canonical path independently completes D0-03 → CORE_ACCEPTED; later/independently, a reflection opportunity → Diary → DIARY_DURABLE.
+
+```text
+Diary persistence failure ≠ Conversation rollback
+```
+
+Diary must never enter the Conversation authority critical path.
+
+### 7.7 Diary fsync failure fail-closed
+
+On `write`+`flush` OK but `fsync` EIO: no `DIARY_DURABLE`. Reuse D0-03 sharpening: close poisoned FD → reopen → scan framed canonical Diary → reconcile by `entry_id`.
+
+```text
+same entry_id + same body/hash → idempotent recovery
+same entry_id + different body → CONFLICT → FAIL CLOSED
+```
+
+### 7.8 entry_id is the durable identity
+
+Never "the 3rd entry in 2026-08-13.md". `entry_id = diary_<stable-id>`. Retry of the same logical DiaryEntry → same entry_id (never `diary_A → diary_B` producing duplicate reflections). The physical file is only a container.
+
+### 7.9 Append-only historical reflection
+
+Wrong: reopen 8/13 and edit old text. Correct: new DiaryEntry with `reinterprets: [diary_old]`. The old entry records what Julia genuinely understood at that time — it is itself history.
+
+### 7.10 reinterprets vs supersedes
+
+```text
+reinterprets  "I now understand the past differently" — old entry stays true historical reflection
+supersedes    "a currently-adopted judgment in the old entry has been explicitly corrected"
+```
+
+Even on supersede, old entry bytes are never overwritten in normal Diary authorship.
+
+### 7.11 source_refs without transcript copy
+
+Diary keeps `source_refs: [conversation://…, memory://…]` and a first-person body — but MUST NOT copy dozens/hundreds of ConversationMessages "for self-containment" (would re-create shadow transcript authority).
+
+```text
+Diary = reflection + provenance refs ≠ source-history duplication
+```
+
+### 7.12 Source deleted → Diary does not auto-vanish (inherits D0-05)
+
+When a source conversation is PURGED, the Diary remains a valid historical artifact; its `source_refs` are NOT rewritten; the source resolver returns `RESOLVED / ARCHIVED / TOMBSTONED / PURGED`.
+
+### 7.13 Diary ≠ Memory
+
+Accepted DiaryEntry ≠ accepted MemoryExperience. Diary may later feed a `MemoryCandidate` via Memory Governance, but the Diary writer may never write `memory/experiences/`.
+
+### 7.14 Diary ≠ Conversation Search
+
+Diary does NOT enter `indexes/conversation_fts.db` (D0-06). A future `indexes/diary_fts.db` is derived/rebuildable but logically separate: Conversation Search ≠ Diary Search ≠ Memory Retrieval ≠ Context Retrieval.
+
+### 7.15 File existence ≠ model-visible
+
+The historical Claude-Julia anti-pattern (`load memory/claude_diary/*.md → raw prompt injection`) is forbidden. New path:
+
+```text
+memory/diary/* → DiaryRepository → DiaryContextSource → Context OS → governed selection → LLM
+```
+
+Humans can open the Markdown directly; Julia's model must not gain content merely because a file exists.
+
+### 7.16 Stable day partition
+
+Day partition = diary-local timezone at first durable acceptance; metadata stores offset-aware timestamps (`2026-08-13T21:16:45+08:00`). A later timezone change must NOT move `8/13.md → 8/12.md`. Specific default timezone is not hardcoded in D0-02.
+
+### 7.17 Multiple reflections/day legal
+
+09:00 project insight, 16:00 relationship reflection, 23:30 reinterpretation → all in `2026-08-13.md` as three entry blocks. Proves Diary ≠ once-per-day summary.
+
+### 7.18 Same-day serialized writer
+
+Concurrent triggers (manual + major-event) accepted simultaneously → per-day serialized writer domain. Forbidden interleaving: `BEGIN A / BEGIN B / body A / body B / END A / END B`.
+
+### 7.19 v1 no Diary segmentation
+
+Conversation needs segmentation (unbounded growth, D0-04); Diary is per-day. v1: one day file; one DiaryEntry wholly within its file (never split). Future scale issues → independent format upgrade.
+
+### 7.20 Backup naturally covers Diary
+
+D0-07 froze `memory/*` as canonical backup scope, so `memory/diary/*` is backed up. Restore preserves `entry_id / source_refs / timestamps / body / supersedes / reinterprets` exactly — never re-generates the diary via LLM.
+
+### 7.21 Claude legacy diary NOT migrated here (HOLD)
+
+`memory/claude_diary/*` is a legacy migration source only; `cp -R claude_diary memory/diary` is forbidden. D0-08 decides their class (Identity / Continuity / Memory / Diary / Historical evidence).
+
+### 7.22 Invariants
+
+**STO-D0-I36 — Daily Physical Container**
+
+```text
+Accepted Diary entries persist beneath memory/diary/YYYY/MM/YYYY-MM-DD.md.
+
+Filename is physical partition, not entry identity.
+```
+
+**STO-D0-I37 — Accepted Entries Only**
+
+```text
+Canonical Diary contains accepted DiaryEntry only.
+
+Candidate/rejected/NO_ENTRY are not canonical Diary.
+```
+
+**STO-D0-I38 — Durable Diary Acceptance**
+
+```text
+DIARY_DURABLE requires complete framed write + flush + fsync and required
+directory durability.
+```
+
+**STO-D0-I39 — Append-Only Historical Reflection**
+
+```text
+Normal authorship appends new immutable entries.
+
+Later reinterpretation/correction does not silently rewrite old entries.
+```
+
+**STO-D0-I40 — Stable Entry Identity**
+
+```text
+Every accepted DiaryEntry has a durable stable entry_id.
+
+Retry reconciles by entry_id.
+```
+
+**STO-D0-I41 — Explicit Physical Framing**
+
+```text
+BEGIN/END framing must distinguish complete entries from incomplete crash tails.
+```
+
+**STO-D0-I42 — Source Grounding Without Shadow History**
+
+```text
+Diary retains source_refs but must not duplicate raw Conversation history as
+alternate transcript authority.
+```
+
+**STO-D0-I43 — Context Gateway Preservation**
+
+```text
+Raw Diary files are not automatically model-visible.
+
+Diary reaches cognition only through Context OS governance.
+```
+
+**STO-D0-I44 — Semantic Separation**
+
+```text
+Diary creation must not automatically mutate Conversation, Memory, Identity,
+or Continuity authority.
+```
+
+**STO-D0-I45 — Stable Day Partition**
+
+```text
+A durable DiaryEntry remains in the day partition assigned at first acceptance;
+later timezone changes do not move history.
+```
+
+### 7.23 Acceptance tests (AT-DIA-01…17)
+
+```text
+AT-DIA-01  NO_ENTRY → no canonical entry                                      ✅
+AT-DIA-02  one accepted reflection → one framed entry                          ✅
+AT-DIA-03  multiple same-day entries → distinct IDs, same file                 ✅
+AT-DIA-04  crash mid-entry → prior entries survive                             ✅
+AT-DIA-05  fsync failure → no DIARY_DURABLE                                    ✅
+AT-DIA-06  ambiguous fsync + retry → no duplicate                              ✅
+AT-DIA-07  same entry_id/different body → fail closed                          ✅
+AT-DIA-08  concurrent reflections → no interleaved framing                     ✅
+AT-DIA-09  reinterpretation → new entry; old bytes unchanged                   ✅
+AT-DIA-10  supersession → new entry; old entry preserved                       ✅
+AT-DIA-11  source later PURGED → explicit source lifecycle                     ✅
+AT-DIA-12  Diary accepted → no automatic MemoryExperience                      ✅
+AT-DIA-13  Conversation FTS → Diary not indexed there                          ✅
+AT-DIA-14  raw Diary file → no direct model injection                          ✅
+AT-DIA-15  new day file durable → survives crash                               ✅
+AT-DIA-16  timezone later changes → old partition unchanged                    ✅
+AT-DIA-17  legacy claude_diary → not auto-adopted                              ✅
+```
+
+### 7.24 Freeze matrix
+
+| Item | Decision |
+|---|---|
+| Path | memory/diary/YYYY/MM/YYYY-MM-DD.md |
+| One file/day | ✅ |
+| Multiple entries/day | ✅ |
+| Entry framing | explicit BEGIN/END |
+| Stable entry_id | ✅ |
+| Body | Julia first-person Markdown |
+| source_refs | ✅ |
+| Candidates canonical | ❌ |
+| NO_ENTRY creates file | ❌ |
+| Normal rewrite old entry | ❌ |
+| Reinterpretation | new Entry |
+| Supersession | new Entry |
+| Diary fsync | ✅ |
+| Diary fsync blocks Conversation ACK | ❌ |
+| Same-day writers | serialized |
+| Conversation FTS contains Diary | ❌ |
+| Auto Memory promotion | ❌ |
+| Raw file direct prompt injection | ❌ |
+| Legacy Claude auto-adopt | ❌ |
+| Backup | ✅ |
+| Diary segmentation v1 | ❌ |
+
+### 7.25 Resolver / implementation notes (DIA-2, not decision changes)
+
+1. **Framing collision resistance**: the BEGIN/END parser must exact-line-match the marker including the entry's `entry_id`, and any body content that would reproduce a marker line must be escaped/forbidden by the writer. Otherwise an entry body containing a marker-looking line could truncate or corrupt framing. (Sharpens I41.)
+2. **Body hash for reconciliation**: the accepted entry's metadata should carry a body/content hash so the "same entry_id + same body → idempotent recovery" rule (7.7) is verifiable, not a byte-comparison guess. (Sharpens I38/I40.)
+
+---
+
+## 8. Pending Decisions
+
+```text
+STO-D0-08   Claude Julia legacy artifact migration classification rules          NEXT
 ```
 
 ---
