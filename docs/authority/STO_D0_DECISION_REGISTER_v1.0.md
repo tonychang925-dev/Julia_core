@@ -901,11 +901,370 @@ AT-ROT-12  partial final record in newest segment → prior records preserved, t
 
 ---
 
-## 4. Pending Decisions
+## 4. STO-D0-05 — Archive / Tombstone / Hard Delete
+
+**Decision: ACCEPT**
+
+Three distinct operations, never one fuzzy `delete()`:
 
 ```text
-STO-D0-05   Archive vs tombstone vs hard-delete semantics                        NEXT
-STO-D0-06   Derived search index technology (SQLite FTS)                         PENDING
+ARCHIVE     = 收起来 (reduce visibility, keep truth)
+TOMBSTONE   = 逻辑删除 / stop using
+HARD DELETE = 物理清除 (only after reference governance)
+```
+
+### 4.1 Archive — visibility change only, not history change
+
+```text
+ACTIVE → archive → ARCHIVED → restore → ACTIVE
+```
+
+After archive:
+
+```text
+canonical transcript    retained (bytes unchanged)
+conversation_id         retained
+message_id / turn_id    retained
+source_refs             still valid
+default list            hidden
+explicit retrieval      allowed
+Context OS              still usable per governance policy
+Memory / Diary refs     unchanged
+hard storage bytes      unchanged
+```
+
+**Archive ≠ Forget.** Canonical append is allowed only in `state=ACTIVE`. Continuing an archived conversation requires explicit restore → ACTIVE → append; never a background auto-restore.
+
+### 4.2 Tombstone — logical delete boundary
+
+```text
+ACTIVE ──┐
+         ├── delete → TOMBSTONED
+ARCHIVED ┘
+```
+
+After tombstone, transcript bytes remain temporarily, BUT:
+
+```text
+normal UI access        ❌
+search content exposure ❌
+Context OS retrieval    ❌
+new append              ❌
+normal resume           ❌
+```
+
+Tombstone first cuts usage + visibility, not the bytes. This creates a safe window to resolve Memory/Diary/Identity/Continuity refs, attachments, indexes, backup lifecycle — instead of `rm -rf` then discovering a dangling continuity ref.
+
+### 4.3 Restore before purge
+
+```text
+ACTIVE ──┐
+         ├── delete → TOMBSTONED → restore (before purge) → ACTIVE
+ARCHIVED ┘
+
+TOMBSTONED → governed hard delete → PURGED
+```
+
+`PURGED` is NOT a normal Conversation state — at that point the canonical conversation no longer exists. Do NOT write `{"state": "deleted", "messages": [...]}` and call it hard-deleted.
+
+### 4.4 Tombstone ACK strength
+
+`DELETE_ACCEPTED / TOMBSTONED`, once returned to Electron, guarantees:
+
+```text
+durable tombstone state established
+AND normal conversation access disabled
+AND Context OS cannot retrieve its transcript
+AND normal search cannot expose its content
+AND new canonical append is rejected
+```
+
+Stale-index trap: a conversation must NOT be `TOMBSTONED` while `Search "Tony"` still returns its deleted content. Derived-index cleanup MAY follow asynchronously, but every read path MUST apply canonical state filtering:
+
+```text
+stale index ≠ permission to expose deleted content
+```
+
+### 4.5 Reference Resolution Gate (core of D0-05)
+
+Reference classification (frozen):
+
+| Reference holder | Type | On hard delete |
+|---|---|---|
+| Compact | derived | delete / rebuild |
+| Search index | derived | delete |
+| cache/runtime | ephemeral | delete |
+| MemoryExperience | durable semantic | MUST govern |
+| DiaryEntry | durable semantic | MUST govern |
+| Identity anchor | protected semantic | MUST govern |
+| ContinuityCheckpoint | protected reference | MUST govern |
+| Trace / evidence | operational | retention/redaction policy |
+| Attachment refs | durable object refs | ownership/reference check |
+
+`hard_delete(conv_A)` first runs `ReferenceGraph.inspect(conv_A)`, yielding `DERIVED_REFS / DURABLE_SEMANTIC_REFS / PROTECTED_REFS / OBJECT_REFS`.
+
+### 4.6 "Referenced" ≠ "undeletable forever"
+
+Wrong design:
+
+```text
+Diary references conversation → conversation can never be deleted
+```
+(this would render user deletion meaningless)
+
+Correct:
+
+```text
+reference exists → HARD DELETE BLOCKED TEMPORARILY → resolve reference → then purge
+```
+
+A Diary `source_refs: [conversation://conv_A/msg_42]` need not be deleted when `conv_A` is purged; it becomes `source_state: PURGED`. Two distinct true facts:
+
+```text
+Julia did write this diary (historical existence = true)
+Julia can no longer re-verify its original Conversation evidence (= true)
+```
+
+### 4.7 Reference State, not dangling pointer
+
+A source reference logically supports:
+
+```text
+RESOLVED
+ARCHIVED    → source still available
+TOMBSTONED  → source exists physically, unavailable to cognition/access
+PURGED      → original content gone; provenance ref preserved only as deletion state
+```
+
+Forbidden: `conversation://conv_A/msg_42 → FileNotFoundError → nobody knows what happened` (silent dangling reference).
+
+### 4.8 Authority separation — no cascade delete
+
+Conversation deletion MUST NOT auto-infer deletion of Memory / Diary / Identity / Continuity:
+
+```text
+Conversation = what happened
+Memory       = durable experience/meaning
+Diary        = Julia's reflection
+```
+
+Each dependent artifact is governed by its own authority:
+
+```text
+MemoryExperience    → Memory governance
+DiaryEntry          → Diary/reflection governance
+Identity anchor     → Identity governance
+Continuity ref      → Continuity governance
+```
+
+Conversation Repository cannot cascade-delete these. This is the direct expression of "physical persistence host ≠ semantic authority".
+
+### 4.9 Dependent semantic artifact revocation
+
+When a Memory's only evidence (`conv_A/msg_42`) is purged:
+
+```text
+Memory OS re-judges:
+  other independent source?
+    ├─ YES → keep
+    └─ NO → protected identity fact? experiential meaning? unsupported assertion?
+              → keep / redact / supersede / remove
+```
+
+The specific outcome belongs to Memory Governance, not D0-05. D0-05 requires only: hard delete MUST trigger dependency resolution, never leave unreviewed semantic dependencies.
+
+### 4.10 Hard Delete flow (with durability)
+
+```text
+Request hard delete
+        ↓
+Conversation → TOMBSTONED
+        ↓
+Freeze new appends
+        ↓
+Build Reference Resolution Plan
+        ↓
+Resolve durable/protected refs
+        ↓
+Verify zero unresolved blockers
+        ↓
+Purge canonical transcript
+        ↓
+Purge conversation-owned attachments
+        ↓
+Purge derived index/cache entries
+        ↓
+fsync filesystem removals / metadata
+        ↓
+write minimal deletion receipt
+        ↓
+HARD_DELETE_COMPLETE
+```
+
+Deletion itself has a durability contract: `unlink()` must not be immediately followed by `HARD_DELETE_COMPLETE` before directory metadata crosses the synchronous barrier (v1 filesystem implementation does the platform-appropriate directory durability barrier).
+
+### 4.11 Deletion receipt (minimal, non-content)
+
+Allowed (non-content receipt):
+
+```text
+conversation_id, deleted_at, deletion_state: purged, schema_version
+opaque identity for idempotency/audit
+```
+
+Forbidden in receipt:
+
+```text
+message content, summary, embedding
+title (if privacy policy classifies it as user content)
+Compact / Diary copy
+transcript shadow "for later recovery"
+```
+
+The receipt is not a Conversation; it says only "this ID once existed, now deleted" — giving `source_ref=PURGED` a reliable resolution target.
+
+### 4.12 Hard Delete ≠ Backup Erasure
+
+```text
+live memory/conversations/conv_A deleted
+but yesterday's backup still contains it
+```
+
+Truthful claim:
+
+```text
+LIVE_CANONICAL_PURGE = COMPLETE
+```
+
+NOT:
+
+```text
+ALL COPIES ERASED FOREVER = COMPLETE
+```
+
+D0-07 decides backup retention/purge/restore semantics. D0-05 forbids fake erasure claim (same governance family as D0-03).
+
+### 4.13 Tombstone retention (not frozen now)
+
+Retention duration (e.g. 30 days) is product/retention policy, decided later with D0-07 / CM-S6. D0-05 freezes only:
+
+```text
+TOMBSTONED → may be recoverable until hard purge
+PURGED     → irreversible from live canonical store
+```
+
+v1 default: automatic hard purge = OFF; explicit governed hard delete required (safer).
+
+### 4.14 Attachment rule
+
+`attachments/foo.pdf` owned solely by the conversation → purge on hard delete. If future object storage supports cross-conversation references (`object_A → conv_1, conv_2`), deleting `conv_1` ≠ deleting `object_A` — a ref check is required. Do NOT freeze `rm -rf attachments/` as a universal semantic rule.
+
+### 4.15 Invariants
+
+**STO-D0-I13 — Archive Preservation**
+
+```text
+Archiving a conversation changes presentation/lifecycle state only.
+
+It MUST NOT alter canonical transcript content, conversation
+identity, message/turn identity, or durable semantic references.
+```
+
+**STO-D0-I14 — Tombstone Exclusion**
+
+```text
+After a tombstone operation is durably acknowledged, the conversation
+MUST be excluded from normal listing, search content exposure, Context
+OS retrieval, resume, and canonical append paths.
+
+Derived-index cleanup MAY follow asynchronously, but stale derived
+state MUST NOT re-expose tombstoned content.
+```
+
+**STO-D0-I15 — No Unresolved Hard Delete**
+
+```text
+Canonical conversation content MUST NOT be physically purged while
+durable semantic or protected references remain unresolved.
+
+Reference resolution is a prerequisite to hard-delete completion.
+```
+
+**STO-D0-I16 — No Semantic Cascade by Storage**
+
+```text
+Conversation storage MUST NOT independently delete or rewrite Memory,
+Diary, Identity, or Continuity artifacts.
+
+Each semantic authority governs its own dependent artifact.
+```
+
+**STO-D0-I17 — No Silent Dangling Provenance**
+
+```text
+Deletion of a canonical source MUST NOT silently convert a previously
+valid source reference into an unexplained dangling reference.
+
+The reference lifecycle MUST explicitly represent deletion /
+unavailability state.
+```
+
+**STO-D0-I18 — No False Erasure Claim**
+
+```text
+Hard deletion from the live canonical store MUST NOT be reported as
+global erasure while retained backups or other governed copies may
+still exist.
+
+Backup-erasure semantics are governed separately.
+```
+
+### 4.16 Acceptance tests (AT-DEL-01…14)
+
+```text
+AT-DEL-01  archive active → transcript byte-identical, IDs unchanged       ✅
+AT-DEL-02  restore archived → same conversation_id, no transcript rewrite  ✅
+AT-DEL-03  tombstone → default list excludes conversation                  ✅
+AT-DEL-04  tombstone → Context OS cannot retrieve transcript               ✅
+AT-DEL-05  stale FTS entry → search still cannot expose tombstoned content ✅
+AT-DEL-06  append to tombstoned → fail closed                              ✅
+AT-DEL-07  restore before hard purge → transcript + IDs unchanged          ✅
+AT-DEL-08  hard delete with unresolved Diary/Memory/Continuity refs → blocked ✅
+AT-DEL-09  resolve refs → hard purge eligible                              ✅
+AT-DEL-10  conversation deletion → storage does NOT silently delete Memory/Diary ✅
+AT-DEL-11  hard purge crash halfway → deterministic recoverable state, no ghost active ✅
+AT-DEL-12  purged source ref → resolves as PURGED, never dangling          ✅
+AT-DEL-13  live purge complete but backup exists → no "global erasure" claim ✅
+AT-DEL-14  shared attachment referenced elsewhere → deleting conversation does not destroy it ✅
+```
+
+### 4.17 Freeze matrix
+
+| Behavior | Archive | Tombstone | Hard Delete |
+|---|---|---|---|
+| transcript retained | ✅ | ✅ temporarily | ❌ |
+| default UI hidden | ✅ | ✅ | ✅ |
+| search content | 可治理检索 | ❌ | ❌ |
+| Context OS retrieval | ✅ 可治理 | ❌ | ❌ |
+| new append | restore first | ❌ | impossible |
+| reversible | ✅ | ✅ before purge | ❌ |
+| reference graph resolution | not needed | prepare phase | must |
+| Memory/Diary auto-delete | ❌ | ❌ | ❌ |
+| physical purge | ❌ | ❌ | ✅ |
+| backup erasure implied | ❌ | ❌ | ❌ |
+
+### 4.18 Resolver / implementation notes (CM-S6, not decision changes)
+
+1. **Tombstone state transition is a durable mutation**: the tombstone flag write follows D0-03's barrier (`write + flush + fsync`) before `TOMBSTONED` ACK — "durable tombstone state" means the same durability boundary as accepted-user append, not an in-memory flag flip.
+2. **Deletion receipt doubles as idempotency anchor**: a retried hard-delete for the same `conversation_id` resolves against the existing receipt (already `PURGED`) instead of re-purging — extending I07's crash-retry idempotency to the delete path.
+3. **Restore-from-tombstone state memory**: restore should remember whether the conversation was `ACTIVE` or `ARCHIVED` before tombstone (or default to `ACTIVE`); CM-S6 must pin this so restore does not silently change lifecycle state.
+
+---
+
+## 5. Pending Decisions
+
+```text
+STO-D0-06   Derived search index technology (SQLite FTS)                         NEXT
 STO-D0-07   Backup retention policy                                              PENDING
 STO-D0-02   Diary file format (one append-only daily file vs date directory)     PENDING
 STO-D0-08   Claude Julia legacy artifact migration classification rules          PENDING
