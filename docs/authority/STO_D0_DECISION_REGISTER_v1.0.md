@@ -1261,11 +1261,408 @@ AT-DEL-14  shared attachment referenced elsewhere → deleting conversation does
 
 ---
 
-## 5. Pending Decisions
+## 5. STO-D0-06 — Derived Conversation Search Index (SQLite FTS5)
+
+**Decision: ACCEPT**
 
 ```text
-STO-D0-06   Derived search index technology (SQLite FTS)                         NEXT
-STO-D0-07   Backup retention policy                                              PENDING
+Canonical truth    memory/conversations/* JSONL/files
+Derived search     indexes/conversation_fts.db
+Engine v1          SQLite FTS5                        ✅
+Canonical authority SQLite                           ❌ NEVER
+Delete SQLite DB → rebuild from canonical files      ✅ REQUIRED
+```
+
+SQLite's role is narrow: "which canonical messages might match this query?" It cannot answer "is this message still valid?", "is this conversation deleted?", "should Julia see it?", "is this Memory?".
+
+### 5.1 Two-stage pipeline (core of D0-06)
+
+Wrong (leaks tombstoned content via stale rows):
+
+```text
+FTS query → SQLite snippet(...) → return to Electron
+```
+
+Correct:
+
+```text
+query
+  ↓
+SQLite FTS → candidate refs only (conversation_id, message_id, rank/match metadata)
+  ↓
+CANONICAL VISIBILITY GATE → read canonical lifecycle state
+  │  ├─ ACTIVE       → eligible
+  │  ├─ ARCHIVED     → depends on search mode
+  │  ├─ TOMBSTONED   → DROP
+  │  └─ PURGED       → DROP
+  ↓
+canonical message hydration
+  ↓
+generate safe snippet
+  ↓
+return projection
+```
+
+```text
+FTS finds candidates; canonical storage decides whether a candidate may still appear.
+```
+
+### 5.2 Snippet MUST NOT leak before the gate
+
+Even if the stale tombstoned row is eventually dropped, a snippet must never be generated and passed up before the gate passes.
+
+```text
+FTS stage        → IDs / rank / opaque match info only
+canonical gate PASS → hydrate canonical content → THEN construct user-visible snippet
+```
+
+```text
+stale index content ≠ display authority
+```
+
+### 5.3 Search semantics by lifecycle
+
+```text
+Default search             ACTIVE only
+Explicit include_archived=true → ACTIVE + ARCHIVED
+TOMBSTONED                 ❌ normal search exposure (always)
+PURGED                     ❌ result (always)
+```
+
+Consistent with D0-05: Archive = reduce visibility; Tombstone = stop normal use; Hard Delete = remove physical truth.
+
+### 5.4 Index eligibility (frozen)
+
+Allowed (v1):
+
+```text
+conversation title
+canonical user message text
+canonical assistant message text
+canonical date/time fields for filtering
+conversation_id, message_id, role
+```
+
+Forbidden in FTS:
+
+```text
+ASR partial                              ❌
+unfinished streaming chunk               ❌
+provider hidden state                    ❌
+internal runtime prompt                  ❌
+hidden reasoning / CoT                   ❌
+raw tool/debug traces                    ❌
+Context OS temporary assembly            ❌
+Compact as transcript substitute         ❌
+Memory/Diary raw content                 ❌
+```
+
+Voice FINAL ASR, once it becomes a canonical user ConversationMessage → eligible. Assistant emitted boundary, once canonical per existing contract → eligible per its canonical status.
+
+### 5.5 Conversation Search ≠ Diary Search
+
+Technically both may live in the same SQLite; architecturally they are separate logical contracts:
+
+```text
+Conversation Search ≠ Diary Search ≠ Memory Retrieval ≠ Context Retrieval
+```
+
+D0-06 freezes only Conversation Search Index. Diary search is deferred to D0-02.
+
+### 5.6 Index update is NOT on the CORE_ACCEPTED critical path
+
+```text
+canonical append → flush → fsync → CORE_ACCEPTED → index update
+```
+
+Allowed state (SEARCH INDEX LAG, not data loss):
+
+```text
+Tony just spoke → conversation shows it ✅ → Julia canonical-accepted it ✅ → immediate search misses it ⚠️ allowed short lag
+```
+
+Never put `SQLite commit` before `CORE_ACCEPTED`.
+
+### 5.7 Consistency = eventual, but asymmetric
+
+```text
+Conversation truth  = strongly durable (D0-03)
+Search projection   = eventually consistent
+```
+
+Asymmetry (critical):
+
+```text
+new message index lag → may be temporarily unfindable (false negative) ✅ acceptable
+tombstoned stale row  → MUST NOT be temporarily visible (false positive) ❌ forbidden
+```
+
+### 5.8 Index failure isolation
+
+`SQLITE_CORRUPT / SQLITE_BUSY / schema incompatible / missing file` MUST NOT impair:
+
+```text
+create conversation, append, resume, canonical read, Context OS canonical source
+```
+
+v1 search on index failure:
+
+```text
+SEARCH_UNAVAILABLE / REBUILD_REQUIRED
+```
+
+No silent fallback to full canonical grep (that would silently introduce a second ranking/visibility/performance/pagination semantics — same fail-closed family). A canonical-scan fallback, if ever needed, is a separately frozen equivalent contract.
+
+### 5.9 Rebuild is first-class, not a disaster tool
+
+`indexes/*` is disposable by design. Provide:
+
+```text
+rebuild_conversation_search_index()
+```
+
+Scan source `memory/conversations/*`:
+
+```text
+ACTIVE      → index
+ARCHIVED    → index, lifecycle-filtered later
+TOMBSTONED  → do not index
+PURGED      → do not index
+```
+
+Regenerate from canonical `message_id` / `conversation_id` / canonical readable text.
+
+### 5.10 Rebuild = Build → Verify → Swap
+
+Never `rm conversation_fts.db → rebuild in place → crash halfway`.
+
+```text
+conversation_fts.rebuild.tmp
+        ↓
+scan canonical files → build → SQLite integrity check → schema/version check → rebuild evidence
+        ↓
+atomic replace current derived DB
+```
+
+Crash halfway → old usable index remains OR search unavailable; canonical data unaffected. Temp file cleaned up later. Derived artifact's filesystem durability is NOT upgraded to the Conversation ACK contract.
+
+### 5.11 Index schema versioning
+
+```text
+index_schema_version, source_layout_version, built_at, build_id
+(optionally last_rebuild_at, indexer_version)
+```
+
+`last_indexed_message_id`, if present, is only an optimization watermark — never evidence that "messages after it do not exist". Canonical transcript always wins.
+
+### 5.12 Tokenizer not frozen now (implementation parameter)
+
+Julia's dialogue is largely Chinese; freezing `unicode61` now may be suboptimal. Options (trigram / bigram / Chinese tokenizer) trade off short words, space, substring, mixed CN/EN, dependencies. Tokenizer change only needs an index rebuild — it never changes canonical data.
+
+```text
+Engine family  SQLite FTS5                        ✅ frozen
+Tokenizer      implementation/rebuild parameter   ⚙️
+Requirement    Chinese + English acceptance suite MUST PASS ✅
+```
+
+### 5.13 Chinese search gate
+
+CM-S2 must test (this is Julia's real usage environment):
+
+```text
+中文: 日记 / 语音 / 持久化 / Julia / Tony / ConversationRuntime / VOICE-C1 / 删除引用
+中英混合: "Julia 日记" / "Voice 语音" / "D0-03 持久化"
+```
+
+Final tokenizer/normalization must have evidence. Two-character Chinese words must not be unusable due to tokenizer choice.
+
+### 5.14 Rank / snippet / score are projection, not semantics
+
+BM25 (or future ranking) may reorder across rebuilds:
+
+```text
+rebuild → A rank1/B rank2 → B rank1/A rank2   (valid)
+```
+
+`search rank`, `snippet`, `match score` are projection only — never stored as Memory importance, Context authority, or Conversation ordering.
+
+### 5.15 Search cursor is not durable identity
+
+Search rank may vary across rebuilds, so a search cursor is at most an ephemeral query-projection cursor — never a durable `source_ref`. True source refs remain `conversation_id` + `message_id`.
+
+### 5.16 Context OS must NOT co-opt UI FTS into cognition authority
+
+Wrong:
+
+```text
+Context OS token budget low → SELECT * FROM conversation_fts → feed model
+```
+
+Forbidden. Correct: Context OS uses its governed retrieval contract → canonical refs → source eligibility/governance → model-visible context. D0-06 grants the UI search index no cognition authority.
+
+### 5.17 Tombstone cleanup async but priority
+
+```text
+TOMBSTONED durable → normal access immediately blocked → enqueue FTS delete
+```
+
+If SQLite delete fails, the stale row remains internally, but the search pipeline's canonical gate drops it — user never sees it. Correctness never depends on SQLite cleanup "must succeed immediately".
+
+### 5.18 Hard Delete and FTS
+
+After hard purge, canonical transcript is gone but deletion receipt remains. A stale FTS row resolves as `candidate → canonical resolver → PURGED receipt → DROP`.
+
+```text
+stale FTS ≠ zombie conversation
+```
+
+Cleanup/rebuild removes it later.
+
+### 5.19 Index permissions
+
+Derived ≠ public. The FTS DB still contains copies of user conversation content:
+
+```text
+indexes/conversation_fts.db → 0600; directory → 0700
+```
+
+Never place in `/tmp` or unprotected location just because it is rebuildable.
+
+### 5.20 Backup stance
+
+```text
+Conversation FTS index is NOT required for canonical backup (delete index → rebuild).
+```
+
+Whether D0-07 later chooses to back up indexes for restore speed is separate; indexes are never backup truth.
+
+### 5.21 Invariants
+
+**STO-D0-I19 — Derived Search Only**
+
+```text
+Conversation search indexes are derived and reconstructable artifacts.
+
+They MUST NOT become canonical Conversation, lifecycle, Memory, Diary,
+Continuity, or cognition authority.
+```
+
+**STO-D0-I20 — Rebuildability**
+
+```text
+Deletion or corruption of all Conversation search indexes MUST be
+recoverable from canonical Conversation persistence without semantic loss.
+```
+
+**STO-D0-I21 — Canonical Visibility Gate**
+
+```text
+Search-index matches MUST pass canonical lifecycle and visibility
+adjudication before any user-visible content, snippet, or result is returned.
+
+Stale derived state MUST NOT expose tombstoned or purged Conversation content.
+```
+
+**STO-D0-I22 — Canonical Before Index**
+
+```text
+Search indexing MUST NOT be a prerequisite for CORE_ACCEPTED or canonical
+assistant completion.
+
+Index updates occur only after the corresponding canonical artifact is durable.
+```
+
+**STO-D0-I23 — Search Failure Isolation**
+
+```text
+Search-index unavailability, corruption, lag, or rebuild failure MUST NOT
+impair canonical Conversation create, append, read, resume, or durability
+semantics.
+```
+
+**STO-D0-I24 — Canonical Content Eligibility**
+
+```text
+Only eligible durable canonical Conversation content may be indexed.
+
+Ephemeral ASR partials, transient streaming chunks, hidden provider/runtime
+state, temporary Context artifacts, and non-canonical history MUST NOT enter
+Conversation FTS.
+```
+
+**STO-D0-I25 — No Cognition Authority**
+
+```text
+The Conversation UI search index MUST NOT directly determine model-visible context.
+
+Any future reuse for cognition requires a separately governed Context OS
+retrieval contract grounded in canonical refs.
+```
+
+**STO-D0-I26 — Derived Ranking**
+
+```text
+Search rank, snippets, match scores, tokenization, and search pagination are
+projection semantics only.
+
+They MUST NOT alter canonical ordering, durable identity, or source-reference
+semantics.
+```
+
+### 5.22 Acceptance tests (AT-FTS-01…16)
+
+```text
+AT-FTS-01  delete fts db → rebuild → canonical conversations/messages unchanged ✅
+AT-FTS-02  canonical fsync+ACK succeeds, index update fails → conversation valid, search may lag, no rollback ✅
+AT-FTS-03  index corruption → search unavailable/rebuild required → create/read/resume still work ✅
+AT-FTS-04  stale FTS row for TOMBSTONED → zero user-visible result, zero snippet leakage ✅
+AT-FTS-05  stale FTS row for PURGED → deletion receipt/canonical state drops candidate ✅
+AT-FTS-06  ARCHIVED: default search excluded; include_archived=true eligible ✅
+AT-FTS-07  rebuild sees ACTIVE+ARCHIVED+TOMBSTONED → index ACTIVE/ARCHIVED, skip TOMBSTONED ✅
+AT-FTS-08  crash halfway through rebuild → canonical unaffected, partial temp never authority ✅
+AT-FTS-09  schema version mismatch → rebuild required, no canonical migration/rewrite ✅
+AT-FTS-10  ASR partial / unfinished stream → never indexed ✅
+AT-FTS-11  hidden runtime/provider/debug content → never indexed ✅
+AT-FTS-12  conversation spans many segments → search resolves via canonical id, segment invisible ✅
+AT-FTS-13  rebuild changes ranking → valid; IDs/source refs unchanged ✅
+AT-FTS-14  Chinese + English corpus → required query acceptance suite passes ✅
+AT-FTS-15  FTS candidate → missing/non-resolvable canonical message → drop + drift evidence ✅
+AT-FTS-16  Context OS path inspection → UI search index does not become implicit cognition source ✅
+```
+
+### 5.23 Freeze matrix
+
+| Item | D0-06 decision |
+|---|---|
+| v1 engine | SQLite FTS5 |
+| location | indexes/conversation_fts.db |
+| canonical | ❌ |
+| rebuildable | ✅ mandatory |
+| index before ACK | ❌ |
+| consistency | eventual |
+| stale tombstone exposure | ❌ absolutely forbidden |
+| default search | ACTIVE |
+| explicit archived search | ✅ |
+| tombstoned/purged search | ❌ |
+| snippet before canonical gate | ❌ |
+| hidden/runtime data indexing | ❌ |
+| FTS ranking semantic | ❌ |
+| Context OS direct authority | ❌ |
+| tokenizer frozen | ❌ implementation parameter |
+| Chinese/English acceptance | ✅ required |
+| canonical backup dependency | ❌ |
+
+### 5.24 Resolver / implementation notes (CM-S2, not decision changes)
+
+1. **The visibility gate itself must read strongly-durable canonical lifecycle state**, not a derived/cached lifecycle projection. Building the gate on a cache would move the staleness problem one layer up and re-open the tombstone-exposure hole through a different path. (Sharpens I21.)
+2. **Rebuild atomic swap vs concurrent incremental writer**: a live incremental indexer holding the old DB file handle open will keep writing to the now-unlinked inode after the Build→Verify→Swap rename, silently losing entries until the next rebuild. CM-S2 must coordinate swap with the incremental writer (pause-and-resume, or post-swap re-apply). (Sharpens I20.)
+
+---
+
+## 6. Pending Decisions
+
+```text
+STO-D0-07   Backup retention policy                                              NEXT
 STO-D0-02   Diary file format (one append-only daily file vs date directory)     PENDING
 STO-D0-08   Claude Julia legacy artifact migration classification rules          PENDING
 ```
