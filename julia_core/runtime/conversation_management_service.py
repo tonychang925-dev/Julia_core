@@ -93,7 +93,11 @@ class ConversationManagementService:
         """
         cid = self._runtime.allocate_conversation_id()  # Core allocates identity
         if idempotency_key is not None:
-            cid = self._idempotency.get_or_reserve(idempotency_key, cid)
+            try:
+                cid = self._idempotency.get_or_reserve(idempotency_key, cid)
+            except Exception as e:
+                # idempotency reservation conflict/corruption → state conflict (409)
+                raise ConversationStateConflictError(str(e)) from e
         try:
             self._runtime.create_conversation(conversation_id=cid, title=title)
         except Exception as e:  # AT-CMS-02: governed failure, no local fallback id
