@@ -8,7 +8,9 @@ AUTHORITATIVE BRANCH: cm-r0-fix
 CURRENT REPOSITORY / DOCUMENTATION AUTHORITY AT CLOSEOUT: 4937f8f
 STO-D0 IMPLEMENTATION DECISION FREEZE: 261521f5e8ceacaaabd20bd255127b3232957209
 STO-D0 STATUS: CLOSED / FROZEN (frozen docs authority only — NOT production runtime bytes)
-NEXT PERMITTED STORAGE WORK: STO-F1 (Private Filesystem Contract) / STO-F2 (Application Persistence Binding)
+STO-F1 PRIVATE FILESYSTEM CONTRACT: 23ecc1f622844865eba09910f6ff887eb109e058
+STO-F1 STATUS: CLOSED / FROZEN (frozen filesystem contract authority only — NOT production implementation compliance)
+NEXT PERMITTED STORAGE WORK: STO-F2 (Application Persistence Binding)
 HISTORICAL MAIN SNAPSHOT MENTIONED BY EARLIER G0: 0d72b05534c79c22e58b2e4e95dca97171d8489a
 PRODUCTION CONVERSATION RUNTIME FLOOR: b463a3f702f9cfcb8db3cda870d8f570fc92483d
 RMD-1-SC PRODUCTION AUTHORITY: b463a3f702f9cfcb8db3cda870d8f570fc92483d
@@ -71,7 +73,7 @@ LEGACY / DO-NOT-USE FOR NEW WORK:
 ## Current open remediation items
 
 - VOICE-C1 remediation CLOSED (RC-1 runtime drift → RP-1; RC-2 cutover → ADR-002; RC-3 turn_id collision → RP-2 UUID).
-- Storage Program: STO-A0 CLOSED, STO-D0 FROZEN @ `261521f` (register: `docs/authority/STO_D0_DECISION_REGISTER_v1.0.md`). Next permitted work: STO-F1 / STO-F2.
+- Storage Program: STO-A0 CLOSED, STO-D0 FROZEN @ `261521f`, STO-F1 FROZEN @ `23ecc1f` (contract: `docs/authority/STO_F1_PRIVATE_FILESYSTEM_CONTRACT_v1.0.md`). Next permitted work: STO-F2.
 - Existing uncommitted runtime data and experimental worktree dirt are not source authority.
 
 ## Precedence
