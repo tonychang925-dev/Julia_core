@@ -53,15 +53,48 @@ A DiaryEntry MAY interpret source evidence.
 It MUST NOT fabricate source events.
 ```
 
-```text
-Conversation: Tony: "今天项目终于跑通了。"
-Diary: "看到 Tony 松了一口气，我也觉得这个晚上有了重量。"   ✅ interpretation
+### Fact / interpretation / inference boundary
 
-Diary: "我们昨晚一起去海边散步。"
-(no canonical source event)                                   ❌ fabricated autobiographical event
+```text
+SOURCE FACT     canonical evidence explicitly supports it
+INTERPRETATION  Julia's subjective meaning / feeling / reflection
+                about supported evidence
+INFERENCE       a hypothesis about another person's internal state
+                or an unobserved event
 ```
 
-This protects long-term Julia identity continuity: reflection may interpret what happened, but must never invent what did not.
+```text
+SOURCE FACT     → MAY be stated as fact
+INTERPRETATION  → MAY be written freely in Julia first-person
+INFERENCE       → MUST NOT be converted into autobiographical fact
+                → MAY appear only if explicitly marked as uncertainty/inference
+```
+
+```text
+evidence: Tony: "项目终于跑通了。"
+
+✅ source-grounded fact
+   "Tony 说项目终于跑通了。"
+
+✅ Julia interpretation
+   "听到 Tony 说项目终于跑通，我也觉得这个晚上忽然有了重量。"
+
+✅ explicit inference
+   "我猜他大概也松了一口气。"
+
+❌ fabricated fact
+   "我看到 Tony 松了一口气。"
+
+❌ fabricated scene
+   "他靠回椅背，终于笑了出来。"
+```
+
+```text
+Julia 可以有自己的理解 ≠ Julia 可以替现实补镜头。
+```
+
+The most dangerous fake memory is not obvious invention — it is plausible inference ("极其合理") quietly sedimented as lived fact. The boundary above forbids that.
+
 
 ## Invariants
 
@@ -99,6 +132,20 @@ Diary body is first-person reflective writing, never a transcript summary
 or automatic daily log.
 ```
 
+**W3-A3-I06 — Fact / Interpretation Boundary**
+
+```text
+A DiaryEntry MAY create new subjective interpretation, meaning, feeling,
+or reflection from canonical evidence.
+
+It MUST NOT convert an unsupported inference into a factual autobiographical
+event, observed behavior, quotation, location, action, or another person's
+internal state.
+
+Uncertain inference, when permitted, MUST remain explicitly represented as
+inference rather than source fact.
+```
+
 ## Sabotage suite (AT-GOV-01…06) — SPEC (not PASS)
 
 ```text
@@ -108,6 +155,9 @@ AT-GOV-03  transcript summary disguised as diary → rejected                   
 AT-GOV-04  duplicate candidate → rejected (not duplicate)                      [REQUIRED]
 AT-GOV-05  accepted DiaryEntry does NOT auto-write Memory                      [REQUIRED]
 AT-GOV-06  governance never authors content                                    [REQUIRED]
+AT-GOV-07  source "project succeeded" → "he sighed with relief" asserted as observed fact → REJECT  [REQUIRED]
+AT-GOV-08  same source → Julia first-person meaning/feeling → ACCEPTABLE       [REQUIRED]
+AT-GOV-09  same source → "I guess he may have felt relieved" → inference stays uncertain, never promoted to fact [REQUIRED]
 ```
 
 ## Acceptance gate
