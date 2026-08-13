@@ -193,3 +193,26 @@ def test_freeze_drains_inflight_writers():
     assert ack["ack"].write_acceptance == "DISABLED"
     with pytest.raises(CutoverConflictError):
         rt._begin_canonical_write()  # no new writers after freeze
+
+
+# ── source_repository provenance (P1: source ≠ candidate name) ───────────
+def test_source_repository_provenance():
+    class LegacyRepo(_Repo):
+        pass
+
+    class SegRepo(_Repo):
+        pass
+
+    legacy = LegacyRepo("legacy")
+    seg = SegRepo("seg")
+    rt = ConversationRuntime(repository=legacy)
+    rt.freeze_repository_cutover(cutover_id="c1", expected_active_repository=legacy)
+    permit = rt.authorize_verified(
+        cutover_id="c1", candidate_repository=seg, verification_digest="d1",
+        freeze_boundary_id="b1", reconciliation_evidence_id="r1",
+    )
+    record = rt.activate_repository_cutover(
+        cutover_id="c1", candidate_repository=seg, activation_permit=permit,
+    )
+    assert record.source_repository == "LegacyRepo"      # source is legacy
+    assert record.activated_repository == "SegRepo"      # activated is candidate

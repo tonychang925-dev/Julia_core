@@ -156,6 +156,7 @@ class ConversationRuntime:
         self._binding_lock = threading.Lock()
         self._writer_cond = threading.Condition(self._binding_lock)
         self._active_writers: int = 0
+        self._source_repository: ConversationRepository | None = None
         self._registered_candidate: ConversationRepository | None = None
         self._registered_digest: str | None = None
         self._registered_boundary: str | None = None
@@ -220,6 +221,7 @@ class ConversationRuntime:
             while self._active_writers > 0:  # drain in-flight writers
                 self._writer_cond.wait()
             self._active_cutover_id = cutover_id
+            self._source_repository = expected_active_repository
             return RuntimeFreezeAck(
                 cutover_id=cutover_id,
                 binding_epoch=self._binding_epoch,
@@ -280,7 +282,7 @@ class ConversationRuntime:
             self._pending_commit_receipt = receipt
             return RepositoryActivationRecord(
                 cutover_id=cutover_id,
-                source_repository=type(self._registered_candidate).__name__,
+                source_repository=type(self._source_repository).__name__,
                 activated_repository=type(candidate_repository).__name__,
                 new_binding_epoch=self._binding_epoch,
                 commit_receipt=receipt,

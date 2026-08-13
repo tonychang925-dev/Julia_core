@@ -37,6 +37,11 @@ class InvalidTurnStateError(ValueError):
     pass
 
 
+class RepositoryReadOnlyError(RuntimeError):
+    """Repository has been retired to read-only; canonical writes are rejected."""
+    pass
+
+
 class SessionRepository:
     """Thread-safe in-memory store with atomic JSON persistence.
 
@@ -47,6 +52,7 @@ class SessionRepository:
         self._filepath = Path(filepath)
         self._sessions: dict[str, ConversationSession] = {}
         self._lock = threading.RLock()
+        self._read_only = False
         self._load()
 
     def _load(self) -> None:
@@ -70,6 +76,8 @@ class SessionRepository:
 
     def _save(self) -> None:
         """Atomic write: temp file → fsync → os.replace. Must hold _lock."""
+        if self._read_only:
+            raise RepositoryReadOnlyError("repository retired; read-only")
         self._filepath.parent.mkdir(parents=True, exist_ok=True)
         data = [s.detail() for s in self.list_all()]
         tmp = self._filepath.with_suffix(".json.tmp")
@@ -78,6 +86,11 @@ class SessionRepository:
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp, self._filepath)
+
+    def set_read_only(self) -> None:
+        """RETIRE: mark this repository read-only. Canonical writes rejected."""
+        with self._lock:
+            self._read_only = True
 
     # ── Public API (all locked) ──────────────────────────────────────────
 
