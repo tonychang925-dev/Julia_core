@@ -75,6 +75,41 @@ class TurnStreamingContext:
     completed_content: str = ""  # Cached content if already_completed
 
 
+# ── S1D Governed Cutover types ────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class CutoverActivationPermit:
+    """One-shot activation permit (typed immutable, no filesystem path)."""
+    cutover_id: str
+    freeze_epoch: str
+    source_binding_epoch: int
+    candidate_binding_id: str
+    reconciliation_evidence_id: str
+    freeze_boundary_id: str
+    verification_digest: str
+    issued_at: str
+
+
+@dataclass(frozen=True)
+class RuntimeFreezeAck:
+    cutover_id: str
+    binding_epoch: int
+    write_acceptance: str = "DISABLED"
+    frozen_repository: str = ""
+
+
+@dataclass(frozen=True)
+class RepositoryActivationRecord:
+    cutover_id: str
+    source_repository: str
+    activated_repository: str
+    new_binding_epoch: int
+
+
+class CutoverConflictError(Exception):
+    """Governed cutover state violation (AT-CUT fail-closed)."""
+
+
 # ── Runtime ──────────────────────────────────────────────────────────────────
 
 class ConversationRuntime:
@@ -104,6 +139,12 @@ class ConversationRuntime:
         self._locks: dict[str, threading.Lock] = {}
         self._locks_lock = threading.Lock()
         self._interaction_states: dict[str, "ConversationInteractionState"] = {}
+        # S1D governed cutover state (Core-owned semantic gate)
+        self._canonical_write_acceptance: bool = True
+        self._active_cutover_id: str | None = None
+        self._binding_epoch: int = 0
+        self._binding_lock = threading.Lock()
+        self._consumed_cutover_ids: set[str] = set()
         from julia_core.runtime.relationship import ConversationInteractionState as CIS
         self._CIS = CIS
 
@@ -115,6 +156,69 @@ class ConversationRuntime:
                 "composition root must inject one (F2-I07)"
             )
         return self._repository
+
+    # ── S1D governed cutover surface (Core-owned semantic gate) ──────────
+
+    def _assert_canonical_write_allowed(self) -> None:
+        if not self._canonical_write_acceptance:
+            raise CutoverConflictError(
+                "canonical write acceptance DISABLED (cutover freeze)"
+            )
+
+    def freeze_repository_cutover(
+        self, *, cutover_id: str, expected_active_repository: ConversationRepository,
+    ) -> RuntimeFreezeAck:
+        """FREEZE: disable canonical write acceptance atomically; the
+        repository stays the expected active legacy (S1D §1)."""
+        with self._binding_lock:
+            if self._repository is not expected_active_repository:
+                raise CutoverConflictError("expected active repository mismatch")
+            if self._active_cutover_id is not None:
+                raise CutoverConflictError("conflicting cutover already active")
+            self._canonical_write_acceptance = False
+            self._active_cutover_id = cutover_id
+            return RuntimeFreezeAck(
+                cutover_id=cutover_id,
+                binding_epoch=self._binding_epoch,
+                write_acceptance="DISABLED",
+                frozen_repository=type(expected_active_repository).__name__,
+            )
+
+    def activate_repository_cutover(
+        self, *, cutover_id: str, expected_active_repository: ConversationRepository,
+        candidate_repository: ConversationRepository,
+        activation_permit: CutoverActivationPermit,
+    ) -> RepositoryActivationRecord:
+        """ACTIVATE: one atomic authority switch Legacy → Segmented (S1D §3).
+        Writes remain DISABLED after the switch (crash window); the Assistant
+        records activation commit, then calls enable_canonical_writes()."""
+        with self._binding_lock:
+            if self._active_cutover_id != cutover_id:
+                raise CutoverConflictError("no matching frozen cutover")
+            if self._canonical_write_acceptance:
+                raise CutoverConflictError("write acceptance must be DISABLED before ACTIVATE")
+            if self._repository is not expected_active_repository:
+                raise CutoverConflictError("current repository is not the expected legacy")
+            if candidate_repository is expected_active_repository:
+                raise CutoverConflictError("candidate must differ from current")
+            if activation_permit.cutover_id != cutover_id:
+                raise CutoverConflictError("permit does not belong to this cutover")
+            if cutover_id in self._consumed_cutover_ids:
+                raise CutoverConflictError("activation permit already consumed")
+            self._repository = candidate_repository
+            self._binding_epoch += 1
+            self._consumed_cutover_ids.add(cutover_id)
+            return RepositoryActivationRecord(
+                cutover_id=cutover_id,
+                source_repository=type(expected_active_repository).__name__,
+                activated_repository=type(candidate_repository).__name__,
+                new_binding_epoch=self._binding_epoch,
+            )
+
+    def enable_canonical_writes(self) -> None:
+        """Re-enable canonical write acceptance (after durable activation commit)."""
+        with self._binding_lock:
+            self._canonical_write_acceptance = True
 
     # ── Public API ───────────────────────────────────────────────────────
 
@@ -168,6 +272,7 @@ class ConversationRuntime:
             )
 
             try:
+                self._assert_canonical_write_allowed()
                 appended, skipped, last_msg_id = self.repository.append_external_turns_atomic(
                     conversation_id, turns,
                     base_last_message_id=base_last_message_id,
@@ -364,6 +469,7 @@ class ConversationRuntime:
         lock = self._get_lock(conversation_id)
         with lock:
             try:
+                self._assert_canonical_write_allowed()
                 imported, skipped, last_id = self.repository.import_messages_atomic(
                     conversation_id, messages,
                 )
@@ -387,6 +493,7 @@ class ConversationRuntime:
 
     def delete_conversation(self, conversation_id: str) -> bool:
         """Delete conversation, history, interaction state, and lock."""
+        self._assert_canonical_write_allowed()
         self._interaction_states.pop(conversation_id, None)
         with self._locks_lock:
             self._locks.pop(conversation_id, None)
@@ -402,6 +509,7 @@ class ConversationRuntime:
         existing conversation. Conversation exists independently of any message.
         """
         cid = conversation_id or f"conv_{_time.strftime('%Y%m%d_%H%M%S')}_{id(self)}"
+        self._assert_canonical_write_allowed()
         self.repository.create_with_id(cid, title)
         self._interaction_states.pop(cid, None)
         return self._to_handle(self.repository.get(cid))
@@ -422,6 +530,7 @@ class ConversationRuntime:
 
     def rename_conversation(self, conversation_id: str, title: str) -> ConversationHandle | None:
         """Rename a conversation. Title persists across restarts."""
+        self._assert_canonical_write_allowed()
         session = self.repository.update_title(conversation_id, title)
         if session is None:
             return None
@@ -437,6 +546,7 @@ class ConversationRuntime:
     def migrate_legacy_sessions(
         self, legacy_path: str | Path = "/Users/admin/.julia/sessions.json"
     ) -> int:
+        self._assert_canonical_write_allowed()
         legacy = Path(legacy_path)
         if not legacy.exists():
             return 0
@@ -637,6 +747,7 @@ class ConversationRuntime:
         self, conversation_id: str, *, role: str, content: str,
         turn_id: str = "", modality: str = "text", status: str = "completed",
     ) -> ConversationSession | None:
+        self._assert_canonical_write_allowed()
         return self.repository.add_message(
             conversation_id, role=role, content=content,
             turn_id=turn_id, modality=modality, status=status,
@@ -645,9 +756,11 @@ class ConversationRuntime:
     def _update_message_status(self, message_id: str, status: str) -> None:
         """Update a persisted message's status via public repo API."""
         if message_id:
+            self._assert_canonical_write_allowed()
             self.repository.update_message_status(message_id, status)
 
     def _create_conversation(self, conversation_id: str) -> ConversationSession:
+        self._assert_canonical_write_allowed()
         return self.repository.create_with_id(conversation_id, "New Conversation")
 
     def _to_handle(self, session: ConversationSession) -> ConversationHandle:
@@ -717,6 +830,10 @@ __all__ = [
     "TurnResult",
     "ConversationBusyError",
     "ConversationCutoverRequired",
+    "CutoverActivationPermit",
+    "RuntimeFreezeAck",
+    "RepositoryActivationRecord",
+    "CutoverConflictError",
     "configure_conversation_runtime",
     "get_conversation_runtime",
 ]
