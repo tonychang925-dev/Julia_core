@@ -9,7 +9,7 @@ PURPOSE: one cross-repository entry point for current code/document authority.
 | Repo | Role | Branch | Current authority commit | Manifest |
 |---|---|---|---|---|
 | Julia_core | Core runtime, canonical architecture, ConversationRuntime, Context OS, Memory OS, Continuity OS | `cm-r0-fix` | `4937f8f` | `docs/authority/CURRENT_AUTHORITY.md` |
-| Julia-AI-Assistant | Brain/OpenAI-compatible API, CRT bridge, application composition root, physical persistence host | DETACHED | `bbd90af` | `docs/authority/CURRENT_AUTHORITY.md` |
+| Julia-AI-Assistant | Brain/OpenAI-compatible API, CRT bridge, application composition root, physical persistence host | `phase5/rmd-3g-observability` | `44cea89` | `docs/authority/CURRENT_AUTHORITY.md` |
 | Julia-Voice-S2S | Voice/S2S media transport | `phase5/rmd-3g-observability` | `315f359` | `docs/authority/CURRENT_AUTHORITY.md` |
 | Julia_client / `julia_electron_v2` | Electron desktop client / projection | `codex/bugfix/electron-c10-c11-projection` | `4a08967` | `docs/authority/CURRENT_AUTHORITY.md` |
 
@@ -32,7 +32,7 @@ Global rule: REPO HEAD is not automatically SOURCE AUTHORITY, ARTIFACT AUTHORITY
 
 ### Brain
 
-- **Source authority:** `bbd90af`
+- **Source authority:** `44cea89` (reconciliation merge `197ada9` + closeout SHA stamp; combines CC-2/CM-FAILCLOSED lineage `bbd90af` with TUNNEL-L1/G0 lineage `9bd8963`)
 - **Runtime:** Mac launchd `com.julia.brain.18089`, port `127.0.0.1:18089`
 - **Provenance gate:** `deploy/brain/start-brain-18089` (RP-1: clean-worktree + SHA + import provenance)
 - Secret loader: committed; real `DEEPSEEK_API_KEY` lives only in `/Users/admin/.julia_ops/brain.env` mode `600`
