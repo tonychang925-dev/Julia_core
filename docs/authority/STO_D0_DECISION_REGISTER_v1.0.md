@@ -582,15 +582,329 @@ AT-DUR-08  new segment → crash after ACK → segment + message discoverable �
 ### 2.17 Resolver / implementation notes (CM-S1, not decision changes)
 
 1. **fsync EIO poisons the FD**: after `fsync` returns EIO, the file descriptor (and possibly page-cache state for that inode) is unreliable. Reconciliation MUST close+reopen and re-read the canonical store — never trust the in-memory buffer or re-fsync the same poisoned FD. (Sharpens I05.)
-2. **O_APPEND for atomic append**: open transcript segments in append mode (`O_APPEND`) so each record write is atomic with respect to other writers. Combined with single-shot record write + newline framing (2.9), this yields clean physical framing and makes partial-tail recovery unambiguous.
+2. **Immutable-buffer write_all under writer lock**: serialize the whole record (+ `"\n"`) into an immutable byte buffer, then `write_all` it to completion under the exclusive per-conversation writer lock, handling short writes; failure to complete is fail-closed. Correctness MUST NOT rest on "one `write()` syscall writes the whole record" — `write()` can short-write even on regular files. `O_APPEND` is retained for atomic end-of-file positioning, but it is a mechanism, not the framing contract.
 
 ---
 
-## 3. Pending Decisions
+## 3. STO-D0-04 — Transcript Segment Rotation
+
+**Decision: ACCEPT**
+
+### 3.1 Decision goal
+
+Segments are physical sharding only:
 
 ```text
-STO-D0-04   Segment rotation defaults                                            NEXT
-STO-D0-05   Archive vs tombstone vs hard-delete semantics                        PENDING
+Conversation
+    ├── transcript-000001.jsonl
+    ├── transcript-000002.jsonl
+    ├── transcript-000003.jsonl
+    └── ...
+```
+
+Invariant boundaries that MUST remain independent of segment boundaries:
+
+```text
+Conversation identity ≠ Segment identity
+Turn identity         ≠ Segment identity
+Context boundary      ≠ Segment boundary
+Session boundary      ≠ Segment boundary
+Voice/Text switch     ≠ Segment boundary
+```
+
+Rotation is fully invisible to Julia.
+
+### 3.2 Default rotation policy (frozen)
+
+```text
+ROTATE BEFORE NEXT APPEND
+when projected active segment exceeds either:
+  32 MiB (MAX_BYTES = 33,554,432)
+  OR
+  10,000 canonical messages (MAX_MESSAGES)
+
+trigger = projected_bytes > MAX_BYTES OR projected_messages > MAX_MESSAGES
+```
+
+High-end values (32 MiB / 10k) chosen because conversations are already directory-isolated — no need for many small files — while 32 MiB stays lightweight for scan/backup/repair/migration.
+
+These are **operational defaults**, NOT cognition policy, NOT semantic invariant. Changing to 16 MiB later requires no migration and changes no semantics.
+
+### 3.3 Rotate BEFORE append (predict, not react)
+
+Wrong:
+
+```text
+segment = 31.9 MiB → append 5 MiB → 36.9 MiB → then rotate
+```
+
+Right:
+
+```text
+serialize next canonical record
+        ↓
+calculate projected size/count
+        ↓
+would exceed threshold?
+   ├─ NO  → append current
+   └─ YES → create next segment → append there
+```
+
+**Oversized single-record exception**: a single `ConversationMessage` is the minimum physical atom. If one serialized record is 40 MiB, it MUST NOT be split across segments. An oversized single-record segment (e.g. `transcript-000042.jsonl = 40 MiB`) is valid; the next record rotates normally.
+
+### 3.4 Rotation inside the canonical append critical section
+
+No background "segment manager" may decide placement after ACK. Frozen sequence:
+
+```text
+acquire conversation writer serialization
+        ↓
+serialize canonical message
+        ↓
+determine active segment
+        ↓
+rotation needed?
+        ↓
+create/select target segment
+        ↓
+write complete record + "\n" (immutable-buffer write_all, see D0-03 2.17)
+        ↓
+flush
+        ↓
+fsync(target segment)
+        ↓
+if newly-created segment: fsync(parent directory)
+        ↓
+DURABLE BOUNDARY
+        ↓
+CORE_ACCEPTED
+        ↓
+release writer
+```
+
+Forbidden window:
+
+```text
+CORE_ACCEPTED → background worker decides where to put message
+```
+
+### 3.5 One conversation → one serialized physical writer (invariant)
+
+For one `conversation_id`, `append A → rotation → append B` MUST NOT execute concurrently. Mechanism (in-process lock / file lock / single-writer repository) is not frozen; the contract is:
+
+```text
+At any time, the canonical segment set of one conversation has
+exactly one valid append serialization domain.
+```
+
+Otherwise two processes could both see `segment-000001` near threshold and both create `segment-000002`, corrupting physical truth.
+
+### 3.6 Segment numbering
+
+```text
+transcript-000001.jsonl
+transcript-000002.jsonl
+...
+```
+
+Frozen principles:
+
+```text
+monotonically increasing
+never semantic
+never exposed as conversation identity
+never reused after a persisted allocation
+gaps are legal
+```
+
+A crash leaving `000041` then `000043` (missing `000042`) does NOT mean corruption. Canonical message order is determined by canonical append order / message identity, never by filename continuity.
+
+### 3.7 Derived meta is not transcript truth
+
+```text
+meta.json: segment_count = 7
+crash → actually transcript-000008.jsonl already has a durable accepted message
+```
+
+Correct conclusion: segment 8 = truth; `meta.segment_count` = stale derived metadata. Recovery scans canonical segment files, validates, rebuilds derived metadata — it does NOT delete segment 8 to satisfy `meta.json`.
+
+```text
+segment_count / last_segment / last_message_id / message_count
+```
+are never canonical transcript truth.
+
+### 3.8 New segment durability (D0-03 ∩ D0-04)
+
+Existing segment:
+
+```text
+append record → flush → fsync(file)
+```
+
+New segment:
+
+```text
+create transcript-000NNN.jsonl → append full record → flush → fsync(file) → fsync(conversation directory) → ACK
+```
+
+If file fsync PASSES but directory fsync FAILS → `CORE_ACCEPTED ❌`, entering D0-I05 reconciliation (close / reopen / reconcile canonical store). Never guess "probably succeeded".
+
+### 3.9 Crash recovery — three states
+
+```text
+A. normal complete segments   → restore directly
+B. newly created empty segment → no canonical message; quarantine/remove under repair policy; number is not semantic truth
+C. newest segment partial tail → complete records preserved; partial final record invalid; quarantine/truncate via governed repair + evidence; never guess-fill JSON
+```
+
+### 3.10 Rotation MUST NOT be triggered by
+
+```text
+Electron restart
+Brain restart
+Voice reconnect
+Text ↔ Voice switch
+Provider switch
+Context Compact
+Session close
+daily boundary
+model change
+```
+
+These are different authority domains. Segment answers only: "is this physical file unfit to grow?" Allowed triggers:
+
+```text
+size threshold
+message-count threshold
+explicit storage maintenance operation (if later supported; must not change semantic order)
+```
+
+### 3.11 Read / pagination fully segment-transparent
+
+Callers see only:
+
+```text
+get_messages(conversation_id, before=cursor, limit=50)
+```
+
+Never "read segment 17". Cursor may internally encode physical position but MUST be opaque. Electron / Context OS / S2S are all segment-unaware; the repository alone handles cross-segment pagination (`000003 → 000002`).
+
+### 3.12 Attachments outside segment body
+
+Future `attachments/` binaries are NOT inlined into JSONL. `ConversationMessage` stores attachment ref + metadata + semantic relationship. The segment byte threshold counts transcript JSONL only.
+
+```text
+Conversation truth ≠ binary object storage
+```
+
+### 3.13 Threshold configuration semantics
+
+Product may later configure `segment_max_bytes` / `segment_max_messages`, but:
+
+```text
+explicit invalid configuration → startup/config validation FAIL
+silent fallback to arbitrary values → FORBIDDEN
+
+threshold change:
+  does NOT rewrite old segments
+  does NOT trigger migration
+  applies to future append/rotation only
+```
+
+### 3.14 Invariants
+
+**STO-D0-I08 — Segment Transparency**
+
+```text
+Transcript segmentation is a physical persistence concern only.
+
+Segment boundaries MUST NOT alter conversation identity, turn
+identity, canonical ordering, resume semantics, or model-visible
+context policy.
+```
+
+**STO-D0-I09 — Atomic Record Boundary**
+
+```text
+A canonical ConversationMessage MUST reside wholly within exactly
+one transcript segment.
+
+A message MUST NOT be split across segment boundaries.
+An oversized single-record segment is valid.
+```
+
+**STO-D0-I10 — Serialized Rotation**
+
+```text
+Segment selection, rotation, canonical append, and durability commit
+MUST execute within one serialized per-conversation writer domain.
+
+Concurrent physical writers MUST NOT independently rotate or append
+the same conversation.
+```
+
+**STO-D0-I11 — Rotation Before ACK**
+
+```text
+If rotation is required for an accepted user message, creation and
+durability of the target segment are part of that message's D0-03
+durability boundary.
+
+CORE_ACCEPTED MUST NOT precede successful durability of the new
+segment and its required filesystem directory entry.
+```
+
+**STO-D0-I12 — Reconstructable Segment Metadata**
+
+```text
+Segment counters, active-segment metadata, and catalog hints are
+derived state.
+
+Canonical transcript files MUST be discoverable and reconstructable
+without trusting those derived counters.
+```
+
+### 3.15 Acceptance tests (AT-ROT-01…12)
+
+```text
+AT-ROT-01  append below threshold → same segment                          ✅
+AT-ROT-02  next record crosses byte threshold → record wholly in next     ✅
+AT-ROT-03  10,001st projected message → new segment                       ✅
+AT-ROT-04  single record > MAX_BYTES → one oversized segment, no split    ✅
+AT-ROT-05  crash after new segment create, before record durability → no fake accepted ✅
+AT-ROT-06  crash after new-segment fsync, before ACK → retry → one message ✅
+AT-ROT-07  stale meta segment_count=N but durable N+1 → N+1 wins, meta rebuilt ✅
+AT-ROT-08  gap in segment numbers → conversation still readable           ✅
+AT-ROT-09  200+ messages spanning segments → pagination zero dup/missing  ✅
+AT-ROT-10  Text→Voice switch at rotation boundary → one conversation, correct order ✅
+AT-ROT-11  two concurrent appends → repository serializes → deterministic order ✅
+AT-ROT-12  partial final record in newest segment → prior records preserved, tail detected ✅
+```
+
+### 3.16 Freeze table
+
+| Item | Verdict |
+|---|---|
+| Default max size 32 MiB | ✅ |
+| Default max messages 10,000 | ✅ |
+| Trigger = projected size OR projected count | ✅ |
+| Rotate before append | ✅ |
+| Split one canonical message across segments | ❌ FORBIDDEN |
+| Oversized single-record segment | ✅ VALID |
+| Segment boundary semantic meaning | ❌ NONE |
+| Mode/session/provider-based rotation | ❌ FORBIDDEN |
+| Per-conversation serialized writer | ✅ REQUIRED |
+| New segment: file fsync + directory fsync before ACK | ✅ |
+| Derived meta as transcript authority | ❌ FORBIDDEN |
+| Gaps in physical sequence | ✅ VALID |
+| Threshold change rewrites old segments | ❌ NO |
+
+---
+
+## 4. Pending Decisions
+
+```text
+STO-D0-05   Archive vs tombstone vs hard-delete semantics                        NEXT
 STO-D0-06   Derived search index technology (SQLite FTS)                         PENDING
 STO-D0-07   Backup retention policy                                              PENDING
 STO-D0-02   Diary file format (one append-only daily file vs date directory)     PENDING
