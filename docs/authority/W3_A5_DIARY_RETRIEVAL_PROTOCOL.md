@@ -61,11 +61,16 @@ Diary reaches the model only through Context OS. No raw-file glob, no
 unconditional dump.
 ```
 
-**W3-A5-I03 — Governed Relevance**
+**W3-A5-I03 — Retrieval Ranks, Context Selects**
 
 ```text
-DiaryContextSource selects by governed signals (relevance, recency,
-significance), never a full-transcript-style concatenation.
+DiaryContextSource retrieves/ranks candidate diary entries using governed
+signals (relevance, recency, significance), never a full-transcript-style
+concatenation.
+
+Only Context OS decides which candidates become model-visible.
+
+retrieval ranking ≠ model-visible selection authority.
 ```
 
 ## Sabotage suite (AT-RET-01…04) — SPEC (not PASS)

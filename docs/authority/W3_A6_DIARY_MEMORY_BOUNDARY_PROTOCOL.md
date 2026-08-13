@@ -27,7 +27,9 @@ Close, but never the same.
 ```text
 Accepted DiaryEntry
         ↓
-may become MemoryCandidate
+governed Memory-candidate extraction / proposal
+        ↓
+MemoryCandidate
         ↓
 Memory Governance
         ↓
@@ -53,11 +55,12 @@ Diary and Memory are governed by separate authorities. Neither auto-mutates
 the other.
 ```
 
-**W3-A6-I02 — Candidate Gate Between**
+**W3-A6-I02 — Candidate Producer ≠ Memory Authority**
 
 ```text
-An accepted DiaryEntry may become a MemoryCandidate only through Memory
-Governance, never directly.
+Memory-candidate extraction/proposal precedes Memory Governance.
+Memory Governance alone decides MemoryCandidate → NO_MEMORY | Accepted Memory.
+The candidate producer holds no Memory authority.
 ```
 
 **W3-A6-I03 — No Reverse Auto-Write**
