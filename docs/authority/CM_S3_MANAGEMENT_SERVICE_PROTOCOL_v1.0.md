@@ -28,12 +28,53 @@ Each operation orchestrates Core/repository; none directly writes canonical trut
 
 ```text
 CANONICAL_CONVERSATION_CREATED iff:
-  Core/Brain creation succeeds AND canonical conversation_id is returned.
+  canonical ConversationManagementService/Core create operation succeeds
+  AND returns a canonical conversation_id.
 
 Otherwise: CREATE_FAILED.
 
 NEVER: local fallback canonical ID
        (Electron local-only conversation ID MUST NOT enter canonical path).
+```
+
+## Create identity semantics (idempotency_key ≠ conversation_id)
+
+```text
+canonical conversation_id
+  = assigned/accepted only by canonical Core create semantics
+  = never an Electron/S2S local fallback identity
+
+idempotency_key
+  = retry identity only
+  = NOT canonical conversation identity
+  = MAY be supplied by a caller as an opaque request key
+
+same idempotency_key      → same canonical conversation_id
+different idempotency_key → independent create operation
+```
+
+## Mutation routing boundary
+
+```text
+ConversationManagementService MUST NOT directly invoke canonical-message
+mutation operations on ConversationRepository.
+```
+
+```text
+Canonical ConversationMessage mutation path:
+  ManagementService / API
+        ↓
+  ConversationRuntime
+        ↓
+  ConversationRepository
+```
+
+```text
+list / lookup / catalog   → repository/read-model ports allowed
+rename / archive / delete → only through governed domain/lifecycle contracts
+add_message / update_message_status / append_external_turns_atomic / import_messages_atomic
+                          → NEVER directly from ManagementService
+                          → ConversationRuntime authority path only
 ```
 
 ## Invariants
@@ -76,9 +117,10 @@ unknown conversation_id behavior is explicit and fail-closed
 **CM-S3-I06 — Idempotent Create**
 
 ```text
-create is idempotent under defined identity semantics.
-Duplicate create with the same identity returns the established
-conversation, never a second canonical conversation.
+create is idempotent under defined idempotency-key semantics.
+idempotency_key ≠ canonical conversation_id.
+Same idempotency_key returns the same canonical conversation;
+different idempotency_key is an independent create operation.
 ```
 
 **CM-S3-I07 — Metadata Never Rewrites Transcript**
@@ -106,6 +148,14 @@ No client-specific management authority.
 ```text
 Context OS consumes conversation truth; it does not become management
 authority.
+```
+
+**CM-S3-I11 — Runtime Mutation Path**
+
+```text
+ManagementService MUST NOT directly invoke canonical-message mutation
+methods on ConversationRepository. Canonical ConversationMessage mutation
+flows only through ConversationRuntime.
 ```
 
 ## Sabotage suite (AT-CMS-01…10) — SPEC (not PASS)
