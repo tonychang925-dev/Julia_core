@@ -41,6 +41,20 @@ class CreateFailedError(Exception):
         super().__init__(detail or "canonical conversation create failed")
 
 
+class ConversationStateConflictError(Exception):
+    """409: semantic management state conflict (e.g. idempotency/lifecycle conflict)."""
+
+    def __init__(self, detail: str = "conversation state conflict"):
+        super().__init__(detail)
+
+
+class ConversationBusyError(Exception):
+    """423: conversation busy/locked for a governed operation."""
+
+    def __init__(self, detail: str = "conversation busy/locked"):
+        super().__init__(detail)
+
+
 class CreateIdempotencyPort(Protocol):
     """Core semantic port for create idempotency.
 
@@ -110,6 +124,14 @@ class ConversationManagementService:
 
     def search(self, query: str) -> list:
         return self._runtime.search_conversations(query)
+
+    def get_messages(self, conversation_id: str, max_messages: int = 100) -> list[dict]:
+        """CM-S4: read canonical messages through the governed management surface.
+
+        HTTP/Electron call THIS, never the Runtime's private internals.
+        """
+        self.get(conversation_id)  # GAP-8: 404 on unknown, never implicit create
+        return self._runtime.get_messages(conversation_id, max_messages)
 
     # ── lifecycle (CM-S6 authority; fail-closed until implemented) ────────
     def delete(self, conversation_id: str) -> bool:
