@@ -118,6 +118,7 @@ CUTOVER_ACTIVE = "ACTIVE"
 CUTOVER_FROZEN = "FROZEN"
 CUTOVER_VERIFIED = "VERIFIED"
 CUTOVER_PENDING_COMMIT = "ACTIVATED_PENDING_COMMIT"
+CUTOVER_RECOVERY_HOLD = "RECOVERY_HOLD"
 
 
 # ── Runtime ──────────────────────────────────────────────────────────────────
@@ -297,6 +298,13 @@ class ConversationRuntime:
             if commit_receipt != self._pending_commit_receipt:
                 raise CutoverConflictError("invalid activation commit receipt")
             self._cutover_phase = CUTOVER_ACTIVE
+
+    def enter_recovery_hold(self) -> None:
+        """RECOVERY_HOLD: block canonical writes until governed recovery
+        completes (journal shows an uncommitted/ambiguous activation)."""
+        with self._binding_lock:
+            if self._cutover_phase == CUTOVER_ACTIVE:
+                self._cutover_phase = CUTOVER_RECOVERY_HOLD
 
     # ── Public API ───────────────────────────────────────────────────────
 
@@ -916,6 +924,7 @@ __all__ = [
     "CUTOVER_FROZEN",
     "CUTOVER_VERIFIED",
     "CUTOVER_PENDING_COMMIT",
+    "CUTOVER_RECOVERY_HOLD",
     "configure_conversation_runtime",
     "get_conversation_runtime",
 ]

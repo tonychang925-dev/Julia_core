@@ -92,6 +92,11 @@ class SessionRepository:
         with self._lock:
             self._read_only = True
 
+    def _assert_writable(self) -> None:
+        """Fail BEFORE any in-memory mutation (true read-only: zero mutation)."""
+        if self._read_only:
+            raise RepositoryReadOnlyError("repository retired; read-only")
+
     # ── Public API (all locked) ──────────────────────────────────────────
 
     def list_all(self) -> list[ConversationSession]:
@@ -108,6 +113,7 @@ class SessionRepository:
 
     def create(self, title: str = "New Conversation") -> ConversationSession:
         with self._lock:
+            self._assert_writable()
             session = ConversationSession(title=title)
             self._sessions[session.id] = session
             self._save()
@@ -119,6 +125,7 @@ class SessionRepository:
             existing = self._sessions.get(session_id)
             if existing is not None:
                 return existing
+            self._assert_writable()
             session = ConversationSession(id=session_id, title=title)
             self._sessions[session_id] = session
             self._save()
@@ -138,6 +145,7 @@ class SessionRepository:
             session = self._sessions.get(session_id)
             if not session:
                 return None
+            self._assert_writable()
             msg = ConversationMessage(
                 conversation_id=session_id,
                 turn_id=turn_id,
@@ -157,6 +165,7 @@ class SessionRepository:
             session = self._sessions.get(session_id)
             if not session:
                 return None
+            self._assert_writable()
             session.title = title
             session.touch()
             self._save()
@@ -168,6 +177,7 @@ class SessionRepository:
             for session in self._sessions.values():
                 for m in session.messages:
                     if m.message_id == message_id:
+                        self._assert_writable()
                         m.status = status
                         self._save()
                         return True
@@ -201,6 +211,7 @@ class SessionRepository:
             session = self._sessions.get(session_id)
             if session is None:
                 raise ConversationNotFoundError(f"Conversation not found: {session_id}")
+            self._assert_writable()
 
             # Full snapshot for rollback
             saved_messages = list(session.messages)
@@ -378,6 +389,7 @@ class SessionRepository:
             session = self._sessions.get(session_id)
             if session is None:
                 raise ConversationNotFoundError(f"Conversation not found: {session_id}")
+            self._assert_writable()
 
             # Phase 1: validate ALL messages — every field required
             seen_in_batch: set[str] = set()
@@ -518,6 +530,7 @@ class SessionRepository:
         with self._lock:
             if session_id not in self._sessions:
                 return False
+            self._assert_writable()
             del self._sessions[session_id]
             self._save()
             return True
