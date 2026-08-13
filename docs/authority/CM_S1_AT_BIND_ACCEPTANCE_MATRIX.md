@@ -5,7 +5,7 @@ UPDATED: 2026-08-13
 PROGRAM: Conversation Storage + Management + Julia Diary
 PHASE: Wave 1 — A-3 Acceptance Matrix (Claude-A)
 BASE: cm-r0-fix @ `c5f0fbd`
-FROZEN INPUTS: STO-F2 @ `edc0692` · CM-S1C @ `87682b7` · CM-S1D @ `87682b7`
+FROZEN INPUTS: STO-F2 @ `edc0692` · CM-S1C/S1D reviewed protocol authority @ `38adf58`
 
 ## Status vocabulary (exclusive, single value per row)
 
