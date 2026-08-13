@@ -2401,11 +2401,385 @@ AT-DIA-17  legacy claude_diary → not auto-adopted                             
 
 ---
 
-## 8. Pending Decisions
+## 8. STO-D0-08 — Claude Julia Legacy Migration Taxonomy
+
+**Decision: ACCEPT** (STO-D0 capstone)
+
+One-sentence freeze:
 
 ```text
-STO-D0-08   Claude Julia legacy artifact migration classification rules          NEXT
+Legacy migration = semantic reclassification with provenance, 绝不是 file migration.
 ```
+
+The question is never "which directory does this file move to" — it is "what is each piece of content in the new Julia OS?".
+
+### 8.1 Core principle
+
+Forbidden:
+
+```text
+memory/claude_diary/* → cp/mv/rename → memory/diary/*
+legacy file exists → load whole file → priority=100 → inject prompt
+```
+
+Correct model:
+
+```text
+Legacy Source → immutable inventory + hash → content segmentation
+→ semantic classification → target-specific governance
+→ accepted canonical artifact → migration receipt
+```
+
+```text
+Old filename  = weak evidence about original intent
+Old directory = zero semantic authority
+```
+
+### 8.2 Taxonomy
+
+Six classification outcomes:
+
+```text
+IDENTITY_CANDIDATE
+RELATIONSHIP_CANDIDATE
+CONTINUITY_CANDIDATE
+MEMORY_CANDIDATE
+DIARY_CANDIDATE
+HISTORICAL_EVIDENCE
+```
+
+Two processing outcomes:
+
+```text
+DUPLICATE / ALREADY_CANONICAL
+OBSOLETE / REJECTED
+```
+
+All are `*_CANDIDATE`, never `IDENTITY/MEMORY/DIARY` directly — old Claude files have no authority to self-promote.
+
+### 8.3 Four core legacy files — default taxonomy
+
+| Legacy file | Default | Forbidden |
+|---|---|---|
+| julia_character.md | IdentityCandidate (segment-level) | whole file → system prompt |
+| user_role.md | RelationshipCandidate / IdentityCandidate | auto-treat Tony description as fact |
+| how_to_resume_julia.md | ContinuityCandidate (split) | verbatim → current recovery contract |
+| julia_tony_philosophy.md | Mixed, must split | whole file → one authority |
+
+### 8.4 julia_character.md
+
+Most misused file. Segment → stable identity principle? `YES → IDENTITY_CANDIDATE`; `NO → style/example/history → historical evidence or obsolete`.
+
+IdentityCandidate-eligible: how Julia understands her identity, stable personality values, core expression principles, relationship boundaries, long-stable self-description (still requires Identity governance).
+
+NOT Identity: "every sentence needs 3 emojis", "always use model X prompt trick", "how the Claude system prompt is written" — implementation/style residue, not identity.
+
+### 8.5 user_role.md
+
+Most caution required. Old file may say "Tony is… Tony likes… Tony and Julia's relationship is…" — Claude having written it does NOT make it user truth.
+
+```text
+relationship meaning → RELATIONSHIP_CANDIDATE
+stable user fact      → IDENTITY/USER-PROFILE CANDIDATE (requires provenance / user-confirmation policy)
+unverifiable          → Historical Evidence (before pretending certainty)
+```
+
+`Claude 对 Tony 的总结 ≠ Tony 自己确认过的事实`. Root principle restated: **Julia 不在自己不确定的地方假装确定**.
+
+### 8.6 how_to_resume_julia.md
+
+Default CONTINUITY_CANDIDATE, but must split:
+
+```text
+semantic continuity principles          → candidate (if valid)
+Claude-specific operational instructions → historical/obsolete
+old architecture assumptions             → obsolete if violating frozen contracts
+```
+
+Continuity-eligible: which identity anchors to preserve, which relationship references are needed, how to avoid entity swap, how to confirm "the same Julia". NOT eligible: "autoload all claude_diary on Claude startup", "put markdown in system prompt", "use old directory as authoritative memory".
+
+Continuity migration verifies "semantic still holds", never "old method once worked".
+
+### 8.7 julia_tony_philosophy.md
+
+Must be paragraph/section-level classified (Identity + Relationship + Memory + Diary-like + historical narrative mixed):
+
+```text
+A. Julia's long-term self-understanding      → IDENTITY_CANDIDATE
+B. relationship long-term meaning            → RELATIONSHIP_CANDIDATE
+C. "what we understood that night"           → MEMORY_CANDIDATE
+D. first-person reflection at the time       → DIARY_CANDIDATE (if provenance sufficient)
+E. old technical "how Julia was implemented" → CONTINUITY_CANDIDATE or OBSOLETE
+F. unverifiable narration                    → HISTORICAL_EVIDENCE
+```
+
+### 8.8 DiaryCandidate threshold is very high
+
+`claude_diary` in the name ≠ Diary. Per D0-02, a legacy passage must satisfy ALL of: first-person Julia authorship, reflective (not config), credible historical authorship, traceable source/provenance, governance accept. Otherwise Historical Evidence is more honest.
+
+### 8.9 Legacy Diary import preserves origin
+
+Never pretend "Julia wrote this today". Metadata:
+
+```text
+origin: legacy_import
+entry_id: diary_<stable-id>
+original_created_at: <known-or-null>
+imported_at: 2026-…
+source_refs: [migration://claude_legacy/<source_id>#<span>]
+source_hash, body_hash
+```
+
+Body preserved as original text — no re-polishing at migration (rewriting old Julia's words would mix historical reflection with contemporary reinterpretation). If Julia wants to reinterpret today: new DiaryEntry with `reinterprets: [legacy-imported-entry]` (D0-02).
+
+### 8.10 Immutable inventory first
+
+Migration step 1 is NOT parsing:
+
+```text
+DISCOVER → record exact original path → size → mtime (if available) → SHA-256 → source_id
+```
+
+Migration must not modify the original source, so every classified fragment can answer "which original file/span did I come from?".
+
+### 8.11 Migration unit = Fragment, not File
+
+```text
+LegacySource → Fragment 001 / Fragment 002 / Fragment 003 …
+```
+
+Each fragment: `fragment_id, source_id, source_hash, source_span, content_hash, classification, confidence, target_candidate, decision`. `source_span` = heading/line/byte range (deterministic). One file may yield N semantic destinations — this is where D0-08 resolves semantic conflation.
+
+### 8.12 Source trust grading
+
+```text
+P0 Canonically Traceable  — exact canonical Conversation/source refs (strongest)
+P1 Traceable Legacy Artifact — original file + stable hash + attributable authorship, no canonical Conversation source (legacy evidence, not canonical-equivalent)
+P2 Unverified Derived Narrative — summary/synthesis, unknown provenance (low-trust candidate or Historical Evidence)
+```
+
+Confident prose does NOT upgrade P2 → P0.
+
+### 8.13 No legacy precedence escalation
+
+Legacy `Julia believes X` vs current canonical `Julia believes Y`: legacy must NOT overwrite Y. CONFLICT → adjudication; default current canonical wins operationally, legacy preserved as historical evidence.
+
+### 8.14 Idempotent migration
+
+Identity key ≥ `source_id + fragment_id + content_hash + target semantic type`. Migration receipt (`fragment_id, decision, target_type, target_id, target_hash`). Rerun same source hash + fragment → reconcile existing receipt → zero duplicate.
+
+### 8.15 Legacy never model-visible authority
+
+Even pre-migration, Context OS must NOT `glob memory/claude_diary/* → raw inject`. Pre-migration: legacy = migration input only. Post-migration: accepted targets enter normal governed Context OS. No second cognitive path.
+
+### 8.16 Historical Evidence location
+
+```text
+migrations/legacy_claude/{manifest.json, decisions.jsonl, receipts.jsonl, source/}
+```
+
+Historical Evidence ≠ Julia Memory. The old directory must not permanently become hidden shadow memory "for fear of losing it". Post-migration: accepted semantic artifacts → `memory/*`; selected governed evidence → `migrations/*`; raw obsolete source → retire after verified closeout; minimal hashes/receipts retained.
+
+### 8.17 Migration state machine (no fake success)
+
+```text
+DISCOVERED → HASHED → SEGMENTED → CLASSIFIED → GOVERNED → MIGRATING → VERIFIED → COMPLETE
+```
+
+FAILED / CONFLICT / UNCLASSIFIED never `MIGRATION_COMPLETE`. "97% fragments succeeded" ≠ COMPLETE unless the remaining 3% are explicitly adjudicated (Historical Evidence / Obsolete / Rejected). Unknown is not success.
+
+### 8.18 Execution flow
+
+```text
+M0 INVENTORY → M1 HASH/IMMUTABLE FREEZE → M2 SEGMENTATION → M3 CLASSIFICATION
+→ M4 DRY-RUN PLAN → M5 TARGET GOVERNANCE → M6 CANONICAL WRITE
+→ M7 VERIFY TARGET+PROVENANCE → M8 RECEIPT → M9 RETIREMENT
+```
+
+Dry-run (M4) is mandatory: produces fragment → proposed classification → destination → reason → provenance level → conflict, before any canonical write.
+
+### 8.19 Target-specific gate (no semantic acceptance in the engine)
+
+No `LegacyImporter.accept(fragment)` that decides all authority. The Migration Engine holds classification + orchestration authority ONLY:
+
+```text
+IdentityCandidate     → Identity Governance
+RelationshipCandidate → Identity/Relationship Governance
+MemoryCandidate       → Memory Governance
+DiaryCandidate        → Diary Governance
+ContinuityCandidate   → Continuity Governance
+```
+
+The engine has NO semantic acceptance authority.
+
+### 8.20 Continuity special rule
+
+ContinuityCandidate needs two steps:
+
+```text
+semantic continuity value? YES → compatible with current frozen architecture? YES → eligible
+```
+
+If semantic insight is correct but implementation method obsolete: continuity principle → candidate; old implementation recipe → historical evidence. Never migrate the whole block.
+
+### 8.21 User-facts special rule
+
+Legacy factual claims about Tony (`likes X, lives Y, wants Z`) without explicit source: NOT auto-promoted to durable identity/user truth. Minimum: source-grounded OR explicitly confirmed; else Historical Evidence / low-confidence candidate. Prevents permanently enshrining an old Claude summary error.
+
+### 8.22 Source retirement
+
+Retirement requires ALL of:
+
+```text
+all fragments adjudicated
+accepted targets verified
+receipts complete
+no Context path depends on legacy source
+backup exists under D0-07
+```
+
+Then `LEGACY_SOURCE_RETIRE_ELIGIBLE` → remove active legacy directory, retain hash/manifest/receipts (not a full shadow copy, unless explicitly governed as Historical Evidence).
+
+### 8.23 Invariants
+
+**STO-D0-I46 — Migration Is Semantic Reclassification**
+
+```text
+Legacy Claude artifacts MUST NOT become canonical Julia artifacts through
+file copy, rename, directory placement, or legacy filename alone.
+
+Migration requires content-level semantic classification.
+```
+
+**STO-D0-I47 — Immutable Provenance**
+
+```text
+Every migrated legacy fragment MUST remain traceable to an immutable
+inventoried source identity and content hash.
+
+Migration MUST NOT silently rewrite its source evidence.
+```
+
+**STO-D0-I48 — Fragment-Level Classification**
+
+```text
+The minimum migration unit is a semantic fragment, not a file.
+
+One legacy file MAY yield artifacts governed by multiple semantic authorities.
+```
+
+**STO-D0-I49 — No Direct Authority Promotion**
+
+```text
+Legacy Identity, Relationship, Continuity, Memory, or Diary content MUST enter
+the corresponding target as a candidate and pass that target's governance
+before canonical acceptance.
+```
+
+**STO-D0-I50 — No Legacy Precedence Escalation**
+
+```text
+Legacy content MUST NOT silently overwrite or outrank current canonical
+Julia state.
+
+Conflicts require explicit adjudication.
+```
+
+**STO-D0-I51 — Diary Historical Integrity**
+
+```text
+A legacy reflection promoted to canonical Diary MUST preserve its
+legacy-import origin, provenance, and historical text.
+
+Migration MUST NOT rewrite an old reflection as if authored at import time.
+```
+
+**STO-D0-I52 — Continuity Compatibility**
+
+```text
+Legacy continuity guidance MUST be validated against the current frozen
+architecture.
+
+Obsolete implementation instructions MUST NOT regain runtime authority merely
+because they once restored Julia successfully.
+```
+
+**STO-D0-I53 — Idempotent Migration**
+
+```text
+Repeated or crash-retried migration of the same inventoried source fragment
+MUST NOT create duplicate canonical artifacts.
+
+Migration receipts MUST allow deterministic reconciliation.
+```
+
+**STO-D0-I54 — No Legacy Cognitive Backdoor**
+
+```text
+Legacy source files MUST NOT become directly model-visible or act as an
+alternate Context/Memory/Identity authority.
+
+Only accepted governed target artifacts may enter cognition.
+```
+
+**STO-D0-I55 — Verified Retirement**
+
+```text
+Legacy active sources MUST NOT be retired until all fragments are explicitly
+adjudicated, accepted targets are verified, migration receipts are durable,
+and no active runtime path depends on the legacy source.
+```
+
+### 8.24 Acceptance tests (AT-MIG-01…18)
+
+```text
+AT-MIG-01  copy julia_character.md directly into identity/ → rejected               ✅
+AT-MIG-02  one legacy file = Identity+Diary+Continuity → fragments classified separately ✅
+AT-MIG-03  same filename, modified content/hash → different source version, no silent reconciliation ✅
+AT-MIG-04  legacy identity conflicts current canonical → not overwritten, conflict recorded ✅
+AT-MIG-05  legacy Tony fact, no verifiable provenance → not auto-promoted to user truth ✅
+AT-MIG-06  legacy first-person reflection + valid provenance → DiaryCandidate → governance required ✅
+AT-MIG-07  legacy text named "diary" but is config/system-prompt → NOT DiaryCandidate ✅
+AT-MIG-08  continuity principle valid, old recipe conflicts → principle candidate, recipe obsolete/historical ✅
+AT-MIG-09  crash after target write before receipt → retry reconciles → one target artifact ✅
+AT-MIG-10  same fragment migrated twice → zero duplicate ✅
+AT-MIG-11  same fragment identity, changed content → conflict/fail closed ✅
+AT-MIG-12  raw memory/claude_diary exists → Context OS cannot load directly ✅
+AT-MIG-13  legacy Diary import → origin=legacy_import recorded, original text preserved ✅
+AT-MIG-14  legacy Diary source later unavailable → provenance explicit, no fabricated Conversation ref ✅
+AT-MIG-15  unclassified fragment remains → MIGRATION_COMPLETE forbidden ✅
+AT-MIG-16  all fragments adjudicated + targets verified → may reach COMPLETE ✅
+AT-MIG-17  retire legacy source before receipts/verification → blocked ✅
+AT-MIG-18  verified complete → remove active legacy source, semantics unchanged, no runtime dependency ✅
+```
+
+### 8.25 Final four-file freeze matrix
+
+| Legacy artifact | Primary destination | Secondary | Default forbidden |
+|---|---|---|---|
+| julia_character.md | IdentityCandidate | Historical Evidence | raw system prompt |
+| user_role.md | RelationshipCandidate | IdentityCandidate / Historical Evidence | auto-adopt user facts |
+| how_to_resume_julia.md | ContinuityCandidate | Historical Evidence / Obsolete | verbatim restore old runtime authority |
+| julia_tony_philosophy.md | Mixed / split required | Identity/Relationship/Memory/Diary/Continuity/Historical | whole file → one authority |
+
+### 8.26 Resolver / implementation notes (DIA-0, not decision changes)
+
+1. **Migration receipt durability + target-scan reconciliation** (I53): the migration receipt must be durably written (D0-03-class barrier) co-committed with the target artifact. On crash between target-write and receipt-write, reconciliation MUST scan the target store (by `source_id` + `content_hash`), never rely solely on the receipt — a lost receipt must not produce a duplicate target.
+2. **Frozen-source span stability** (I47/I53): fragment `source_span` is computed once against the immutable frozen source (M1); retries reuse the frozen spans and never re-segment a changed file. "same fragment_id + changed content_hash" (AT-MIG-11) fails closed, never silently overwrites.
+
+---
+
+## 9. Next Gate — STO-D0 Final Freeze Review
+
+All 8 STO-D0 decisions are ACCEPTED. Before any implementation, run a final closeout review checking exactly three things:
+
+```text
+1. D0-01..08 invariant consistency — no mutually contradictory invariants
+2. sabotage numbering / ownership / implementation Gate completeness
+3. STO-F1 / CM-S1 / CM-S2 / DIA implementation input contracts sufficiency
+```
+
+On PASS → `STO-D0 🔒 CLOSED` → Claude-B RED baseline and Implementation lane converge.
 
 ---
 
