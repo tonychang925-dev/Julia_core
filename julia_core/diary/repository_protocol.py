@@ -20,8 +20,14 @@ class DiaryRepository(Protocol):
     """Durable store for accepted DiaryEntry objects (semantic surface only)."""
 
     def append_accepted(self, entry: AcceptedDiaryEntry) -> None:
-        """Persist an accepted entry. Durability/idempotency semantics are the
-        adapter's; the port only states the semantic contract."""
+        """Establish durable diary persistence for an accepted entry.
+
+        Normal return means DIARY_DURABLE has been established.
+
+        If DIARY_DURABLE cannot be established, the implementation MUST fail
+        rather than return success, and the entry MUST NOT become observable
+        through get()/list_entries().
+        """
         ...
 
     def get(self, entry_id: str) -> AcceptedDiaryEntry | None:

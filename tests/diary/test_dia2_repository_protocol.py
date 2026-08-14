@@ -44,9 +44,27 @@ def test_protocol_api_no_persistence_details():
         assert forbidden not in src, f"protocol API must not expose {forbidden}"
 
 
-# ── structural: get/list return AcceptedDiaryEntry only ─────────────────────
-def test_protocol_returns_accepted_entry_only():
-    get_hints = get_type_hints(DiaryRepository.get)
-    assert get_hints["return"] is AcceptedDiaryEntry or "AcceptedDiaryEntry" in str(get_hints["return"])
-    list_hints = get_type_hints(DiaryRepository.list_entries)
-    assert "AcceptedDiaryEntry" in str(list_hints["return"])
+# ── AT-DP-C05: durable success boundary (normal return == DIARY_DURABLE) ────
+def test_durable_success_boundary():
+    src = _src()
+    assert "Normal return means DIARY_DURABLE" in src
+    assert "MUST fail" in src
+    assert "MUST NOT become observable" in src
+
+
+# ── AT-DP-C06: exact read return types (no DiaryCandidate/Any/mixed union) ──
+def test_exact_read_return_types():
+    from types import NoneType
+    from typing import get_args, get_origin
+
+    get_ret = get_type_hints(DiaryRepository.get)["return"]
+    get_ret_args = get_args(get_ret)
+    assert AcceptedDiaryEntry in get_ret_args
+    assert NoneType in get_ret_args
+    assert DiaryCandidate not in get_ret_args
+    assert len(get_ret_args) == 2
+
+    list_ret = get_type_hints(DiaryRepository.list_entries)["return"]
+    assert get_origin(list_ret) is list
+    (elem,) = get_args(list_ret)
+    assert elem is AcceptedDiaryEntry
