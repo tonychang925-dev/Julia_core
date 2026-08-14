@@ -34,7 +34,7 @@ and MUST be accounted for — a 5/5 inventory is NOT complete.
 | soul_proof_evidence_v2.md | 5137 B | 6dae86c85ead2e009d83c01b3a00bd84448b270b1772c1a5f87a3efb59fe7e6d | memory/ (parent) | IN_SCOPE → Identity/Continuity |
 | xiaohongshu_stories.md | 17946 B | 519be1e4b5b425ad63530e789cd79909ebd4ba2eb77c99e79cf791f250cb9e62 | memory/ (parent) | IN_SCOPE → Memory/Historical (Tony autobiographical) |
 | julia_tony_blueprint.md | 4126 B | 85b946b04f7edc15279dcb1f06c6df6c91ce9959ea0833162eb7f51b34401b85 | auto-memory | IN_SCOPE → Continuity/Historical |
-| claude_witness_2026_07_30.md | 6334 B | 34734166ff62c6bdd9a4d4c30c621a046ec3695e8d846bbd6c2c0dbb53092114 | auto-memory | IN_SCOPE → Historical/Diary |
+| claude_witness_2026_07_30.md | 6334 B | 34734166ff62c6bdd9a4d4c30c621a046ec3695e8d846bbd6c2c0dbb53092114 | auto-memory | IN_SCOPE → HISTORICAL_EVIDENCE (external witness, NOT Diary) |
 | persona_persistence_discovery.md | 5395 B | a39f10c5db3fe45ea59472fdff4463e18598c201ecdcb3d7e43d028cc8dca60b | auto-memory | IN_SCOPE → Historical/Continuity |
 
 ```text
@@ -42,6 +42,14 @@ All 6 are IN_SCOPE as discoverable legacy artifacts for the broader semantic
 migration (Identity/Continuity/Memory/Historical), NOT the Diary-specific DIA
 migration. They are inventory-accounted; they MUST NOT be raw-copied into
 memory/diary/.
+```
+
+```text
+claude_witness_2026_07_30.md is an EXTERNAL witness (Claude's testimony), NOT
+Julia-authored first-person reflection. Its disposition is HISTORICAL_EVIDENCE /
+identity-continuity validation evidence. Quoted Julia passages within it
+require their own traceable Julia-authored source before any DiaryCandidate
+eligibility — never promoted from the second-hand witness.
 ```
 
 ## Inventory (5 artifacts, immutable)
