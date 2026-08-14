@@ -252,3 +252,58 @@ def test_governance_status_equality_spoof_rejected():
 def test_governance_status_list_rejected():
     with pytest.raises(ValueError):
         _entry(governance_status=[])
+
+
+# ── AT-DOM-26..29: subclass spoof (exact primitive, not isinstance) ────────
+class _EvilStr(str):
+    def __new__(cls, value):
+        obj = super().__new__(cls, value)
+        obj.mutable = []
+        return obj
+
+    def __eq__(self, other):
+        return other == "accepted"
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
+class _EvilTuple(tuple):
+    def __new__(cls, items):
+        obj = super().__new__(cls, items)
+        obj.mutable = []
+        return obj
+
+
+class _SubSourceRef(DiarySourceRef):
+    pass
+
+
+class _SubProvenance(DiaryProvenance):
+    pass
+
+
+def test_governance_status_evil_str_rejected():
+    with pytest.raises(ValueError):
+        _entry(governance_status=_EvilStr("pending"))
+
+
+def test_evil_str_in_themes_and_title_rejected():
+    with pytest.raises(ValueError):
+        _candidate(themes=(_EvilStr("x"),))
+    with pytest.raises(ValueError):
+        _candidate(title=_EvilStr("x"))
+
+
+def test_evil_tuple_rejected():
+    with pytest.raises(ValueError):
+        _candidate(themes=_EvilTuple(("x",)))
+    with pytest.raises(ValueError):
+        _candidate(source_refs=_EvilTuple((DiarySourceRef("conversation://conv_A/msg_1"),)))
+
+
+def test_value_object_subclass_rejected():
+    with pytest.raises(ValueError):
+        _candidate(source_refs=(_SubSourceRef("conversation://conv_A/msg_1"),))
+    with pytest.raises(ValueError):
+        _candidate(provenance=_SubProvenance("p", "m", "r"))

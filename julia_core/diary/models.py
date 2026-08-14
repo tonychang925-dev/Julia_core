@@ -23,23 +23,23 @@ from dataclasses import dataclass
 
 
 def _require_tuple(name: str, value: object) -> None:
-    if not isinstance(value, tuple):
+    if type(value) is not tuple:
         raise ValueError(f"{name} must be a tuple")
 
 
 def _require_non_empty_str(name: str, value: object) -> None:
-    if not isinstance(value, str) or not value.strip():
+    if type(value) is not str or not value.strip():
         raise ValueError(f"{name} must be a non-empty str")
 
 
 def _require_optional_str(name: str, value: object) -> None:
-    if value is not None and not isinstance(value, str):
+    if value is not None and type(value) is not str:
         raise ValueError(f"{name} must be None or str")
 
 
 def _require_str_tuple(name: str, value: object) -> None:
     _require_tuple(name, value)
-    if not all(isinstance(item, str) for item in value):
+    if not all(type(item) is str for item in value):
         raise ValueError(f"{name} must be a tuple of str")
 
 
@@ -99,12 +99,12 @@ class DiaryCandidate:
         _require_str_tuple("DiaryCandidate.themes", self.themes)
         _require_optional_str("DiaryCandidate.relationship_significance", self.relationship_significance)
         _require_optional_str("DiaryCandidate.project_significance", self.project_significance)
-        if not isinstance(self.provenance, DiaryProvenance):
+        if type(self.provenance) is not DiaryProvenance:
             raise ValueError("DiaryCandidate.provenance must be DiaryProvenance")
         _require_tuple("DiaryCandidate.source_refs", self.source_refs)
         if not self.source_refs:
             raise ValueError("DiaryCandidate.source_refs must be non-empty")
-        if not all(isinstance(ref, DiarySourceRef) for ref in self.source_refs):
+        if not all(type(ref) is DiarySourceRef for ref in self.source_refs):
             raise ValueError("DiaryCandidate.source_refs must contain DiarySourceRef only")
 
 
@@ -144,12 +144,12 @@ class AcceptedDiaryEntry:
         _require_non_empty_str("AcceptedDiaryEntry.governance_status", self.governance_status)
         if self.governance_status != "accepted":
             raise ValueError("AcceptedDiaryEntry.governance_status must be 'accepted'")
-        if not isinstance(self.provenance, DiaryProvenance):
+        if type(self.provenance) is not DiaryProvenance:
             raise ValueError("AcceptedDiaryEntry.provenance must be DiaryProvenance")
         _require_tuple("AcceptedDiaryEntry.source_refs", self.source_refs)
         if not self.source_refs:
             raise ValueError("AcceptedDiaryEntry.source_refs must be non-empty")
-        if not all(isinstance(ref, DiarySourceRef) for ref in self.source_refs):
+        if not all(type(ref) is DiarySourceRef for ref in self.source_refs):
             raise ValueError("AcceptedDiaryEntry.source_refs must contain DiarySourceRef only")
 
 
