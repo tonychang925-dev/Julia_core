@@ -141,6 +141,7 @@ class AcceptedDiaryEntry:
         _require_optional_str("AcceptedDiaryEntry.relationship_significance", self.relationship_significance)
         _require_optional_str("AcceptedDiaryEntry.project_significance", self.project_significance)
         _require_str_tuple("AcceptedDiaryEntry.supersedes", self.supersedes)
+        _require_non_empty_str("AcceptedDiaryEntry.governance_status", self.governance_status)
         if self.governance_status != "accepted":
             raise ValueError("AcceptedDiaryEntry.governance_status must be 'accepted'")
         if not isinstance(self.provenance, DiaryProvenance):

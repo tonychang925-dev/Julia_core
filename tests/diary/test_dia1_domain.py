@@ -232,3 +232,23 @@ def test_reachable_fields_are_immutable_primitives():
     assert isinstance(entry.body_hash, str)
     assert isinstance(entry.supersedes, tuple) and all(isinstance(s, str) for s in entry.supersedes)
     assert isinstance(entry.governance_status, str)
+
+
+# ── AT-DOM-25: governance_status equality-spoof / mutable container → REJECT ─
+class _FakeAccepted:
+    def __init__(self):
+        self.mutable = []
+
+    def __eq__(self, other):
+        return other == "accepted"
+
+
+def test_governance_status_equality_spoof_rejected():
+    status = _FakeAccepted()
+    with pytest.raises(ValueError):
+        _entry(governance_status=status)
+
+
+def test_governance_status_list_rejected():
+    with pytest.raises(ValueError):
+        _entry(governance_status=[])
