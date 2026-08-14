@@ -15,18 +15,24 @@ conversational assumptions. READ-ONLY: no production edits, no adapter code.
 ## 1. Exact Assistant production file scope (reusable)
 
 ```text
-private_data/                     ← Wave-1 (F1) / Wave-2 (F2A) production lane
+DIA-2B Assistant IMPLEMENTATION BASE (P0-1 pinned):
+  Julia-AI-Assistant wave1/sto-f2a-assistant @ 098d0d51e395ff99f9fcc8f8ed31bd31ab33f210
+  (the branch that actually owns private_data/*)
+
+wave2/conversation-management-assistant @ 3966075…
+  = REFERENCE EVIDENCE ONLY (durable-append/flock pattern)
+  ≠ automatically present in the DIA-2B worktree
+  (098d0d5 and 3966075 DIVERGE from merge-base 44cea89; not parent-child)
+
+private_data/                     ← present on the pinned base
   resolver.py      PrivateDataRootResolver.resolve() → ResolvedPrivateDataRoot
   layout.py        PrivateDataLayout (memory / diary / runtime / … paths)
-  marker.py        RootMarker (BOOTSTRAPPING→READY) [reusable for day-dir init]
-  capability.py    NamespaceCapability (least-authority durable ops)
+  marker.py        RootMarker (BOOTSTRAPPING→READY) — NOT a day-dir primitive
+  capability.py    NamespaceCapability (least-authority ops; needs extension, §2)
   composition.py   ApplicationCompositionRoot (build / report / layout)
   wiring.py        wire_legacy_composition (binding pattern)
   persistence.py   PersistenceFailure + PERSISTENCE_* codes
-  segmented_repository.py / reconciliation.py / cutover.py   (Conversation, reuse pattern only)
-
-conversation_management/         ← Wave-2 management lane
-  create_idempotency_adapter.py  durable append pattern (write+flush+fsync+dir barrier)
+  segmented_repository.py / reconciliation.py / cutover.py   (Conversation, pattern only)
 ```
 
 ## 2. Existing persistence primitives we can reuse
@@ -36,10 +42,27 @@ PrivateDataRootResolver.resolve()          → canonical private root
 PrivateDataLayout(root).diary              → <root>/memory/diary
 NamespaceCapability.append_owned_durable() → write-all + flush + fsync(file), O_APPEND,
                                              short-write loop (D0-03 barrier)
-NamespaceCapability.fsync_owned_subdir()   → directory durability barrier
+NamespaceCapability.fsync_owned_subdir()   → directory durability barrier (single dir)
 NamespaceCapability.fsync_owned_file()     → explicit file fsync
 NamespaceCapability.list_owned_dir()       → segment/day-file discovery
 PersistenceFailure.from_os_error()         → OSError → structured failure (no raw-path leak)
+```
+
+### Missing capability work (P0-2/P0-3 — DIA-2B must EXTEND capability, not bypass it)
+
+```text
+NamespaceCapability today does NOT provide:
+  - durable private directory hierarchy (force 0700 on newly-created memory/diary/2026/08/)
+  - day file mode enforcement (0600)
+  - FULL parent-entry durability chain (fsync every newly-created dir, not just the leaf)
+  - owned same-day writer lock (per-day serialization + idempotency race protection)
+
+Diary adapter MUST NOT get the raw path and do its own os.mkdir/chmod/lock —
+the capability owns physical Path (F2 least-authority). DIA-2B extends
+NamespaceCapability (or a diary-scoped subclass) with:
+  ensure_owned_private_tree(...)   → exact 0700 dirs, 0600 file
+  durable_parent_chain(...)        → fsync every newly-created dir
+  owned_day_lock(...)              → same-day exclusive lock (flock, Wave-2 reference)
 ```
 
 ## 3. Private root authority source
@@ -91,10 +114,15 @@ Cross-repo import: tests import the Core Port from julia_core (Wave-3 DIA lane).
 ```text
 serialize accepted entry → framed bytes
         ↓
-append_owned_durable(day_file, frame)      # write-all + flush + fsync(file)
+ensure owned private directory tree (0700):
+  create diary     → fsync(memory)
+  create 2026      → fsync(diary)
+  create 08        → fsync(2026)          # FULL parent-entry chain, not just leaf
         ↓
-if new YYYY/MM directory created:
-  fsync_owned_subdir(day_file.parent)      # directory durability barrier
+create day file (0600)
+append complete frame (write-all + flush + fsync(file))
+        ↓
+fsync(08)                                  # day dir barrier
         ↓
 DIARY_DURABLE → normal return
 ```
@@ -106,12 +134,27 @@ Any step failing → no successful return → entry not observable.
 ```text
 <root>/memory/diary/YYYY/MM/YYYY-MM-DD.md   (single daily container, append-only)
 
-BEGIN marker:  <!-- JULIA_DIARY_ENTRY_BEGIN <entry_id> -->
-metadata YAML: entry_id / created_at / reflection_time / body_hash /
-               source_refs / provenance / title / themes /
-               relationship_significance / project_significance / supersedes
-body: Julia first-person Markdown
-END marker:    <!-- JULIA_DIARY_ENTRY_END <entry_id> -->
+Frozen D0-02 guarantees (not a bespoke schema):
+  single daily Markdown container
+  explicit BEGIN/END framing
+  stable entry_id
+  first-person body
+  source refs
+  append-only
+  collision-resistant framing
+
+Adopted marker framing (D0-02 "framed example" as guidance, not frozen exact):
+  BEGIN:  <!-- JULIA_DIARY_ENTRY_BEGIN <entry_id> -->
+  metadata: entry_id / created_at / reflection_time / body_hash /
+            source_refs / provenance / title / themes /
+            relationship_significance / project_significance /
+            supersedes / reinterprets (DIA-CG-01 successor amendment)
+  body: Julia first-person Markdown
+  END:    <!-- JULIA_DIARY_ENTRY_END <entry_id> -->
+
+Collision resistance (AT-DP-16): body containing an exact marker-looking
+line MUST be escaped/rejected deterministically by the writer — body can
+never terminate or inject another frame; parser round-trips the body.
 
 complete BEGIN+END           → candidate durable frame
 orphan BEGIN (no END)        → incomplete/crash residue → NOT exposed as accepted
@@ -122,9 +165,16 @@ orphan BEGIN (no END)        → incomplete/crash residue → NOT exposed as acc
 ```text
 primary key = entry_id
 
-same entry_id + same body_hash     → idempotent success (existing durable entry)
-same entry_id + different body_hash → HARD CONFLICT (never second append)
-new entry_id                        → append
+same entry_id + EXACT same canonical AcceptedDiaryEntry
+  (all semantic fields equal, not just body_hash)
+  → idempotent success (existing durable entry)
+
+same entry_id + ANY semantic field differs
+  (body, body_hash, source_refs, title, themes, significance,
+   supersedes, reinterprets, provenance)
+  → PERSISTENCE_CONFLICT (never second append)
+
+new entry_id → append
 
 read/recovery:
   preserve complete frames
@@ -152,14 +202,33 @@ Assistant Adapter:
   AT-DP-12  new YYYY/MM dir creation without dir-barrier → no DIARY_DURABLE claim
   AT-DP-13  permission != 0600 / dir != 0700 → contract violation
   AT-DP-14  adapter receives path-traversal/caller physical path → reject (day path internal only)
+  AT-DP-15  two simultaneous same-day writers → no frame interleave; same entry_id → exactly one durable entry
+  AT-DP-16  body contains exact BEGIN/END-looking marker line → writer escapes/rejects deterministically; parser round-trips body; cannot inject another frame
+  AT-DP-17  timezone policy changes later → existing entry remains in its original day partition
 ```
 
-## Day-partition authority
+## Day-partition authority (exact rule)
 
 ```text
-YYYY-MM-DD.md derived INTERNALLY by the adapter from the accepted entry's
-frozen timestamp + configured timezone policy. Electron / API caller / LLM /
-Diary body MUST NOT pass "write to 2026-08-14.md".
+AcceptedDiaryEntry.created_at MUST be offset-aware (e.g. RFC3339 with offset).
+
+day partition = diary-local timezone at FIRST durable acceptance.
+its local calendar date fixes YYYY-MM-DD.md.
+
+later timezone change → old entries NEVER move partitions.
+
+Electron / API caller / LLM / Diary body MUST NOT pass
+"write to 2026-08-14.md". Physical day path is adapter-internal only.
+```
+
+## Contract gap (DIA-CG-01)
+
+```text
+D0-02 freezes BOTH `reinterprets` (new understanding) and `supersedes`
+(explicit correction). FINAL AcceptedDiaryEntry (DIA-1 @ 7525c6f) carries only
+`supersedes`. This cannot be back-edited; resolution = DIA-1A successor
+amendment adding `reinterprets: tuple[str, ...] = ()` (same exact primitive
+rules as supersedes). Not a DIA-2B serializer hack.
 ```
 
 ## DIA-2B-R0 exit gate
