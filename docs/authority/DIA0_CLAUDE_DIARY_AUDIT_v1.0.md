@@ -1,6 +1,6 @@
 # DIA-0 — Claude Julia Diary Audit & Semantic Reclassification
 
-STATUS: REVIEW_CANDIDATE
+STATUS: FROZEN
 UPDATED: 2026-08-14
 PROGRAM: Conversation Storage + Management + Julia Diary
 PHASE: Wave-3 Diary Implementation / DIA-0 (Claude-A forensic audit)
@@ -173,14 +173,13 @@ Every classified fragment keeps:
 ## DIA-0 exit gate
 
 ```text
-[ ] every discoverable legacy artifact accounted for (11-file set reconciled)
-[ ] semantic class explicit per file
-[ ] ambiguous entries surfaced (AMB-01..05)
-[ ] no raw-copy migration
-[ ] provenance retained (sha256 + path + span)
+[x] every discoverable legacy artifact accounted for (11-file set reconciled)
+[x] semantic class explicit per file
+[x] ambiguous entries surfaced (AMB-01..05)
+[x] no raw-copy migration
+[x] provenance retained (sha256 + path + span)
 ```
 
 ## Document status vocabulary
 
-- REVIEW_CANDIDATE: awaiting independent challenge + Mira review (current).
-- FROZEN: accepted and sealed after independent review.
+- FROZEN: accepted and sealed after independent review (current).
