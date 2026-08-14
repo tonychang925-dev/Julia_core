@@ -114,6 +114,7 @@ def test_optional_fields_default_valid():
     assert cand.project_significance is None
     entry = _entry()
     assert entry.supersedes == ()
+    assert entry.reinterprets == ()
 
 
 # ── AT-DOM-10: source ref is an opaque semantic URI (no physical-path field) ─
@@ -183,6 +184,8 @@ def test_nested_mutable_collection_rejected():
         _candidate(themes=[])
     with pytest.raises(ValueError):
         _entry(supersedes=[])
+    with pytest.raises(ValueError):
+        _entry(reinterprets=[])
 
 
 # ── AT-DOM-20: tuple shell containing a mutable list → REJECT ──────────────
@@ -197,6 +200,8 @@ def test_supersedes_tuple_containing_mutable_list_rejected():
     mutable = []
     with pytest.raises(ValueError):
         _entry(supersedes=(mutable,))
+    with pytest.raises(ValueError):
+        _entry(reinterprets=(mutable,))
 
 
 # ── AT-DOM-22: title as mutable list → REJECT ──────────────────────────────
@@ -231,6 +236,7 @@ def test_reachable_fields_are_immutable_primitives():
     assert isinstance(entry.created_at, str)
     assert isinstance(entry.body_hash, str)
     assert isinstance(entry.supersedes, tuple) and all(isinstance(s, str) for s in entry.supersedes)
+    assert isinstance(entry.reinterprets, tuple) and all(isinstance(s, str) for s in entry.reinterprets)
     assert isinstance(entry.governance_status, str)
 
 

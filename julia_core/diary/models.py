@@ -128,6 +128,7 @@ class AcceptedDiaryEntry:
     relationship_significance: str | None = None
     project_significance: str | None = None
     supersedes: tuple[str, ...] = ()
+    reinterprets: tuple[str, ...] = ()
     governance_status: str = "accepted"
 
     def __post_init__(self) -> None:
@@ -141,6 +142,7 @@ class AcceptedDiaryEntry:
         _require_optional_str("AcceptedDiaryEntry.relationship_significance", self.relationship_significance)
         _require_optional_str("AcceptedDiaryEntry.project_significance", self.project_significance)
         _require_str_tuple("AcceptedDiaryEntry.supersedes", self.supersedes)
+        _require_str_tuple("AcceptedDiaryEntry.reinterprets", self.reinterprets)
         _require_non_empty_str("AcceptedDiaryEntry.governance_status", self.governance_status)
         if self.governance_status != "accepted":
             raise ValueError("AcceptedDiaryEntry.governance_status must be 'accepted'")
