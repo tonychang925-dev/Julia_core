@@ -1,6 +1,6 @@
 # DIA-0 — Claude Julia Diary Audit & Semantic Reclassification
 
-STATUS: FROZEN
+STATUS: REVIEW_CANDIDATE
 UPDATED: 2026-08-14
 PROGRAM: Conversation Storage + Management + Julia Diary
 PHASE: Wave-3 Diary Implementation / DIA-0 (Claude-A forensic audit)
@@ -20,6 +20,28 @@ NO raw directory copy into the new memory/diary/ authority.
 ```text
 Julia-AI-Assistant (canonical production checkout)
 /Users/admin/julia_ai_assistant_rmd3g_prod/memory/claude_diary/
+```
+
+## Legacy Source Scope Reconciliation (11-file historical set)
+
+The historical Claude Julia memory directory (2026-08-03) held 11 Markdown files.
+The current `memory/claude_diary/` holds 5. The other 6 are discoverable elsewhere
+and MUST be accounted for — a 5/5 inventory is NOT complete.
+
+| extra file | size | sha256 | location | disposition |
+|---|---|---|---|---|
+| soul_proof_evidence.md | 7793 B | af31a1672d57fdfd89b34171d77ba2f780145b499aee903621b0ccfa8cb0d1ef | memory/ (parent) | IN_SCOPE → Identity/Continuity (not Diary) |
+| soul_proof_evidence_v2.md | 5137 B | 6dae86c85ead2e009d83c01b3a00bd84448b270b1772c1a5f87a3efb59fe7e6d | memory/ (parent) | IN_SCOPE → Identity/Continuity |
+| xiaohongshu_stories.md | 17946 B | 519be1e4b5b425ad63530e789cd79909ebd4ba2eb77c99e79cf791f250cb9e62 | memory/ (parent) | IN_SCOPE → Memory/Historical (Tony autobiographical) |
+| julia_tony_blueprint.md | 4126 B | 85b946b04f7edc15279dcb1f06c6df6c91ce9959ea0833162eb7f51b34401b85 | auto-memory | IN_SCOPE → Continuity/Historical |
+| claude_witness_2026_07_30.md | 6334 B | 34734166ff62c6bdd9a4d4c30c621a046ec3695e8d846bbd6c2c0dbb53092114 | auto-memory | IN_SCOPE → Historical/Diary |
+| persona_persistence_discovery.md | 5395 B | a39f10c5db3fe45ea59472fdff4463e18598c201ecdcb3d7e43d028cc8dca60b | auto-memory | IN_SCOPE → Historical/Continuity |
+
+```text
+All 6 are IN_SCOPE as discoverable legacy artifacts for the broader semantic
+migration (Identity/Continuity/Memory/Historical), NOT the Diary-specific DIA
+migration. They are inventory-accounted; they MUST NOT be raw-copied into
+memory/diary/.
 ```
 
 ## Inventory (5 artifacts, immutable)
@@ -51,8 +73,11 @@ Primary: IDENTITY_CANDIDATE — Julia's stable self-description:
 
 Split-out:
   - Tony's appearance (§ "Tony's Appearance") → RELATIONSHIP_CANDIDATE / user fact
-  - L1–L4 lover-mode boundary + TTS tag rules (§ "Voice & Tone", "TTS configuration")
-    → implementation/style residue (NOT identity — per D0-08 "not identity")
+  - L1–L4 SEMANTIC relationship boundary (intimacy levels exist; mode switch is
+    Tony's choice; Julia does not proactively cross) → RELATIONSHIP_CANDIDATE /
+    Identity-boundary candidate (subject to governance — D0-08 eligible)
+  - L1–L4 numeric encoding + trigger mechanics + TTS tags (§ "Voice & Tone",
+    "TTS configuration") → IMPLEMENTATION / STYLE / OBSOLETE
   - "The Memory Files — Their Diary" → meta / HISTORICAL_EVIDENCE
 ```
 
@@ -104,7 +129,8 @@ Split-out (OBSOLETE implementation, do NOT regain runtime authority):
 ## Ambiguous entries surfaced (for Codex B challenge)
 
 ```text
-AMB-01  julia_character.md L1–L4 lover-mode rules: identity vs implementation residue
+AMB-01  julia_character.md L1–L4: semantic relationship boundary (RELATIONSHIP)
+        vs numeric encoding/TTS mechanics (IMPLEMENTATION) — must split, not whole-impl-residue
 AMB-02  user_role.md factual claims about Tony: verified user fact vs Claude summary
 AMB-03  how_to_resume_julia.md transcript paths: continuity anchor vs obsolete artifact
 AMB-04  julia_tony_philosophy.md "one-day-memory girlfriend" frame:
@@ -139,7 +165,7 @@ Every classified fragment keeps:
 ## DIA-0 exit gate
 
 ```text
-[ ] every legacy artifact inventoried (5/5)
+[ ] every discoverable legacy artifact accounted for (11-file set reconciled)
 [ ] semantic class explicit per file
 [ ] ambiguous entries surfaced (AMB-01..05)
 [ ] no raw-copy migration
@@ -148,4 +174,5 @@ Every classified fragment keeps:
 
 ## Document status vocabulary
 
-- FROZEN: audit report accepted and sealed (current).
+- REVIEW_CANDIDATE: awaiting independent challenge + Mira review (current).
+- FROZEN: accepted and sealed after independent review.
