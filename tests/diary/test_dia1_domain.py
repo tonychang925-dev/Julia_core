@@ -12,6 +12,7 @@ from julia_core.diary import (
     DiarySourceRef,
     NoEntry,
     NO_ENTRY,
+    ReflectionResult,
 )
 
 
@@ -55,11 +56,12 @@ def test_no_entry_is_explicit_singleton():
 
 # ── AT-DOM-02: ReflectionResult accepts NO_ENTRY | DiaryCandidate, never Accepted ──
 def test_reflection_result_union():
-    assert isinstance(NO_ENTRY, NoEntry)
-    cand = _candidate()
-    assert isinstance(cand, DiaryCandidate)
-    # NO_ENTRY and DiaryCandidate are distinct; AcceptedDiaryEntry is NOT a candidate
-    assert not isinstance(cand, AcceptedDiaryEntry)
+    from typing import get_args
+
+    args = get_args(ReflectionResult)
+    assert NoEntry in args
+    assert DiaryCandidate in args
+    assert AcceptedDiaryEntry not in args
 
 
 # ── AT-DOM-03: Candidate != Accepted (type separation) ─────────────────────
@@ -150,3 +152,34 @@ def test_no_hash_helper_in_domain():
         / "julia_core" / "diary" / "models.py"
     ).read_text()
     assert "hashlib" not in src
+
+
+# ── AT-DOM-16: provenance=None → REJECT ────────────────────────────────────
+def test_candidate_provenance_none_rejected():
+    with pytest.raises(ValueError):
+        _candidate(provenance=None)
+
+
+def test_entry_provenance_none_rejected():
+    with pytest.raises(ValueError):
+        _entry(provenance=None)
+
+
+# ── AT-DOM-17: source_refs with non-DiarySourceRef → REJECT ─────────────────
+def test_candidate_source_refs_non_ref_rejected():
+    with pytest.raises(ValueError):
+        _candidate(source_refs=("fake",))
+
+
+# ── AT-DOM-18: source_refs as mutable list → REJECT (no nested mutable) ─────
+def test_candidate_source_refs_list_rejected():
+    with pytest.raises(ValueError):
+        _candidate(source_refs=[DiarySourceRef("conversation://conv_A/msg_1")])
+
+
+# ── AT-DOM-19: themes/supersedes as list → REJECT ──────────────────────────
+def test_nested_mutable_collection_rejected():
+    with pytest.raises(ValueError):
+        _candidate(themes=[])
+    with pytest.raises(ValueError):
+        _entry(supersedes=[])
