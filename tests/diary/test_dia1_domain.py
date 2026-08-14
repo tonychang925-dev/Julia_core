@@ -183,3 +183,52 @@ def test_nested_mutable_collection_rejected():
         _candidate(themes=[])
     with pytest.raises(ValueError):
         _entry(supersedes=[])
+
+
+# ── AT-DOM-20: tuple shell containing a mutable list → REJECT ──────────────
+def test_themes_tuple_containing_mutable_list_rejected():
+    mutable = []
+    with pytest.raises(ValueError):
+        _candidate(themes=(mutable,))
+
+
+# ── AT-DOM-21: supersedes tuple containing a mutable list → REJECT ──────────
+def test_supersedes_tuple_containing_mutable_list_rejected():
+    mutable = []
+    with pytest.raises(ValueError):
+        _entry(supersedes=(mutable,))
+
+
+# ── AT-DOM-22: title as mutable list → REJECT ──────────────────────────────
+def test_title_mutable_list_rejected():
+    with pytest.raises(ValueError):
+        _candidate(title=[])
+
+
+# ── AT-DOM-23: optional scalar metadata as mutable container → REJECT ──────
+def test_optional_metadata_mutable_rejected():
+    with pytest.raises(ValueError):
+        _candidate(relationship_significance={})
+    with pytest.raises(ValueError):
+        _entry(project_significance=[])
+
+
+# ── AT-DOM-24: reachable fields are str / None / tuple of immutable primitives ─
+def test_reachable_fields_are_immutable_primitives():
+    cand = _candidate()
+    assert isinstance(cand.candidate_id, str)
+    assert isinstance(cand.reflection_time, str)
+    assert isinstance(cand.body, str)
+    assert isinstance(cand.title, (str, type(None)))
+    assert isinstance(cand.themes, tuple) and all(isinstance(t, str) for t in cand.themes)
+    assert isinstance(cand.relationship_significance, (str, type(None)))
+    assert isinstance(cand.project_significance, (str, type(None)))
+    assert isinstance(cand.source_refs, tuple) and all(isinstance(r, DiarySourceRef) for r in cand.source_refs)
+    assert isinstance(cand.provenance, DiaryProvenance)
+
+    entry = _entry()
+    assert isinstance(entry.entry_id, str)
+    assert isinstance(entry.created_at, str)
+    assert isinstance(entry.body_hash, str)
+    assert isinstance(entry.supersedes, tuple) and all(isinstance(s, str) for s in entry.supersedes)
+    assert isinstance(entry.governance_status, str)

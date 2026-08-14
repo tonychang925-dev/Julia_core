@@ -6,9 +6,13 @@ Frozen A0–A7 semantics:
   AcceptedDiaryEntry exists only after GOVERNANCE_APPROVED AND DIARY_DURABLE
   (DIA-1 defines the shape; DIA-2 persistence / DIA-6 governance own the flow).
 
-Immutable is enforced at runtime: collection fields MUST be tuples (never a
-mutable list); provenance/source-ref fields MUST be the value types (never
-None / bare strings). Strict fail-closed, no auto-normalization.
+Immutability is enforced at runtime, deep: collection fields MUST be tuples
+of immutable primitives (never a mutable list, never a mutable list nested
+inside a tuple); provenance/source-ref fields MUST be the value types.
+
+Only representation/type is checked, never meaning ("is this theme reasonable?"
+/ "does this supersedes target exist?" / "does this URI resolve?" are DIA-6 /
+repository / source-resolution concerns).
 
 Forbidden here: filesystem I/O, persistence, governance execution, Memory
 mutation, Context visibility, provider/LLM, Assistant/Electron. stdlib only.
@@ -21,6 +25,22 @@ from dataclasses import dataclass
 def _require_tuple(name: str, value: object) -> None:
     if not isinstance(value, tuple):
         raise ValueError(f"{name} must be a tuple")
+
+
+def _require_non_empty_str(name: str, value: object) -> None:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-empty str")
+
+
+def _require_optional_str(name: str, value: object) -> None:
+    if value is not None and not isinstance(value, str):
+        raise ValueError(f"{name} must be None or str")
+
+
+def _require_str_tuple(name: str, value: object) -> None:
+    _require_tuple(name, value)
+    if not all(isinstance(item, str) for item in value):
+        raise ValueError(f"{name} must be a tuple of str")
 
 
 @dataclass(frozen=True)
@@ -37,8 +57,7 @@ class DiarySourceRef:
     uri: str
 
     def __post_init__(self) -> None:
-        if not self.uri or not self.uri.strip():
-            raise ValueError("DiarySourceRef uri must be non-empty")
+        _require_non_empty_str("DiarySourceRef.uri", self.uri)
 
 
 @dataclass(frozen=True)
@@ -50,12 +69,9 @@ class DiaryProvenance:
     runtime: str
 
     def __post_init__(self) -> None:
-        if not self.model_provider or not self.model_provider.strip():
-            raise ValueError("DiaryProvenance.model_provider must be non-empty")
-        if not self.model_name or not self.model_name.strip():
-            raise ValueError("DiaryProvenance.model_name must be non-empty")
-        if not self.runtime or not self.runtime.strip():
-            raise ValueError("DiaryProvenance.runtime must be non-empty")
+        _require_non_empty_str("DiaryProvenance.model_provider", self.model_provider)
+        _require_non_empty_str("DiaryProvenance.model_name", self.model_name)
+        _require_non_empty_str("DiaryProvenance.runtime", self.runtime)
 
 
 @dataclass(frozen=True)
@@ -76,10 +92,13 @@ class DiaryCandidate:
     project_significance: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.candidate_id or not self.candidate_id.strip():
-            raise ValueError("DiaryCandidate.candidate_id must be non-empty")
-        if not self.body or not self.body.strip():
-            raise ValueError("DiaryCandidate.body must be non-empty")
+        _require_non_empty_str("DiaryCandidate.candidate_id", self.candidate_id)
+        _require_non_empty_str("DiaryCandidate.reflection_time", self.reflection_time)
+        _require_non_empty_str("DiaryCandidate.body", self.body)
+        _require_optional_str("DiaryCandidate.title", self.title)
+        _require_str_tuple("DiaryCandidate.themes", self.themes)
+        _require_optional_str("DiaryCandidate.relationship_significance", self.relationship_significance)
+        _require_optional_str("DiaryCandidate.project_significance", self.project_significance)
         if not isinstance(self.provenance, DiaryProvenance):
             raise ValueError("DiaryCandidate.provenance must be DiaryProvenance")
         _require_tuple("DiaryCandidate.source_refs", self.source_refs)
@@ -87,7 +106,6 @@ class DiaryCandidate:
             raise ValueError("DiaryCandidate.source_refs must be non-empty")
         if not all(isinstance(ref, DiarySourceRef) for ref in self.source_refs):
             raise ValueError("DiaryCandidate.source_refs must contain DiarySourceRef only")
-        _require_tuple("DiaryCandidate.themes", self.themes)
 
 
 @dataclass(frozen=True)
@@ -113,12 +131,16 @@ class AcceptedDiaryEntry:
     governance_status: str = "accepted"
 
     def __post_init__(self) -> None:
-        if not self.entry_id or not self.entry_id.strip():
-            raise ValueError("AcceptedDiaryEntry.entry_id must be non-empty")
-        if not self.body or not self.body.strip():
-            raise ValueError("AcceptedDiaryEntry.body must be non-empty")
-        if not self.body_hash or not self.body_hash.strip():
-            raise ValueError("AcceptedDiaryEntry.body_hash must be non-empty")
+        _require_non_empty_str("AcceptedDiaryEntry.entry_id", self.entry_id)
+        _require_non_empty_str("AcceptedDiaryEntry.created_at", self.created_at)
+        _require_non_empty_str("AcceptedDiaryEntry.reflection_time", self.reflection_time)
+        _require_non_empty_str("AcceptedDiaryEntry.body", self.body)
+        _require_non_empty_str("AcceptedDiaryEntry.body_hash", self.body_hash)
+        _require_optional_str("AcceptedDiaryEntry.title", self.title)
+        _require_str_tuple("AcceptedDiaryEntry.themes", self.themes)
+        _require_optional_str("AcceptedDiaryEntry.relationship_significance", self.relationship_significance)
+        _require_optional_str("AcceptedDiaryEntry.project_significance", self.project_significance)
+        _require_str_tuple("AcceptedDiaryEntry.supersedes", self.supersedes)
         if self.governance_status != "accepted":
             raise ValueError("AcceptedDiaryEntry.governance_status must be 'accepted'")
         if not isinstance(self.provenance, DiaryProvenance):
@@ -128,8 +150,6 @@ class AcceptedDiaryEntry:
             raise ValueError("AcceptedDiaryEntry.source_refs must be non-empty")
         if not all(isinstance(ref, DiarySourceRef) for ref in self.source_refs):
             raise ValueError("AcceptedDiaryEntry.source_refs must contain DiarySourceRef only")
-        _require_tuple("AcceptedDiaryEntry.themes", self.themes)
-        _require_tuple("AcceptedDiaryEntry.supersedes", self.supersedes)
 
 
 @dataclass(frozen=True)
