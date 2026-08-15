@@ -190,16 +190,20 @@ Core Port (already covered DIA-2A): AT-DP-C01..06
 Assistant Adapter:
   AT-DP-01  Core resolves diary path → VIOLATION (static)
   AT-DP-02  file fsync failure → no DIARY_DURABLE (fault-inject fsync)
-  AT-DP-03  crash mid-frame → prior entries survive, incomplete frame not exposed
+  AT-DP-03  crash mid-frame → prior complete entries survive; incomplete tail not exposed;
+            next append MUST first durably repair/truncate the tail OR fail closed
   AT-DP-04  reinterpretation → append new entry, old bytes unchanged
   AT-DP-05  diary persistence failure ≠ conversation rollback
   AT-DP-06  GOVERNANCE_APPROVED + fsync failure → NOT Accepted, not retrievable, not Memory-eligible
   AT-DP-07  fsync succeeded + crash before observe → reopen by entry_id → exactly one durable
-  AT-DP-08  same entry_id + same body_hash retry → exactly one durable
-  AT-DP-09  same entry_id + different body_hash → conflict, zero second append
-  AT-DP-10  orphan/incomplete BEGIN at EOF → ignored/quarantined, never returned accepted
+  AT-DP-08  same entry_id + EXACT same canonical AcceptedDiaryEntry retry → idempotent success → exactly one durable
+  AT-DP-09  same entry_id + ANY semantic field differs → PERSISTENCE_CONFLICT → zero second append
+            (explicit: same body_hash but different source_refs / reinterprets / provenance → CONFLICT)
+  AT-DP-10  orphan/incomplete BEGIN at EOF → never returned accepted; unresolved tail blocks
+            later append until durable repair succeeds; never becomes interior corruption
   AT-DP-11  malformed historical frame → fail-closed for that frame, prior valid readable
-  AT-DP-12  new YYYY/MM dir creation without dir-barrier → no DIARY_DURABLE claim
+  AT-DP-12  ANY newly-created diary/year/month/day-file directory entry missing its required
+            parent durability barrier → no DIARY_DURABLE
   AT-DP-13  permission != 0600 / dir != 0700 → contract violation
   AT-DP-14  adapter receives path-traversal/caller physical path → reject (day path internal only)
   AT-DP-15  two simultaneous same-day writers → no frame interleave; same entry_id → exactly one durable entry
