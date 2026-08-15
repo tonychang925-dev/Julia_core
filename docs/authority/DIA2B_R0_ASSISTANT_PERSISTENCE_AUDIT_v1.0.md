@@ -1,7 +1,7 @@
 # DIA-2B-R0 — Assistant Persistence Reality Audit
 
-STATUS: REVIEW_CANDIDATE
-UPDATED: 2026-08-14
+STATUS: FROZEN
+UPDATED: 2026-08-15
 PROGRAM: Conversation Storage + Management + Julia Diary
 PHASE: Wave-3 Diary Implementation / DIA-2B-R0 (Claude-A read-only audit)
 FROZEN INPUTS: DIA-0 `681884b` · DIA-1 `7525c6f` · DIA-2A `7f114ac` · D0-02 @ `261521f`
@@ -93,7 +93,7 @@ implementation, not R0.
 Reuse private_data/persistence.py PersistenceFailure codes:
   PERSISTENCE_WRITE_FAILURE       → write/short-write failure
   PERSISTENCE_DURABILITY_FAILURE  → fsync / dir-barrier failure (no DIARY_DURABLE)
-  PERSISTENCE_CONFLICT            → same entry_id + different body_hash
+  PERSISTENCE_CONFLICT            → same entry_id + ANY semantic field differs
   PERSISTENCE_CORRUPTION_DETECTED → malformed frame / orphan BEGIN at read time
 
 Adapter raises these; Core Port semantics unchanged (normal return == DIARY_DURABLE).
@@ -103,7 +103,7 @@ Adapter raises these; Core Port semantics unchanged (normal return == DIARY_DURA
 
 ```text
 Julia-AI-Assistant
-  tests/test_diary_repository.py      ← DIA-2B adapter sabotage (AT-DP-01..14)
+  tests/test_diary_repository.py      ← DIA-2B adapter sabotage (AT-DP-01..19)
   tests/conftest.py                   ← existing fixtures (temp root, resolver, capability)
 
 Cross-repo import: tests import the Core Port from julia_core (Wave-3 DIA lane).
@@ -183,7 +183,7 @@ read/recovery:
   never guess-fill a partial frame
 ```
 
-## 10. AT-DP-01..14 implementation sabotage plan
+## 10. AT-DP-01..19 implementation sabotage plan
 
 ```text
 Core Port (already covered DIA-2A): AT-DP-C01..06
@@ -205,6 +205,56 @@ Assistant Adapter:
   AT-DP-15  two simultaneous same-day writers → no frame interleave; same entry_id → exactly one durable entry
   AT-DP-16  body contains exact BEGIN/END-looking marker line → writer escapes/rejects deterministically; parser round-trips body; cannot inject another frame
   AT-DP-17  timezone policy changes later → existing entry remains in its original day partition
+  AT-DP-18  created_at invalid / offset-naive → reject before any physical day-path mutation (no diary file created)
+  AT-DP-19  inter-process lock backend unavailable → structured persistence failure, NO unlocked fallback, zero append
+```
+
+## 11. Recovery sharpening (P0 — before any adapter code)
+
+### 11.1 Unresolved tail must be reconciled BEFORE the next append
+
+```text
+WARNING: an "orphan BEGIN" that was merely ignored at read time can become
+interior corruption once later appends happen:
+
+  valid Entry A
+  BEGIN broken-B        ← crash here
+  BEGIN C / body C / END C   ← appended later
+
+So "ignore broken tail" is NOT enough.
+
+Frozen rule:
+  acquire same-day lock
+  → scan to last complete frame boundary
+  → if incomplete tail exists:
+       durably truncate/repair back to last valid byte boundary
+       OR fail closed
+  → only after successful repair allow the next append
+
+NEVER append behind an unresolved tail.
+```
+
+Capability needs an owned physical primitive (`truncate_owned_durable(name, valid_size)`
+or equivalent); Capability owns truncate/path/fsync, Adapter never obtains raw Path.
+
+### 11.2 Indeterminate complete-frame recovery
+
+```text
+W3-A4: governance-approved + persistence-failed → NOT Accepted, not retrievable.
+
+Reality: a complete frame may be written, fsync returns EIO, call fails, but
+the bytes happen to remain on disk.
+
+Frozen rule:
+  complete identical frame found after indeterminate durability
+  ≠ automatically Accepted
+
+  must re-establish the durability barrier successfully
+    → then idempotent success / observable
+  otherwise fail closed, not retrievable
+```
+
+Sharpens AT-DP-02/06/07.
 ```
 
 ## Day-partition authority (exact rule)
@@ -234,15 +284,17 @@ rules as supersedes). Not a DIA-2B serializer hack.
 ## DIA-2B-R0 exit gate
 
 ```text
-[ ] exact Assistant file scope identified
-[ ] reusable primitives enumerated (resolver/layout/capability/errors)
-[ ] private root authority source named
-[ ] adapter + tests placement decided
-[ ] durability sequence + framing + idempotency mapped to frozen D0-02
-[ ] AT-DP-01..14 sabotage plan fixed
+[x] exact Assistant file scope identified
+[x] reusable primitives enumerated (resolver/layout/capability/errors)
+[x] private root authority source named
+[x] adapter + tests placement decided
+[x] durability sequence + framing + idempotency mapped to frozen D0-02
+[x] AT-DP-01..19 sabotage plan fixed
+[x] recovery rules (unresolved tail / indeterminate frame) frozen
+[x] day-partition exactness + framing collision + same-day lock recorded
+[x] DIA-CG-01 adjudicated (reinterprets → DIA-1A)
 ```
 
 ## Document status vocabulary
 
-- REVIEW_CANDIDATE: awaiting Mira review (current).
-- FROZEN: sealed after review.
+- FROZEN: audit accepted and sealed after review feedback incorporated (current).

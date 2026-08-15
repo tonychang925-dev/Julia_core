@@ -1,7 +1,7 @@
 # DIA-CG-01 — Missing `reinterprets` in AcceptedDiaryEntry
 
-STATUS: OPEN
-UPDATED: 2026-08-14
+STATUS: ADJUDICATED
+UPDATED: 2026-08-15
 REPORTED BY: DIA-2B-R0.1 audit (Tony remote review)
 AFFECTED: DIA-1 @ `7525c6f` (FINAL) — `AcceptedDiaryEntry`
 
@@ -32,6 +32,12 @@ Same exact primitive rules as supersedes: tuple[str], non-mutable, no subclass,
 empty default.
 ```
 
-## Status
+## Adjudication
 
-OPEN → adjudication → DIA-1A successor amendment.
+```text
+ADJUDICATION: Mira Architecture Authority — ACCEPTED (VALID CONTRACT GAP)
+SUCCESSOR AMENDMENT: DIA-1A @ c221c1599833b15dbaee1ba81a667d3c73fcf4a0
+VERIFICATION: Codex B — PENDING
+
+CLOSE RULE: Codex B GREEN → DIA-CG-01 CLOSED
+```
