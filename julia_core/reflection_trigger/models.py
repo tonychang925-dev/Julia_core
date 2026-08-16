@@ -1,15 +1,20 @@
-"""DIA-3 R1.1 — Core Reflection Trigger canonical contract.
+"""DIA-3 R1.2 — Core Reflection Trigger canonical contract.
 
 A reflection trigger is a bounded opportunity to reflect. It is not a diary
-entry, accepted truth, memory, context, or physical scheduling implementation.
+entry, accepted truth, memory, context, interpretation authority, or physical
+scheduling implementation.
 
 Frozen Core semantics:
   * TriggerKind is a closed enum with exactly four members.
+  * TriggerReason is structural-only: kind + canonical evidence refs. It carries
+    no arbitrary semantic text.
   * Opportunity identity is SHA-256 over versioned canonical OpportunityKey
     bytes: schema_version, conversation_id, policy_revision, trigger_kind, and
     the typed causal anchor all enter the identity domain.
   * Causal anchors are closed variants: single event, activity window, quiet
-    window.
+    window. Single and quiet anchors do not bind mutable evidence projections.
+  * Activity-window closure includes start, frozen eligibility boundary, and
+    ordered evidence basis.
   * EvidenceBasis preserves caller-supplied canonical event order exactly; it
     rejects duplicate refs but never sorts membership internally.
   * triggered_at is audit-only on PendingOpportunity and is excluded from causal
@@ -37,6 +42,16 @@ def _require_non_empty_str(name: str, value: object) -> None:
 def _require_tuple(name: str, value: object) -> None:
     if type(value) is not tuple:
         raise ValueError(f"{name} must be a tuple")
+
+
+def _require_non_negative_int(name: str, value: object) -> None:
+    if type(value) is not int or value < 0:
+        raise ValueError(f"{name} must be a non-negative int")
+
+
+def _require_positive_int(name: str, value: object) -> None:
+    if type(value) is not int or value <= 0:
+        raise ValueError(f"{name} must be a positive int")
 
 
 def _frame(value: str) -> bytes:
@@ -85,29 +100,15 @@ class TriggerSourceRef:
         return _digest_hex(self.canonical_bytes())
 
 
-@dataclass(frozen=True)
-class TriggerReason:
-    """Opaque Core reason for why a reflection opportunity was raised."""
-
-    reason_code: str
-    detail: str | None = None
-
-    def __post_init__(self) -> None:
-        _require_non_empty_str("TriggerReason.reason_code", self.reason_code)
-        if self.detail is not None and type(self.detail) is not str:
-            raise ValueError("TriggerReason.detail must be None or str")
-
-    def canonical_bytes(self) -> bytes:
-        return _field("reason.code", self.reason_code) + _field("reason.detail", self.detail or "-")
+def _reject_duplicate_refs(name: str, refs: tuple[TriggerSourceRef, ...]) -> None:
+    keys = [ref.canonical_key() for ref in refs]
+    if len(set(keys)) != len(keys):
+        raise ValueError(f"{name} must not contain duplicate canonical refs")
 
 
 @dataclass(frozen=True)
 class EvidenceBasis:
-    """Evidence refs in already-canonical causal event order.
-
-    This class freezes membership and preserves order. It does not infer,
-    lexical-sort, arrival-sort, or otherwise reorder evidence.
-    """
+    """Evidence refs in already-canonical causal event order."""
 
     source_refs: tuple[TriggerSourceRef, ...]
     digest_function: str = EVIDENCE_DIGEST_FUNCTION
@@ -121,9 +122,7 @@ class EvidenceBasis:
         _require_non_empty_str("EvidenceBasis.digest_function", self.digest_function)
         if self.digest_function != EVIDENCE_DIGEST_FUNCTION:
             raise ValueError("EvidenceBasis.digest_function is frozen")
-        keys = [ref.canonical_key() for ref in self.source_refs]
-        if len(set(keys)) != len(keys):
-            raise ValueError("EvidenceBasis.source_refs must not contain duplicate canonical refs")
+        _reject_duplicate_refs("EvidenceBasis.source_refs", self.source_refs)
 
     def canonical_bytes(self) -> bytes:
         out = _field("evidence.version", CANONICAL_VERSION)
@@ -138,40 +137,80 @@ class EvidenceBasis:
 
 
 @dataclass(frozen=True)
-class EligibilityBoundary:
-    """Closed activity-window eligibility boundary."""
+class TriggerReason:
+    """Structural scheduling reason: closed kind + canonical facts only."""
 
-    boundary_event_id: str
-    boundary_reason: str
+    kind: TriggerKind
+    evidence_refs: tuple[TriggerSourceRef, ...]
 
     def __post_init__(self) -> None:
-        _require_non_empty_str("EligibilityBoundary.boundary_event_id", self.boundary_event_id)
-        _require_non_empty_str("EligibilityBoundary.boundary_reason", self.boundary_reason)
+        if type(self.kind) is not TriggerKind:
+            raise ValueError("TriggerReason.kind must be TriggerKind")
+        _require_tuple("TriggerReason.evidence_refs", self.evidence_refs)
+        if not self.evidence_refs:
+            raise ValueError("TriggerReason.evidence_refs must be non-empty")
+        if not all(type(ref) is TriggerSourceRef for ref in self.evidence_refs):
+            raise ValueError("TriggerReason.evidence_refs must contain TriggerSourceRef only")
+        _reject_duplicate_refs("TriggerReason.evidence_refs", self.evidence_refs)
+
+    def canonical_bytes(self) -> bytes:
+        out = _field("reason.kind", self.kind.value)
+        out += _field("reason.evidence_ref_count", str(len(self.evidence_refs)))
+        for ref in self.evidence_refs:
+            out += _field("reason.evidence_ref", ref.canonical_bytes().decode("utf-8"))
+        return out
+
+
+@dataclass(frozen=True)
+class EventEligibilityBoundary:
+    """Activity window closed by a canonical event id."""
+
+    eligibility_event_id: str
+
+    def __post_init__(self) -> None:
+        _require_non_empty_str("EventEligibilityBoundary.eligibility_event_id", self.eligibility_event_id)
 
     def canonical_bytes(self) -> bytes:
         return (
-            _field("eligibility.boundary_event_id", self.boundary_event_id)
-            + _field("eligibility.boundary_reason", self.boundary_reason)
+            _field("eligibility.variant", "event")
+            + _field("eligibility.event_id", self.eligibility_event_id)
         )
+
+
+@dataclass(frozen=True)
+class DeterministicTimerEligibilityBoundary:
+    """Activity window closed by deterministic timer boundary identity.
+
+    This is a deterministic boundary id, not an actual timer wake wall-clock.
+    """
+
+    deterministic_activity_boundary_id: str
+
+    def __post_init__(self) -> None:
+        _require_non_empty_str(
+            "DeterministicTimerEligibilityBoundary.deterministic_activity_boundary_id",
+            self.deterministic_activity_boundary_id,
+        )
+
+    def canonical_bytes(self) -> bytes:
+        return (
+            _field("eligibility.variant", "deterministic_timer")
+            + _field("eligibility.deterministic_activity_boundary_id", self.deterministic_activity_boundary_id)
+        )
+
+
+EligibilityBoundary = EventEligibilityBoundary | DeterministicTimerEligibilityBoundary
 
 
 @dataclass(frozen=True)
 class SingleEventAnchor:
     event_id: str
-    evidence_basis: EvidenceBasis
 
     def __post_init__(self) -> None:
         _require_non_empty_str("SingleEventAnchor.event_id", self.event_id)
-        if type(self.evidence_basis) is not EvidenceBasis:
-            raise ValueError("SingleEventAnchor.evidence_basis must be EvidenceBasis")
 
     def canonical_bytes(self) -> bytes:
-        return (
-            _field("anchor.variant", "single_event")
-            + _field("anchor.event_id", self.event_id)
-            + _field("anchor.evidence_digest_function", self.evidence_basis.digest_function)
-            + _field("anchor.evidence_digest", self.evidence_basis.digest())
-        )
+        return _field("anchor.variant", "single_event") + _field("anchor.event_id", self.event_id)
 
 
 @dataclass(frozen=True)
@@ -182,8 +221,8 @@ class ActivityWindowAnchor:
 
     def __post_init__(self) -> None:
         _require_non_empty_str("ActivityWindowAnchor.window_start_event_id", self.window_start_event_id)
-        if type(self.eligibility_boundary) is not EligibilityBoundary:
-            raise ValueError("ActivityWindowAnchor.eligibility_boundary must be EligibilityBoundary")
+        if type(self.eligibility_boundary) not in (EventEligibilityBoundary, DeterministicTimerEligibilityBoundary):
+            raise ValueError("ActivityWindowAnchor.eligibility_boundary must be a frozen EligibilityBoundary variant")
         if type(self.evidence_basis) is not EvidenceBasis:
             raise ValueError("ActivityWindowAnchor.evidence_basis must be EvidenceBasis")
 
@@ -201,21 +240,16 @@ class ActivityWindowAnchor:
 class QuietWindowAnchor:
     last_event_id: str
     quiet_boundary_id: str
-    evidence_basis: EvidenceBasis
 
     def __post_init__(self) -> None:
         _require_non_empty_str("QuietWindowAnchor.last_event_id", self.last_event_id)
         _require_non_empty_str("QuietWindowAnchor.quiet_boundary_id", self.quiet_boundary_id)
-        if type(self.evidence_basis) is not EvidenceBasis:
-            raise ValueError("QuietWindowAnchor.evidence_basis must be EvidenceBasis")
 
     def canonical_bytes(self) -> bytes:
         return (
             _field("anchor.variant", "quiet_window")
             + _field("anchor.last_event_id", self.last_event_id)
             + _field("anchor.quiet_boundary_id", self.quiet_boundary_id)
-            + _field("anchor.evidence_digest_function", self.evidence_basis.digest_function)
-            + _field("anchor.evidence_digest", self.evidence_basis.digest())
         )
 
 
@@ -234,6 +268,8 @@ class OpportunityKey:
 
     def __post_init__(self) -> None:
         _require_non_empty_str("OpportunityKey.schema_version", self.schema_version)
+        if self.schema_version != CANONICAL_VERSION:
+            raise ValueError("OpportunityKey.schema_version must equal CANONICAL_VERSION")
         _require_non_empty_str("OpportunityKey.conversation_id", self.conversation_id)
         _require_non_empty_str("OpportunityKey.policy_revision", self.policy_revision)
         if type(self.trigger_kind) is not TriggerKind:
@@ -272,6 +308,7 @@ class ReflectionOpportunity:
             raise ValueError("ReflectionOpportunity.source_refs must be non-empty")
         if not all(type(ref) is TriggerSourceRef for ref in self.source_refs):
             raise ValueError("ReflectionOpportunity.source_refs must contain TriggerSourceRef only")
+        _reject_duplicate_refs("ReflectionOpportunity.source_refs", self.source_refs)
         _require_tuple("ReflectionOpportunity.reasons", self.reasons)
         if not self.reasons:
             raise ValueError("ReflectionOpportunity.reasons must be non-empty")
@@ -300,20 +337,22 @@ class ReflectionOpportunity:
 
 @dataclass(frozen=True)
 class TriggerPolicy:
-    """Core policy revision participating in opportunity identity."""
+    """Frozen structural trigger policy knobs; no semantic interpretation."""
 
-    policy_revision: str
+    revision: str
+    cooldown_event_count: int
+    activity_window_event_count: int
+    quiet_threshold_event_count: int
     schema_version: str = CANONICAL_VERSION
-    enabled_kinds: tuple[TriggerKind, ...] = tuple(TriggerKind)
 
     def __post_init__(self) -> None:
-        _require_non_empty_str("TriggerPolicy.policy_revision", self.policy_revision)
+        _require_non_empty_str("TriggerPolicy.revision", self.revision)
         _require_non_empty_str("TriggerPolicy.schema_version", self.schema_version)
-        _require_tuple("TriggerPolicy.enabled_kinds", self.enabled_kinds)
-        if not self.enabled_kinds:
-            raise ValueError("TriggerPolicy.enabled_kinds must be non-empty")
-        if not all(type(kind) is TriggerKind for kind in self.enabled_kinds):
-            raise ValueError("TriggerPolicy.enabled_kinds must contain TriggerKind only")
+        if self.schema_version != CANONICAL_VERSION:
+            raise ValueError("TriggerPolicy.schema_version must equal CANONICAL_VERSION")
+        _require_non_negative_int("TriggerPolicy.cooldown_event_count", self.cooldown_event_count)
+        _require_positive_int("TriggerPolicy.activity_window_event_count", self.activity_window_event_count)
+        _require_positive_int("TriggerPolicy.quiet_threshold_event_count", self.quiet_threshold_event_count)
 
 
 @dataclass(frozen=True)
@@ -356,17 +395,79 @@ class PendingOpportunity:
 
 
 @dataclass(frozen=True)
-class BoundedSchedulingState:
-    """Bounded Core scheduling state; no physical queue/storage semantics."""
-
-    pending: tuple[PendingOpportunity, ...] = ()
-    max_pending: int = 1024
+class SchedulingCursor:
+    last_seen_event_id: str | None = None
 
     def __post_init__(self) -> None:
+        if self.last_seen_event_id is not None:
+            _require_non_empty_str("SchedulingCursor.last_seen_event_id", self.last_seen_event_id)
+
+    def canonical_bytes(self) -> bytes:
+        return _field("cursor.last_seen_event_id", self.last_seen_event_id or "-")
+
+
+@dataclass(frozen=True)
+class ActiveWindowState:
+    window_start_event_id: str
+    evidence_basis: EvidenceBasis
+
+    def __post_init__(self) -> None:
+        _require_non_empty_str("ActiveWindowState.window_start_event_id", self.window_start_event_id)
+        if type(self.evidence_basis) is not EvidenceBasis:
+            raise ValueError("ActiveWindowState.evidence_basis must be EvidenceBasis")
+
+
+@dataclass(frozen=True)
+class RecentDedupKey:
+    opportunity_id: str
+
+    def __post_init__(self) -> None:
+        _require_non_empty_str("RecentDedupKey.opportunity_id", self.opportunity_id)
+
+
+@dataclass(frozen=True)
+class DeliveryTombstone:
+    opportunity_id: str
+    delivered_at: str
+
+    def __post_init__(self) -> None:
+        _require_non_empty_str("DeliveryTombstone.opportunity_id", self.opportunity_id)
+        _require_non_empty_str("DeliveryTombstone.delivered_at", self.delivered_at)
+
+
+@dataclass(frozen=True)
+class BoundedSchedulingState:
+    """Bounded Core scheduling state; no transcript body or storage semantics."""
+
+    cursor: SchedulingCursor
+    active_window: ActiveWindowState | None
+    recent_dedup: tuple[RecentDedupKey, ...]
+    pending: tuple[PendingOpportunity, ...]
+    delivery_tombstones: tuple[DeliveryTombstone, ...]
+    max_recent_dedup: int = 1024
+    max_pending: int = 1024
+    max_delivery_tombstones: int = 1024
+
+    def __post_init__(self) -> None:
+        if type(self.cursor) is not SchedulingCursor:
+            raise ValueError("BoundedSchedulingState.cursor must be SchedulingCursor")
+        if self.active_window is not None and type(self.active_window) is not ActiveWindowState:
+            raise ValueError("BoundedSchedulingState.active_window must be None or ActiveWindowState")
+        _require_tuple("BoundedSchedulingState.recent_dedup", self.recent_dedup)
+        if not all(type(item) is RecentDedupKey for item in self.recent_dedup):
+            raise ValueError("BoundedSchedulingState.recent_dedup must contain RecentDedupKey only")
         _require_tuple("BoundedSchedulingState.pending", self.pending)
         if not all(type(item) is PendingOpportunity for item in self.pending):
             raise ValueError("BoundedSchedulingState.pending must contain PendingOpportunity only")
-        if type(self.max_pending) is not int or self.max_pending <= 0:
-            raise ValueError("BoundedSchedulingState.max_pending must be positive int")
+        _require_tuple("BoundedSchedulingState.delivery_tombstones", self.delivery_tombstones)
+        if not all(type(item) is DeliveryTombstone for item in self.delivery_tombstones):
+            raise ValueError("BoundedSchedulingState.delivery_tombstones must contain DeliveryTombstone only")
+        _require_positive_int("BoundedSchedulingState.max_recent_dedup", self.max_recent_dedup)
+        _require_positive_int("BoundedSchedulingState.max_pending", self.max_pending)
+        _require_positive_int("BoundedSchedulingState.max_delivery_tombstones", self.max_delivery_tombstones)
+        if len(self.recent_dedup) > self.max_recent_dedup:
+            raise ValueError("BoundedSchedulingState.recent_dedup exceeds max_recent_dedup")
         if len(self.pending) > self.max_pending:
             raise ValueError("BoundedSchedulingState.pending exceeds max_pending")
+        if len(self.delivery_tombstones) > self.max_delivery_tombstones:
+            raise ValueError("BoundedSchedulingState.delivery_tombstones exceeds max_delivery_tombstones")
