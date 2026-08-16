@@ -26,6 +26,7 @@ runtime execution, Memory/Context/Diary imports. stdlib only.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 from enum import Enum
 from hashlib import sha256
 
@@ -44,9 +45,14 @@ def _require_tuple(name: str, value: object) -> None:
         raise ValueError(f"{name} must be a tuple")
 
 
-def _require_non_negative_int(name: str, value: object) -> None:
-    if type(value) is not int or value < 0:
-        raise ValueError(f"{name} must be a non-negative int")
+def _require_non_negative_timedelta(name: str, value: object) -> None:
+    if type(value) is not timedelta or value < timedelta(0):
+        raise ValueError(f"{name} must be a non-negative timedelta")
+
+
+def _require_positive_timedelta(name: str, value: object) -> None:
+    if type(value) is not timedelta or value <= timedelta(0):
+        raise ValueError(f"{name} must be a positive timedelta")
 
 
 def _require_positive_int(name: str, value: object) -> None:
@@ -337,12 +343,12 @@ class ReflectionOpportunity:
 
 @dataclass(frozen=True)
 class TriggerPolicy:
-    """Frozen structural trigger policy knobs; no semantic interpretation."""
+    """Frozen temporal trigger policy knobs; quiet is duration of no events."""
 
     revision: str
-    cooldown_event_count: int
-    activity_window_event_count: int
-    quiet_threshold_event_count: int
+    cooldown: timedelta
+    window: timedelta
+    quiet_threshold: timedelta
     schema_version: str = CANONICAL_VERSION
 
     def __post_init__(self) -> None:
@@ -350,9 +356,9 @@ class TriggerPolicy:
         _require_non_empty_str("TriggerPolicy.schema_version", self.schema_version)
         if self.schema_version != CANONICAL_VERSION:
             raise ValueError("TriggerPolicy.schema_version must equal CANONICAL_VERSION")
-        _require_non_negative_int("TriggerPolicy.cooldown_event_count", self.cooldown_event_count)
-        _require_positive_int("TriggerPolicy.activity_window_event_count", self.activity_window_event_count)
-        _require_positive_int("TriggerPolicy.quiet_threshold_event_count", self.quiet_threshold_event_count)
+        _require_non_negative_timedelta("TriggerPolicy.cooldown", self.cooldown)
+        _require_positive_timedelta("TriggerPolicy.window", self.window)
+        _require_positive_timedelta("TriggerPolicy.quiet_threshold", self.quiet_threshold)
 
 
 @dataclass(frozen=True)

@@ -1,12 +1,19 @@
-# DIA-3 R1.2 Implementation Report — Codex A
+# DIA-3 R1.3 Implementation Report — Codex A
 
 ## Gate input
 - Core base: `33d49032b936b0859b21254dab314cf4947d2367`
-- R1.1 reviewed target: `78d2ccc59926a98475924d9938d45fe9e7ea7b51`
-- R1.2 owner/provenance: `Codex A = DIA-3 implementation provenance`
+- R1.2 reviewed target: `157eb6c95591a61a292da45e57075088489a8329`
+- R1.3 owner/provenance: `Codex A = DIA-3 implementation provenance`
 - Independent verifier remains held: `Codex B = DIA-3 independent sabotage provenance`
 
-## R1.2 HOLD fixes addressed
+## R1.3 HOLD fix addressed
+- `R1.2-P0-01 TEMPORAL POLICY SEMANTICS DRIFT` closed:
+  - `TriggerPolicy` now uses `datetime.timedelta` duration semantics: `cooldown`, `window`, `quiet_threshold`.
+  - Removed `*_event_count` policy fields.
+  - `cooldown >= 0`, `window > 0`, `quiet_threshold > 0`.
+  - OpportunityKey golden vectors are intentionally unchanged because identity carries opaque `policy_revision`, not policy parameter values.
+
+## R1.2 HOLD fixes preserved
 - `R1.1-P0-01 TRIGGER-REASON AUTHORITY ESCAPE` closed:
   - `TriggerReason` is now `kind: TriggerKind` + `evidence_refs: tuple[TriggerSourceRef, ...]`.
   - Removed arbitrary `reason_code` / `detail` strings.
@@ -21,7 +28,7 @@
   - Boundary variant enters canonical bytes; no arbitrary boundary reason text; no actual timer wake wall-clock.
 - P1 hardening closed:
   - `OpportunityKey.schema_version` must equal `CANONICAL_VERSION`.
-  - `TriggerPolicy` now exposes frozen structural knobs: `revision`, `cooldown_event_count`, `activity_window_event_count`, `quiet_threshold_event_count`.
+  - `TriggerPolicy` now exposes frozen temporal knobs: `revision`, `cooldown`, `window`, `quiet_threshold`.
   - `BoundedSchedulingState` now models `cursor`, `active_window`, bounded `recent_dedup`, `pending`, and minimal `delivery_tombstones`; no conversation body.
 
 ## Preserved from R1/R1.1
@@ -45,7 +52,7 @@ Command:
 Result:
 
 ```text
-59 passed in 0.32s
+62 passed in 0.37s
 ```
 
 Compile check:
@@ -56,7 +63,7 @@ Compile check:
 
 Result: passed.
 
-## R1.2 Golden vectors
+## R1.3 Golden vectors (unchanged from R1.2)
 - Evidence `(evt_A, evt_B)`: `9cb3cdde6c820e68cea2f8b5293bdcc4d7c94480a751bb115c47034c485d8b10`
 - Evidence `(evt_B, evt_A)`: `568f80b8e94623c05637906a7b2a1ae9d66a0546b9161f4d62c592c183a8c49d`
 - Single-event OpportunityKey: `ec1cc74bb7c07450714555453cd5943828c47385209c57440a6aaa854d6d4123`
@@ -74,3 +81,4 @@ Result: passed.
 - [x] Golden vectors upgraded to R1.2 OpportunityKey model.
 - [x] Repository Port fail-closed semantics covered.
 - [x] R0.2 frozen nouns present in public exports.
+- [x] TriggerPolicy uses duration semantics, not event-count semantics.

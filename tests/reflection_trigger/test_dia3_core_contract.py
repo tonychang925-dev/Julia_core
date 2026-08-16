@@ -1,6 +1,7 @@
 """DIA-3 R1.2 — ReflectionTrigger Core Contract tests."""
 from __future__ import annotations
 
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -47,7 +48,7 @@ def _evidence(refs=None):
 
 
 def _policy():
-    return TriggerPolicy("policy-r1", cooldown_event_count=2, activity_window_event_count=3, quiet_threshold_event_count=10)
+    return TriggerPolicy("policy-r1", cooldown=timedelta(minutes=2), window=timedelta(minutes=30), quiet_threshold=timedelta(minutes=10))
 
 
 def _reason(kind=TriggerKind.TURN_BOUNDARY, refs=None):
@@ -408,34 +409,56 @@ def test_eligibility_event_boundary_and_deterministic_timer_boundary_are_distinc
     ).opportunity_id()
 
 
-# R1.2: TriggerPolicy exposes frozen cooldown/window/quiet-threshold knobs and invariants.
-def test_trigger_policy_contract_and_invariants():
+# AT-DIA3-R1-T1/T5: TriggerPolicy exposes duration semantics, not event-count fields.
+def test_trigger_policy_exposes_duration_semantics_and_no_event_count_fields():
     policy = _policy()
     assert set(vars(policy)) == {
         "revision",
-        "cooldown_event_count",
-        "activity_window_event_count",
-        "quiet_threshold_event_count",
+        "cooldown",
+        "window",
+        "quiet_threshold",
         "schema_version",
     }
     assert policy.revision == "policy-r1"
     assert policy.schema_version == CANONICAL_VERSION
-    with pytest.raises(ValueError):
-        TriggerPolicy("policy-r1", -1, 3, 10)
-    with pytest.raises(ValueError):
-        TriggerPolicy("policy-r1", 2, 0, 10)
-    with pytest.raises(ValueError):
-        TriggerPolicy("policy-r1", 2, 3, 0)
+    assert policy.cooldown == timedelta(minutes=2)
+    assert policy.window == timedelta(minutes=30)
+    assert policy.quiet_threshold == timedelta(minutes=10)
+    assert not hasattr(policy, "cooldown_event_count")
+    assert not hasattr(policy, "activity_window_event_count")
+    assert not hasattr(policy, "quiet_threshold_event_count")
     with pytest.raises(TypeError):
-        TriggerPolicy("policy-r1", 2, 3, 10, enabled_kinds=tuple(TriggerKind))
+        TriggerPolicy("policy-r1", cooldown_event_count=2, activity_window_event_count=3, quiet_threshold_event_count=10)
 
 
-# R1.2: non-v1 schema versions are rejected.
+# AT-DIA3-R1-T2: negative cooldown rejected.
+def test_trigger_policy_negative_cooldown_rejected():
+    with pytest.raises(ValueError):
+        TriggerPolicy("policy-r1", timedelta(seconds=-1), timedelta(minutes=30), timedelta(minutes=10))
+
+
+# AT-DIA3-R1-T3: zero/non-positive window rejected.
+def test_trigger_policy_non_positive_window_rejected():
+    with pytest.raises(ValueError):
+        TriggerPolicy("policy-r1", timedelta(0), timedelta(0), timedelta(minutes=10))
+    with pytest.raises(ValueError):
+        TriggerPolicy("policy-r1", timedelta(0), timedelta(seconds=-1), timedelta(minutes=10))
+
+
+# AT-DIA3-R1-T4: zero/non-positive quiet_threshold rejected.
+def test_trigger_policy_non_positive_quiet_threshold_rejected():
+    with pytest.raises(ValueError):
+        TriggerPolicy("policy-r1", timedelta(0), timedelta(minutes=30), timedelta(0))
+    with pytest.raises(ValueError):
+        TriggerPolicy("policy-r1", timedelta(0), timedelta(minutes=30), timedelta(seconds=-1))
+
+
+# R1.2/R1.3: non-v1 schema versions are rejected.
 def test_schema_version_must_equal_canonical_version():
     with pytest.raises(ValueError):
         _single_key(schema_version="v999")
     with pytest.raises(ValueError):
-        TriggerPolicy("policy-r1", 2, 3, 10, schema_version="v999")
+        TriggerPolicy("policy-r1", timedelta(minutes=2), timedelta(minutes=30), timedelta(minutes=10), schema_version="v999")
 
 
 # Contract completeness: ReflectionOpportunity and Scheduling state validate exact types and no body field.
