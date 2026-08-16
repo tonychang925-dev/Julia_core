@@ -243,12 +243,89 @@ def test_repository_create_pending_contract_absent_idempotent_conflict():
     assert repo.create_pending(first) is first
     assert repo.create_pending(retry) is first
 
-    conflicting_opportunity = _opportunity(reasons=_reason(TriggerKind.EXPLICIT_REFLECTION_REQUEST))
+    conflicting_opportunity = _opportunity(
+        reasons=(
+            TriggerReason(TriggerKind.TURN_BOUNDARY, (TriggerSourceRef("event", "evt_B"),)),
+            TriggerReason(TriggerKind.EXPLICIT_REFLECTION_REQUEST, (TriggerSourceRef("event", "evt_A"),)),
+        )
+    )
     conflicting = PendingOpportunity.pending(conflicting_opportunity, triggered_at="2026-08-16T00:06:00Z")
     object.__setattr__(conflicting, "opportunity_id", first.opportunity_id)
     with pytest.raises(TriggerIdentityConflict):
         repo.create_pending(conflicting)
     assert repo._states[first.opportunity_id] is first
+
+
+# AT-RT-X2-01: reason evidence outside opportunity.source_refs is rejected at construction.
+def test_x2_reason_evidence_must_be_contained_in_opportunity_sources():
+    key = _single_key()
+    with pytest.raises(ValueError):
+        ReflectionOpportunity(
+            opportunity_key=key,
+            source_refs=(TriggerSourceRef("event", "evt_B"),),
+            reasons=(TriggerReason(TriggerKind.TURN_BOUNDARY, (TriggerSourceRef("event", "evt_Y"),)),),
+        )
+
+
+# AT-RT-X2-02: OpportunityKey primary trigger kind must be represented by at least one reason.
+def test_x2_primary_trigger_kind_must_be_explained_by_reason():
+    key = _single_key(trigger_kind=TriggerKind.TURN_BOUNDARY)
+    with pytest.raises(ValueError):
+        ReflectionOpportunity(
+            opportunity_key=key,
+            source_refs=(TriggerSourceRef("event", "evt_B"),),
+            reasons=(TriggerReason(TriggerKind.EXPLICIT_REFLECTION_REQUEST, (TriggerSourceRef("event", "evt_B"),)),),
+        )
+
+
+# AT-RT-X2-03: mixed structural reasons are allowed when one matches primary kind and all evidence is visible.
+def test_x2_mixed_reasons_allowed_when_primary_kind_and_evidence_subset_hold():
+    key = _single_key(trigger_kind=TriggerKind.TURN_BOUNDARY)
+    opportunity = ReflectionOpportunity(
+        opportunity_key=key,
+        source_refs=_refs(),
+        reasons=(
+            TriggerReason(TriggerKind.TURN_BOUNDARY, (TriggerSourceRef("event", "evt_B"),)),
+            TriggerReason(TriggerKind.EXPLICIT_REFLECTION_REQUEST, (TriggerSourceRef("event", "evt_A"),)),
+        ),
+    )
+    assert opportunity.opportunity_id == GOLDEN_SINGLE_ID
+
+
+# AT-RT-X2-04: Activity source_refs must exactly mirror EvidenceBasis refs.
+def test_x2_activity_source_refs_must_equal_evidence_basis_refs():
+    key = _activity_key()
+    with pytest.raises(ValueError):
+        ReflectionOpportunity(
+            opportunity_key=key,
+            source_refs=(TriggerSourceRef("event", "evt_A"), TriggerSourceRef("event", "evt_B"), TriggerSourceRef("event", "evt_C")),
+            reasons=(TriggerReason(TriggerKind.ACTIVITY_WINDOW, (TriggerSourceRef("event", "evt_A"),)),),
+        )
+
+
+# AT-RT-X2-05: Activity same refs but different order is rejected.
+def test_x2_activity_source_refs_order_must_match_evidence_basis_order():
+    key = _activity_key()
+    ref_a, ref_b = _refs()
+    with pytest.raises(ValueError):
+        ReflectionOpportunity(
+            opportunity_key=key,
+            source_refs=(ref_b, ref_a),
+            reasons=(TriggerReason(TriggerKind.ACTIVITY_WINDOW, (ref_a,)),),
+        )
+
+
+# AT-RT-X2-06: contradictory first-write path is rejected before create_pending can persist it.
+def test_x2_contradictory_first_write_rejected_before_repository_create_pending():
+    repo = FakeReflectionTriggerStateRepository()
+    with pytest.raises(ValueError):
+        contradictory = ReflectionOpportunity(
+            opportunity_key=_single_key(trigger_kind=TriggerKind.TURN_BOUNDARY, causal_anchor=SingleEventAnchor("evt_B")),
+            source_refs=(TriggerSourceRef("event", "evt_X"),),
+            reasons=(TriggerReason(TriggerKind.EXPLICIT_REFLECTION_REQUEST, (TriggerSourceRef("event", "evt_Y"),)),),
+        )
+        repo.create_pending(PendingOpportunity.pending(contradictory, triggered_at="2026-08-16T00:00:00Z"))
+    assert repo._states == {}
 
 
 # AT-DIA3-R1-09/19: static boundary — no authority imports or semantic interpretation fields.

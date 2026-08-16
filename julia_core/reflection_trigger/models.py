@@ -320,6 +320,16 @@ class ReflectionOpportunity:
             raise ValueError("ReflectionOpportunity.reasons must be non-empty")
         if not all(type(reason) is TriggerReason for reason in self.reasons):
             raise ValueError("ReflectionOpportunity.reasons must contain TriggerReason only")
+        source_keys = {ref.canonical_key() for ref in self.source_refs}
+        for reason in self.reasons:
+            for ref in reason.evidence_refs:
+                if ref.canonical_key() not in source_keys:
+                    raise ValueError("ReflectionOpportunity.reason evidence_refs must be contained in source_refs")
+        if not any(reason.kind is self.opportunity_key.trigger_kind for reason in self.reasons):
+            raise ValueError("ReflectionOpportunity.reasons must include opportunity_key.trigger_kind")
+        if type(self.opportunity_key.causal_anchor) is ActivityWindowAnchor:
+            if self.source_refs != self.opportunity_key.causal_anchor.evidence_basis.source_refs:
+                raise ValueError("ActivityWindow ReflectionOpportunity.source_refs must exactly match EvidenceBasis order")
         expected = self.opportunity_key.opportunity_id()
         if self.opportunity_id is None:
             object.__setattr__(self, "opportunity_id", expected)

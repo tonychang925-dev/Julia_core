@@ -1,12 +1,20 @@
-# DIA-3 R1.3 Implementation Report — Codex A
+# DIA-3 R1.4 Implementation Report — Codex A
 
 ## Gate input
 - Core base: `33d49032b936b0859b21254dab314cf4947d2367`
-- R1.2 reviewed target: `157eb6c95591a61a292da45e57075088489a8329`
-- R1.3 owner/provenance: `Codex A = DIA-3 implementation provenance`
+- R1.3 reviewed target: `a6e35b006383841de9492e2c14e1a9380608ecac`
+- R1.4 owner/provenance: `Codex A = DIA-3 implementation provenance`
 - Independent verifier remains held: `Codex B = DIA-3 independent sabotage provenance`
 
-## R1.3 HOLD fix addressed
+## R1.4 HOLD fix addressed
+- `R1.3-X2 CROSS-FIELD CAUSAL CONSISTENCY GAP` closed:
+  - `ReflectionOpportunity` construction now rejects reason evidence outside `source_refs`.
+  - At least one reason must match `OpportunityKey.trigger_kind`.
+  - `ActivityWindowAnchor` opportunities require `source_refs == evidence_basis.source_refs` with exact canonical order.
+  - Contradictory first-write path is rejected before `create_pending` can persist it.
+  - OpportunityKey bytes and all golden vectors remain unchanged.
+
+## R1.3 HOLD fix preserved
 - `R1.2-P0-01 TEMPORAL POLICY SEMANTICS DRIFT` closed:
   - `TriggerPolicy` now uses `datetime.timedelta` duration semantics: `cooldown`, `window`, `quiet_threshold`.
   - Removed `*_event_count` policy fields.
@@ -52,7 +60,7 @@ Command:
 Result:
 
 ```text
-62 passed in 0.37s
+68 passed in 0.18s
 ```
 
 Compile check:
@@ -63,7 +71,7 @@ Compile check:
 
 Result: passed.
 
-## R1.3 Golden vectors (unchanged from R1.2)
+## R1.4 Golden vectors (unchanged from R1.2/R1.3)
 - Evidence `(evt_A, evt_B)`: `9cb3cdde6c820e68cea2f8b5293bdcc4d7c94480a751bb115c47034c485d8b10`
 - Evidence `(evt_B, evt_A)`: `568f80b8e94623c05637906a7b2a1ae9d66a0546b9161f4d62c592c183a8c49d`
 - Single-event OpportunityKey: `ec1cc74bb7c07450714555453cd5943828c47385209c57440a6aaa854d6d4123`
@@ -82,3 +90,4 @@ Result: passed.
 - [x] Repository Port fail-closed semantics covered.
 - [x] R0.2 frozen nouns present in public exports.
 - [x] TriggerPolicy uses duration semantics, not event-count semantics.
+- [x] Cross-field causal consistency rejects contradictory first durable pending writes.
