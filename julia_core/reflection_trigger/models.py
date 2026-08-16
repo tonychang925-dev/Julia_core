@@ -282,6 +282,15 @@ class OpportunityKey:
             raise ValueError("OpportunityKey.trigger_kind must be TriggerKind")
         if type(self.causal_anchor) not in (SingleEventAnchor, ActivityWindowAnchor, QuietWindowAnchor):
             raise ValueError("OpportunityKey.causal_anchor must be a frozen CausalAnchor variant")
+        if self.trigger_kind in (TriggerKind.TURN_BOUNDARY, TriggerKind.EXPLICIT_REFLECTION_REQUEST):
+            if type(self.causal_anchor) is not SingleEventAnchor:
+                raise ValueError("TURN_BOUNDARY and EXPLICIT_REFLECTION_REQUEST require SingleEventAnchor")
+        elif self.trigger_kind is TriggerKind.ACTIVITY_WINDOW:
+            if type(self.causal_anchor) is not ActivityWindowAnchor:
+                raise ValueError("ACTIVITY_WINDOW requires ActivityWindowAnchor")
+        elif self.trigger_kind is TriggerKind.QUIET_WINDOW:
+            if type(self.causal_anchor) is not QuietWindowAnchor:
+                raise ValueError("QUIET_WINDOW requires QuietWindowAnchor")
 
     def canonical_bytes(self) -> bytes:
         return (
@@ -327,9 +336,23 @@ class ReflectionOpportunity:
                     raise ValueError("ReflectionOpportunity.reason evidence_refs must be contained in source_refs")
         if not any(reason.kind is self.opportunity_key.trigger_kind for reason in self.reasons):
             raise ValueError("ReflectionOpportunity.reasons must include opportunity_key.trigger_kind")
-        if type(self.opportunity_key.causal_anchor) is ActivityWindowAnchor:
-            if self.source_refs != self.opportunity_key.causal_anchor.evidence_basis.source_refs:
+        anchor = self.opportunity_key.causal_anchor
+        if type(anchor) is SingleEventAnchor:
+            if TriggerSourceRef("event", anchor.event_id).canonical_key() not in source_keys:
+                raise ValueError("SingleEventAnchor.event_id must be present in ReflectionOpportunity.source_refs")
+        elif type(anchor) is QuietWindowAnchor:
+            if TriggerSourceRef("event", anchor.last_event_id).canonical_key() not in source_keys:
+                raise ValueError("QuietWindowAnchor.last_event_id must be present in ReflectionOpportunity.source_refs")
+        elif type(anchor) is ActivityWindowAnchor:
+            if self.source_refs != anchor.evidence_basis.source_refs:
                 raise ValueError("ActivityWindow ReflectionOpportunity.source_refs must exactly match EvidenceBasis order")
+            evidence_keys = {ref.canonical_key() for ref in anchor.evidence_basis.source_refs}
+            if TriggerSourceRef("event", anchor.window_start_event_id).canonical_key() not in evidence_keys:
+                raise ValueError("ActivityWindowAnchor.window_start_event_id must be present in EvidenceBasis")
+            if type(anchor.eligibility_boundary) is EventEligibilityBoundary:
+                boundary_ref = TriggerSourceRef("event", anchor.eligibility_boundary.eligibility_event_id)
+                if boundary_ref.canonical_key() not in evidence_keys:
+                    raise ValueError("EventEligibilityBoundary.eligibility_event_id must be present in EvidenceBasis")
         expected = self.opportunity_key.opportunity_id()
         if self.opportunity_id is None:
             object.__setattr__(self, "opportunity_id", expected)

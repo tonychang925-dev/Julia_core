@@ -43,6 +43,10 @@ def _refs():
     return (TriggerSourceRef("event", "evt_A"), TriggerSourceRef("event", "evt_B"))
 
 
+def _activity_refs():
+    return (TriggerSourceRef("event", "evt_A"), TriggerSourceRef("event", "evt_B"), TriggerSourceRef("event", "evt_C"))
+
+
 def _evidence(refs=None):
     return EvidenceBasis(tuple(refs or _refs()))
 
@@ -298,7 +302,7 @@ def test_x2_activity_source_refs_must_equal_evidence_basis_refs():
     with pytest.raises(ValueError):
         ReflectionOpportunity(
             opportunity_key=key,
-            source_refs=(TriggerSourceRef("event", "evt_A"), TriggerSourceRef("event", "evt_B"), TriggerSourceRef("event", "evt_C")),
+            source_refs=(TriggerSourceRef("event", "evt_A"), TriggerSourceRef("event", "evt_B"), TriggerSourceRef("event", "evt_C"), TriggerSourceRef("event", "evt_D")),
             reasons=(TriggerReason(TriggerKind.ACTIVITY_WINDOW, (TriggerSourceRef("event", "evt_A"),)),),
         )
 
@@ -306,11 +310,11 @@ def test_x2_activity_source_refs_must_equal_evidence_basis_refs():
 # AT-RT-X2-05: Activity same refs but different order is rejected.
 def test_x2_activity_source_refs_order_must_match_evidence_basis_order():
     key = _activity_key()
-    ref_a, ref_b = _refs()
+    ref_a, ref_b, ref_c = _activity_refs()
     with pytest.raises(ValueError):
         ReflectionOpportunity(
             opportunity_key=key,
-            source_refs=(ref_b, ref_a),
+            source_refs=(ref_b, ref_a, ref_c),
             reasons=(TriggerReason(TriggerKind.ACTIVITY_WINDOW, (ref_a,)),),
         )
 
@@ -323,6 +327,113 @@ def test_x2_contradictory_first_write_rejected_before_repository_create_pending(
             opportunity_key=_single_key(trigger_kind=TriggerKind.TURN_BOUNDARY, causal_anchor=SingleEventAnchor("evt_B")),
             source_refs=(TriggerSourceRef("event", "evt_X"),),
             reasons=(TriggerReason(TriggerKind.EXPLICIT_REFLECTION_REQUEST, (TriggerSourceRef("event", "evt_Y"),)),),
+        )
+        repo.create_pending(PendingOpportunity.pending(contradictory, triggered_at="2026-08-16T00:00:00Z"))
+    assert repo._states == {}
+
+
+# AT-RT-X2-07: TriggerKind must be compatible with CausalAnchor variant.
+def test_x2_trigger_kind_must_match_anchor_variant():
+    with pytest.raises(ValueError):
+        OpportunityKey(CANONICAL_VERSION, "conv_A", "policy-r1", TriggerKind.QUIET_WINDOW, SingleEventAnchor("evt_B"))
+    with pytest.raises(ValueError):
+        OpportunityKey(CANONICAL_VERSION, "conv_A", "policy-r1", TriggerKind.ACTIVITY_WINDOW, QuietWindowAnchor("evt_B", "quiet-10m-after-evt_B"))
+    with pytest.raises(ValueError):
+        OpportunityKey(CANONICAL_VERSION, "conv_A", "policy-r1", TriggerKind.TURN_BOUNDARY, _activity_key().causal_anchor)
+
+
+# AT-RT-X2-09: Single anchor event must appear in opportunity source_refs.
+def test_x2_single_anchor_event_must_be_in_source_refs():
+    key = _single_key(causal_anchor=SingleEventAnchor("evt_B"))
+    with pytest.raises(ValueError):
+        ReflectionOpportunity(
+            opportunity_key=key,
+            source_refs=(TriggerSourceRef("event", "evt_X"),),
+            reasons=(TriggerReason(TriggerKind.TURN_BOUNDARY, (TriggerSourceRef("event", "evt_X"),)),),
+        )
+
+
+# AT-RT-X2-10: Quiet last_event must appear in opportunity source_refs.
+def test_x2_quiet_last_event_must_be_in_source_refs():
+    key = _quiet_key(causal_anchor=QuietWindowAnchor("evt_B", "quiet-10m-after-evt_B"))
+    with pytest.raises(ValueError):
+        ReflectionOpportunity(
+            opportunity_key=key,
+            source_refs=(TriggerSourceRef("event", "evt_X"),),
+            reasons=(TriggerReason(TriggerKind.QUIET_WINDOW, (TriggerSourceRef("event", "evt_X"),)),),
+        )
+
+
+# AT-RT-X2-11: Single may carry anchor event plus extra sources; no over-binding regression.
+def test_x2_single_anchor_allows_extra_source_refs_without_identity_change():
+    key = _single_key(causal_anchor=SingleEventAnchor("evt_B"))
+    opportunity = ReflectionOpportunity(
+        opportunity_key=key,
+        source_refs=(TriggerSourceRef("event", "evt_B"), TriggerSourceRef("event", "evt_X")),
+        reasons=(TriggerReason(TriggerKind.TURN_BOUNDARY, (TriggerSourceRef("event", "evt_X"),)),),
+    )
+    assert opportunity.opportunity_id == GOLDEN_SINGLE_ID
+
+
+# AT-RT-X2-12: Activity window_start_event_id must be in EvidenceBasis.
+def test_x2_activity_window_start_must_be_in_evidence_basis():
+    with pytest.raises(ValueError):
+        key = _activity_key(
+            causal_anchor=ActivityWindowAnchor(
+                "evt_A",
+                EventEligibilityBoundary("evt_C"),
+                EvidenceBasis((TriggerSourceRef("event", "evt_B"), TriggerSourceRef("event", "evt_C"))),
+            )
+        )
+        ReflectionOpportunity(
+            opportunity_key=key,
+            source_refs=key.causal_anchor.evidence_basis.source_refs,
+            reasons=(TriggerReason(TriggerKind.ACTIVITY_WINDOW, (TriggerSourceRef("event", "evt_B"),)),),
+        )
+
+
+# AT-RT-X2-13: EventEligibilityBoundary event must be in EvidenceBasis.
+def test_x2_activity_event_boundary_must_be_in_evidence_basis():
+    with pytest.raises(ValueError):
+        key = _activity_key(
+            causal_anchor=ActivityWindowAnchor(
+                "evt_A",
+                EventEligibilityBoundary("evt_C"),
+                EvidenceBasis((TriggerSourceRef("event", "evt_A"), TriggerSourceRef("event", "evt_B"))),
+            )
+        )
+        ReflectionOpportunity(
+            opportunity_key=key,
+            source_refs=key.causal_anchor.evidence_basis.source_refs,
+            reasons=(TriggerReason(TriggerKind.ACTIVITY_WINDOW, (TriggerSourceRef("event", "evt_A"),)),),
+        )
+
+
+# AT-RT-X2-14: Deterministic timer boundary requires no fake timer event ref.
+def test_x2_activity_deterministic_timer_boundary_does_not_require_fake_event_ref():
+    key = _activity_key(
+        causal_anchor=ActivityWindowAnchor(
+            "evt_A",
+            DeterministicTimerEligibilityBoundary("activity-timer-boundary-001"),
+            _evidence(),
+        )
+    )
+    opportunity = ReflectionOpportunity(
+        opportunity_key=key,
+        source_refs=key.causal_anchor.evidence_basis.source_refs,
+        reasons=(TriggerReason(TriggerKind.ACTIVITY_WINDOW, (TriggerSourceRef("event", "evt_A"),)),),
+    )
+    assert opportunity.opportunity_id == GOLDEN_TIMER_ACTIVITY_ID
+
+
+# AT-RT-X2-15: wrong anchor/source relation fails before first durable write.
+def test_x2_wrong_anchor_source_first_write_rejected_before_repository():
+    repo = FakeReflectionTriggerStateRepository()
+    with pytest.raises(ValueError):
+        contradictory = ReflectionOpportunity(
+            opportunity_key=_single_key(causal_anchor=SingleEventAnchor("evt_B")),
+            source_refs=(TriggerSourceRef("event", "evt_X"),),
+            reasons=(TriggerReason(TriggerKind.TURN_BOUNDARY, (TriggerSourceRef("event", "evt_X"),)),),
         )
         repo.create_pending(PendingOpportunity.pending(contradictory, triggered_at="2026-08-16T00:00:00Z"))
     assert repo._states == {}
@@ -432,7 +543,7 @@ def test_activity_evidence_basis_enters_identity():
         causal_anchor=ActivityWindowAnchor(
             "evt_A",
             EventEligibilityBoundary("evt_C"),
-            EvidenceBasis((TriggerSourceRef("event", "evt_A"), TriggerSourceRef("event", "evt_C"))),
+            EvidenceBasis((TriggerSourceRef("event", "evt_A"), TriggerSourceRef("event", "evt_D"), TriggerSourceRef("event", "evt_C"))),
         )
     )
     assert base.opportunity_id() != changed.opportunity_id()
