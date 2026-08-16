@@ -1,12 +1,21 @@
-# DIA-3 R1.5 Implementation Report — Codex A
+# DIA-3 R1.6 Implementation Report — Codex A
 
 ## Gate input
 - Core base: `33d49032b936b0859b21254dab314cf4947d2367`
-- R1.4 reviewed target: `ec4083b859167f7780612827a4af3dff7d4377fd`
-- R1.5 owner/provenance: `Codex A = DIA-3 implementation provenance`
+- R1.5 reviewed target: `ba36d4f8f367b594d17291922fedac07294d08b8`
+- R1.6 owner/provenance: `Codex A = DIA-3 implementation provenance`
 - Independent verifier remains held: `Codex B = DIA-3 independent sabotage provenance`
 
-## R1.5 HOLD fix addressed
+## R1.6 HOLD fix addressed
+- `R1.5-X2-ORDER ACTIVITY WINDOW CAUSAL POSITION GAP` closed:
+  - Activity event subsequence must be non-empty.
+  - `window_start_event_id` must be the first canonical event in `EvidenceBasis`.
+  - Event-closed `eligibility_event_id` must be the last canonical event in `EvidenceBasis`.
+  - Deterministic timer closure requires no fake closing event.
+  - Non-event refs may coexist without defining first/last event semantics.
+  - Serialization and all golden vectors remain unchanged.
+
+## R1.5 HOLD fix preserved
 - R1.5 causal-closure gap closed:
   - `OpportunityKey` now rejects incompatible `TriggerKind` ↔ `CausalAnchor` variants.
   - Single anchor event must be present as canonical `event:<event_id>` source ref.
@@ -71,7 +80,7 @@ Command:
 Result:
 
 ```text
-76 passed in 0.20s
+81 passed in 0.21s
 ```
 
 Compile check:
@@ -82,7 +91,7 @@ Compile check:
 
 Result: passed.
 
-## R1.5 Golden vectors (unchanged from R1.2/R1.3/R1.4)
+## R1.6 Golden vectors (unchanged from R1.2/R1.3/R1.4/R1.5)
 - Evidence `(evt_A, evt_B)`: `9cb3cdde6c820e68cea2f8b5293bdcc4d7c94480a751bb115c47034c485d8b10`
 - Evidence `(evt_B, evt_A)`: `568f80b8e94623c05637906a7b2a1ae9d66a0546b9161f4d62c592c183a8c49d`
 - Single-event OpportunityKey: `ec1cc74bb7c07450714555453cd5943828c47385209c57440a6aaa854d6d4123`
@@ -103,3 +112,4 @@ Result: passed.
 - [x] TriggerPolicy uses duration semantics, not event-count semantics.
 - [x] Cross-field causal consistency rejects contradictory first durable pending writes.
 - [x] Kind/anchor/source causal closure rejects wrong first-write paths.
+- [x] Activity window start/close causal positions are enforced over event subsequence.

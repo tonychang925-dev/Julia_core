@@ -439,6 +439,119 @@ def test_x2_wrong_anchor_source_first_write_rejected_before_repository():
     assert repo._states == {}
 
 
+# AT-RT-X2-16: event before declared window_start is rejected.
+def test_x2_activity_event_before_declared_start_rejected():
+    refs = (
+        TriggerSourceRef("event", "evt_B"),
+        TriggerSourceRef("event", "evt_A"),
+        TriggerSourceRef("event", "evt_C"),
+    )
+    key = _activity_key(
+        causal_anchor=ActivityWindowAnchor("evt_A", EventEligibilityBoundary("evt_C"), EvidenceBasis(refs))
+    )
+    with pytest.raises(ValueError):
+        ReflectionOpportunity(
+            opportunity_key=key,
+            source_refs=refs,
+            reasons=(TriggerReason(TriggerKind.ACTIVITY_WINDOW, (TriggerSourceRef("event", "evt_A"),)),),
+        )
+
+
+# AT-RT-X2-17: event after EventEligibilityBoundary is rejected.
+def test_x2_activity_event_after_event_boundary_rejected():
+    refs = (
+        TriggerSourceRef("event", "evt_A"),
+        TriggerSourceRef("event", "evt_C"),
+        TriggerSourceRef("event", "evt_D"),
+    )
+    key = _activity_key(
+        causal_anchor=ActivityWindowAnchor("evt_A", EventEligibilityBoundary("evt_C"), EvidenceBasis(refs))
+    )
+    with pytest.raises(ValueError):
+        ReflectionOpportunity(
+            opportunity_key=key,
+            source_refs=refs,
+            reasons=(TriggerReason(TriggerKind.ACTIVITY_WINDOW, (TriggerSourceRef("event", "evt_A"),)),),
+        )
+
+
+# AT-RT-X2-18: event-closed window accepts start as first event and boundary as last event.
+def test_x2_activity_start_first_and_event_boundary_last_accepted():
+    refs = (
+        TriggerSourceRef("event", "evt_A"),
+        TriggerSourceRef("event", "evt_B"),
+        TriggerSourceRef("event", "evt_C"),
+    )
+    key = _activity_key(
+        causal_anchor=ActivityWindowAnchor("evt_A", EventEligibilityBoundary("evt_C"), EvidenceBasis(refs))
+    )
+    opportunity = ReflectionOpportunity(
+        opportunity_key=key,
+        source_refs=refs,
+        reasons=(TriggerReason(TriggerKind.ACTIVITY_WINDOW, (TriggerSourceRef("event", "evt_A"),)),),
+    )
+    assert opportunity.opportunity_id == key.opportunity_id()
+
+
+# AT-RT-X2-19: timer-closed activity requires start first but no artificial closing event.
+def test_x2_activity_timer_boundary_requires_start_first_only():
+    refs = (
+        TriggerSourceRef("event", "evt_A"),
+        TriggerSourceRef("event", "evt_B"),
+    )
+    key = _activity_key(
+        causal_anchor=ActivityWindowAnchor(
+            "evt_A",
+            DeterministicTimerEligibilityBoundary("activity-timer-boundary-001"),
+            EvidenceBasis(refs),
+        )
+    )
+    opportunity = ReflectionOpportunity(
+        opportunity_key=key,
+        source_refs=refs,
+        reasons=(TriggerReason(TriggerKind.ACTIVITY_WINDOW, (TriggerSourceRef("event", "evt_A"),)),),
+    )
+    assert opportunity.opportunity_id == GOLDEN_TIMER_ACTIVITY_ID
+
+    wrong_refs = (
+        TriggerSourceRef("event", "evt_B"),
+        TriggerSourceRef("event", "evt_A"),
+    )
+    wrong_key = _activity_key(
+        causal_anchor=ActivityWindowAnchor(
+            "evt_A",
+            DeterministicTimerEligibilityBoundary("activity-timer-boundary-001"),
+            EvidenceBasis(wrong_refs),
+        )
+    )
+    with pytest.raises(ValueError):
+        ReflectionOpportunity(
+            opportunity_key=wrong_key,
+            source_refs=wrong_refs,
+            reasons=(TriggerReason(TriggerKind.ACTIVITY_WINDOW, (TriggerSourceRef("event", "evt_A"),)),),
+        )
+
+
+# AT-RT-X2-20: non-event SourceRef may coexist without changing first/last EVENT semantics.
+def test_x2_activity_non_event_refs_do_not_define_first_or_last_event_semantics():
+    refs = (
+        TriggerSourceRef("conversation", "turn_before"),
+        TriggerSourceRef("event", "evt_A"),
+        TriggerSourceRef("event", "evt_B"),
+        TriggerSourceRef("event", "evt_C"),
+        TriggerSourceRef("conversation", "turn_after"),
+    )
+    key = _activity_key(
+        causal_anchor=ActivityWindowAnchor("evt_A", EventEligibilityBoundary("evt_C"), EvidenceBasis(refs))
+    )
+    opportunity = ReflectionOpportunity(
+        opportunity_key=key,
+        source_refs=refs,
+        reasons=(TriggerReason(TriggerKind.ACTIVITY_WINDOW, (TriggerSourceRef("event", "evt_B"),)),),
+    )
+    assert opportunity.opportunity_id == key.opportunity_id()
+
+
 # AT-DIA3-R1-09/19: static boundary — no authority imports or semantic interpretation fields.
 def test_static_boundary_no_forbidden_dependencies_or_truth_authority():
     root = Path(__file__).resolve().parents[2] / "julia_core" / "reflection_trigger"

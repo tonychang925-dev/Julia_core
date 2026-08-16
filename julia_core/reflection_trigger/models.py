@@ -346,13 +346,14 @@ class ReflectionOpportunity:
         elif type(anchor) is ActivityWindowAnchor:
             if self.source_refs != anchor.evidence_basis.source_refs:
                 raise ValueError("ActivityWindow ReflectionOpportunity.source_refs must exactly match EvidenceBasis order")
-            evidence_keys = {ref.canonical_key() for ref in anchor.evidence_basis.source_refs}
-            if TriggerSourceRef("event", anchor.window_start_event_id).canonical_key() not in evidence_keys:
-                raise ValueError("ActivityWindowAnchor.window_start_event_id must be present in EvidenceBasis")
+            event_refs = tuple(ref for ref in anchor.evidence_basis.source_refs if ref.ref_type == "event")
+            if not event_refs:
+                raise ValueError("ActivityWindowAnchor EvidenceBasis must contain canonical event refs")
+            if event_refs[0].opaque_ref != anchor.window_start_event_id:
+                raise ValueError("ActivityWindowAnchor.window_start_event_id must be first canonical event in EvidenceBasis")
             if type(anchor.eligibility_boundary) is EventEligibilityBoundary:
-                boundary_ref = TriggerSourceRef("event", anchor.eligibility_boundary.eligibility_event_id)
-                if boundary_ref.canonical_key() not in evidence_keys:
-                    raise ValueError("EventEligibilityBoundary.eligibility_event_id must be present in EvidenceBasis")
+                if event_refs[-1].opaque_ref != anchor.eligibility_boundary.eligibility_event_id:
+                    raise ValueError("EventEligibilityBoundary.eligibility_event_id must be last canonical event in EvidenceBasis")
         expected = self.opportunity_key.opportunity_id()
         if self.opportunity_id is None:
             object.__setattr__(self, "opportunity_id", expected)
