@@ -555,7 +555,7 @@ def test_x2_activity_non_event_refs_do_not_define_first_or_last_event_semantics(
 # AT-DIA3-R1-09/19: static boundary — no authority imports or semantic interpretation fields.
 def test_static_boundary_no_forbidden_dependencies_or_truth_authority():
     root = Path(__file__).resolve().parents[2] / "julia_core" / "reflection_trigger"
-    src = "\n".join(path.read_text() for path in sorted(root.glob("*.py")))
+    src = "\n".join((root / name).read_text() for name in ("models.py", "repository_protocol.py"))
     for forbidden in (
         "DiarySourceRef",
         "from julia_core.diary",

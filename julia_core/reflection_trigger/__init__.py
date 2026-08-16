@@ -26,6 +26,12 @@ from .models import (
     TriggerSourceRef,
 )
 from .repository_protocol import ReflectionTriggerStateRepository, TriggerIdentityConflict
+from .assistant_repository import (
+    ADAPTER_SCHEMA_VERSION,
+    FileReflectionTriggerStateRepository,
+    ReflectionTriggerRuntimeScheduler,
+    TriggerStatePersistenceError,
+)
 
 __all__ = [
     "CANONICAL_VERSION",
@@ -53,4 +59,8 @@ __all__ = [
     "BoundedSchedulingState",
     "ReflectionTriggerStateRepository",
     "TriggerIdentityConflict",
+    "ADAPTER_SCHEMA_VERSION",
+    "FileReflectionTriggerStateRepository",
+    "ReflectionTriggerRuntimeScheduler",
+    "TriggerStatePersistenceError",
 ]
