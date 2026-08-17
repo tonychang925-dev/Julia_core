@@ -334,7 +334,7 @@ class ReflectionContext:
             + _field("context.bounds", self.bounds.canonical_bytes().decode("utf-8"))
         )
         for fact in self.facts:
-            out += _field("context.fact", fact.canonical_bytes().decode("utf-8"))
+            out += _bytes_field("context.fact", fact.canonical_bytes())
         if include_digest:
             out += _field("context.digest", self.context_digest or "")
         return out

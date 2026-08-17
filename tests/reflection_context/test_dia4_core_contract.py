@@ -274,3 +274,31 @@ def test_dia4_golden_vectors():
     assert policy.policy_fingerprint() == "1e2ad176a764ef0447422a60e1a469aeb2a7fb8d305664dffabf102c2c4e4f86"
     assert fact.canonical_digest == "7c487cbcd022b34aa379dc38eeb21c5e082528b8b1981bcb8de53723a007a81c"
     assert context.context_digest == "f3622e40f42fc4cc01ce7dd1e7a65d75fc2c3ba0dfbbbc1deb1d6703da6594cf"
+
+
+# DIA4-R1-X6: opaque binary payload stays byte-native through context serialization.
+def test_opaque_binary_payload_assembles_and_serializes():
+    ref = _ref("evt_BIN")
+    payload = b"\x00\xff\x80:\nA"
+    context = _assemble(_opportunity(ref), (_fact(ref, payload),), _policy())
+    assert context.facts[0].payload == payload
+    assert context.semantic_canonical_bytes()
+    assert context.context_digest == _assemble(_opportunity(ref), (_fact(ref, payload),), _policy()).context_digest
+
+
+# DIA4-R1-X7: binary payload bytes affect fact and context identity.
+def test_binary_payload_identity_changes_context_digest():
+    ref = _ref("evt_BIN")
+    context_a = _assemble(_opportunity(ref), (_fact(ref, b"\xff\x00"),), _policy())
+    context_b = _assemble(_opportunity(ref), (_fact(ref, b"\xff\x01"),), _policy())
+    assert context_a.facts[0].canonical_digest != context_b.facts[0].canonical_digest
+    assert context_a.context_digest != context_b.context_digest
+
+
+# DIA4-R1-X8: existing ASCII golden remains frozen after byte-native framing.
+def test_ascii_golden_context_digest_remains_frozen_after_byte_native_framing():
+    ref = _ref("evt_A")
+    policy = _policy(max_facts=4, max_payload_bytes=1024, max_fact_payload_bytes=512)
+    fact = _fact(ref, b"canonical event payload")
+    context = _assemble(_opportunity(ref), (fact,), policy)
+    assert context.context_digest == "f3622e40f42fc4cc01ce7dd1e7a65d75fc2c3ba0dfbbbc1deb1d6703da6594cf"
