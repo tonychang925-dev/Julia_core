@@ -1,9 +1,9 @@
-# DIA-4 R1 — Core Reflection Context Contract
+# DIA-4 R1.1 — Core Reflection Context Contract
 
 ## Status
 
 Implementation Owner: Codex A  
-Gate: DIA-4 R1 Core Context Contract ready for Mira review  
+Gate: DIA-4 R1.1 Core Context Contract ready for Mira review  
 Core base: `659594fd1d3d290d6587e45ab5d3c51c3534a2be`  
 Frozen DIA-4 R0 design: `9356a736ce16dc7a16f3db6c5221eab4b8613d84`
 
@@ -18,9 +18,16 @@ Added Core-only semantic contract:
 
 No Assistant physical integration. No Diary, Memory, Context OS, client/voice history, or model generation authority.
 
+## R1.1 fixes
+
+- Algorithm revision truthfulness: unknown `selection_algorithm_revision` and `context_digest_algorithm_revision` fail closed.
+- Structural interpretation firewall: `fact_type` is now closed `CanonicalFactType`, not a blacklist string.
+- Frozen context digest domain: removed the non-R0 `context.fact_count` field; ordered length-framed facts are sufficient.
+
 ## Implemented Core nouns
 
 - `CanonicalFact`
+- `CanonicalFactType`
 - `ContextFact`
 - `FactSemanticProvenance`
 - `FactAuditMetadata`
@@ -50,13 +57,13 @@ No Assistant physical integration. No Diary, Memory, Context OS, client/voice hi
 
 - policy fingerprint: `1e2ad176a764ef0447422a60e1a469aeb2a7fb8d305664dffabf102c2c4e4f86`
 - canonical fact payload digest: `7c487cbcd022b34aa379dc38eeb21c5e082528b8b1981bcb8de53723a007a81c`
-- reflection context digest: `a4c50641dfa07563e51819862405e652a829455392d48ab019b2f25f08c63b97`
+- reflection context digest: `f3622e40f42fc4cc01ce7dd1e7a65d75fc2c3ba0dfbbbc1deb1d6703da6594cf`
 
 ## Validation evidence
 
 ```bash
 /opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/reflection_context/test_dia4_core_contract.py -q
-# 18 passed
+# 21 passed
 
 /opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/reflection_trigger/test_dia3_core_contract.py -q
 # 44 passed
@@ -74,4 +81,4 @@ No Assistant physical integration. No Diary, Memory, Context OS, client/voice hi
 
 ## Gate summary
 
-DIA-4 R1 implements the frozen Core semantic contract: Julia may receive bounded canonical facts, but DIA-4 has no authority to interpret, rewrite, expand, persist, or generate from them.
+DIA-4 R1.1 implements the frozen Core semantic contract: Julia may receive bounded canonical facts, but DIA-4 has no authority to interpret, rewrite, expand, persist, or generate from them.

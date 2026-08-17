@@ -7,6 +7,7 @@ new conversation truth authority.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from hashlib import sha256
 from typing import Protocol, runtime_checkable
 
@@ -19,21 +20,6 @@ FACT_DIGEST_FUNCTION = "sha256:canonical-payload:v1"
 CONTEXT_DIGEST_ALGORITHM_REVISION = "dia4-context-digest-v1"
 SELECTION_ALGORITHM_REVISION = "dia4-select-opportunity-source-refs-v1"
 DEFAULT_FACT_PROJECTION_REVISION = "canonical-fact-projection-v1"
-
-_FORBIDDEN_TEXT_MARKERS = (
-    "emotional",
-    "emotionally",
-    "relationship",
-    "breakthrough",
-    "salience",
-    "salient",
-    "diary-worthy",
-    "diary_worthy",
-    "memory-worthy",
-    "memory_worthy",
-    "meaning",
-    "interpretation",
-)
 
 
 def _require_non_empty_str(name: str, value: object) -> None:
@@ -79,10 +65,21 @@ def _digest_hex(canonical_bytes: bytes) -> str:
     return sha256(canonical_bytes).hexdigest()
 
 
-def _reject_forbidden_text(name: str, value: str) -> None:
-    lowered = value.lower()
-    if any(marker in lowered for marker in _FORBIDDEN_TEXT_MARKERS):
-        raise ValueError(f"{name} must not contain interpretation metadata")
+class CanonicalFactType(Enum):
+    CONVERSATION_EVENT = "conversation_event"
+    TURN_BOUNDARY = "turn_boundary"
+    EXPLICIT_REQUEST = "explicit_request"
+
+
+def _require_fact_type(name: str, value: object) -> CanonicalFactType:
+    if type(value) is CanonicalFactType:
+        return value
+    if type(value) is str:
+        try:
+            return CanonicalFactType(value)
+        except ValueError as e:
+            raise ValueError(f"{name} must be a frozen CanonicalFactType") from e
+    raise ValueError(f"{name} must be CanonicalFactType")
 
 
 def _ref_key(ref: TriggerSourceRef) -> str:
@@ -127,6 +124,10 @@ class ContextAssemblyPolicy:
         _require_non_empty_str("ContextAssemblyPolicy.schema_version", self.schema_version)
         if self.schema_version != CANONICAL_VERSION:
             raise ValueError("ContextAssemblyPolicy.schema_version must equal CANONICAL_VERSION")
+        if self.selection_algorithm_revision != SELECTION_ALGORITHM_REVISION:
+            raise ValueError("ContextAssemblyPolicy.selection_algorithm_revision is not implemented")
+        if self.context_digest_algorithm_revision != CONTEXT_DIGEST_ALGORITHM_REVISION:
+            raise ValueError("ContextAssemblyPolicy.context_digest_algorithm_revision is not implemented")
 
     def canonical_bytes(self) -> bytes:
         return (
@@ -146,7 +147,7 @@ class ContextAssemblyPolicy:
 @dataclass(frozen=True)
 class CanonicalFact:
     source_ref: TriggerSourceRef
-    fact_type: str
+    fact_type: CanonicalFactType
     source_schema_version: str
     projection_revision: str
     canonical_payload: bytes
@@ -157,10 +158,9 @@ class CanonicalFact:
     def __post_init__(self) -> None:
         if type(self.source_ref) is not TriggerSourceRef:
             raise ValueError("CanonicalFact.source_ref must be TriggerSourceRef")
-        for name in ("fact_type", "source_schema_version", "projection_revision", "digest_function", "reader_authority"):
-            value = getattr(self, name)
-            _require_non_empty_str(f"CanonicalFact.{name}", value)
-            _reject_forbidden_text(f"CanonicalFact.{name}", value)
+        object.__setattr__(self, "fact_type", _require_fact_type("CanonicalFact.fact_type", self.fact_type))
+        for name in ("source_schema_version", "projection_revision", "digest_function", "reader_authority"):
+            _require_non_empty_str(f"CanonicalFact.{name}", getattr(self, name))
         if self.digest_function != FACT_DIGEST_FUNCTION:
             raise ValueError("CanonicalFact.digest_function is frozen")
         _require_bytes("CanonicalFact.canonical_payload", self.canonical_payload)
@@ -192,9 +192,7 @@ class FactSemanticProvenance:
         if type(self.source_ref) is not TriggerSourceRef:
             raise ValueError("FactSemanticProvenance.source_ref must be TriggerSourceRef")
         for name in ("source_schema_version", "projection_revision", "digest_function", "canonical_digest"):
-            value = getattr(self, name)
-            _require_non_empty_str(f"FactSemanticProvenance.{name}", value)
-            _reject_forbidden_text(f"FactSemanticProvenance.{name}", value)
+            _require_non_empty_str(f"FactSemanticProvenance.{name}", getattr(self, name))
 
     def canonical_bytes(self) -> bytes:
         return (
@@ -229,7 +227,7 @@ class ContextFact:
     source_ref: TriggerSourceRef
     canonical_digest: str
     digest_function: str
-    fact_type: str
+    fact_type: CanonicalFactType
     source_schema_version: str
     projection_revision: str
     payload: bytes
@@ -240,10 +238,9 @@ class ContextFact:
             raise ValueError("ContextFact.source_ref must be TriggerSourceRef")
         if type(self.semantic_provenance) is not FactSemanticProvenance:
             raise ValueError("ContextFact.semantic_provenance must be FactSemanticProvenance")
-        for name in ("canonical_digest", "digest_function", "fact_type", "source_schema_version", "projection_revision"):
-            value = getattr(self, name)
-            _require_non_empty_str(f"ContextFact.{name}", value)
-            _reject_forbidden_text(f"ContextFact.{name}", value)
+        object.__setattr__(self, "fact_type", _require_fact_type("ContextFact.fact_type", self.fact_type))
+        for name in ("canonical_digest", "digest_function", "source_schema_version", "projection_revision"):
+            _require_non_empty_str(f"ContextFact.{name}", getattr(self, name))
         if self.digest_function != FACT_DIGEST_FUNCTION:
             raise ValueError("ContextFact.digest_function is frozen")
         _require_bytes("ContextFact.payload", self.payload)
@@ -277,7 +274,7 @@ class ContextFact:
     def canonical_bytes(self) -> bytes:
         return (
             _field("context_fact.source_ref", self.source_ref.canonical_bytes().decode("utf-8"))
-            + _field("context_fact.fact_type", self.fact_type)
+            + _field("context_fact.fact_type", self.fact_type.value)
             + _field("context_fact.source_schema_version", self.source_schema_version)
             + _field("context_fact.projection_revision", self.projection_revision)
             + _field("context_fact.digest_function", self.digest_function)
@@ -335,7 +332,6 @@ class ReflectionContext:
             + _field("context.assembly_policy_revision", self.assembly_policy_revision)
             + _field("context.assembly_policy_fingerprint", self.assembly_policy_fingerprint)
             + _field("context.bounds", self.bounds.canonical_bytes().decode("utf-8"))
-            + _field("context.fact_count", str(len(self.facts)))
         )
         for fact in self.facts:
             out += _field("context.fact", fact.canonical_bytes().decode("utf-8"))

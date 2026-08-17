@@ -11,6 +11,7 @@ from julia_core.reflection_context import (
     CONTEXT_DIGEST_ALGORITHM_REVISION,
     DEFAULT_FACT_PROJECTION_REVISION,
     CanonicalFact,
+    CanonicalFactType,
     ContextAssemblyPolicy,
     ContextBounds,
     ContextFact,
@@ -56,7 +57,7 @@ def _fact(ref=None, payload=b"canonical event payload", *, reader="reader-A", pr
     ref = ref or _ref("evt_A")
     return CanonicalFact(
         source_ref=ref,
-        fact_type="conversation_event",
+        fact_type=CanonicalFactType.CONVERSATION_EVENT,
         source_schema_version="conversation-event-v1",
         projection_revision=projection,
         canonical_payload=payload,
@@ -132,7 +133,7 @@ def test_missing_source_ref_fails_closed():
 # AT-DIA4-R0-10: digest mismatch fails closed.
 def test_canonical_fact_digest_mismatch_fails_closed():
     with pytest.raises(ValueError, match="digest"):
-        CanonicalFact(_ref(), "conversation_event", "schema-v1", DEFAULT_FACT_PROJECTION_REVISION, b"payload", canonical_digest="bad")
+        CanonicalFact(_ref(), CanonicalFactType.CONVERSATION_EVENT, "schema-v1", DEFAULT_FACT_PROJECTION_REVISION, b"payload", canonical_digest="bad")
 
 
 # AT-DIA4-R0-11: contradictory same-source facts fail closed by digest validation at construction.
@@ -168,7 +169,7 @@ def test_duplicate_refs_fail_closed():
 
 # AT-DIA4-R0-17/18/19: interpretation labels are impossible in metadata fields.
 def test_interpretation_firewall_rejects_semantic_labels():
-    with pytest.raises(ValueError, match="interpretation"):
+    with pytest.raises(ValueError, match="CanonicalFactType"):
         CanonicalFact(_ref(), "relationship_breakthrough", "schema-v1", DEFAULT_FACT_PROJECTION_REVISION, b"payload")
 
 
@@ -207,9 +208,9 @@ def test_context_digest_binds_exact_bounds():
 
 # AT-DIA4-R0.1-04 / R0.3-03: policy fingerprint binds complete semantics including digest algorithm.
 def test_policy_fingerprint_binds_complete_semantics():
-    a = _policy(digest_alg="dia4-context-digest-v1")
-    b = _policy(digest_alg="dia4-context-digest-v2")
-    assert a.policy_fingerprint() != b.policy_fingerprint()
+    assert _policy(digest_alg="dia4-context-digest-v1").policy_fingerprint()
+    with pytest.raises(ValueError, match="context_digest_algorithm_revision"):
+        _policy(digest_alg="dia4-context-digest-v2")
 
 
 # AT-DIA4-R0.1-05 / R0.1-P1: CanonicalFact is context-free exact payload.
@@ -233,6 +234,36 @@ def test_policy_core_has_no_physical_binding_storage():
         assert marker not in src
 
 
+# DIA4-R1-X1: unknown selection algorithm revision is rejected.
+def test_unknown_selection_algorithm_revision_rejected():
+    with pytest.raises(ValueError, match="selection_algorithm_revision"):
+        ContextAssemblyPolicy(
+            revision="ctx-policy-v99",
+            bounds=ContextBounds(4, 1024, 512),
+            selection_algorithm_revision="dia4-select-v99",
+        )
+
+
+# DIA4-R1-X2: unknown context digest algorithm revision is rejected.
+def test_unknown_context_digest_algorithm_revision_rejected():
+    with pytest.raises(ValueError, match="context_digest_algorithm_revision"):
+        ContextAssemblyPolicy(
+            revision="ctx-policy-v2",
+            bounds=ContextBounds(4, 1024, 512),
+            context_digest_algorithm_revision="dia4-context-digest-v2",
+        )
+
+
+# DIA4-R1-X3/X4: fact type is a closed structural vocabulary, not blacklist.
+def test_fact_type_closed_structural_vocabulary():
+    for bad in ("sentiment_positive", "high_importance", "personal_significance", "critical_turn"):
+        with pytest.raises(ValueError, match="CanonicalFactType"):
+            CanonicalFact(_ref(), bad, "schema-v1", DEFAULT_FACT_PROJECTION_REVISION, b"payload")
+
+    for good in CanonicalFactType:
+        assert CanonicalFact(_ref(), good, "schema-v1", DEFAULT_FACT_PROJECTION_REVISION, b"payload").fact_type is good
+
+
 # Golden vectors freeze canonical algorithms.
 def test_dia4_golden_vectors():
     ref = _ref("evt_A")
@@ -242,4 +273,4 @@ def test_dia4_golden_vectors():
 
     assert policy.policy_fingerprint() == "1e2ad176a764ef0447422a60e1a469aeb2a7fb8d305664dffabf102c2c4e4f86"
     assert fact.canonical_digest == "7c487cbcd022b34aa379dc38eeb21c5e082528b8b1981bcb8de53723a007a81c"
-    assert context.context_digest == "a4c50641dfa07563e51819862405e652a829455392d48ab019b2f25f08c63b97"
+    assert context.context_digest == "f3622e40f42fc4cc01ce7dd1e7a65d75fc2c3ba0dfbbbc1deb1d6703da6594cf"
