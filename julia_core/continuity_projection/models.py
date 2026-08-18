@@ -388,8 +388,6 @@ class ContinuityProjectionInput:
         if not all(type(edge) is ContextLineageEdge for edge in self.lineage_edges):
             raise ValueError("ContinuityProjectionInput.lineage_edges must contain ContextLineageEdge only")
         edges = tuple(sorted(self.lineage_edges, key=lambda edge: edge.lineage_digest))
-        if self.lineage_edges != edges:
-            raise ValueError("ContinuityProjectionInput.lineage_edges must be canonical sorted order")
         edge_digests = [edge.lineage_digest for edge in edges]
         if len(set(edge_digests)) != len(edge_digests):
             raise ValueError("ContinuityProjectionInput.lineage_edges must not contain duplicates")
@@ -399,8 +397,6 @@ class ContinuityProjectionInput:
             raise ValueError("ContinuityProjectionInput.candidate_claims must contain ContinuityClaim only")
         _reject_duplicate_claim_ids("ContinuityProjectionInput.candidate_claims", self.candidate_claims)
         claims = tuple(sorted(self.candidate_claims, key=lambda claim: claim.claim_id))
-        if self.candidate_claims != claims:
-            raise ValueError("ContinuityProjectionInput.candidate_claims must be canonical sorted order")
         known_lineage = set(edge_digests)
         for claim in claims:
             for ref in claim.supporting_evidence_refs:
@@ -591,7 +587,7 @@ class StrictContinuityProjector:
         active: dict[str, ProjectedContinuityClaim] = {}
         unresolved: dict[str, ProjectedContinuityClaim] = {}
         rejected_count = 0
-        all_claim_ids = {claim.claim_id for claim in projection_input.candidate_claims}
+        accepted: dict[str, ContinuityClaim] = {}
 
         for claim in projection_input.candidate_claims:
             if claim.claim_kind not in policy.allowed_claim_kinds or claim.conflict_rule not in policy.allowed_conflict_rules:
@@ -600,11 +596,14 @@ class StrictContinuityProjector:
             if len(claim.supporting_evidence_refs) < policy.min_evidence_refs:
                 rejected_count += 1
                 continue
+            accepted[claim.claim_id] = claim
+
+        ordered_claims = _dependency_order_claims(accepted)
+
+        for claim in ordered_claims:
             if claim.conflict_rule is ContinuityConflictRule.APPEND:
                 active[claim.claim_id] = claim.with_status(ContinuityClaimStatus.ACTIVE)
                 continue
-            if claim.target_claim_id not in all_claim_ids:
-                raise ValueError("conflict rule target claim does not exist")
             if claim.conflict_rule in (ContinuityConflictRule.SUPERSEDE, ContinuityConflictRule.CORRECT):
                 active.pop(claim.target_claim_id, None)
                 unresolved.pop(claim.target_claim_id, None)
@@ -620,12 +619,41 @@ class StrictContinuityProjector:
                     unresolved[target.claim_id] = ProjectedContinuityClaim.from_claim(
                         _projected_to_candidate(target), ContinuityClaimStatus.CONFLICTED
                     )
+                elif claim.target_claim_id in accepted:
+                    unresolved[claim.target_claim_id] = accepted[claim.target_claim_id].with_status(ContinuityClaimStatus.CONFLICTED)
                 unresolved[claim.claim_id] = claim.with_status(ContinuityClaimStatus.CONFLICTED)
                 continue
             raise ValueError("unsupported conflict rule")
 
         state = ContinuityState(projection_input, policy, tuple(active.values()), tuple(unresolved.values()))
         return ContinuityProjectionResult(state, audit, rejected_count)
+
+
+def _dependency_order_claims(accepted: dict[str, ContinuityClaim]) -> tuple[ContinuityClaim, ...]:
+    dependents: dict[str, set[str]] = {claim_id: set() for claim_id in accepted}
+    indegree: dict[str, int] = {claim_id: 0 for claim_id in accepted}
+    for claim in accepted.values():
+        if claim.conflict_rule is ContinuityConflictRule.APPEND:
+            continue
+        if claim.target_claim_id not in accepted:
+            raise ValueError("conflict rule target claim does not exist")
+        dependents[claim.target_claim_id].add(claim.claim_id)
+        indegree[claim.claim_id] += 1
+
+    ready = sorted(claim_id for claim_id, degree in indegree.items() if degree == 0)
+    ordered_ids: list[str] = []
+    while ready:
+        claim_id = ready.pop(0)
+        ordered_ids.append(claim_id)
+        for dependent_id in sorted(dependents[claim_id]):
+            indegree[dependent_id] -= 1
+            if indegree[dependent_id] == 0:
+                ready.append(dependent_id)
+                ready.sort()
+
+    if len(ordered_ids) != len(accepted):
+        raise ValueError("conflict rule target dependency cycle detected")
+    return tuple(accepted[claim_id] for claim_id in ordered_ids)
 
 
 def _projected_to_candidate(projected: ProjectedContinuityClaim) -> ContinuityClaim:

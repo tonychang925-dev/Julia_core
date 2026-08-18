@@ -234,3 +234,116 @@ Ready for Mira review      ▶
 Codex B sabotage           ⏸ HOLD
 DIA-7 R2 Assistant         ⏸ HOLD
 ```
+
+---
+
+# DIA-7 R1.1 — RED-C1 Conflict Dependency Repair
+
+## 14. Repair status
+
+Previous target: `a58f5e73ea94ae290a7bcd3a7d008c1db87abb13`  
+Mira review: RED  
+Repair provenance: Codex A
+
+Blocked finding:
+
+```text
+RED-C1 conflict semantics depended on lexical claim_id order
+rather than target dependency / causal conflict order.
+```
+
+The bug allowed deterministic but wrong states, for example:
+
+```text
+A-correction CORRECT Z-original
+Z-original APPEND
+```
+
+Lexical order could activate both correction and original, violating the R1 semantics that correction removes the target.
+
+## 15. Repair scope
+
+Only Core continuity projection conflict evaluation changed:
+
+- `julia_core/continuity_projection/models.py`
+- `tests/continuity_projection/test_dia7_core_contract.py`
+- `docs/project_control/reports/phase-DIA-7-R1.md`
+
+No DIA-3 trigger identity, DIA-4 context identity, DIA-5 handoff identity, DIA-6 lineage identity, Diary, Memory, Assistant, persistence, or generation surface changed.
+
+## 16. Closed invariant
+
+Canonical serialization order and conflict evaluation order are now separated.
+
+Input canonicalization still sorts for stable bytes / digest:
+
+```text
+lineage_edges      -> lineage_digest order
+candidate_claims   -> claim_id order
+```
+
+Projection evaluation now builds a target dependency graph:
+
+```text
+target claim
+      ↓
+targeted operation claim
+```
+
+Then applies deterministic topological ordering:
+
+```text
+causal dependency order first
+claim_id tie-break only within same dependency level
+```
+
+Cycle semantics are fail-closed:
+
+```text
+A CORRECT B
+B CORRECT A
+        ↓
+reject projection input
+```
+
+## 17. Repair acceptance matrix
+
+| RED-C1 repair target | Status |
+| --- | --- |
+| Correction claim_id sorts before target -> only correction active | ✅ |
+| Supersede claim_id sorts before target -> old target not active | ✅ |
+| Deprecate claim_id sorts before target -> target remains absent | ✅ |
+| Unresolved claim_id sorts before target -> both unresolved, neither active | ✅ |
+| A -> B -> C correction chain -> terminal claim active | ✅ |
+| Target dependency cycle -> fail closed | ✅ |
+| Same semantic graph in different caller order -> same state digest | ✅ |
+
+## 18. Repair validation evidence
+
+Executed by Codex A:
+
+```text
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/continuity_projection/test_dia7_core_contract.py -q
+20 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/context_evolution/test_dia6_core_contract.py tests/reflection_handoff/test_dia5_core_contract.py tests/reflection_context/test_dia4_core_contract.py tests/reflection_trigger/test_dia3_core_contract.py -q
+97 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m compileall -q julia_core/continuity_projection tests/continuity_projection/test_dia7_core_contract.py
+PASS
+```
+
+## 19. Repair gate summary
+
+```text
+DIA-7 R1.1 Core Continuity Projection Contract
+
+RED-C1 dependency-order conflict semantics      ✅ CLOSED
+DIA-7 focused tests                             ✅ 20 passed
+DIA-6/DIA-5/DIA-4/DIA-3 regression             ✅ 97 passed
+compileall                                      ✅ PASS
+
+Ready for Mira re-review                        ▶
+Codex B sabotage                                ⏸ HOLD
+DIA-7 R2 Assistant                              ⏸ HOLD
+```

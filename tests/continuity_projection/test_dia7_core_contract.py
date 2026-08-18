@@ -186,18 +186,22 @@ def test_same_lineage_same_policy_is_deterministic():
     assert result_a.continuity_state.semantic_canonical_bytes() == result_b.continuity_state.semantic_canonical_bytes()
 
 
-# AT-DIA7-R1-02: graph input must already be canonical; illegal order is rejected.
-def test_lineage_order_illegal_shuffle_rejected():
+# AT-DIA7-R1-02: caller order is canonicalized; it does not define projection semantics.
+def test_lineage_and_claim_order_canonicalized_not_semantic():
     edge_a = _edge("operation-a", parent_payload=b"pa", child_payload=b"ca")
     edge_b = _edge("operation-b", parent_payload=b"pb", child_payload=b"cb")
-    edges = tuple(sorted((edge_a, edge_b), key=lambda edge: edge.lineage_digest))
-    shuffled = tuple(reversed(edges))
-    if shuffled == edges:
-        pytest.skip("fixture digests did not produce a reversed order")
     policy = _projection_policy()
-    claim = _claim("claim-1", "identity_anchor=Julia", edges[0], kind=ContinuityClaimKind.IDENTITY_ANCHOR)
-    with pytest.raises(ValueError, match="canonical sorted order"):
-        ContinuityProjectionInput("graph-r1", ContinuityProjectionInput.compute_graph_digest(shuffled), shuffled, (claim,), policy.revision, policy.policy_fingerprint())
+    claim_a = _claim("claim-a", "identity_anchor=Julia", edge_a, kind=ContinuityClaimKind.IDENTITY_ANCHOR)
+    claim_b = _claim("claim-b", "active_commitment=continue", edge_b, kind=ContinuityClaimKind.ACTIVE_COMMITMENT)
+    edges_ab = (edge_a, edge_b)
+    edges_ba = (edge_b, edge_a)
+    claims_ab = (claim_a, claim_b)
+    claims_ba = (claim_b, claim_a)
+    inp_a = ContinuityProjectionInput("graph-r1", ContinuityProjectionInput.compute_graph_digest(edges_ab), edges_ab, claims_ab, policy.revision, policy.policy_fingerprint())
+    inp_b = ContinuityProjectionInput("graph-r1", ContinuityProjectionInput.compute_graph_digest(edges_ba), edges_ba, claims_ba, policy.revision, policy.policy_fingerprint())
+    result_a = _project(inp_a, policy)
+    result_b = _project(inp_b, policy)
+    assert result_a.continuity_state_digest == result_b.continuity_state_digest
 
 
 # AT-DIA7-R1-03: unsupported claim without lineage evidence is rejected.
@@ -250,6 +254,77 @@ def test_unresolved_conflict_not_silently_chosen():
     assert result.continuity_state.active_claims == ()
     assert [claim.claim_id for claim in result.continuity_state.unresolved_conflicts] == ["claim-1", "claim-2"]
     assert all(claim.status is ContinuityClaimStatus.CONFLICTED for claim in result.continuity_state.unresolved_conflicts)
+
+
+
+
+# RED-C1-A: correction claim_id can sort before target; dependency order still removes target.
+def test_red_c1_correction_before_target_only_correction_active():
+    policy = _projection_policy()
+    edge_a = _edge("operation-a", kind=ContextEvolutionKind.FACT_CORRECTION, parent_payload=b"p-a", child_payload=b"c-a")
+    edge_z = _edge("operation-z", parent_payload=b"p-z", child_payload=b"c-z")
+    correction = _claim("A-correction", "resolved_belief=B", edge_a, kind=ContinuityClaimKind.RESOLVED_BELIEF, rule=ContinuityConflictRule.CORRECT, target="Z-original")
+    original = _claim("Z-original", "resolved_belief=A", edge_z, kind=ContinuityClaimKind.RESOLVED_BELIEF)
+    result = _project(_input((edge_a, edge_z), (correction, original), policy), policy)
+    assert [claim.claim_id for claim in result.continuity_state.active_claims] == ["A-correction"]
+
+
+# RED-C1-B: supersede claim_id can sort before target; old target must not remain active.
+def test_red_c1_supersede_before_target_only_new_active():
+    policy = _projection_policy()
+    edge_a = _edge("operation-a", parent_payload=b"p-a", child_payload=b"c-a")
+    edge_z = _edge("operation-z", parent_payload=b"p-z", child_payload=b"c-z")
+    new_claim = _claim("A-new", "stable_preference=B", edge_a, kind=ContinuityClaimKind.STABLE_PREFERENCE, rule=ContinuityConflictRule.SUPERSEDE, target="Z-old")
+    old_claim = _claim("Z-old", "stable_preference=A", edge_z, kind=ContinuityClaimKind.STABLE_PREFERENCE)
+    result = _project(_input((edge_a, edge_z), (new_claim, old_claim), policy), policy)
+    assert [claim.claim_id for claim in result.continuity_state.active_claims] == ["A-new"]
+
+
+# RED-C1-C: deprecate claim_id can sort before target; target remains absent.
+def test_red_c1_deprecate_before_target_target_absent():
+    policy = _projection_policy()
+    edge_a = _edge("operation-a", kind=ContextEvolutionKind.CONTEXT_DEPRECATION, parent_payload=b"p-a", child_payload=b"c-a")
+    edge_z = _edge("operation-z", parent_payload=b"p-z", child_payload=b"c-z")
+    deprecate = _claim("A-deprecate", "deprecate stable_preference=A", edge_a, kind=ContinuityClaimKind.STABLE_PREFERENCE, rule=ContinuityConflictRule.DEPRECATE, target="Z-old")
+    old_claim = _claim("Z-old", "stable_preference=A", edge_z, kind=ContinuityClaimKind.STABLE_PREFERENCE)
+    result = _project(_input((edge_a, edge_z), (deprecate, old_claim), policy), policy)
+    assert result.continuity_state.active_claims == ()
+
+
+# RED-C1-D: unresolved conflict before target puts both in unresolved, neither active.
+def test_red_c1_unresolved_before_target_both_unresolved():
+    policy = _projection_policy()
+    edge_a = _edge("operation-a", parent_payload=b"p-a", child_payload=b"c-a")
+    edge_z = _edge("operation-z", parent_payload=b"p-z", child_payload=b"c-z")
+    conflict = _claim("A-conflict", "stable_preference=B", edge_a, kind=ContinuityClaimKind.STABLE_PREFERENCE, rule=ContinuityConflictRule.UNRESOLVED, target="Z-old")
+    old_claim = _claim("Z-old", "stable_preference=A", edge_z, kind=ContinuityClaimKind.STABLE_PREFERENCE)
+    result = _project(_input((edge_a, edge_z), (conflict, old_claim), policy), policy)
+    assert result.continuity_state.active_claims == ()
+    assert [claim.claim_id for claim in result.continuity_state.unresolved_conflicts] == ["A-conflict", "Z-old"]
+
+
+# RED-C1-E: correction chain resolves to deterministic terminal state.
+def test_red_c1_correction_chain_terminal_state():
+    policy = _projection_policy()
+    edge_a = _edge("operation-a", parent_payload=b"p-a", child_payload=b"c-a")
+    edge_b = _edge("operation-b", kind=ContextEvolutionKind.FACT_CORRECTION, parent_payload=b"p-b", child_payload=b"c-b")
+    edge_c = _edge("operation-c", kind=ContextEvolutionKind.FACT_CORRECTION, parent_payload=b"p-c", child_payload=b"c-c")
+    claim_a = _claim("A-original", "resolved_belief=A", edge_a, kind=ContinuityClaimKind.RESOLVED_BELIEF)
+    claim_b = _claim("B-correction", "resolved_belief=B", edge_b, kind=ContinuityClaimKind.RESOLVED_BELIEF, rule=ContinuityConflictRule.CORRECT, target="A-original")
+    claim_c = _claim("C-correction", "resolved_belief=C", edge_c, kind=ContinuityClaimKind.RESOLVED_BELIEF, rule=ContinuityConflictRule.CORRECT, target="B-correction")
+    result = _project(_input((edge_a, edge_b, edge_c), (claim_c, claim_a, claim_b), policy), policy)
+    assert [claim.claim_id for claim in result.continuity_state.active_claims] == ["C-correction"]
+
+
+# RED-C1-F: target dependency cycles fail closed.
+def test_red_c1_dependency_cycle_fails_closed():
+    policy = _projection_policy()
+    edge_a = _edge("operation-a", kind=ContextEvolutionKind.FACT_CORRECTION, parent_payload=b"p-a", child_payload=b"c-a")
+    edge_b = _edge("operation-b", kind=ContextEvolutionKind.FACT_CORRECTION, parent_payload=b"p-b", child_payload=b"c-b")
+    claim_a = _claim("A-correction", "resolved_belief=A", edge_a, kind=ContinuityClaimKind.RESOLVED_BELIEF, rule=ContinuityConflictRule.CORRECT, target="B-correction")
+    claim_b = _claim("B-correction", "resolved_belief=B", edge_b, kind=ContinuityClaimKind.RESOLVED_BELIEF, rule=ContinuityConflictRule.CORRECT, target="A-correction")
+    with pytest.raises(ValueError, match="cycle"):
+        _project(_input((edge_a, edge_b), (claim_a, claim_b), policy), policy)
 
 
 # AT-DIA7-R1-08: audit timestamp and diagnostics do not affect state digest.
