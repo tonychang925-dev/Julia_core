@@ -599,3 +599,107 @@ Ready for Mira re-review                       ▶
 Codex B re-sabotage                            ⏸ HOLD
 Final freeze                                   ⏸
 ```
+
+---
+
+# DIA-7 R2.1.4 — RED-PI1 Nested Constructor Parity Repair
+
+## 32. Repair status
+
+Previous target: `e2e7308`  
+Review: RED-PI1 accepted  
+Repair provenance: Codex A
+
+Blocked finding:
+
+```text
+cold reconstruction enforced ContinuityState shape,
+but nested ProjectedContinuityClaim / ContinuityEvidenceRef constructor parity
+could still be bypassed by __new__ reconstruction.
+```
+
+## 33. Nested constructor parity invariant
+
+R2.1.4 freezes:
+
+```text
+Every reconstructed Core object must satisfy the invariants of the Core
+constructor path that could legally have produced it.
+```
+
+Nested projected-claim parity now enforces:
+
+- `target_claim_id` non-empty
+- projected claim schema version equals frozen DIA-7 Continuity Projection version
+- `APPEND` requires `target_claim_id == "none"`
+- non-`APPEND` rules require `target_claim_id != "none"`
+
+Nested evidence-ref parity now enforces:
+
+- evidence ref schema version equals frozen DIA-7 Continuity Projection version
+- `operation_kind` is exact DIA-6 `ContextEvolutionKind`
+- lineage / parent / child digests are SHA-256
+- operation id non-empty
+
+## 34. RED-PI1 acceptance matrix
+
+| RED-PI1 repair target | Status |
+| --- | --- |
+| APPEND + target != none -> reject | ✅ |
+| non-APPEND + target == none -> reject | ✅ |
+| empty target_claim_id -> reject | ✅ |
+| foreign projected claim schema_version -> reject | ✅ |
+| foreign evidence schema_version -> reject | ✅ |
+| valid CORRECT / SUPERSEDE / DEPRECATE / UNRESOLVED target shapes -> green | ✅ |
+| valid APPEND + none -> green | ✅ |
+| golden vectors unchanged | ✅ |
+
+## 35. Repair validation evidence
+
+Executed by Codex A:
+
+```text
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/continuity_persistence/test_dia7_r21_persistence_contract.py -q
+30 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/continuity_persistence/test_dia7_r21_persistence_contract.py tests/assistant_continuity/test_dia7_r2_assistant_continuity_contract.py tests/continuity_projection/test_dia7_core_contract.py -q
+78 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/context_evolution/test_dia6_core_contract.py tests/reflection_handoff/test_dia5_core_contract.py tests/reflection_context/test_dia4_core_contract.py tests/reflection_trigger/test_dia3_core_contract.py -q
+97 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m compileall -q julia_core/continuity_persistence tests/continuity_persistence/test_dia7_r21_persistence_contract.py
+PASS
+```
+
+Golden vectors remain stable:
+
+```text
+package_record_digest:
+5ab291eb1d6190de908b10e1a960fa58978dfb8a6d2b5c7b9eeff9a222e314b4
+
+binding_record_digest:
+91f1215b985704c4024596e538121b7456f75ee2cc6f57a0c81f3348454d1f34
+
+snapshot_digest:
+0cecd8935426c04ce104645d68b4036dc55723dc0024c6c5e7dac265fcf3167b
+```
+
+## 36. Repair gate summary
+
+```text
+DIA-7 R2.1.4 Runtime / Persistence Continuity Contract
+
+RED-RP1 recoverable cold restart payload       ✅ CLOSED
+RED-SL1 derived lineage invariant              ✅ CLOSED
+RED-DI1 duplicate claim ids / constructor parity ✅ CLOSED
+RED-PI1 nested projected-claim/evidence parity ✅ CLOSED
+DIA-7 R2.1 focused tests                       ✅ 30 passed
+DIA-7 R2/R1 regression                         ✅ included in 78 passed
+DIA-6/DIA-5/DIA-4/DIA-3 regression             ✅ 97 passed
+compileall                                      ✅ PASS
+
+Ready for Mira re-review                       ▶
+Codex B re-sabotage                            ⏸ HOLD
+Final freeze                                   ⏸
+```

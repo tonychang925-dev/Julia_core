@@ -414,3 +414,140 @@ def test_red_di1_distinct_ids_identical_payload_shape_green():
     payload2["continuity_state_digest"] = __import__("hashlib").sha256(_state_semantic_bytes_from_payload(payload2)).hexdigest()
     restored = _continuity_state_from_payload(payload2)
     assert [claim.claim_id for claim in restored.active_claims] == ["claim-1", "claim-2"]
+
+
+def _recompute_package_record_digest(data):
+    from julia_core.continuity_persistence import PersistedContinuityPackageRecord
+
+    record = PersistedContinuityPackageRecord.from_dict(data["package_record"])
+    data["package_record"] = record.to_dict()
+
+
+def _refresh_all_persisted_digests(path, data):
+    from julia_core.continuity_persistence.models import (
+        ContinuityRuntimeSnapshot,
+        PersistedContinuityBindingRecord,
+        PersistedContinuityPackageRecord,
+    )
+
+    payload = data["package_record"]["continuity_state_payload"]
+    payload["continuity_state_digest"] = __import__("hashlib").sha256(_state_semantic_bytes_from_payload(payload)).hexdigest()
+    data["package_record"]["continuity_state_digest"] = payload["continuity_state_digest"]
+    data["binding_record"]["continuity_state_digest"] = payload["continuity_state_digest"]
+    data["package_record"]["continuity_state_payload_sha256"] = __import__("hashlib").sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    pr = PersistedContinuityPackageRecord.from_dict(data["package_record"])
+    data["package_record"] = pr.to_dict()
+    br = PersistedContinuityBindingRecord.from_dict(data["binding_record"])
+    data["binding_record"] = br.to_dict()
+    snap = ContinuityRuntimeSnapshot.from_dict({**data, "snapshot_digest": ContinuityRuntimeSnapshot(data["storage_key"], pr, br).snapshot_digest})
+    data.update(snap.to_dict())
+    path.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")))
+
+
+def _expect_restart_reject_after_claim_payload_mutation(tmp_path, mutate, pattern):
+    package = _package()
+    binding = _binding(package, "session-A")
+    runtime = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path))
+    runtime.persist("session-A", package, binding)
+    path = tmp_path / "session-A.snapshot.json"
+    data = json.loads(path.read_text())
+    mutate(data["package_record"]["continuity_state_payload"])
+    # Recompute payload/state only. Record/snapshot digests may remain stale; PI1 validator must still be the first rejection.
+    payload = data["package_record"]["continuity_state_payload"]
+    payload["continuity_state_digest"] = __import__("hashlib").sha256(_state_semantic_bytes_from_payload(payload)).hexdigest()
+    data["package_record"]["continuity_state_digest"] = payload["continuity_state_digest"]
+    data["package_record"]["continuity_state_payload_sha256"] = __import__("hashlib").sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    path.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")))
+    with pytest.raises(ValueError, match=pattern):
+        StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")
+
+
+# RED-PI1-A: APPEND with target != none rejects during nested claim parity.
+def test_red_pi1_append_with_target_rejected(tmp_path):
+    def mutate(payload):
+        payload["active_claims"][0]["target_claim_id"] = "claim-X"
+
+    _expect_restart_reject_after_claim_payload_mutation(tmp_path, mutate, "append claim target must be none")
+
+
+# RED-PI1-B: non-APPEND with target == none rejects.
+def test_red_pi1_non_append_without_target_rejected(tmp_path):
+    def mutate(payload):
+        claim = payload["active_claims"][0]
+        claim["conflict_rule"] = "correct"
+        claim["target_claim_id"] = "none"
+
+    _expect_restart_reject_after_claim_payload_mutation(tmp_path, mutate, "non-append claim requires target")
+
+
+# RED-PI1-C: empty target_claim_id rejects.
+def test_red_pi1_empty_target_claim_id_rejected(tmp_path):
+    package = _package()
+    binding = _binding(package, "session-A")
+    runtime = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path))
+    runtime.persist("session-A", package, binding)
+    path = tmp_path / "session-A.snapshot.json"
+    data = json.loads(path.read_text())
+    payload = data["package_record"]["continuity_state_payload"]
+    payload["active_claims"][0]["target_claim_id"] = ""
+    data["package_record"]["continuity_state_payload_sha256"] = __import__("hashlib").sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    path.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")))
+    with pytest.raises(ValueError, match="target_claim_id"):
+        StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")
+
+
+# RED-PI1-D: foreign projected claim schema version rejects.
+def test_red_pi1_foreign_claim_schema_version_rejected(tmp_path):
+    def mutate(payload):
+        payload["active_claims"][0]["schema_version"] = "fake-v99"
+
+    _expect_restart_reject_after_claim_payload_mutation(tmp_path, mutate, "projected claim schema_version is frozen")
+
+
+# RED-PI1-E: foreign evidence schema version rejects.
+def test_red_pi1_foreign_evidence_schema_version_rejected(tmp_path):
+    def mutate(payload):
+        payload["active_claims"][0]["supporting_evidence_refs"][0]["schema_version"] = "fake-v99"
+
+    _expect_restart_reject_after_claim_payload_mutation(tmp_path, mutate, "evidence ref schema_version is frozen")
+
+
+# RED-PI1-F/G: valid APPEND + none and targeted rules remain valid nested shapes.
+def test_red_pi1_valid_append_and_targeted_shapes_green():
+    from julia_core.continuity_persistence.models import _validate_reconstructed_state_shape
+    from julia_core.continuity_projection import ContinuityClaimStatus
+
+    snapshot, _, _ = _snapshot("session-A")
+    payload = snapshot.package_record.continuity_state_payload
+    active = tuple(
+        __import__("julia_core.continuity_persistence.models", fromlist=["_projected_claim_from_payload"])._projected_claim_from_payload(item, ContinuityClaimStatus.ACTIVE)
+        for item in payload["active_claims"]
+    )
+    _validate_reconstructed_state_shape(active, ())
+
+
+# RED-PI1-H: valid targeted CORRECT / SUPERSEDE / DEPRECATE / UNRESOLVED shapes satisfy nested parity.
+def test_red_pi1_valid_targeted_rule_shapes_green():
+    from julia_core.continuity_persistence.models import _validate_reconstructed_state_shape
+    from julia_core.continuity_projection import ContinuityClaim, ContinuityClaimKind, ContinuityClaimStatus, ContinuityConflictRule, ContinuityEvidenceRef, ProjectedContinuityClaim
+
+    edge = _edge("operation-pi1-valid", parent_payload=b"pi1-p", child_payload=b"pi1-c")
+    ref = ContinuityEvidenceRef.from_lineage_edge(edge)
+    for rule, status in (
+        (ContinuityConflictRule.CORRECT, ContinuityClaimStatus.ACTIVE),
+        (ContinuityConflictRule.SUPERSEDE, ContinuityClaimStatus.ACTIVE),
+        (ContinuityConflictRule.DEPRECATE, ContinuityClaimStatus.ACTIVE),
+        (ContinuityConflictRule.UNRESOLVED, ContinuityClaimStatus.CONFLICTED),
+    ):
+        claim = ContinuityClaim("claim-valid", ContinuityClaimKind.RESOLVED_BELIEF, f"rule={rule.value}", (ref,), rule, "claim-target")
+        projected = ProjectedContinuityClaim.from_claim(claim, status)
+        if status is ContinuityClaimStatus.ACTIVE:
+            _validate_reconstructed_state_shape((projected,), ())
+        else:
+            _validate_reconstructed_state_shape((), (projected,))

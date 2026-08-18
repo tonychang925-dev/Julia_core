@@ -20,6 +20,7 @@ from julia_core.assistant_continuity import (
     StrictAssistantContinuityBinder,
 )
 from julia_core.continuity_projection import (
+    CANONICAL_VERSION as CONTINUITY_PROJECTION_VERSION,
     ContinuityClaimKind,
     ContinuityClaimStatus,
     ContinuityConflictRule,
@@ -576,7 +577,14 @@ def _validate_reconstructed_state_shape(active: tuple[ProjectedContinuityClaim, 
     for claim in active + conflicts:
         _require_non_empty_str("continuity state payload claim_id", claim.claim_id)
         _require_non_empty_str("continuity state payload claim_payload", claim.claim_payload)
+        _require_non_empty_str("continuity state payload target_claim_id", claim.target_claim_id)
         _require_non_empty_str("continuity state payload projection_rule_id", claim.projection_rule_id)
+        if claim.schema_version != CONTINUITY_PROJECTION_VERSION:
+            raise ValueError("projected claim schema_version is frozen")
+        if claim.conflict_rule is ContinuityConflictRule.APPEND and claim.target_claim_id != "none":
+            raise ValueError("append claim target must be none")
+        if claim.conflict_rule is not ContinuityConflictRule.APPEND and claim.target_claim_id == "none":
+            raise ValueError("non-append claim requires target")
         _require_tuple("continuity state payload supporting_evidence_refs", claim.supporting_evidence_refs)
         if not claim.supporting_evidence_refs:
             raise ValueError("continuity state payload claim evidence must be non-empty")
@@ -588,6 +596,10 @@ def _validate_reconstructed_state_shape(active: tuple[ProjectedContinuityClaim, 
             _require_sha256_hex("continuity state payload evidence parent_context_digest", ref.parent_context_digest)
             _require_sha256_hex("continuity state payload evidence child_context_digest", ref.child_context_digest)
             _require_non_empty_str("continuity state payload evidence operation_id", ref.operation_id)
+            if ref.schema_version != CONTINUITY_PROJECTION_VERSION:
+                raise ValueError("evidence ref schema_version is frozen")
+            if type(ref.operation_kind) is not ContextEvolutionKind:
+                raise ValueError("evidence ref operation_kind must be ContextEvolutionKind")
 
 
 def _projected_claim_from_payload(payload: object, expected_status: ContinuityClaimStatus) -> ProjectedContinuityClaim:
