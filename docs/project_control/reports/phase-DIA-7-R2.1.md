@@ -703,3 +703,123 @@ Ready for Mira re-review                       ▶
 Codex B re-sabotage                            ⏸ HOLD
 Final freeze                                   ⏸
 ```
+
+---
+
+# DIA-7 R2.1.5 — RED-SH1 State Header Parity Repair
+
+## 37. Repair status
+
+Previous target: `ad920c0`  
+Review: RED-SH1 accepted  
+Repair provenance: Codex A
+
+Blocked finding:
+
+```text
+cold reconstruction enforced state shape and nested claim/evidence parity,
+but state-level header fields could still be restored as arbitrary payload fields.
+```
+
+## 38. Header constructor parity invariant
+
+R2.1.5 freezes:
+
+```text
+Restored ContinuityState header fields must satisfy the Core constructor path
+shape before claim reconstruction and before digest acceptance.
+```
+
+Header parity now enforces:
+
+- `state_schema_version == dia7-continuity-projection-v1`
+- `projection_policy_revision` non-empty
+- `projection_policy_fingerprint` is SHA-256
+- `source_graph_revision` non-empty
+- `source_graph_digest` is SHA-256
+- `continuity_state_digest` is SHA-256
+
+This does not attempt to prove the current policy object still exists. It only proves the restored state header has a shape Core could have produced.
+
+## 39. Full cold reconstruction parity tree
+
+```text
+ContinuityState
+├── state header                         ✅
+├── claim-id uniqueness                  ✅
+├── derived lineage                      ✅
+│
+└── ProjectedContinuityClaim             ✅
+    ├── target semantics                 ✅
+    ├── schema version                   ✅
+    ├── evidence set                     ✅
+    │
+    └── ContinuityEvidenceRef            ✅
+        ├── schema version               ✅
+        ├── operation kind               ✅
+        ├── digests                      ✅
+        └── operation id                 ✅
+```
+
+## 40. RED-SH1 acceptance matrix
+
+| RED-SH1 repair target | Status |
+| --- | --- |
+| foreign state_schema_version with recomputed payload digest -> reject | ✅ |
+| empty projection_policy_revision -> reject | ✅ |
+| malformed projection_policy_fingerprint -> reject | ✅ |
+| empty source_graph_revision -> reject | ✅ |
+| malformed source_graph_digest -> reject | ✅ |
+| valid original state header -> green | ✅ |
+| golden vectors unchanged | ✅ |
+
+## 41. Repair validation evidence
+
+Executed by Codex A:
+
+```text
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/continuity_persistence/test_dia7_r21_persistence_contract.py -q
+36 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/continuity_persistence/test_dia7_r21_persistence_contract.py tests/assistant_continuity/test_dia7_r2_assistant_continuity_contract.py tests/continuity_projection/test_dia7_core_contract.py -q
+84 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/context_evolution/test_dia6_core_contract.py tests/reflection_handoff/test_dia5_core_contract.py tests/reflection_context/test_dia4_core_contract.py tests/reflection_trigger/test_dia3_core_contract.py -q
+97 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m compileall -q julia_core/continuity_persistence tests/continuity_persistence/test_dia7_r21_persistence_contract.py
+PASS
+```
+
+Golden vectors remain stable:
+
+```text
+package_record_digest:
+5ab291eb1d6190de908b10e1a960fa58978dfb8a6d2b5c7b9eeff9a222e314b4
+
+binding_record_digest:
+91f1215b985704c4024596e538121b7456f75ee2cc6f57a0c81f3348454d1f34
+
+snapshot_digest:
+0cecd8935426c04ce104645d68b4036dc55723dc0024c6c5e7dac265fcf3167b
+```
+
+## 42. Repair gate summary
+
+```text
+DIA-7 R2.1.5 Runtime / Persistence Continuity Contract
+
+RED-RP1 recoverable cold restart payload          ✅ CLOSED
+RED-SL1 derived lineage invariant                 ✅ CLOSED
+RED-DI1 state shape parity                        ✅ CLOSED
+RED-PI1 nested projected-claim/evidence parity    ✅ CLOSED
+RED-SH1 state header parity                       ✅ CLOSED
+DIA-7 R2.1 focused tests                          ✅ 36 passed
+DIA-7 R2/R1 regression                            ✅ included in 84 passed
+DIA-6/DIA-5/DIA-4/DIA-3 regression                ✅ 97 passed
+compileall                                         ✅ PASS
+
+Ready for Mira re-review                          ▶
+Codex B re-sabotage                               ⏸ HOLD
+Final freeze                                      ⏸
+```

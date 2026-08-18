@@ -551,3 +551,77 @@ def test_red_pi1_valid_targeted_rule_shapes_green():
             _validate_reconstructed_state_shape((projected,), ())
         else:
             _validate_reconstructed_state_shape((), (projected,))
+
+
+def _restart_with_header_mutation(tmp_path, mutate, pattern):
+    package = _package()
+    binding = _binding(package, "session-A")
+    runtime = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path))
+    runtime.persist("session-A", package, binding)
+    path = tmp_path / "session-A.snapshot.json"
+    data = json.loads(path.read_text())
+    payload = data["package_record"]["continuity_state_payload"]
+    mutate(payload)
+    try:
+        payload["continuity_state_digest"] = __import__("hashlib").sha256(_state_semantic_bytes_from_payload(payload)).hexdigest()
+    except ValueError:
+        pass
+    data["package_record"]["continuity_state_payload_sha256"] = __import__("hashlib").sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    path.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")))
+    with pytest.raises(ValueError, match=pattern):
+        StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")
+
+
+# RED-SH1-A: foreign state schema version rejects before accepting self-consistent envelope.
+def test_red_sh1_foreign_state_schema_version_rejected(tmp_path):
+    def mutate(payload):
+        payload["state_schema_version"] = "fake-v99"
+
+    _restart_with_header_mutation(tmp_path, mutate, "continuity state schema_version is frozen")
+
+
+# RED-SH1-B: empty projection policy revision rejects.
+def test_red_sh1_empty_projection_policy_revision_rejected(tmp_path):
+    def mutate(payload):
+        payload["projection_policy_revision"] = ""
+
+    _restart_with_header_mutation(tmp_path, mutate, "projection_policy_revision")
+
+
+# RED-SH1-C: malformed projection policy fingerprint rejects.
+def test_red_sh1_malformed_projection_policy_fingerprint_rejected(tmp_path):
+    def mutate(payload):
+        payload["projection_policy_fingerprint"] = "not-sha"
+
+    _restart_with_header_mutation(tmp_path, mutate, "projection_policy_fingerprint")
+
+
+# RED-SH1-D: empty source graph revision rejects.
+def test_red_sh1_empty_source_graph_revision_rejected(tmp_path):
+    def mutate(payload):
+        payload["source_graph_revision"] = ""
+
+    _restart_with_header_mutation(tmp_path, mutate, "source_graph_revision")
+
+
+# RED-SH1-E: malformed source graph digest rejects.
+def test_red_sh1_malformed_source_graph_digest_rejected(tmp_path):
+    def mutate(payload):
+        payload["source_graph_digest"] = "not-sha"
+
+    _restart_with_header_mutation(tmp_path, mutate, "source_graph_digest")
+
+
+# RED-SH1-F: valid original state header remains green and golden vectors unchanged.
+def test_red_sh1_valid_state_header_green_and_golden_stable(tmp_path):
+    package = _package()
+    binding = _binding(package, "session-A")
+    runtime = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path))
+    runtime.persist("session-A", package, binding)
+    restored = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")
+    assert restored.continuity_state.state_schema_version == "dia7-continuity-projection-v1"
+    assert restored.snapshot.package_record.package_record_digest == GOLDEN_PACKAGE_RECORD_DIGEST
+    assert restored.snapshot.binding_record.binding_record_digest == GOLDEN_BINDING_RECORD_DIGEST
+    assert restored.snapshot.snapshot_digest == GOLDEN_SNAPSHOT_DIGEST

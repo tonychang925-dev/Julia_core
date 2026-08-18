@@ -530,6 +530,7 @@ def _continuity_state_from_payload(payload: dict[str, object]) -> ContinuityStat
         if type(value) is not str:
             raise ValueError(f"continuity state payload {key} must be str")
         object.__setattr__(state, key, value)
+    _validate_reconstructed_state_header(state)
     active_raw = payload.get("active_claims")
     conflicts_raw = payload.get("unresolved_conflicts")
     lineage_raw = payload.get("supporting_lineage_digests")
@@ -560,6 +561,18 @@ def _continuity_state_from_payload(payload: dict[str, object]) -> ContinuityStat
     if _digest_hex(state.semantic_canonical_bytes(include_digest=False)) != state.continuity_state_digest:
         raise ValueError("continuity state payload digest mismatch")
     return state
+
+
+def _validate_reconstructed_state_header(state: ContinuityState) -> None:
+    if type(state) is not ContinuityState:
+        raise ValueError("expected exact ContinuityState")
+    if state.state_schema_version != CONTINUITY_PROJECTION_VERSION:
+        raise ValueError("continuity state schema_version is frozen")
+    _require_non_empty_str("continuity state projection_policy_revision", state.projection_policy_revision)
+    _require_sha256_hex("continuity state projection_policy_fingerprint", state.projection_policy_fingerprint)
+    _require_non_empty_str("continuity state source_graph_revision", state.source_graph_revision)
+    _require_sha256_hex("continuity state source_graph_digest", state.source_graph_digest)
+    _require_sha256_hex("continuity state digest", state.continuity_state_digest)
 
 
 def _validate_reconstructed_state_shape(active: tuple[ProjectedContinuityClaim, ...], conflicts: tuple[ProjectedContinuityClaim, ...]) -> None:
