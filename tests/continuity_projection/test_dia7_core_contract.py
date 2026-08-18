@@ -327,6 +327,87 @@ def test_red_c1_dependency_cycle_fails_closed():
         _project(_input((edge_a, edge_b), (claim_a, claim_b), policy), policy)
 
 
+
+
+# RED-BR1-A: sibling corrections of the same target are ambiguous and fail closed.
+def test_red_br1_same_target_correction_branch_rejected():
+    policy = _projection_policy()
+    edge_a = _edge("operation-a", parent_payload=b"p-a", child_payload=b"c-a")
+    edge_b = _edge("operation-b", kind=ContextEvolutionKind.FACT_CORRECTION, parent_payload=b"p-b", child_payload=b"c-b")
+    edge_c = _edge("operation-c", kind=ContextEvolutionKind.FACT_CORRECTION, parent_payload=b"p-c", child_payload=b"c-c")
+    claim_a = _claim("A-original", "resolved_belief=A", edge_a, kind=ContinuityClaimKind.RESOLVED_BELIEF)
+    claim_b = _claim("B-correction", "resolved_belief=B", edge_b, kind=ContinuityClaimKind.RESOLVED_BELIEF, rule=ContinuityConflictRule.CORRECT, target="A-original")
+    claim_c = _claim("C-correction", "resolved_belief=C", edge_c, kind=ContinuityClaimKind.RESOLVED_BELIEF, rule=ContinuityConflictRule.CORRECT, target="A-original")
+    for claims in ((claim_a, claim_b, claim_c), (claim_c, claim_a, claim_b), (claim_b, claim_c, claim_a)):
+        with pytest.raises(ValueError, match="ambiguous same-target mutation branch"):
+            _project(_input((edge_a, edge_b, edge_c), claims, policy), policy)
+
+
+# RED-BR1-B: sibling supersedes of the same target are ambiguous and fail closed.
+def test_red_br1_same_target_supersede_branch_rejected():
+    policy = _projection_policy()
+    edge_a = _edge("operation-a", parent_payload=b"p-a", child_payload=b"c-a")
+    edge_b = _edge("operation-b", parent_payload=b"p-b", child_payload=b"c-b")
+    edge_c = _edge("operation-c", parent_payload=b"p-c", child_payload=b"c-c")
+    claim_a = _claim("A-old", "stable_preference=A", edge_a, kind=ContinuityClaimKind.STABLE_PREFERENCE)
+    claim_b = _claim("B-new", "stable_preference=B", edge_b, kind=ContinuityClaimKind.STABLE_PREFERENCE, rule=ContinuityConflictRule.SUPERSEDE, target="A-old")
+    claim_c = _claim("C-new", "stable_preference=C", edge_c, kind=ContinuityClaimKind.STABLE_PREFERENCE, rule=ContinuityConflictRule.SUPERSEDE, target="A-old")
+    with pytest.raises(ValueError, match="ambiguous same-target mutation branch"):
+        _project(_input((edge_a, edge_b, edge_c), (claim_a, claim_b, claim_c), policy), policy)
+
+
+# RED-BR1-C: mixed same-target mutators are ambiguous and fail closed.
+def test_red_br1_same_target_mixed_correct_deprecate_rejected():
+    policy = _projection_policy()
+    edge_a = _edge("operation-a", parent_payload=b"p-a", child_payload=b"c-a")
+    edge_b = _edge("operation-b", kind=ContextEvolutionKind.FACT_CORRECTION, parent_payload=b"p-b", child_payload=b"c-b")
+    edge_c = _edge("operation-c", kind=ContextEvolutionKind.CONTEXT_DEPRECATION, parent_payload=b"p-c", child_payload=b"c-c")
+    claim_a = _claim("A-old", "resolved_belief=A", edge_a, kind=ContinuityClaimKind.RESOLVED_BELIEF)
+    claim_b = _claim("B-correction", "resolved_belief=B", edge_b, kind=ContinuityClaimKind.RESOLVED_BELIEF, rule=ContinuityConflictRule.CORRECT, target="A-old")
+    claim_c = _claim("C-deprecate", "deprecate resolved_belief=A", edge_c, kind=ContinuityClaimKind.RESOLVED_BELIEF, rule=ContinuityConflictRule.DEPRECATE, target="A-old")
+    with pytest.raises(ValueError, match="ambiguous same-target mutation branch"):
+        _project(_input((edge_a, edge_b, edge_c), (claim_a, claim_b, claim_c), policy), policy)
+
+
+# RED-BR1-D: unresolved plus correct against same target is ambiguous and fail closed.
+def test_red_br1_same_target_unresolved_correct_rejected():
+    policy = _projection_policy()
+    edge_a = _edge("operation-a", parent_payload=b"p-a", child_payload=b"c-a")
+    edge_b = _edge("operation-b", parent_payload=b"p-b", child_payload=b"c-b")
+    edge_c = _edge("operation-c", kind=ContextEvolutionKind.FACT_CORRECTION, parent_payload=b"p-c", child_payload=b"c-c")
+    claim_a = _claim("A-old", "stable_preference=A", edge_a, kind=ContinuityClaimKind.STABLE_PREFERENCE)
+    claim_b = _claim("B-conflict", "stable_preference=B", edge_b, kind=ContinuityClaimKind.STABLE_PREFERENCE, rule=ContinuityConflictRule.UNRESOLVED, target="A-old")
+    claim_c = _claim("C-correction", "stable_preference=C", edge_c, kind=ContinuityClaimKind.STABLE_PREFERENCE, rule=ContinuityConflictRule.CORRECT, target="A-old")
+    with pytest.raises(ValueError, match="ambiguous same-target mutation branch"):
+        _project(_input((edge_a, edge_b, edge_c), (claim_a, claim_b, claim_c), policy), policy)
+
+
+# RED-BR1-E: explicit chain remains legal; terminal claim is active.
+def test_red_br1_explicit_chain_still_green():
+    policy = _projection_policy()
+    edge_a = _edge("operation-a", parent_payload=b"p-a", child_payload=b"c-a")
+    edge_b = _edge("operation-b", kind=ContextEvolutionKind.FACT_CORRECTION, parent_payload=b"p-b", child_payload=b"c-b")
+    edge_c = _edge("operation-c", kind=ContextEvolutionKind.FACT_CORRECTION, parent_payload=b"p-c", child_payload=b"c-c")
+    claim_a = _claim("A-original", "resolved_belief=A", edge_a, kind=ContinuityClaimKind.RESOLVED_BELIEF)
+    claim_b = _claim("B-correction", "resolved_belief=B", edge_b, kind=ContinuityClaimKind.RESOLVED_BELIEF, rule=ContinuityConflictRule.CORRECT, target="A-original")
+    claim_c = _claim("C-correction", "resolved_belief=C", edge_c, kind=ContinuityClaimKind.RESOLVED_BELIEF, rule=ContinuityConflictRule.CORRECT, target="B-correction")
+    result = _project(_input((edge_a, edge_b, edge_c), (claim_a, claim_b, claim_c), policy), policy)
+    assert [claim.claim_id for claim in result.continuity_state.active_claims] == ["C-correction"]
+
+
+# RED-BR1-F: branching convergence/merge is not supported in R1 and fails closed.
+def test_red_br1_branching_convergence_merge_not_supported():
+    policy = _projection_policy()
+    edge_a = _edge("operation-a", parent_payload=b"p-a", child_payload=b"c-a")
+    edge_b = _edge("operation-b", kind=ContextEvolutionKind.FACT_CORRECTION, parent_payload=b"p-b", child_payload=b"c-b")
+    edge_c = _edge("operation-c", kind=ContextEvolutionKind.FACT_CORRECTION, parent_payload=b"p-c", child_payload=b"c-c")
+    claim_a = _claim("A-original", "resolved_belief=A", edge_a, kind=ContinuityClaimKind.RESOLVED_BELIEF)
+    claim_b = _claim("B-correction", "resolved_belief=B", edge_b, kind=ContinuityClaimKind.RESOLVED_BELIEF, rule=ContinuityConflictRule.CORRECT, target="A-original")
+    claim_c = _claim("C-correction", "resolved_belief=C", edge_c, kind=ContinuityClaimKind.RESOLVED_BELIEF, rule=ContinuityConflictRule.CORRECT, target="A-original")
+    with pytest.raises(ValueError, match="ambiguous same-target mutation branch"):
+        _project(_input((edge_a, edge_b, edge_c), (claim_a, claim_b, claim_c), policy), policy)
+
+
 # AT-DIA7-R1-08: audit timestamp and diagnostics do not affect state digest.
 def test_audit_metadata_does_not_change_state_digest():
     policy = _projection_policy()

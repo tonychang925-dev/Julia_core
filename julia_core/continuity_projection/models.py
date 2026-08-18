@@ -640,6 +640,10 @@ def _dependency_order_claims(accepted: dict[str, ContinuityClaim]) -> tuple[Cont
         dependents[claim.target_claim_id].add(claim.claim_id)
         indegree[claim.claim_id] += 1
 
+    for target_id, dependent_ids in dependents.items():
+        if len(dependent_ids) > 1:
+            raise ValueError(f"ambiguous same-target mutation branch for {target_id}")
+
     ready = sorted(claim_id for claim_id, degree in indegree.items() if degree == 0)
     ordered_ids: list[str] = []
     while ready:

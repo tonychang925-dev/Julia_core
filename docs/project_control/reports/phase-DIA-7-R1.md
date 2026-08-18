@@ -347,3 +347,112 @@ Ready for Mira re-review                        ▶
 Codex B sabotage                                ⏸ HOLD
 DIA-7 R2 Assistant                              ⏸ HOLD
 ```
+
+---
+
+# DIA-7 R1.2 — RED-BR1 Same-Target Branch Repair
+
+## 20. Repair status
+
+Previous target: `66506961167eb1bfbc94d4a70f07c04327c904d4`  
+Mira review: RED-BR1 accepted  
+Repair provenance: Codex A
+
+Blocked finding:
+
+```text
+A original
+├── B CORRECT A
+└── C CORRECT A
+```
+
+Dependency ordering correctly placed A before B/C, but branch authority remained undefined. The prior evaluator could emit both B and C as active, producing a deterministic but invalid continuity state.
+
+## 21. Frozen branch invariant
+
+R1.2 freezes fail-closed same-target branch semantics:
+
+```text
+For every target claim, at most one independent state-mutating dependent
+may survive at the same causal generation.
+
+Multiple sibling mutators without an explicit dependency/resolution relation
+are ambiguous and fail closed.
+```
+
+State-mutating targeted rules covered by this invariant:
+
+- `SUPERSEDE`
+- `CORRECT`
+- `DEPRECATE`
+- `UNRESOLVED`
+
+R1.2 does not elect winners by `claim_id`, caller order, timestamp, or rule type.
+
+## 22. Repair semantics
+
+Dependency graph construction now rejects any target with more than one direct targeted dependent:
+
+```text
+A -> B
+A -> C
+        ↓
+ambiguous same-target mutation branch
+        ↓
+reject projection input
+```
+
+Explicit chains remain valid:
+
+```text
+A -> B -> C
+        ↓
+terminal C active
+```
+
+R1.2 intentionally does not auto-convert competing `CORRECT` / `SUPERSEDE` / `DEPRECATE` branches into `UNRESOLVED`. `UNRESOLVED` remains an explicit `ContinuityConflictRule`, not an invented repair state.
+
+Branch convergence / merge is not supported by the R1 single-target claim schema and fails closed through the same ambiguity rule.
+
+## 23. RED-BR1 acceptance matrix
+
+| RED-BR1 repair target | Status |
+| --- | --- |
+| B CORRECT A + C CORRECT A -> reject | ✅ |
+| B SUPERSEDE A + C SUPERSEDE A -> reject | ✅ |
+| B CORRECT A + C DEPRECATE A -> reject | ✅ |
+| B UNRESOLVED A + C CORRECT A -> reject | ✅ |
+| A -> B -> C explicit correction chain -> terminal C active | ✅ |
+| Branching convergence / merge unsupported in R1 -> reject | ✅ |
+| Caller-order permutations of ambiguous branch -> all reject | ✅ |
+
+## 24. Repair validation evidence
+
+Executed by Codex A:
+
+```text
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/continuity_projection/test_dia7_core_contract.py -q
+26 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/context_evolution/test_dia6_core_contract.py tests/reflection_handoff/test_dia5_core_contract.py tests/reflection_context/test_dia4_core_contract.py tests/reflection_trigger/test_dia3_core_contract.py -q
+97 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m compileall -q julia_core/continuity_projection tests/continuity_projection/test_dia7_core_contract.py
+PASS
+```
+
+## 25. Repair gate summary
+
+```text
+DIA-7 R1.2 Core Continuity Projection Contract
+
+RED-C1 dependency-order conflict semantics      ✅ CLOSED
+RED-BR1 same-target branch ambiguity            ✅ CLOSED
+DIA-7 focused tests                             ✅ 26 passed
+DIA-6/DIA-5/DIA-4/DIA-3 regression             ✅ 97 passed
+compileall                                      ✅ PASS
+
+Ready for Mira re-review                        ▶
+Codex B re-sabotage                             ⏸ HOLD
+DIA-7 R2 Assistant                              ⏸ HOLD
+```
