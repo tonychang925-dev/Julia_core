@@ -225,3 +225,54 @@ def test_red_rp1_cold_replay_response_context_green(tmp_path):
     context = StrictAssistantContinuityBinder().response_context(restored.binding, restored.package)
     assert context.session_id == "session-A"
     assert context.session_binding.binding_digest == restored.binding.binding_digest
+
+
+def _rewrite_payload_sha(path, data):
+    payload = data["package_record"]["continuity_state_payload"]
+    data["package_record"]["continuity_state_payload_sha256"] = __import__("hashlib").sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    path.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")))
+
+
+# RED-SL1-A: supporting_lineage_digests missing derived claim evidence rejects on restart.
+def test_red_sl1_missing_derived_lineage_digest_rejected(tmp_path):
+    package = _package()
+    binding = _binding(package, "session-A")
+    runtime = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path))
+    runtime.persist("session-A", package, binding)
+    path = tmp_path / "session-A.snapshot.json"
+    data = json.loads(path.read_text())
+    data["package_record"]["continuity_state_payload"]["supporting_lineage_digests"] = []
+    _rewrite_payload_sha(path, data)
+    with pytest.raises(ValueError, match="supporting lineage digests"):
+        StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")
+
+
+# RED-SL1-B: extra lineage digest not derived from any claim evidence rejects.
+def test_red_sl1_extra_underrived_lineage_digest_rejected(tmp_path):
+    package = _package()
+    binding = _binding(package, "session-A")
+    runtime = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path))
+    runtime.persist("session-A", package, binding)
+    path = tmp_path / "session-A.snapshot.json"
+    data = json.loads(path.read_text())
+    data["package_record"]["continuity_state_payload"]["supporting_lineage_digests"].append("0" * 64)
+    _rewrite_payload_sha(path, data)
+    with pytest.raises(ValueError, match="supporting lineage digests"):
+        StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")
+
+
+# RED-SL1-C: claim evidence changed without matching derived lineage set rejects.
+def test_red_sl1_claim_evidence_and_supporting_lineage_mismatch_rejected(tmp_path):
+    package = _package()
+    binding = _binding(package, "session-A")
+    runtime = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path))
+    runtime.persist("session-A", package, binding)
+    path = tmp_path / "session-A.snapshot.json"
+    data = json.loads(path.read_text())
+    claim = data["package_record"]["continuity_state_payload"]["active_claims"][0]
+    claim["supporting_evidence_refs"][0]["lineage_digest"] = "0" * 64
+    _rewrite_payload_sha(path, data)
+    with pytest.raises(ValueError, match="supporting lineage digests"):
+        StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")

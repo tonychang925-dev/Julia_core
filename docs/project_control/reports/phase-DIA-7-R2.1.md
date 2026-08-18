@@ -390,3 +390,92 @@ Ready for Mira re-review                       ▶
 Codex B sabotage                               ⏸ HOLD
 Final freeze                                   ⏸
 ```
+
+---
+
+# DIA-7 R2.1.2 — RED-SL1 Derived Lineage Invariant Repair
+
+## 22. Repair status
+
+Previous target: `b3dbbf7`  
+Review: RED-SL1 accepted  
+Repair provenance: Codex A
+
+Blocked finding:
+
+```text
+supporting_lineage_digests could be trusted from persisted payload
+instead of being re-derived from claim evidence during cold restart.
+```
+
+This allowed a reconstructed `ContinuityState` payload to carry a self-consistent digest over an invalid lineage summary if payload fields were treated as authoritative.
+
+## 23. Closed invariant
+
+R2.1.2 freezes:
+
+```text
+ContinuityState.supporting_lineage_digests
+must equal the sorted unique union of every lineage_digest
+in active_claims + unresolved_conflicts supporting_evidence_refs.
+```
+
+During cold restart reconstruction:
+
+```text
+persisted state payload
+    ↓
+reconstruct projected claims and evidence refs
+    ↓
+derive lineage digest union from evidence
+    ↓
+compare against payload.supporting_lineage_digests
+    ↓
+only then accept state digest validation
+```
+
+The persisted `supporting_lineage_digests` field is no longer trusted as an independent truth source.
+
+## 24. RED-SL1 acceptance matrix
+
+| RED-SL1 repair target | Status |
+| --- | --- |
+| Missing supporting lineage digest rejects on restart | ✅ |
+| Extra underived supporting lineage digest rejects on restart | ✅ |
+| Claim evidence changed without matching derived lineage set rejects | ✅ |
+| Existing cold restart / payload recovery remains green | ✅ |
+
+## 25. Repair validation evidence
+
+Executed by Codex A:
+
+```text
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/continuity_persistence/test_dia7_r21_persistence_contract.py -q
+19 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/continuity_persistence/test_dia7_r21_persistence_contract.py tests/assistant_continuity/test_dia7_r2_assistant_continuity_contract.py tests/continuity_projection/test_dia7_core_contract.py -q
+67 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/context_evolution/test_dia6_core_contract.py tests/reflection_handoff/test_dia5_core_contract.py tests/reflection_context/test_dia4_core_contract.py tests/reflection_trigger/test_dia3_core_contract.py -q
+97 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m compileall -q julia_core/continuity_persistence tests/continuity_persistence/test_dia7_r21_persistence_contract.py
+PASS
+```
+
+## 26. Repair gate summary
+
+```text
+DIA-7 R2.1.2 Runtime / Persistence Continuity Contract
+
+RED-RP1 recoverable cold restart payload       ✅ CLOSED
+RED-SL1 derived lineage invariant              ✅ CLOSED
+DIA-7 R2.1 focused tests                       ✅ 19 passed
+DIA-7 R2/R1 regression                         ✅ included in 67 passed
+DIA-6/DIA-5/DIA-4/DIA-3 regression             ✅ 97 passed
+compileall                                      ✅ PASS
+
+Ready for Mira re-review                       ▶
+Codex B re-sabotage                            ⏸ HOLD
+Final freeze                                   ⏸
+```

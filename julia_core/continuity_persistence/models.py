@@ -538,9 +538,23 @@ def _continuity_state_from_payload(payload: dict[str, object]) -> ContinuityStat
     conflicts = tuple(_projected_claim_from_payload(item, ContinuityClaimStatus.CONFLICTED) for item in conflicts_raw)
     if not all(type(item) is str for item in lineage_raw):
         raise ValueError("supporting_lineage_digests must contain str only")
-    object.__setattr__(state, "active_claims", tuple(sorted(active, key=lambda claim: claim.claim_id)))
-    object.__setattr__(state, "unresolved_conflicts", tuple(sorted(conflicts, key=lambda claim: claim.claim_id)))
-    object.__setattr__(state, "supporting_lineage_digests", tuple(sorted(lineage_raw)))
+    for item in lineage_raw:
+        _require_sha256_hex("supporting_lineage_digest", item)
+    active_sorted = tuple(sorted(active, key=lambda claim: claim.claim_id))
+    conflicts_sorted = tuple(sorted(conflicts, key=lambda claim: claim.claim_id))
+    payload_lineage = tuple(sorted(lineage_raw))
+    derived_lineage = tuple(
+        sorted({
+            ref.lineage_digest
+            for claim in active_sorted + conflicts_sorted
+            for ref in claim.supporting_evidence_refs
+        })
+    )
+    if payload_lineage != derived_lineage:
+        raise ValueError("supporting lineage digests must be derived from claim evidence")
+    object.__setattr__(state, "active_claims", active_sorted)
+    object.__setattr__(state, "unresolved_conflicts", conflicts_sorted)
+    object.__setattr__(state, "supporting_lineage_digests", payload_lineage)
     if _digest_hex(state.semantic_canonical_bytes(include_digest=False)) != state.continuity_state_digest:
         raise ValueError("continuity state payload digest mismatch")
     return state
