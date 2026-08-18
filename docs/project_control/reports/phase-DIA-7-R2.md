@@ -368,3 +368,103 @@ Ready for Mira re-review                     ▶
 Codex B sabotage                             ⏸ HOLD
 DIA-7 R2.1 runtime / persistence             ⏸ HOLD
 ```
+
+---
+
+# DIA-7 R2.0.2 — RED-SK1 Store Lookup-Key Repair
+
+## 20. Repair status
+
+Previous target: `758664c`  
+Mira review: RED-SK1 accepted  
+Repair provenance: Codex A
+
+Blocked finding:
+
+```text
+object integrity ✅
+lookup identity binding ❌
+```
+
+A fully self-consistent `Binding(session-B)` could be placed under `store["session-A"]`. Prior `load("session-A")` validated object integrity but did not reconcile lookup key with `binding.session_id`.
+
+## 21. Closed store invariant
+
+R2.0.2 freezes:
+
+```text
+store key == requested_session_id == binding.session_id
+```
+
+Lookup path is now:
+
+```text
+requested session_id
+    ↓
+lookup binding by key
+    ↓
+validate binding current semantic integrity
+    ↓
+require binding.session_id == requested session_id
+    ↓
+return binding
+```
+
+`replay_validate()` inherits the same check through `load()`.
+
+Save remains single-source identity:
+
+```text
+save(binding)
+    ↓
+key = validated binding.session_id
+```
+
+No `save(session_id, binding)` dual-source API exists in R2.0.
+
+## 22. RED-SK1 acceptance matrix
+
+| RED-SK1 repair target | Status |
+| --- | --- |
+| Stored Binding A mutated to self-consistent session-B -> load("A") rejects | ✅ |
+| Same setup -> replay_validate("A", Package A) rejects | ✅ |
+| Fully valid foreign Binding B under key A -> rejects | ✅ |
+| Untouched Binding A load("A") -> green | ✅ |
+| load("B") when only key A exists -> missing session, no alias | ✅ |
+| Mutate A -> B -> recompute -> A with changed package identity -> cross-binding rejects | ✅ |
+
+## 23. Repair validation evidence
+
+Executed by Codex A:
+
+```text
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/assistant_continuity/test_dia7_r2_assistant_continuity_contract.py -q
+22 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/assistant_continuity/test_dia7_r2_assistant_continuity_contract.py tests/continuity_projection/test_dia7_core_contract.py -q
+48 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/context_evolution/test_dia6_core_contract.py tests/reflection_handoff/test_dia5_core_contract.py tests/reflection_context/test_dia4_core_contract.py tests/reflection_trigger/test_dia3_core_contract.py -q
+97 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m compileall -q julia_core/assistant_continuity tests/assistant_continuity/test_dia7_r2_assistant_continuity_contract.py
+PASS
+```
+
+## 24. Repair gate summary
+
+```text
+DIA-7 R2.0.2 Assistant Continuity Integration Contract
+
+RED-PB1 package stale-digest bypass          ✅ CLOSED
+RED-BI1 binding stale-digest bypass          ✅ CLOSED
+RED-SK1 store key/session mismatch           ✅ CLOSED
+DIA-7 R2 focused tests                       ✅ 22 passed
+DIA-7 R1 regression                          ✅ included in 48 passed
+DIA-6/DIA-5/DIA-4/DIA-3 regression           ✅ 97 passed
+compileall                                   ✅ PASS
+
+Ready for Mira re-review                     ▶
+Codex B re-sabotage                          ⏸ HOLD
+DIA-7 R2.1 runtime / persistence             ⏸ HOLD
+```

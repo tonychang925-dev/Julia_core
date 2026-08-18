@@ -234,6 +234,8 @@ class ContinuityStateBindingStore:
         if binding is None:
             raise ValueError("no continuity binding for session")
         _validate_binding_integrity(binding)
+        if binding.session_id != session_id:
+            raise ValueError("binding session lookup mismatch")
         return binding
 
     def replay_validate(self, session_id: str, package: AssistantContinuityStatePackage) -> AssistantContinuitySessionBinding:

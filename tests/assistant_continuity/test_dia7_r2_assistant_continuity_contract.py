@@ -371,3 +371,68 @@ def test_red_pb_bi_replay_rejects_stale_package_and_binding():
     object.__setattr__(binding_stale, "source_graph_digest", "0" * 64)
     with pytest.raises(ValueError, match="binding digest mismatch"):
         store_b.load("session-B")
+
+
+def _refresh_binding_digest(binding):
+    object.__setattr__(binding, "binding_digest", "0" * 64)
+    object.__setattr__(binding, "binding_digest", __import__("hashlib").sha256(binding.semantic_canonical_bytes(include_digest=False)).hexdigest())
+
+
+# RED-SK1-A: stored binding with mutated self-consistent foreign session is rejected on load.
+def test_red_sk1_mutated_stored_binding_session_lookup_rejected():
+    package = _package()
+    binding = _binding(package, "session-A")
+    store = ContinuityStateBindingStore()
+    store.save(binding)
+    object.__setattr__(binding, "session_id", "session-B")
+    _refresh_binding_digest(binding)
+    with pytest.raises(ValueError, match="binding session lookup mismatch"):
+        store.load("session-A")
+
+
+# RED-SK1-B: replay_validate inherits key/object session reconciliation.
+def test_red_sk1_replay_rejects_mutated_stored_binding_session():
+    package = _package()
+    binding = _binding(package, "session-A")
+    store = ContinuityStateBindingStore()
+    store.save(binding)
+    object.__setattr__(binding, "session_id", "session-B")
+    _refresh_binding_digest(binding)
+    with pytest.raises(ValueError, match="binding session lookup mismatch"):
+        store.replay_validate("session-A", package)
+
+
+# RED-SK1-C: valid foreign Binding B under store key A is corruption.
+def test_red_sk1_valid_foreign_binding_under_wrong_key_rejected():
+    package = _package()
+    binding_b = _binding(package, "session-B")
+    store = ContinuityStateBindingStore()
+    store._bindings["session-A"] = binding_b
+    with pytest.raises(ValueError, match="binding session lookup mismatch"):
+        store.load("session-A")
+
+
+# RED-SK1-D/E: untouched binding loads by exact key; missing key does not alias.
+def test_red_sk1_exact_key_green_and_missing_key_not_alias():
+    package = _package()
+    binding = _binding(package, "session-A")
+    store = ContinuityStateBindingStore()
+    store.save(binding)
+    assert store.load("session-A").binding_digest == binding.binding_digest
+    with pytest.raises(ValueError, match="no continuity binding"):
+        store.load("session-B")
+
+
+# RED-SK1-F: mutating session back but changing package identity is still caught by cross-binding.
+def test_red_sk1_mutate_back_session_with_package_identity_change_still_rejected():
+    package = _package()
+    binding = _binding(package, "session-A")
+    store = ContinuityStateBindingStore()
+    store.save(binding)
+    object.__setattr__(binding, "session_id", "session-B")
+    _refresh_binding_digest(binding)
+    object.__setattr__(binding, "session_id", "session-A")
+    object.__setattr__(binding, "package_digest", "0" * 64)
+    _refresh_binding_digest(binding)
+    with pytest.raises(ValueError, match="binding package digest mismatch"):
+        store.replay_validate("session-A", package)
