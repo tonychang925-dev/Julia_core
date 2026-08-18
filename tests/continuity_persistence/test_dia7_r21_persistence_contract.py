@@ -276,3 +276,141 @@ def test_red_sl1_claim_evidence_and_supporting_lineage_mismatch_rejected(tmp_pat
     _rewrite_payload_sha(path, data)
     with pytest.raises(ValueError, match="supporting lineage digests"):
         StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")
+
+
+def _rewrite_payload_digest_and_state_digest(path, data):
+    payload = data["package_record"]["continuity_state_payload"]
+    state_digest = __import__("hashlib").sha256(_state_semantic_bytes_from_payload(payload)).hexdigest()
+    payload["continuity_state_digest"] = state_digest
+    data["package_record"]["continuity_state_digest"] = state_digest
+    data["package_record"]["continuity_state_payload_sha256"] = __import__("hashlib").sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    path.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")))
+
+
+def _state_semantic_bytes_from_payload(payload):
+    from julia_core.continuity_projection.models import _field
+
+    out = (
+        _field("state.domain", "julia_core.continuity_projection.state.v1")
+        + _field("state.schema_version", payload["state_schema_version"])
+        + _field("state.policy_revision", payload["projection_policy_revision"])
+        + _field("state.policy_fingerprint", payload["projection_policy_fingerprint"])
+        + _field("state.source_graph_revision", payload["source_graph_revision"])
+        + _field("state.source_graph_digest", payload["source_graph_digest"])
+        + _field("state.active_claim_count", str(len(payload["active_claims"])))
+    )
+    for claim in payload["active_claims"]:
+        out += _field("state.active_claim", _claim_semantic_from_payload(claim).decode("utf-8"))
+    out += _field("state.unresolved_conflict_count", str(len(payload["unresolved_conflicts"])))
+    for claim in payload["unresolved_conflicts"]:
+        out += _field("state.unresolved_conflict", _claim_semantic_from_payload(claim).decode("utf-8"))
+    out += _field("state.supporting_lineage_digest_count", str(len(payload["supporting_lineage_digests"])))
+    for digest in sorted(payload["supporting_lineage_digests"]):
+        out += _field("state.supporting_lineage_digest", digest)
+    return out
+
+
+def _claim_semantic_from_payload(claim):
+    from julia_core.continuity_projection.models import _field
+
+    out = (
+        _field("claim.domain", "julia_core.continuity_projection.claim.v1")
+        + _field("claim.schema_version", claim["schema_version"])
+        + _field("claim.id", claim["claim_id"])
+        + _field("claim.kind", claim["claim_kind"])
+        + _field("claim.payload", claim["claim_payload"])
+        + _field("claim.conflict_rule", claim["conflict_rule"])
+        + _field("claim.target_claim_id", claim["target_claim_id"])
+        + _field("claim.status", claim["status"])
+        + _field("claim.projection_rule_id", claim["projection_rule_id"])
+        + _field("claim.evidence_count", str(len(claim["supporting_evidence_refs"])))
+    )
+    for ref in sorted(claim["supporting_evidence_refs"], key=lambda item: item["lineage_digest"]):
+        out += _field("claim.evidence_ref", _evidence_semantic_from_payload(ref).decode("utf-8"))
+    return out
+
+
+def _evidence_semantic_from_payload(ref):
+    from julia_core.continuity_projection.models import _field
+
+    return (
+        _field("evidence.domain", "julia_core.continuity_projection.evidence_ref.v1")
+        + _field("evidence.schema_version", ref["schema_version"])
+        + _field("evidence.lineage_digest", ref["lineage_digest"])
+        + _field("evidence.parent_context_digest", ref["parent_context_digest"])
+        + _field("evidence.child_context_digest", ref["child_context_digest"])
+        + _field("evidence.operation_id", ref["operation_id"])
+        + _field("evidence.operation_kind", ref["operation_kind"])
+    )
+
+
+# RED-DI1-A: duplicate claim ids within active_claims reject before digest acceptance.
+def test_red_di1_duplicate_active_claim_ids_rejected(tmp_path):
+    package = _package()
+    binding = _binding(package, "session-A")
+    runtime = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path))
+    runtime.persist("session-A", package, binding)
+    path = tmp_path / "session-A.snapshot.json"
+    data = json.loads(path.read_text())
+    payload = data["package_record"]["continuity_state_payload"]
+    payload["active_claims"].append(dict(payload["active_claims"][0]))
+    _rewrite_payload_digest_and_state_digest(path, data)
+    with pytest.raises(ValueError, match="duplicate claim ids"):
+        StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")
+
+
+# RED-DI1-B: duplicate claim ids within unresolved_conflicts reject.
+def test_red_di1_duplicate_unresolved_claim_ids_rejected(tmp_path):
+    package = _package()
+    binding = _binding(package, "session-A")
+    runtime = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path))
+    runtime.persist("session-A", package, binding)
+    path = tmp_path / "session-A.snapshot.json"
+    data = json.loads(path.read_text())
+    payload = data["package_record"]["continuity_state_payload"]
+    claim = dict(payload["active_claims"].pop(0))
+    claim["status"] = "conflicted"
+    payload["unresolved_conflicts"] = [claim, dict(claim)]
+    _rewrite_payload_digest_and_state_digest(path, data)
+    with pytest.raises(ValueError, match="duplicate claim ids"):
+        StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")
+
+
+# RED-DI1-C: same claim_id across active and unresolved rejects.
+def test_red_di1_duplicate_claim_id_across_active_and_unresolved_rejected(tmp_path):
+    package = _package()
+    binding = _binding(package, "session-A")
+    runtime = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path))
+    runtime.persist("session-A", package, binding)
+    path = tmp_path / "session-A.snapshot.json"
+    data = json.loads(path.read_text())
+    payload = data["package_record"]["continuity_state_payload"]
+    conflict = dict(payload["active_claims"][0])
+    conflict["status"] = "conflicted"
+    payload["unresolved_conflicts"] = [conflict]
+    _rewrite_payload_digest_and_state_digest(path, data)
+    with pytest.raises(ValueError, match="duplicate claim ids"):
+        StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")
+
+
+# RED-DI1-D: distinct ids with identical payloads remain valid shape.
+def test_red_di1_distinct_ids_identical_payload_shape_green():
+    snapshot, _, _ = _snapshot("session-A")
+    payload = snapshot.package_record.continuity_state_payload
+    clone = dict(payload["active_claims"][0])
+    clone["claim_id"] = "claim-2"
+    payload2 = dict(payload)
+    payload2["active_claims"] = [payload["active_claims"][0], clone]
+    lineage = sorted({
+        ref["lineage_digest"]
+        for claim in payload2["active_claims"] + payload2["unresolved_conflicts"]
+        for ref in claim["supporting_evidence_refs"]
+    })
+    payload2["supporting_lineage_digests"] = lineage
+    # Shape parity accepts distinct IDs; final digest validation may reject if caller did not update all enclosing identities.
+    from julia_core.continuity_persistence.models import _continuity_state_from_payload
+    payload2["continuity_state_digest"] = __import__("hashlib").sha256(_state_semantic_bytes_from_payload(payload2)).hexdigest()
+    restored = _continuity_state_from_payload(payload2)
+    assert [claim.claim_id for claim in restored.active_claims] == ["claim-1", "claim-2"]

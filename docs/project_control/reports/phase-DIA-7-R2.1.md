@@ -479,3 +479,123 @@ Ready for Mira re-review                       ▶
 Codex B re-sabotage                            ⏸ HOLD
 Final freeze                                   ⏸
 ```
+
+---
+
+# DIA-7 R2.1.3 — RED-DI1 Constructor Invariant Parity Repair
+
+## 27. Repair status
+
+Previous target: `1394b28`  
+Review: RED-DI1 accepted  
+Repair provenance: Codex A
+
+Blocked finding:
+
+```text
+cold reconstruction used ContinuityState.__new__ and could miss Core constructor invariants.
+```
+
+Specific blocker:
+
+```text
+claim_id must be unique across active_claims + unresolved_conflicts.
+```
+
+## 28. Constructor parity invariant
+
+R2.1.3 freezes:
+
+```text
+Cold reconstruction must re-enforce every ContinuityState constructor invariant
+before digest acceptance.
+```
+
+Reconstruction validation order:
+
+```text
+reconstruct active / conflicted projected claims
+    ↓
+sort canonical claim collections
+    ↓
+validate projected-claim shape parity
+    ↓
+validate duplicate claim ids across active + unresolved
+    ↓
+derive supporting lineage from evidence
+    ↓
+compare derived lineage with payload lineage field
+    ↓
+validate continuity_state_digest
+```
+
+Additional parity checks now enforced:
+
+- active collection contains only `ProjectedContinuityClaim` with `ACTIVE` status
+- unresolved collection contains only `ProjectedContinuityClaim` with `CONFLICTED` status
+- claim ids unique across active + unresolved
+- claim ids / payload / projection rule id non-empty
+- evidence refs are non-empty per claim
+- evidence refs are duplicate-free per claim
+- evidence lineage / parent / child digests are SHA-256
+- evidence operation id non-empty
+
+## 29. RED-DI1 acceptance matrix
+
+| RED-DI1 repair target | Status |
+| --- | --- |
+| duplicate within active_claims -> reject | ✅ |
+| duplicate within unresolved_conflicts -> reject | ✅ |
+| same claim_id across active + unresolved -> reject | ✅ |
+| distinct IDs with identical payloads -> valid shape | ✅ |
+| valid cold restart remains green | ✅ |
+| golden vectors unchanged | ✅ |
+
+## 30. Repair validation evidence
+
+Executed by Codex A:
+
+```text
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/continuity_persistence/test_dia7_r21_persistence_contract.py -q
+23 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/continuity_persistence/test_dia7_r21_persistence_contract.py tests/assistant_continuity/test_dia7_r2_assistant_continuity_contract.py tests/continuity_projection/test_dia7_core_contract.py -q
+71 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/context_evolution/test_dia6_core_contract.py tests/reflection_handoff/test_dia5_core_contract.py tests/reflection_context/test_dia4_core_contract.py tests/reflection_trigger/test_dia3_core_contract.py -q
+97 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m compileall -q julia_core/continuity_persistence tests/continuity_persistence/test_dia7_r21_persistence_contract.py
+PASS
+```
+
+Golden vectors remain stable from R2.1.1 / R2.1.2:
+
+```text
+package_record_digest:
+5ab291eb1d6190de908b10e1a960fa58978dfb8a6d2b5c7b9eeff9a222e314b4
+
+binding_record_digest:
+91f1215b985704c4024596e538121b7456f75ee2cc6f57a0c81f3348454d1f34
+
+snapshot_digest:
+0cecd8935426c04ce104645d68b4036dc55723dc0024c6c5e7dac265fcf3167b
+```
+
+## 31. Repair gate summary
+
+```text
+DIA-7 R2.1.3 Runtime / Persistence Continuity Contract
+
+RED-RP1 recoverable cold restart payload       ✅ CLOSED
+RED-SL1 derived lineage invariant              ✅ CLOSED
+RED-DI1 duplicate claim ids / constructor parity ✅ CLOSED
+DIA-7 R2.1 focused tests                       ✅ 23 passed
+DIA-7 R2/R1 regression                         ✅ included in 71 passed
+DIA-6/DIA-5/DIA-4/DIA-3 regression             ✅ 97 passed
+compileall                                      ✅ PASS
+
+Ready for Mira re-review                       ▶
+Codex B re-sabotage                            ⏸ HOLD
+Final freeze                                   ⏸
+```

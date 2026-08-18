@@ -542,6 +542,7 @@ def _continuity_state_from_payload(payload: dict[str, object]) -> ContinuityStat
         _require_sha256_hex("supporting_lineage_digest", item)
     active_sorted = tuple(sorted(active, key=lambda claim: claim.claim_id))
     conflicts_sorted = tuple(sorted(conflicts, key=lambda claim: claim.claim_id))
+    _validate_reconstructed_state_shape(active_sorted, conflicts_sorted)
     payload_lineage = tuple(sorted(lineage_raw))
     derived_lineage = tuple(
         sorted({
@@ -558,6 +559,35 @@ def _continuity_state_from_payload(payload: dict[str, object]) -> ContinuityStat
     if _digest_hex(state.semantic_canonical_bytes(include_digest=False)) != state.continuity_state_digest:
         raise ValueError("continuity state payload digest mismatch")
     return state
+
+
+def _validate_reconstructed_state_shape(active: tuple[ProjectedContinuityClaim, ...], conflicts: tuple[ProjectedContinuityClaim, ...]) -> None:
+    _require_tuple("reconstructed active_claims", active)
+    _require_tuple("reconstructed unresolved_conflicts", conflicts)
+    if not all(type(claim) is ProjectedContinuityClaim for claim in active + conflicts):
+        raise ValueError("continuity state payload claims must be projected continuity claims")
+    if not all(claim.status is ContinuityClaimStatus.ACTIVE for claim in active):
+        raise ValueError("continuity state payload active claims must be active")
+    if not all(claim.status is ContinuityClaimStatus.CONFLICTED for claim in conflicts):
+        raise ValueError("continuity state payload unresolved conflicts must be conflicted")
+    claim_ids = [claim.claim_id for claim in active + conflicts]
+    if len(set(claim_ids)) != len(claim_ids):
+        raise ValueError("continuity state payload duplicate claim ids")
+    for claim in active + conflicts:
+        _require_non_empty_str("continuity state payload claim_id", claim.claim_id)
+        _require_non_empty_str("continuity state payload claim_payload", claim.claim_payload)
+        _require_non_empty_str("continuity state payload projection_rule_id", claim.projection_rule_id)
+        _require_tuple("continuity state payload supporting_evidence_refs", claim.supporting_evidence_refs)
+        if not claim.supporting_evidence_refs:
+            raise ValueError("continuity state payload claim evidence must be non-empty")
+        evidence_ids = [ref.lineage_digest for ref in claim.supporting_evidence_refs]
+        if len(set(evidence_ids)) != len(evidence_ids):
+            raise ValueError("continuity state payload duplicate evidence refs")
+        for ref in claim.supporting_evidence_refs:
+            _require_sha256_hex("continuity state payload evidence lineage_digest", ref.lineage_digest)
+            _require_sha256_hex("continuity state payload evidence parent_context_digest", ref.parent_context_digest)
+            _require_sha256_hex("continuity state payload evidence child_context_digest", ref.child_context_digest)
+            _require_non_empty_str("continuity state payload evidence operation_id", ref.operation_id)
 
 
 def _projected_claim_from_payload(payload: object, expected_status: ContinuityClaimStatus) -> ProjectedContinuityClaim:
