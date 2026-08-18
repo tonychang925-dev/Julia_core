@@ -185,3 +185,138 @@ Ready for Mira review                  ▶
 Codex B sabotage                       ⏸
 Wave-level closure                     ⏸
 ```
+
+---
+
+# DIA-7-E2E.1 — RED-TG1 Trigger Admission Repair
+
+## 10. Repair status
+
+Previous target: `26daa2cbd28ffbe80f8d3207a77c4011cf36ab70`  
+Mira review: RED-TG1 accepted  
+Repair provenance: Codex A
+
+Blocked finding:
+
+```text
+E2E fixture manually minted ReflectionOpportunity,
+so the first link was manually-constructed opportunity -> DIA-4
+instead of raw experience -> DIA-3 admission -> DIA-4.
+```
+
+## 11. Repair scope
+
+Changed only the E2E gate test and report:
+
+- `tests/e2e/test_dia7_continuity_identity_chain.py`
+- `docs/project_control/reports/phase-DIA-7-E2E.md`
+
+No Core nouns were added. No frozen semantics were modified.
+
+## 12. Repaired first-link path
+
+The E2E fixture now starts from raw event dictionaries and enters the frozen DIA-3 public admission surface:
+
+```text
+raw event
+    ↓
+TriggerSourceRef
+    ↓
+OpportunityKey
+    ↓
+ReflectionOpportunity
+    ↓
+PendingOpportunity.pending()
+    ↓
+ReflectionOpportunityHandoff
+    ↓
+DIA-4 DeterministicReflectionContextAssembler
+```
+
+Downstream DIA-4 receives only the exact opportunity admitted by DIA-3. The context asserts:
+
+```text
+ReflectionContext.opportunity_id == PendingOpportunity.opportunity_id
+ReflectionContext.opportunity_key_digest == sha256(DIA-3 opportunity key bytes)
+```
+
+## 13. Trigger gate negative semantics
+
+If raw event admission says no reflection opportunity exists:
+
+```text
+raw event admit_reflection = False
+    ↓
+_admit_experience(...) returns None
+    ↓
+DIA-4 context construction fails closed
+```
+
+This ensures the E2E gate does not allow non-admitted experiences to bypass trigger admission and enter the continuity chain.
+
+## 14. Cross-layer wording clarification
+
+E2E-RED-2 is an E2E composition invariant assertion:
+
+```text
+lineage child context digest must equal handoff context digest
+```
+
+It is not reported as a single frozen production module automatically rejecting the mismatch. The E2E gate owns this cross-layer reconciliation check.
+
+E2E-RED-7 remains a deterministic behavior boundary harness. It proves the test behavior reads the restored response context, not a fuzzy runtime model behavior module.
+
+## 15. RED-TG1 acceptance matrix
+
+| RED-TG1 repair target | Status |
+| --- | --- |
+| raw event -> actual DIA-3 admission -> opportunity -> full GREEN chain | ✅ |
+| trigger admission says no -> no downstream context / continuity chain | ✅ |
+| wrong trigger source/evidence cannot be substituted downstream | ✅ |
+| opportunity used by DIA-4 is exactly DIA-3-produced opportunity identity | ✅ |
+| original GREEN behavior continuity remains green | ✅ |
+| unresolved conflict behavior remains green | ✅ |
+| original 8 RED lanes remain green | ✅ |
+
+## 16. Repair validation evidence
+
+Executed by Codex A:
+
+```text
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/e2e/test_dia7_continuity_identity_chain.py -q
+14 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/e2e/test_dia7_continuity_identity_chain.py tests/continuity_persistence/test_dia7_r21_persistence_contract.py tests/assistant_continuity/test_dia7_r2_assistant_continuity_contract.py tests/continuity_projection/test_dia7_core_contract.py -q
+98 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/context_evolution/test_dia6_core_contract.py tests/reflection_handoff/test_dia5_core_contract.py tests/reflection_context/test_dia4_core_contract.py tests/reflection_trigger/test_dia3_core_contract.py -q
+97 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m compileall -q tests/e2e/test_dia7_continuity_identity_chain.py
+PASS
+```
+
+## 17. Repaired gate summary
+
+```text
+DIA-7-E2E Continuity Identity Chain Gate
+
+RED-TG1 actual DIA-3 trigger admission       ✅ CLOSED
+DIA-3 Trigger admission                      ✅
+DIA-4 Reflection identity                    ✅
+DIA-5 Exact handoff                          ✅
+DIA-6 Evolution + lineage                    ✅
+DIA-7 Projection                             ✅
+R2.0 Assistant consumption                   ✅
+R2.1 Persistence                             ✅
+Cold restart                                 ✅
+Post-restart behavior continuity             ✅
+Fail-closed cross-layer sabotage             ✅
+
+New Core nouns                               NONE
+Frozen semantics modified                    NO
+
+Ready for Mira re-review                     ▶
+Codex B sabotage                             ⏸
+Wave-level closure                           ⏸
+```

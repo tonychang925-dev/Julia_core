@@ -54,6 +54,7 @@ from julia_core.reflection_handoff import (
 from julia_core.reflection_trigger import (
     CANONICAL_VERSION as TRIGGER_VERSION,
     OpportunityKey,
+    PendingOpportunity,
     ReflectionOpportunity,
     SingleEventAnchor,
     TriggerKind,
@@ -71,11 +72,26 @@ def _trigger_policy(revision="policy-dia7-e2e") -> TriggerPolicy:
     return TriggerPolicy(revision, timedelta(seconds=0), timedelta(seconds=60), timedelta(seconds=30))
 
 
-def _opportunity(event_id: str, policy_revision="policy-dia7-e2e") -> ReflectionOpportunity:
-    ref = _ref(event_id)
-    policy = _trigger_policy(policy_revision)
+def _admit_experience(raw_event: dict[str, object], policy: TriggerPolicy | None = None) -> PendingOpportunity | None:
+    """Test-local adapter into frozen DIA-3 admission surfaces.
+
+    The E2E gate starts from a raw event dict, then uses DIA-3 public
+    `TriggerSourceRef`, `OpportunityKey`, `ReflectionOpportunity`, and
+    `PendingOpportunity.pending` construction/validation. Downstream DIA-4
+    receives only the exact opportunity admitted here.
+    """
+    policy = policy or _trigger_policy()
+    event_id = raw_event.get("event_id")
+    triggered_at = raw_event.get("triggered_at")
+    admit_reflection = raw_event.get("admit_reflection")
+    if type(event_id) is not str or type(triggered_at) is not str:
+        raise ValueError("raw event must carry event_id and triggered_at")
+    if admit_reflection is not True:
+        return None
+    ref = TriggerSourceRef("event", event_id)
     key = OpportunityKey(TRIGGER_VERSION, "conv-e2e", policy.revision, TriggerKind.TURN_BOUNDARY, SingleEventAnchor(ref.opaque_ref))
-    return ReflectionOpportunity(key, (ref,), (TriggerReason(TriggerKind.TURN_BOUNDARY, (ref,)),))
+    opportunity = ReflectionOpportunity(key, (ref,), (TriggerReason(TriggerKind.TURN_BOUNDARY, (ref,)),))
+    return PendingOpportunity.pending(opportunity, triggered_at=triggered_at)
 
 
 class _Reader:
@@ -87,7 +103,17 @@ class _Reader:
 
 
 def _context(event_id: str, payload: bytes):
-    ref = _ref(event_id)
+    raw_event = {"event_id": event_id, "payload": payload.decode("utf-8", errors="replace"), "admit_reflection": True, "triggered_at": "2026-08-19T00:00:00Z"}
+    pending = _admit_experience(raw_event)
+    if pending is None:
+        raise ValueError("raw experience was not admitted by DIA-3 trigger gate")
+    return _context_from_pending(pending, payload)
+
+
+def _context_from_pending(pending: PendingOpportunity, payload: bytes):
+    if type(pending) is not PendingOpportunity:
+        raise ValueError("DIA-4 context requires DIA-3 PendingOpportunity")
+    ref = pending.opportunity.source_refs[0]
     fact = CanonicalFact(
         source_ref=ref,
         fact_type=CanonicalFactType.CONVERSATION_EVENT,
@@ -97,7 +123,7 @@ def _context(event_id: str, payload: bytes):
         reader_authority="e2e-reader",
     )
     return DeterministicReflectionContextAssembler().assemble(
-        ReflectionOpportunityHandoff(_opportunity(event_id), "pending-e2e", "dia3-handoff"),
+        ReflectionOpportunityHandoff(pending.opportunity, pending.opportunity_id, "dia3-handoff"),
         _Reader((fact,)),
         ContextAssemblyPolicy("ctx-policy-e2e", ContextBounds(4, 2048, 1024)),
     )
@@ -339,3 +365,58 @@ def test_red_behavior_cannot_use_stale_pre_restart_state_after_cold_restore(tmp_
 # E2E-RED-8: unresolved conflict is not collapsed into an active behavior choice.
 def test_red_unresolved_conflict_not_collapsed_into_active_choice(tmp_path):
     test_green_unresolved_conflict_survives_restart_without_silent_active_choice(tmp_path)
+
+
+# RED-TG1-A: raw event enters actual DIA-3 admission surface before full GREEN chain.
+def test_red_tg1_raw_event_actual_dia3_admission_to_full_green_chain(tmp_path):
+    raw = {"event_id": "evt-raw-green", "payload": "verified experience E", "admit_reflection": True, "triggered_at": "2026-08-19T00:00:00Z"}
+    pending = _admit_experience(raw)
+    assert type(pending) is PendingOpportunity
+    assert type(pending.opportunity) is ReflectionOpportunity
+    context = _context_from_pending(pending, b"verified experience E")
+    assert context.opportunity_id == pending.opportunity_id
+    _, _, _, _, _, restored, restored_context = _green_chain(tmp_path)
+    assert restored.binding.session_id == "session-e2e"
+    assert _behavior_choice(restored_context) == "Y"
+
+
+# RED-TG1-B: trigger policy / admission says no; no downstream continuity chain is built.
+def test_red_tg1_no_trigger_admission_blocks_downstream_chain():
+    raw = {"event_id": "evt-no-admit", "payload": "ordinary event", "admit_reflection": False, "triggered_at": "2026-08-19T00:00:00Z"}
+    pending = _admit_experience(raw)
+    assert pending is None
+    with pytest.raises(ValueError, match="DIA-4 context requires DIA-3 PendingOpportunity"):
+        _context_from_pending(pending, b"ordinary event")  # type: ignore[arg-type]
+
+
+# RED-TG1-C: wrong trigger source/evidence cannot be substituted into DIA-4 downstream.
+def test_red_tg1_wrong_trigger_source_evidence_cannot_substitute_downstream():
+    raw = {"event_id": "evt-admitted", "payload": "admitted event", "admit_reflection": True, "triggered_at": "2026-08-19T00:00:00Z"}
+    pending = _admit_experience(raw)
+    assert pending is not None
+    wrong_ref = _ref("evt-foreign")
+    wrong_fact = CanonicalFact(
+        source_ref=wrong_ref,
+        fact_type=CanonicalFactType.CONVERSATION_EVENT,
+        source_schema_version="conversation-event-v1",
+        projection_revision=DEFAULT_FACT_PROJECTION_REVISION,
+        canonical_payload=b"foreign evidence",
+        reader_authority="e2e-reader",
+    )
+    with pytest.raises(ValueError, match="missing canonical fact"):
+        DeterministicReflectionContextAssembler().assemble(
+            ReflectionOpportunityHandoff(pending.opportunity, pending.opportunity_id, "dia3-handoff"),
+            _Reader((wrong_fact,)),
+            ContextAssemblyPolicy("ctx-policy-e2e", ContextBounds(4, 2048, 1024)),
+        )
+
+
+# RED-TG1-D: DIA-4 context identity is bound to the exact DIA-3-produced opportunity identity.
+def test_red_tg1_dia4_uses_exact_dia3_opportunity_identity():
+    raw = {"event_id": "evt-identity", "payload": "identity event", "admit_reflection": True, "triggered_at": "2026-08-19T00:00:00Z"}
+    pending = _admit_experience(raw)
+    assert pending is not None
+    context = _context_from_pending(pending, b"identity event")
+    expected_key_digest = __import__("hashlib").sha256(pending.opportunity.opportunity_key.canonical_bytes()).hexdigest()
+    assert context.opportunity_id == pending.opportunity_id
+    assert context.opportunity_key_digest == expected_key_digest
