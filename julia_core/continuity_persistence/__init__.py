@@ -11,6 +11,7 @@ from .models import (
     ContinuityPersistenceAudit,
     StrictContinuityPersistenceRuntime,
     ContinuityPersistenceRuntime,
+    RestoredContinuityRuntime,
 )
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     "ContinuityPersistenceAudit",
     "StrictContinuityPersistenceRuntime",
     "ContinuityPersistenceRuntime",
+    "RestoredContinuityRuntime",
 ]

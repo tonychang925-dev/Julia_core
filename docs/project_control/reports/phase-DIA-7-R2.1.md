@@ -259,3 +259,134 @@ Ready for Mira review                      ▶
 Codex B sabotage                           ⏸ HOLD
 Final freeze                               ⏸
 ```
+
+---
+
+# DIA-7 R2.1.1 — RED-RP1 Recoverable Payload Repair
+
+## 14. Repair status
+
+Previous target: `7a596af214f648de5de791deb7f8d362ab5bada7`  
+Mira review: RED-RP1 accepted  
+Repair provenance: Codex A
+
+Blocked finding:
+
+```text
+Persistence persisted proofs, not the persisted object.
+```
+
+The previous snapshot stored package/binding metadata and digests, but did not persist enough semantic payload to rebuild `ContinuityState`, `AssistantContinuityStatePackage`, and `AssistantContinuitySessionBinding` after process death.
+
+## 15. Repair scope
+
+R2.1 package record now includes recoverable `continuity_state_payload` plus payload SHA. Restart now returns a restored runtime artifact instead of only a proof snapshot.
+
+Changed:
+
+- `julia_core/continuity_persistence/models.py`
+- `julia_core/continuity_persistence/__init__.py`
+- `tests/continuity_persistence/test_dia7_r21_persistence_contract.py`
+- `docs/project_control/reports/phase-DIA-7-R2.1.md`
+
+## 16. Restored runtime path
+
+Cold restart now performs:
+
+```text
+authoritative snapshot file
+    ↓
+deserialize snapshot
+    ↓
+validate snapshot/record digests
+    ↓
+extract persisted ContinuityState payload
+    ↓
+reconstruct exact ContinuityState semantic object
+    ↓
+recompute continuity_state_digest
+    ↓
+construct AssistantContinuityStatePackage through R2.0 constructor
+    ↓
+construct AssistantContinuitySessionBinding(session_id, package)
+    ↓
+compare reconstructed package/binding identities against persisted records
+    ↓
+return RestoredContinuityRuntime(snapshot, state, package, binding)
+```
+
+Binding is not trusted by raw JSON field assignment. It is reconstructed through the R2.0 constructor, then compared against persisted binding record identity.
+
+## 17. New noun
+
+Added:
+
+- `RestoredContinuityRuntime`
+
+Fields:
+
+- `snapshot`
+- `continuity_state`
+- `package`
+- `binding`
+
+## 18. RED-RP1 acceptance matrix
+
+| RED-RP1 repair target | Status |
+| --- | --- |
+| True cold restart restores package + binding using disk only | ✅ |
+| Restart API requires no external live Package/Binding | ✅ |
+| Persisted state payload tamper with old SHA/digests rejects | ✅ |
+| Attacker recomputes payload SHA only -> record/snapshot identity rejects | ✅ |
+| Package-record metadata A + foreign semantic payload B rejects | ✅ |
+| Cold-restored package/binding can create R2.0 response context | ✅ |
+| Existing record / snapshot / triple-session / torn-write tests remain green | ✅ |
+
+## 19. Updated golden vectors
+
+Package record and snapshot identities changed because recoverable payload is now included in package record semantic identity.
+
+```text
+package_record_digest:
+5ab291eb1d6190de908b10e1a960fa58978dfb8a6d2b5c7b9eeff9a222e314b4
+
+binding_record_digest:
+91f1215b985704c4024596e538121b7456f75ee2cc6f57a0c81f3348454d1f34
+
+snapshot_digest:
+0cecd8935426c04ce104645d68b4036dc55723dc0024c6c5e7dac265fcf3167b
+```
+
+## 20. Repair validation evidence
+
+Executed by Codex A:
+
+```text
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/continuity_persistence/test_dia7_r21_persistence_contract.py -q
+16 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/continuity_persistence/test_dia7_r21_persistence_contract.py tests/assistant_continuity/test_dia7_r2_assistant_continuity_contract.py tests/continuity_projection/test_dia7_core_contract.py -q
+64 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/context_evolution/test_dia6_core_contract.py tests/reflection_handoff/test_dia5_core_contract.py tests/reflection_context/test_dia4_core_contract.py tests/reflection_trigger/test_dia3_core_contract.py -q
+97 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m compileall -q julia_core/continuity_persistence tests/continuity_persistence/test_dia7_r21_persistence_contract.py
+PASS
+```
+
+## 21. Repair gate summary
+
+```text
+DIA-7 R2.1.1 Runtime / Persistence Continuity Contract
+
+RED-RP1 recoverable cold restart payload       ✅ CLOSED
+DIA-7 R2.1 focused tests                       ✅ 16 passed
+DIA-7 R2/R1 regression                         ✅ included in 64 passed
+DIA-6/DIA-5/DIA-4/DIA-3 regression             ✅ 97 passed
+compileall                                      ✅ PASS
+
+Ready for Mira re-review                       ▶
+Codex B sabotage                               ⏸ HOLD
+Final freeze                                   ⏸
+```

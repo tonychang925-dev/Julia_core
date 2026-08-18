@@ -19,7 +19,15 @@ from julia_core.assistant_continuity import (
     ContinuityStateBindingStore,
     StrictAssistantContinuityBinder,
 )
-from julia_core.continuity_projection import ContinuityState
+from julia_core.continuity_projection import (
+    ContinuityClaimKind,
+    ContinuityClaimStatus,
+    ContinuityConflictRule,
+    ContinuityEvidenceRef,
+    ContinuityState,
+    ProjectedContinuityClaim,
+)
+from julia_core.context_evolution import ContextEvolutionKind
 
 CANONICAL_VERSION = "dia7-continuity-persistence-r21-v1"
 PACKAGE_RECORD_DOMAIN_SEPARATOR = "julia_core.continuity_persistence.package_record.v1"
@@ -72,6 +80,7 @@ class PersistedContinuityPackageRecord:
     source_graph_digest: str
     projection_policy_fingerprint: str
     package_digest: str
+    continuity_state_payload: dict[str, object]
     continuity_state_payload_sha256: str
     package_record_digest: str
     schema_version: str
@@ -85,8 +94,10 @@ class PersistedContinuityPackageRecord:
         object.__setattr__(self, "continuity_state_digest", package.continuity_state_digest)
         object.__setattr__(self, "source_graph_digest", package.source_graph_digest)
         object.__setattr__(self, "projection_policy_fingerprint", package.projection_policy_fingerprint)
+        payload = _continuity_state_to_payload(package.continuity_state)
         object.__setattr__(self, "package_digest", package.package_digest)
-        object.__setattr__(self, "continuity_state_payload_sha256", _digest_hex(package.continuity_state.semantic_canonical_bytes()))
+        object.__setattr__(self, "continuity_state_payload", payload)
+        object.__setattr__(self, "continuity_state_payload_sha256", _digest_hex(_json_bytes(payload)))
         object.__setattr__(self, "schema_version", CANONICAL_VERSION)
         object.__setattr__(self, "package_record_digest", _digest_hex(self.semantic_canonical_bytes(include_digest=False)))
 
@@ -100,6 +111,7 @@ class PersistedContinuityPackageRecord:
             + _field("package_record.source_graph_digest", self.source_graph_digest)
             + _field("package_record.policy_fingerprint", self.projection_policy_fingerprint)
             + _field("package_record.package_digest", self.package_digest)
+            + _field("package_record.state_payload", _json_bytes(self.continuity_state_payload).decode("utf-8"))
             + _field("package_record.state_payload_sha256", self.continuity_state_payload_sha256)
         )
         if include_digest:
@@ -114,6 +126,7 @@ class PersistedContinuityPackageRecord:
             "source_graph_digest": self.source_graph_digest,
             "projection_policy_fingerprint": self.projection_policy_fingerprint,
             "package_digest": self.package_digest,
+            "continuity_state_payload": self.continuity_state_payload,
             "continuity_state_payload_sha256": self.continuity_state_payload_sha256,
             "package_record_digest": self.package_record_digest,
         }
@@ -135,6 +148,10 @@ class PersistedContinuityPackageRecord:
             if type(value) is not str:
                 raise ValueError(f"package record {key} must be str")
             object.__setattr__(obj, key, value)
+        payload = data.get("continuity_state_payload")
+        if type(payload) is not dict:
+            raise ValueError("package record continuity_state_payload must be object")
+        object.__setattr__(obj, "continuity_state_payload", payload)
         _validate_package_record_integrity(obj)
         return obj
 
@@ -282,6 +299,20 @@ class ContinuityRuntimeSnapshot:
 
 
 @dataclass(frozen=True)
+class RestoredContinuityRuntime:
+    snapshot: ContinuityRuntimeSnapshot
+    continuity_state: ContinuityState
+    package: AssistantContinuityStatePackage
+    binding: AssistantContinuitySessionBinding
+
+    def __post_init__(self) -> None:
+        _validate_snapshot_integrity(self.snapshot)
+        _validate_package_current(self.package)
+        _validate_binding_current(self.binding)
+        _assert_snapshot_matches_runtime(self.snapshot, self.package, self.binding)
+
+
+@dataclass(frozen=True)
 class ContinuityPersistenceTransaction:
     transaction_id: str
     snapshot_digest: str
@@ -381,8 +412,9 @@ class ContinuityRestartLoader:
             raise ValueError("ContinuityRestartLoader requires exact ContinuityPersistenceStore")
         self.store = store
 
-    def load(self, session_id: str) -> ContinuityRuntimeSnapshot:
-        return self.store.read_snapshot(session_id)
+    def load(self, session_id: str) -> RestoredContinuityRuntime:
+        snapshot = self.store.read_snapshot(session_id)
+        return _restore_runtime_from_snapshot(snapshot)
 
 
 class ContinuityReplayGuard:
@@ -413,7 +445,7 @@ class StrictContinuityPersistenceRuntime:
         snapshot = ContinuityRuntimeSnapshot(session_id, package_record, binding_record)
         return self.store.write_snapshot(snapshot)
 
-    def restart(self, session_id: str) -> ContinuityRuntimeSnapshot:
+    def restart(self, session_id: str) -> RestoredContinuityRuntime:
         return ContinuityRestartLoader(self.store).load(session_id)
 
 
@@ -422,8 +454,132 @@ class ContinuityPersistenceRuntime(Protocol):
     def persist(self, session_id: str, package: AssistantContinuityStatePackage, binding: AssistantContinuitySessionBinding) -> ContinuityPersistenceTransaction:
         ...
 
-    def restart(self, session_id: str) -> ContinuityRuntimeSnapshot:
+    def restart(self, session_id: str) -> RestoredContinuityRuntime:
         ...
+
+
+def _restore_runtime_from_snapshot(snapshot: ContinuityRuntimeSnapshot) -> RestoredContinuityRuntime:
+    _validate_snapshot_integrity(snapshot)
+    state = _continuity_state_from_payload(snapshot.package_record.continuity_state_payload)
+    package = AssistantContinuityStatePackage.from_state(state)
+    binding = AssistantContinuitySessionBinding.bind(snapshot.storage_key, package)
+    _assert_snapshot_matches_runtime(snapshot, package, binding)
+    return RestoredContinuityRuntime(snapshot, state, package, binding)
+
+
+def _continuity_state_to_payload(state: ContinuityState) -> dict[str, object]:
+    if type(state) is not ContinuityState:
+        raise ValueError("expected exact ContinuityState")
+    return {
+        "state_schema_version": state.state_schema_version,
+        "projection_policy_revision": state.projection_policy_revision,
+        "projection_policy_fingerprint": state.projection_policy_fingerprint,
+        "source_graph_revision": state.source_graph_revision,
+        "source_graph_digest": state.source_graph_digest,
+        "active_claims": [_projected_claim_to_payload(claim) for claim in state.active_claims],
+        "unresolved_conflicts": [_projected_claim_to_payload(claim) for claim in state.unresolved_conflicts],
+        "supporting_lineage_digests": list(state.supporting_lineage_digests),
+        "continuity_state_digest": state.continuity_state_digest,
+    }
+
+
+def _projected_claim_to_payload(claim: ProjectedContinuityClaim) -> dict[str, object]:
+    if type(claim) is not ProjectedContinuityClaim:
+        raise ValueError("expected exact ProjectedContinuityClaim")
+    return {
+        "claim_id": claim.claim_id,
+        "claim_kind": claim.claim_kind.value,
+        "claim_payload": claim.claim_payload,
+        "supporting_evidence_refs": [_evidence_ref_to_payload(ref) for ref in claim.supporting_evidence_refs],
+        "conflict_rule": claim.conflict_rule.value,
+        "target_claim_id": claim.target_claim_id,
+        "status": claim.status.value,
+        "projection_rule_id": claim.projection_rule_id,
+        "schema_version": claim.schema_version,
+    }
+
+
+def _evidence_ref_to_payload(ref: ContinuityEvidenceRef) -> dict[str, object]:
+    if type(ref) is not ContinuityEvidenceRef:
+        raise ValueError("expected exact ContinuityEvidenceRef")
+    return {
+        "lineage_digest": ref.lineage_digest,
+        "parent_context_digest": ref.parent_context_digest,
+        "child_context_digest": ref.child_context_digest,
+        "operation_id": ref.operation_id,
+        "operation_kind": ref.operation_kind.value,
+        "schema_version": ref.schema_version,
+    }
+
+
+def _continuity_state_from_payload(payload: dict[str, object]) -> ContinuityState:
+    if type(payload) is not dict:
+        raise ValueError("continuity state payload must be object")
+    state = ContinuityState.__new__(ContinuityState)
+    str_fields = (
+        "state_schema_version",
+        "projection_policy_revision",
+        "projection_policy_fingerprint",
+        "source_graph_revision",
+        "source_graph_digest",
+        "continuity_state_digest",
+    )
+    for key in str_fields:
+        value = payload.get(key)
+        if type(value) is not str:
+            raise ValueError(f"continuity state payload {key} must be str")
+        object.__setattr__(state, key, value)
+    active_raw = payload.get("active_claims")
+    conflicts_raw = payload.get("unresolved_conflicts")
+    lineage_raw = payload.get("supporting_lineage_digests")
+    if type(active_raw) is not list or type(conflicts_raw) is not list or type(lineage_raw) is not list:
+        raise ValueError("continuity state payload collections must be lists")
+    active = tuple(_projected_claim_from_payload(item, ContinuityClaimStatus.ACTIVE) for item in active_raw)
+    conflicts = tuple(_projected_claim_from_payload(item, ContinuityClaimStatus.CONFLICTED) for item in conflicts_raw)
+    if not all(type(item) is str for item in lineage_raw):
+        raise ValueError("supporting_lineage_digests must contain str only")
+    object.__setattr__(state, "active_claims", tuple(sorted(active, key=lambda claim: claim.claim_id)))
+    object.__setattr__(state, "unresolved_conflicts", tuple(sorted(conflicts, key=lambda claim: claim.claim_id)))
+    object.__setattr__(state, "supporting_lineage_digests", tuple(sorted(lineage_raw)))
+    if _digest_hex(state.semantic_canonical_bytes(include_digest=False)) != state.continuity_state_digest:
+        raise ValueError("continuity state payload digest mismatch")
+    return state
+
+
+def _projected_claim_from_payload(payload: object, expected_status: ContinuityClaimStatus) -> ProjectedContinuityClaim:
+    if type(payload) is not dict:
+        raise ValueError("projected claim payload must be object")
+    claim = ProjectedContinuityClaim.__new__(ProjectedContinuityClaim)
+    for key in ("claim_id", "claim_payload", "target_claim_id", "projection_rule_id", "schema_version"):
+        value = payload.get(key)
+        if type(value) is not str:
+            raise ValueError(f"projected claim payload {key} must be str")
+        object.__setattr__(claim, key, value)
+    object.__setattr__(claim, "claim_kind", ContinuityClaimKind(payload.get("claim_kind")))
+    object.__setattr__(claim, "conflict_rule", ContinuityConflictRule(payload.get("conflict_rule")))
+    status = ContinuityClaimStatus(payload.get("status"))
+    if status is not expected_status:
+        raise ValueError("projected claim payload status mismatch")
+    object.__setattr__(claim, "status", status)
+    refs_raw = payload.get("supporting_evidence_refs")
+    if type(refs_raw) is not list:
+        raise ValueError("projected claim evidence refs must be list")
+    refs = tuple(_evidence_ref_from_payload(item) for item in refs_raw)
+    object.__setattr__(claim, "supporting_evidence_refs", tuple(sorted(refs, key=lambda ref: ref.lineage_digest)))
+    return claim
+
+
+def _evidence_ref_from_payload(payload: object) -> ContinuityEvidenceRef:
+    if type(payload) is not dict:
+        raise ValueError("evidence ref payload must be object")
+    ref = ContinuityEvidenceRef.__new__(ContinuityEvidenceRef)
+    for key in ("lineage_digest", "parent_context_digest", "child_context_digest", "operation_id", "schema_version"):
+        value = payload.get(key)
+        if type(value) is not str:
+            raise ValueError(f"evidence ref payload {key} must be str")
+        object.__setattr__(ref, key, value)
+    object.__setattr__(ref, "operation_kind", ContextEvolutionKind(payload.get("operation_kind")))
+    return ref
 
 
 def _validate_package_current(package: AssistantContinuityStatePackage) -> None:
@@ -468,6 +624,20 @@ def _validate_package_record_integrity(record: PersistedContinuityPackageRecord)
     _require_sha256_hex("package_record.projection_policy_fingerprint", record.projection_policy_fingerprint)
     _require_sha256_hex("package_record.package_digest", record.package_digest)
     _require_sha256_hex("package_record.continuity_state_payload_sha256", record.continuity_state_payload_sha256)
+    if type(record.continuity_state_payload) is not dict:
+        raise ValueError("package record continuity_state_payload must be object")
+    if _digest_hex(_json_bytes(record.continuity_state_payload)) != record.continuity_state_payload_sha256:
+        raise ValueError("package record payload sha mismatch")
+    restored_state = _continuity_state_from_payload(record.continuity_state_payload)
+    if restored_state.continuity_state_digest != record.continuity_state_digest:
+        raise ValueError("package record state payload digest mismatch")
+    if restored_state.source_graph_digest != record.source_graph_digest:
+        raise ValueError("package record state payload source graph mismatch")
+    if restored_state.projection_policy_fingerprint != record.projection_policy_fingerprint:
+        raise ValueError("package record state payload policy mismatch")
+    restored_package = AssistantContinuityStatePackage.from_state(restored_state)
+    if restored_package.package_digest != record.package_digest:
+        raise ValueError("package record reconstructed package digest mismatch")
     if record.schema_version != CANONICAL_VERSION:
         raise ValueError("package record schema_version is frozen")
     if _digest_hex(record.semantic_canonical_bytes(include_digest=False)) != record.package_record_digest:

@@ -14,11 +14,11 @@ from julia_core.continuity_persistence import (
     PersistedContinuityPackageRecord,
     StrictContinuityPersistenceRuntime,
 )
-from tests.assistant_continuity.test_dia7_r2_assistant_continuity_contract import _binding, _package
+from tests.assistant_continuity.test_dia7_r2_assistant_continuity_contract import _binding, _edge, _package, _projection_policy
 
-GOLDEN_PACKAGE_RECORD_DIGEST = "809ba8fa5a18ed8fae9713f2901157d1158cc0188df32946e963878b7eb808d0"
+GOLDEN_PACKAGE_RECORD_DIGEST = "5ab291eb1d6190de908b10e1a960fa58978dfb8a6d2b5c7b9eeff9a222e314b4"
 GOLDEN_BINDING_RECORD_DIGEST = "91f1215b985704c4024596e538121b7456f75ee2cc6f57a0c81f3348454d1f34"
-GOLDEN_SNAPSHOT_DIGEST = "35bcc4a6bc689901084c9943d8f99b6e2a9c205ba6899a17cc841c176faec71f"
+GOLDEN_SNAPSHOT_DIGEST = "0cecd8935426c04ce104645d68b4036dc55723dc0024c6c5e7dac265fcf3167b"
 
 
 def _snapshot(session_id="session-A"):
@@ -45,7 +45,7 @@ def test_persisted_record_digest_recomputed_on_deserialize():
     snapshot, _, _ = _snapshot()
     data = snapshot.to_dict()
     data["package_record"]["package_digest"] = "0" * 64
-    with pytest.raises(ValueError, match="package record digest mismatch"):
+    with pytest.raises(ValueError, match="package record reconstructed package digest mismatch"):
         ContinuityRuntimeSnapshot.from_dict(data)
 
 
@@ -142,3 +142,86 @@ def test_dia7_r21_golden_vectors():
     assert snapshot.package_record.package_record_digest == GOLDEN_PACKAGE_RECORD_DIGEST
     assert snapshot.binding_record.binding_record_digest == GOLDEN_BINDING_RECORD_DIGEST
     assert snapshot.snapshot_digest == GOLDEN_SNAPSHOT_DIGEST
+
+
+# RED-RP1-A/F: cold restart restores package and binding from disk without live truth input.
+def test_red_rp1_true_cold_restart_restores_runtime_without_live_objects(tmp_path):
+    package = _package()
+    binding = _binding(package, "session-A")
+    runtime = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path))
+    tx = runtime.persist("session-A", package, binding)
+    del package
+    del binding
+    restarted = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")
+    assert restarted.snapshot.snapshot_digest == tx.snapshot_digest
+    assert restarted.package.package_digest == restarted.snapshot.package_record.package_digest
+    assert restarted.binding.binding_digest == restarted.snapshot.binding_record.binding_digest
+
+
+# RED-RP1-B: tampered persisted state payload with old payload SHA/digests rejects.
+def test_red_rp1_payload_tamper_with_old_sha_rejected(tmp_path):
+    package = _package()
+    binding = _binding(package, "session-A")
+    runtime = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path))
+    runtime.persist("session-A", package, binding)
+    path = tmp_path / "session-A.snapshot.json"
+    data = json.loads(path.read_text())
+    data["package_record"]["continuity_state_payload"]["source_graph_revision"] = "attacker"
+    path.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")))
+    with pytest.raises(ValueError, match="payload sha mismatch"):
+        StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")
+
+
+# RED-RP1-C: attacker recomputes payload SHA only; record/snapshot identity still rejects.
+def test_red_rp1_payload_tamper_recompute_sha_only_rejected(tmp_path):
+    package = _package()
+    binding = _binding(package, "session-A")
+    runtime = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path))
+    runtime.persist("session-A", package, binding)
+    path = tmp_path / "session-A.snapshot.json"
+    data = json.loads(path.read_text())
+    payload = data["package_record"]["continuity_state_payload"]
+    payload["source_graph_revision"] = "attacker"
+    data["package_record"]["continuity_state_payload_sha256"] = __import__("hashlib").sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    path.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")))
+    with pytest.raises(ValueError, match="continuity state payload digest mismatch|package record digest mismatch"):
+        StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")
+
+
+# RED-RP1-D: metadata A plus valid foreign state payload B is rejected.
+def test_red_rp1_foreign_state_payload_under_metadata_a_rejected(tmp_path):
+    package_a = _package()
+    binding_a = _binding(package_a, "session-A")
+    from julia_core.assistant_continuity import AssistantContinuityStatePackage
+    from julia_core.continuity_projection import ContinuityClaim, ContinuityClaimKind, ContinuityEvidenceRef, ContinuityProjectionAudit, ContinuityProjectionInput, StrictContinuityProjector
+
+    policy_b = _projection_policy()
+    edge_b = _edge("operation-foreign", parent_payload=b"pf", child_payload=b"cf")
+    claim_b = ContinuityClaim("claim-foreign", ContinuityClaimKind.ACTIVE_COMMITMENT, "active_commitment=foreign", (ContinuityEvidenceRef.from_lineage_edge(edge_b),))
+    input_b = ContinuityProjectionInput("lineage-graph-foreign", ContinuityProjectionInput.compute_graph_digest((edge_b,)), (edge_b,), (claim_b,), policy_b.revision, policy_b.policy_fingerprint())
+    audit_b = ContinuityProjectionAudit(input_b.source_graph_digest, policy_b.policy_fingerprint(), ("foreign",), "2026-08-18T00:00:00Z")
+    package_b = AssistantContinuityStatePackage.from_state(StrictContinuityProjector().project(input_b, policy_b, audit_b).continuity_state)
+    runtime = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path))
+    runtime.persist("session-A", package_a, binding_a)
+    path = tmp_path / "session-A.snapshot.json"
+    data = json.loads(path.read_text())
+    foreign_record = PersistedContinuityPackageRecord("session-B", package_b).to_dict()
+    data["package_record"]["continuity_state_payload"] = foreign_record["continuity_state_payload"]
+    data["package_record"]["continuity_state_payload_sha256"] = foreign_record["continuity_state_payload_sha256"]
+    path.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")))
+    with pytest.raises(ValueError, match="package record state payload digest mismatch|continuity state payload digest mismatch"):
+        StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")
+
+
+# RED-RP1-E: cold-restored package/binding can directly create R2.0 response context.
+def test_red_rp1_cold_replay_response_context_green(tmp_path):
+    from julia_core.assistant_continuity import StrictAssistantContinuityBinder
+
+    package = _package()
+    binding = _binding(package, "session-A")
+    runtime = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path))
+    runtime.persist("session-A", package, binding)
+    restored = StrictContinuityPersistenceRuntime(ContinuityPersistenceStore(tmp_path)).restart("session-A")
+    context = StrictAssistantContinuityBinder().response_context(restored.binding, restored.package)
+    assert context.session_id == "session-A"
+    assert context.session_binding.binding_digest == restored.binding.binding_digest
