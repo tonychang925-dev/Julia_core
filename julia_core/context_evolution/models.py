@@ -84,7 +84,7 @@ def _require_evolution_kind(name: str, value: object) -> ContextEvolutionKind:
     raise ValueError(f"{name} must be ContextEvolutionKind")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class ContextLineageNode:
     context_digest: str
     context_version: str
@@ -92,26 +92,32 @@ class ContextLineageNode:
     assembly_policy_fingerprint: str
     context_semantic_bytes_sha256: str
 
-    def __post_init__(self) -> None:
-        _require_sha256_hex("ContextLineageNode.context_digest", self.context_digest)
-        _require_non_empty_str("ContextLineageNode.context_version", self.context_version)
-        if self.context_version != CONTEXT_VERSION:
+    def __init__(self, context: ReflectionContext) -> None:
+        if type(context) is not ReflectionContext:
+            raise ValueError("ContextLineageNode requires exact ReflectionContext provenance")
+        context_digest = context.context_digest or ""
+        expected_context_digest = _digest_hex(context.semantic_canonical_bytes(include_digest=False))
+        if context_digest != expected_context_digest:
+            raise ValueError("ContextLineageNode context_digest does not match ReflectionContext semantic bytes")
+        context_version = context.schema_version
+        assembly_policy_revision = context.assembly_policy_revision
+        assembly_policy_fingerprint = context.assembly_policy_fingerprint
+        context_semantic_bytes_sha256 = _digest_hex(context.semantic_canonical_bytes())
+        _require_sha256_hex("ContextLineageNode.context_digest", context_digest)
+        if context_version != CONTEXT_VERSION:
             raise ValueError("ContextLineageNode.context_version is not supported")
-        _require_non_empty_str("ContextLineageNode.assembly_policy_revision", self.assembly_policy_revision)
-        _require_sha256_hex("ContextLineageNode.assembly_policy_fingerprint", self.assembly_policy_fingerprint)
-        _require_sha256_hex("ContextLineageNode.context_semantic_bytes_sha256", self.context_semantic_bytes_sha256)
+        _require_non_empty_str("ContextLineageNode.assembly_policy_revision", assembly_policy_revision)
+        _require_sha256_hex("ContextLineageNode.assembly_policy_fingerprint", assembly_policy_fingerprint)
+        _require_sha256_hex("ContextLineageNode.context_semantic_bytes_sha256", context_semantic_bytes_sha256)
+        object.__setattr__(self, "context_digest", context_digest)
+        object.__setattr__(self, "context_version", context_version)
+        object.__setattr__(self, "assembly_policy_revision", assembly_policy_revision)
+        object.__setattr__(self, "assembly_policy_fingerprint", assembly_policy_fingerprint)
+        object.__setattr__(self, "context_semantic_bytes_sha256", context_semantic_bytes_sha256)
 
     @classmethod
     def from_context(cls, context: ReflectionContext) -> "ContextLineageNode":
-        if type(context) is not ReflectionContext:
-            raise ValueError("context must be exact ReflectionContext")
-        return cls(
-            context_digest=context.context_digest or "",
-            context_version=context.schema_version,
-            assembly_policy_revision=context.assembly_policy_revision,
-            assembly_policy_fingerprint=context.assembly_policy_fingerprint,
-            context_semantic_bytes_sha256=_digest_hex(context.semantic_canonical_bytes()),
-        )
+        return cls(context)
 
     def canonical_bytes(self) -> bytes:
         return (
@@ -261,7 +267,7 @@ class ContextEvolutionOperation:
         return out
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class ContextLineageEdge:
     parent_context_digest: str
     child_context_digest: str
@@ -269,45 +275,44 @@ class ContextLineageEdge:
     operation_kind: ContextEvolutionKind
     evolution_policy_revision: str
     evolution_policy_fingerprint: str
-    edge_id: str | None = None
-    lineage_digest: str | None = None
-    schema_version: str = CANONICAL_VERSION
+    edge_id: str
+    lineage_digest: str
+    schema_version: str
 
-    def __post_init__(self) -> None:
-        _require_sha256_hex("ContextLineageEdge.parent_context_digest", self.parent_context_digest)
-        _require_sha256_hex("ContextLineageEdge.child_context_digest", self.child_context_digest)
-        if self.parent_context_digest == self.child_context_digest:
+    def __init__(self, operation: ContextEvolutionOperation, policy: ContextEvolutionPolicy) -> None:
+        if type(operation) is not ContextEvolutionOperation:
+            raise ValueError("ContextLineageEdge requires exact validated ContextEvolutionOperation")
+        if type(policy) is not ContextEvolutionPolicy:
+            raise ValueError("ContextLineageEdge requires exact ContextEvolutionPolicy")
+        operation.validate_against_policy(policy)
+        parent_context_digest = operation.parent_context.context_digest
+        child_context_digest = operation.child_context.context_digest
+        operation_id = operation.operation_id
+        operation_kind = operation.operation_kind
+        evolution_policy_revision = operation.evolution_policy_revision
+        evolution_policy_fingerprint = operation.evolution_policy_fingerprint
+        schema_version = CANONICAL_VERSION
+        _require_sha256_hex("ContextLineageEdge.parent_context_digest", parent_context_digest)
+        _require_sha256_hex("ContextLineageEdge.child_context_digest", child_context_digest)
+        if parent_context_digest == child_context_digest:
             raise ValueError("ContextLineageEdge parent and child must differ")
-        _require_non_empty_str("ContextLineageEdge.operation_id", self.operation_id)
-        object.__setattr__(self, "operation_kind", _require_evolution_kind("ContextLineageEdge.operation_kind", self.operation_kind))
-        _require_non_empty_str("ContextLineageEdge.evolution_policy_revision", self.evolution_policy_revision)
-        _require_sha256_hex("ContextLineageEdge.evolution_policy_fingerprint", self.evolution_policy_fingerprint)
-        _require_non_empty_str("ContextLineageEdge.schema_version", self.schema_version)
-        if self.schema_version != CANONICAL_VERSION:
-            raise ValueError("ContextLineageEdge.schema_version is frozen")
+        _require_non_empty_str("ContextLineageEdge.operation_id", operation_id)
+        _require_non_empty_str("ContextLineageEdge.evolution_policy_revision", evolution_policy_revision)
+        _require_sha256_hex("ContextLineageEdge.evolution_policy_fingerprint", evolution_policy_fingerprint)
+        object.__setattr__(self, "parent_context_digest", parent_context_digest)
+        object.__setattr__(self, "child_context_digest", child_context_digest)
+        object.__setattr__(self, "operation_id", operation_id)
+        object.__setattr__(self, "operation_kind", operation_kind)
+        object.__setattr__(self, "evolution_policy_revision", evolution_policy_revision)
+        object.__setattr__(self, "evolution_policy_fingerprint", evolution_policy_fingerprint)
+        object.__setattr__(self, "schema_version", schema_version)
         digest = _digest_hex(self.semantic_canonical_bytes())
-        if self.edge_id is None:
-            object.__setattr__(self, "edge_id", digest)
-        elif self.edge_id != digest:
-            raise ValueError("ContextLineageEdge.edge_id must equal lineage digest")
-        if self.lineage_digest is None:
-            object.__setattr__(self, "lineage_digest", digest)
-        elif self.lineage_digest != digest:
-            raise ValueError("ContextLineageEdge.lineage_digest mismatch")
+        object.__setattr__(self, "edge_id", digest)
+        object.__setattr__(self, "lineage_digest", digest)
 
     @classmethod
     def from_operation(cls, operation: ContextEvolutionOperation, policy: ContextEvolutionPolicy) -> "ContextLineageEdge":
-        if type(operation) is not ContextEvolutionOperation:
-            raise ValueError("operation must be ContextEvolutionOperation")
-        operation.validate_against_policy(policy)
-        return cls(
-            parent_context_digest=operation.parent_context.context_digest,
-            child_context_digest=operation.child_context.context_digest,
-            operation_id=operation.operation_id,
-            operation_kind=operation.operation_kind,
-            evolution_policy_revision=operation.evolution_policy_revision,
-            evolution_policy_fingerprint=operation.evolution_policy_fingerprint,
-        )
+        return cls(operation, policy)
 
     def semantic_canonical_bytes(self) -> bytes:
         return (

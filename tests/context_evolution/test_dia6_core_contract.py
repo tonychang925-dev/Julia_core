@@ -128,17 +128,21 @@ def test_evolution_is_new_child_identity_not_parent_mutation():
 
 # AT-DIA6-R0-02: same context digest with different semantic bytes hash is corruption.
 def test_same_context_digest_with_different_semantic_hash_rejected():
-    parent = ContextLineageNode.from_context(_context(b"parent"))
-    corrupt_child = ContextLineageNode(
-        parent.context_digest,
-        parent.context_version,
-        parent.assembly_policy_revision,
-        parent.assembly_policy_fingerprint,
-        sha256(b"different bytes").hexdigest(),
-    )
-    policy = _policy()
-    with pytest.raises(ValueError, match="same context digest"):
-        ContextEvolutionOperation("op-corrupt", ContextEvolutionKind.FACT_APPEND, parent, corrupt_child, policy.revision, policy.policy_fingerprint(), _authority(), (_ref("evt_reason"),))
+    parent_context = _context(b"parent")
+    child_context = _context(b"child")
+    object.__setattr__(child_context, "context_digest", parent_context.context_digest)
+    with pytest.raises(ValueError, match="context_digest"):
+        ContextLineageNode.from_context(child_context)
+
+    parent = ContextLineageNode.from_context(parent_context)
+    with pytest.raises(TypeError):
+        ContextLineageNode(
+            parent.context_digest,
+            parent.context_version,
+            parent.assembly_policy_revision,
+            parent.assembly_policy_fingerprint,
+            sha256(b"different bytes").hexdigest(),
+        )
 
 
 # AT-DIA6-R0-04/05: lineage digest binds parent and child identities.
@@ -191,10 +195,11 @@ def test_policy_fingerprint_binds_complete_evolution_semantics():
 # AT-DIA6-R0-11/12: parent/child node digest fields are strict SHA-256 identity fields.
 def test_parent_child_node_digest_fields_fail_closed():
     context = _context()
-    with pytest.raises(ValueError, match="context_digest"):
+    assert ContextLineageNode.from_context(context).context_digest == context.context_digest
+    with pytest.raises(TypeError):
         ContextLineageNode("not-a-digest", CONTEXT_VERSION, context.assembly_policy_revision, context.assembly_policy_fingerprint, sha256(context.semantic_canonical_bytes()).hexdigest())
-    with pytest.raises(ValueError, match="context_semantic_bytes_sha256"):
-        ContextLineageNode(context.context_digest or "", CONTEXT_VERSION, context.assembly_policy_revision, context.assembly_policy_fingerprint, "not-a-digest")
+    with pytest.raises(ValueError, match="ReflectionContext"):
+        ContextLineageNode("not-a-context")
 
 
 # AT-DIA6-R0-13/14/15: reason refs are canonical, bounded, and duplicate-free.
@@ -240,13 +245,13 @@ def test_merge_split_reserved_but_unsupported_in_r1():
 
 
 # Edge id/digest are deterministic and fail closed on caller-supplied mismatch.
-def test_lineage_edge_id_and_digest_fail_closed_on_mismatch():
+def test_lineage_edge_raw_construction_rejected():
     policy = _policy()
     edge = StrictContextEvolutionValidator().validate(_operation(policy=policy), policy)
-    with pytest.raises(ValueError, match="edge_id"):
+    with pytest.raises(TypeError):
         ContextLineageEdge(edge.parent_context_digest, edge.child_context_digest, edge.operation_id, edge.operation_kind, edge.evolution_policy_revision, edge.evolution_policy_fingerprint, edge_id="0" * 64)
-    with pytest.raises(ValueError, match="lineage_digest"):
-        ContextLineageEdge(edge.parent_context_digest, edge.child_context_digest, edge.operation_id, edge.operation_kind, edge.evolution_policy_revision, edge.evolution_policy_fingerprint, lineage_digest="0" * 64)
+    with pytest.raises(ValueError, match="ContextEvolutionOperation"):
+        ContextLineageEdge("not-an-operation", policy)
 
 
 # Golden vectors freeze policy and lineage canonical algorithms.
