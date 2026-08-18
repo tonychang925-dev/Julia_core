@@ -53,7 +53,7 @@ from julia_core.reflection_trigger import (
 
 GOLDEN_PACKAGE_DIGEST = "4a13179e7ee38c90df1f728a550b3a49bc0decc80cd27392a23574d433bb1734"
 GOLDEN_BINDING_DIGEST = "6a6df4c91a8efb0650774ec0b59deb1ff5916efb9a391c27b7286c879ca95c08"
-GOLDEN_RESPONSE_CONTEXT_DIGEST = "8270998a600109ab4dd4f65cde6ff48233837d3b7a2e4ebaf9ea6df4ad387b9f"
+GOLDEN_RESPONSE_CONTEXT_DIGEST = "68c9690f9a64623b13df59b160fb06fea81539e117c1186c2cc3532240881188"
 
 
 def _trigger_policy():
@@ -218,13 +218,13 @@ def test_restart_replay_binding_store_validates_exact_package():
 def test_same_session_different_state_rebind_rejected():
     package_a = _package()
     package_b = AssistantContinuityStatePackage.from_state(_state())
+    object.__setattr__(package_b, "source_graph_digest", "0" * 64)
     object.__setattr__(package_b, "package_digest", "0" * 64)
     binding_a = _binding(package_a, "session-A")
-    binding_b = AssistantContinuitySessionBinding.bind("session-A", package_b)
     store = ContinuityStateBindingStore()
     store.save(binding_a)
-    with pytest.raises(ValueError, match="different continuity state"):
-        store.save(binding_b)
+    with pytest.raises(ValueError, match="package"):
+        AssistantContinuitySessionBinding.bind("session-A", package_b)
 
 
 # R2-09: Assistant response context is bound to the exact consumed state package.
@@ -297,3 +297,77 @@ def test_dia7_r2_golden_vectors():
     assert package.package_digest == GOLDEN_PACKAGE_DIGEST
     assert binding.binding_digest == GOLDEN_BINDING_DIGEST
     assert context.response_context_digest == GOLDEN_RESPONSE_CONTEXT_DIGEST
+
+
+# RED-PB1: post-construction package active_claims mutation is rejected at response boundary.
+def test_red_pb1_mutated_package_active_claims_rejected_by_response_context():
+    package_a = _package()
+    package_b = _package()
+    object.__setattr__(package_b.continuity_state.active_claims[0], "claim_payload", "relationship_state=foreign")
+    object.__setattr__(package_b.continuity_state, "active_claims", package_b.continuity_state.active_claims)
+    object.__setattr__(package_b, "active_claims", package_b.continuity_state.active_claims)
+    binding_a = _binding(package_a, "session-A")
+    object.__setattr__(package_a, "active_claims", package_b.active_claims)
+    with pytest.raises(ValueError, match="active claims mismatch|package digest mismatch"):
+        StrictAssistantContinuityBinder().response_context(binding_a, package_a)
+
+
+# RED-PB2: post-construction package unresolved_conflicts mutation is rejected.
+def test_red_pb2_mutated_package_unresolved_conflicts_rejected_by_response_context():
+    package_a = _package()
+    package_b = _package()
+    object.__setattr__(package_b, "unresolved_conflicts", package_b.active_claims)
+    binding_a = _binding(package_a, "session-A")
+    object.__setattr__(package_a, "unresolved_conflicts", package_b.unresolved_conflicts)
+    with pytest.raises(ValueError, match="unresolved conflicts mismatch|package digest mismatch"):
+        StrictAssistantContinuityBinder().response_context(binding_a, package_a)
+
+
+# RED-PB3: stale package digest / field mutation is rejected by binder.
+def test_red_pb3_package_field_mutation_rejected_by_binder():
+    package = _package()
+    object.__setattr__(package, "source_graph_digest", "0" * 64)
+    with pytest.raises(ValueError, match="package source graph digest mismatch|package digest mismatch"):
+        _binding(package, "session-A")
+
+
+# RED-BI1: stale binding session_id mutation is rejected by response context and store.
+def test_red_bi1_binding_session_mutation_rejected_by_response_and_store():
+    package = _package()
+    binding = _binding(package, "session-A")
+    object.__setattr__(binding, "session_id", "session-B")
+    with pytest.raises(ValueError, match="binding digest mismatch"):
+        StrictAssistantContinuityBinder().response_context(binding, package)
+    store = ContinuityStateBindingStore()
+    with pytest.raises(ValueError, match="binding digest mismatch"):
+        store.save(binding)
+
+
+# RED-BI2: stale binding identity field mutations are rejected.
+def test_red_bi2_binding_identity_field_mutations_rejected():
+    package = _package()
+    fields = ("continuity_state_digest", "source_graph_digest", "projection_policy_fingerprint", "package_digest")
+    for field in fields:
+        binding = _binding(package, "session-A")
+        object.__setattr__(binding, field, "0" * 64)
+        with pytest.raises(ValueError, match="binding digest mismatch"):
+            StrictAssistantContinuityBinder().response_context(binding, package)
+
+
+# RED-PB/BI replay path fails closed for stale package or binding.
+def test_red_pb_bi_replay_rejects_stale_package_and_binding():
+    package = _package()
+    binding = _binding(package, "session-A")
+    store = ContinuityStateBindingStore()
+    store.save(binding)
+    object.__setattr__(package, "active_claims", ())
+    with pytest.raises(ValueError, match="package active claims mismatch|package digest mismatch"):
+        store.replay_validate("session-A", package)
+
+    package_fresh = _package()
+    binding_stale = _binding(package_fresh, "session-B")
+    store_b = ContinuityStateBindingStore()
+    store_b.save(binding_stale)
+    object.__setattr__(binding_stale, "source_graph_digest", "0" * 64)
+    with pytest.raises(ValueError, match="binding digest mismatch"):
+        store_b.load("session-B")

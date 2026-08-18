@@ -119,8 +119,7 @@ class AssistantContinuitySessionBinding:
 
     def __init__(self, session_id: str, package: AssistantContinuityStatePackage) -> None:
         _require_non_empty_str("AssistantContinuitySessionBinding.session_id", session_id)
-        if type(package) is not AssistantContinuityStatePackage:
-            raise ValueError("AssistantContinuitySessionBinding requires exact AssistantContinuityStatePackage")
+        _validate_package_integrity(package)
         object.__setattr__(self, "session_id", session_id)
         object.__setattr__(self, "continuity_state_digest", package.continuity_state_digest)
         object.__setattr__(self, "source_graph_digest", package.source_graph_digest)
@@ -169,6 +168,7 @@ class ContinuityConsumptionAudit:
 
 @dataclass(frozen=True, init=False)
 class AssistantContinuityResponseContext:
+    session_id: str
     session_binding: AssistantContinuitySessionBinding
     active_claims: tuple[ProjectedContinuityClaim, ...]
     unresolved_conflicts: tuple[ProjectedContinuityClaim, ...]
@@ -180,7 +180,10 @@ class AssistantContinuityResponseContext:
             raise ValueError("AssistantContinuityResponseContext requires exact AssistantContinuitySessionBinding")
         if type(package) is not AssistantContinuityStatePackage:
             raise ValueError("AssistantContinuityResponseContext requires exact AssistantContinuityStatePackage")
+        _validate_binding_integrity(binding)
+        _validate_package_integrity(package)
         _assert_binding_matches_package(binding, package)
+        object.__setattr__(self, "session_id", binding.session_id)
         object.__setattr__(self, "session_binding", binding)
         object.__setattr__(self, "active_claims", package.active_claims)
         object.__setattr__(self, "unresolved_conflicts", package.unresolved_conflicts)
@@ -191,6 +194,7 @@ class AssistantContinuityResponseContext:
         out = (
             _field("response_context.domain", RESPONSE_CONTEXT_DOMAIN_SEPARATOR)
             + _field("response_context.schema_version", self.schema_version)
+            + _field("response_context.session_id", self.session_id)
             + _field("response_context.binding_digest", self.session_binding.binding_digest)
             + _field("response_context.state_digest", self.session_binding.continuity_state_digest)
             + _field("response_context.source_graph_digest", self.session_binding.source_graph_digest)
@@ -218,8 +222,7 @@ class ContinuityStateBindingStore:
         self._bindings: dict[str, AssistantContinuitySessionBinding] = {}
 
     def save(self, binding: AssistantContinuitySessionBinding) -> None:
-        if type(binding) is not AssistantContinuitySessionBinding:
-            raise ValueError("ContinuityStateBindingStore.save requires exact AssistantContinuitySessionBinding")
+        _validate_binding_integrity(binding)
         existing = self._bindings.get(binding.session_id)
         if existing is not None and existing.binding_digest != binding.binding_digest:
             raise ValueError("session already bound to different continuity state")
@@ -230,10 +233,12 @@ class ContinuityStateBindingStore:
         binding = self._bindings.get(session_id)
         if binding is None:
             raise ValueError("no continuity binding for session")
+        _validate_binding_integrity(binding)
         return binding
 
     def replay_validate(self, session_id: str, package: AssistantContinuityStatePackage) -> AssistantContinuitySessionBinding:
         binding = self.load(session_id)
+        _validate_package_integrity(package)
         _assert_binding_matches_package(binding, package)
         return binding
 
@@ -257,8 +262,7 @@ class StrictAssistantContinuityBinder:
         _require_sha256_hex("expected_state_digest", expected_state_digest)
         _require_sha256_hex("expected_source_graph_digest", expected_source_graph_digest)
         _require_sha256_hex("expected_projection_policy_fingerprint", expected_projection_policy_fingerprint)
-        if type(package) is not AssistantContinuityStatePackage:
-            raise ValueError("bind_for_session requires exact AssistantContinuityStatePackage")
+        _validate_package_integrity(package)
         if package.continuity_state_digest != expected_state_digest:
             raise ValueError("continuity state digest mismatch")
         if package.source_graph_digest != expected_source_graph_digest:
@@ -269,6 +273,42 @@ class StrictAssistantContinuityBinder:
 
     def response_context(self, binding: AssistantContinuitySessionBinding, package: AssistantContinuityStatePackage) -> AssistantContinuityResponseContext:
         return AssistantContinuityResponseContext(binding, package)
+
+
+def _validate_package_integrity(package: AssistantContinuityStatePackage) -> None:
+    if type(package) is not AssistantContinuityStatePackage:
+        raise ValueError("expected exact AssistantContinuityStatePackage")
+    if type(package.continuity_state) is not ContinuityState:
+        raise ValueError("package continuity_state must be exact ContinuityState")
+    expected_state_digest = _digest_hex(package.continuity_state.semantic_canonical_bytes(include_digest=False))
+    if expected_state_digest != package.continuity_state_digest:
+        raise ValueError("package continuity state digest mismatch")
+    if package.continuity_state.continuity_state_digest != package.continuity_state_digest:
+        raise ValueError("package stale continuity state digest")
+    if package.source_graph_digest != package.continuity_state.source_graph_digest:
+        raise ValueError("package source graph digest mismatch")
+    if package.projection_policy_fingerprint != package.continuity_state.projection_policy_fingerprint:
+        raise ValueError("package projection policy fingerprint mismatch")
+    if package.active_claims != package.continuity_state.active_claims:
+        raise ValueError("package active claims mismatch")
+    if package.unresolved_conflicts != package.continuity_state.unresolved_conflicts:
+        raise ValueError("package unresolved conflicts mismatch")
+    expected_package_digest = _digest_hex(package.semantic_canonical_bytes(include_digest=False))
+    if expected_package_digest != package.package_digest:
+        raise ValueError("package digest mismatch")
+
+
+def _validate_binding_integrity(binding: AssistantContinuitySessionBinding) -> None:
+    if type(binding) is not AssistantContinuitySessionBinding:
+        raise ValueError("expected exact AssistantContinuitySessionBinding")
+    _require_non_empty_str("binding.session_id", binding.session_id)
+    _require_sha256_hex("binding.continuity_state_digest", binding.continuity_state_digest)
+    _require_sha256_hex("binding.source_graph_digest", binding.source_graph_digest)
+    _require_sha256_hex("binding.projection_policy_fingerprint", binding.projection_policy_fingerprint)
+    _require_sha256_hex("binding.package_digest", binding.package_digest)
+    expected_binding_digest = _digest_hex(binding.semantic_canonical_bytes(include_digest=False))
+    if expected_binding_digest != binding.binding_digest:
+        raise ValueError("binding digest mismatch")
 
 
 def _assert_binding_matches_package(binding: AssistantContinuitySessionBinding, package: AssistantContinuityStatePackage) -> None:

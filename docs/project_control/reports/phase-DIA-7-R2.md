@@ -215,3 +215,156 @@ Ready for Mira review                      ▶
 Codex B sabotage                           ⏸ HOLD
 DIA-7 R2.1 runtime / persistence           ⏸ HOLD
 ```
+
+---
+
+# DIA-7 R2.0.1 — RED-PB1 / RED-BI1 Integrity Boundary Repair
+
+## 12. Repair status
+
+Previous target: `1d7a8f45bd42321231243431792a19bd93b93d00`  
+Mira review: RED  
+Repair provenance: Codex A
+
+Blocked findings:
+
+```text
+RED-PB1 package stale-digest / foreign-claims bypass
+RED-BI1 binding stale-digest / session mutation bypass
+```
+
+The R2.0 normal construction path was valid, but consumption boundaries trusted stored digest fields without revalidating the object's current semantic content at use time.
+
+## 13. Repair scope
+
+Only Assistant continuity integration boundary validation changed:
+
+- `julia_core/assistant_continuity/models.py`
+- `tests/assistant_continuity/test_dia7_r2_assistant_continuity_contract.py`
+- `docs/project_control/reports/phase-DIA-7-R2.md`
+
+No Core projection, DIA-6 lineage, Diary, Memory, Context OS, persistence, or generation surface changed.
+
+## 14. Closed invariant
+
+R2.0.1 freezes:
+
+```text
+constructor validation is not sufficient.
+Every consumption boundary must revalidate current semantic integrity.
+```
+
+Package integrity now verifies:
+
+- exact `AssistantContinuityStatePackage` type
+- exact `ContinuityState` type
+- recomputed `ContinuityState` digest
+- package state digest matches embedded state digest
+- source graph digest matches embedded state
+- projection policy fingerprint matches embedded state
+- `active_claims` equals embedded state's active claims
+- `unresolved_conflicts` equals embedded state's unresolved conflicts
+- recomputed package digest equals stored `package_digest`
+
+Binding integrity now verifies:
+
+- exact `AssistantContinuitySessionBinding` type
+- session id non-empty
+- state/source/policy/package digests are valid SHA-256 identity fields
+- recomputed binding digest equals stored `binding_digest`
+
+## 15. Revalidated boundaries
+
+Package integrity is rechecked at:
+
+- `StrictAssistantContinuityBinder.bind_for_session()`
+- `AssistantContinuitySessionBinding.__init__()`
+- `AssistantContinuityResponseContext.__init__()`
+- `ContinuityStateBindingStore.replay_validate()`
+
+Binding integrity is rechecked at:
+
+- `ContinuityStateBindingStore.save()`
+- `ContinuityStateBindingStore.load()`
+- `ContinuityStateBindingStore.replay_validate()` via load
+- `AssistantContinuityResponseContext.__init__()`
+
+## 16. Response context identity hardening
+
+`AssistantContinuityResponseContext` now carries `session_id` as an explicit identity field in addition to the binding digest:
+
+```text
+response_context.session_id
+response_context.binding_digest
+response_context.continuity_state_digest
+response_context.source_graph_digest
+response_context.projection_policy_fingerprint
+```
+
+This prevents a response context from relying solely on a stale binding digest as session proof.
+
+## 17. RED acceptance matrix
+
+| RED repair target | Status |
+| --- | --- |
+| PB1 package active claims swapped after construction -> response context rejects | ✅ |
+| PB2 package unresolved conflicts swapped after construction -> rejects | ✅ |
+| PB3 package field mutated with stale package digest -> binder rejects | ✅ |
+| BI1 binding session id mutated with stale binding digest -> response/store reject | ✅ |
+| BI2 binding state/source/policy/package field mutated -> reject | ✅ |
+| GOOD untouched package + binding -> green | ✅ |
+| REPLAY stale package -> fail closed | ✅ |
+| REPLAY stale binding -> fail closed | ✅ |
+| Response context includes explicit session id | ✅ |
+
+## 18. Repair validation evidence
+
+Executed by Codex A:
+
+```text
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/assistant_continuity/test_dia7_r2_assistant_continuity_contract.py -q
+17 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/assistant_continuity/test_dia7_r2_assistant_continuity_contract.py tests/continuity_projection/test_dia7_core_contract.py -q
+43 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/context_evolution/test_dia6_core_contract.py tests/reflection_handoff/test_dia5_core_contract.py tests/reflection_context/test_dia4_core_contract.py tests/reflection_trigger/test_dia3_core_contract.py -q
+97 passed
+
+/opt/miniconda3/envs/theme_matcher_env/bin/python -m compileall -q julia_core/assistant_continuity tests/assistant_continuity/test_dia7_r2_assistant_continuity_contract.py
+PASS
+```
+
+Updated response-context golden vector:
+
+```text
+response_context_digest:
+68c9690f9a64623b13df59b160fb06fea81539e117c1186c2cc3532240881188
+```
+
+Package and binding golden vectors remain stable:
+
+```text
+package_digest:
+4a13179e7ee38c90df1f728a550b3a49bc0decc80cd27392a23574d433bb1734
+
+binding_digest:
+6a6df4c91a8efb0650774ec0b59deb1ff5916efb9a391c27b7286c879ca95c08
+```
+
+## 19. Repair gate summary
+
+```text
+DIA-7 R2.0.1 Assistant Continuity Integration Contract
+
+RED-PB1 package stale-digest bypass          ✅ CLOSED
+RED-BI1 binding stale-digest bypass          ✅ CLOSED
+DIA-7 R2 focused tests                       ✅ 17 passed
+DIA-7 R1 regression                          ✅ included in 43 passed
+DIA-6/DIA-5/DIA-4/DIA-3 regression           ✅ 97 passed
+compileall                                   ✅ PASS
+
+Ready for Mira re-review                     ▶
+Codex B sabotage                             ⏸ HOLD
+DIA-7 R2.1 runtime / persistence             ⏸ HOLD
+```
