@@ -1,5 +1,9 @@
 # DIA-8 R1 — Core Decision Invariance Contract
 
+> **Namespace:** CONT-DIA
+> **Canonical phase:** CONT-DIA-8 — Continuity-to-Decision Invariance
+> **Not to be confused with:** STORAGE-DIA-8 — Electron Diary UI
+
 Status: ✅ REPAIRED / READY FOR MIRA RE-REVIEW
 Phase name: **DIA-8 — Continuity-to-Decision Invariance**
 Base decision: Mira accepted R0.1 at `9717abc3d6532512bc93f124cfc143b809b19b18`.

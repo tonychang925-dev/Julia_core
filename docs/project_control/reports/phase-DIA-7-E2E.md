@@ -1,5 +1,9 @@
 # DIA-7-E2E — Continuity Identity Chain Gate
 
+> **Namespace:** CONT-DIA
+> **Canonical phase:** CONT-DIA-7 — Continuity State Projection
+> **Not to be confused with:** STORAGE-DIA-7 — Diary Retrieval
+
 ## 0. Status
 
 Gate: DIA-7-E2E Continuity Identity Chain Gate  

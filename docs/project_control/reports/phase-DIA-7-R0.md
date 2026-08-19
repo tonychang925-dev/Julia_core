@@ -1,5 +1,9 @@
 # DIA-7 R0 — Continuity Projection Contract
 
+> **Namespace:** CONT-DIA
+> **Canonical phase:** CONT-DIA-7 — Continuity State Projection
+> **Not to be confused with:** STORAGE-DIA-7 — Diary Retrieval
+
 ## 0. Status
 
 Phase: DIA-7 — Continuity State / Identity Projection  

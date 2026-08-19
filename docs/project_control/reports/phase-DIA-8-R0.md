@@ -1,5 +1,9 @@
 # DIA-8 R0 — Failure Mode Discovery
 
+> **Namespace:** CONT-DIA
+> **Canonical phase:** CONT-DIA-8 — Continuity-to-Decision Invariance
+> **Not to be confused with:** STORAGE-DIA-8 — Electron Diary UI
+
 ## 0. Status
 
 Phase: DIA-8 — R0 Failure Mode Discovery  

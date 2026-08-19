@@ -1,5 +1,9 @@
 # JULIA Conversation Storage & Diary Development Plan v1.0
 
+> **Namespace:** STORAGE-DIA
+> **Canonical plan:** Storage & Diary Development Plan (STORAGE-DIA-0..8)
+> **Not to be confused with:** CONT-DIA (Core continuity/identity semantics)
+
 **Document Type:** Post-Freeze Development Work Breakdown / Execution Plan  
 **Status:** PROPOSED FOR EXECUTION  
 **Date:** 2026-08-13  

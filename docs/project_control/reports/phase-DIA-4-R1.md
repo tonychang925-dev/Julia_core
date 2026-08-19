@@ -1,5 +1,9 @@
 # DIA-4 R1.2 — Core Reflection Context Contract
 
+> **Namespace:** CONT-DIA
+> **Canonical phase:** CONT-DIA-4 — Reflection Context Core
+> **Not to be confused with:** STORAGE-DIA-4 — Reflection Context Assembly
+
 ## Status
 
 Implementation Owner: Codex A  

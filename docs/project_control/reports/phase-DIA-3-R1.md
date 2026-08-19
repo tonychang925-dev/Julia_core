@@ -1,5 +1,9 @@
 # DIA-3 R1.6 Implementation Report — Codex A
 
+> **Namespace:** CONT-DIA
+> **Canonical phase:** CONT-DIA-3 — Reflection Trigger Core
+> **Not to be confused with:** STORAGE-DIA-3 — Reflection Trigger Runtime
+
 ## Gate input
 - Core base: `33d49032b936b0859b21254dab314cf4947d2367`
 - R1.5 reviewed target: `ba36d4f8f367b594d17291922fedac07294d08b8`

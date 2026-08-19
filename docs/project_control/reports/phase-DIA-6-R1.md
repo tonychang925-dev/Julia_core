@@ -1,5 +1,9 @@
 # DIA-6 R1 — Core Context Evolution Contract
 
+> **Namespace:** CONT-DIA
+> **Canonical phase:** CONT-DIA-6 — Context Evolution / Lineage
+> **Not to be confused with:** STORAGE-DIA-6 — Reflection Governance
+
 ## 0. Status
 
 Phase: DIA-6 — Context Continuity / Evolution Surface  

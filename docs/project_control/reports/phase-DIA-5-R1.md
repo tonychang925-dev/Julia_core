@@ -1,5 +1,9 @@
 # DIA-5 R1 — Reflection Context Handoff Core Contract
 
+> **Namespace:** CONT-DIA
+> **Canonical phase:** CONT-DIA-5 — Reflection Context Handoff
+> **Not to be confused with:** STORAGE-DIA-5 — Julia Reflection Generation
+
 ## 0. Status
 
 Phase: DIA-5 — Reflection Context Handoff Surface  
