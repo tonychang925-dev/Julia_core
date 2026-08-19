@@ -1,8 +1,9 @@
 # DIA-8 R1 — Core Decision Invariance Contract
 
-Status: ✅ IMPLEMENTED / READY FOR MIRA REVIEW
+Status: ✅ REPAIRED / READY FOR MIRA RE-REVIEW
 Phase name: **DIA-8 — Continuity-to-Decision Invariance**
 Base decision: Mira accepted R0.1 at `9717abc3d6532512bc93f124cfc143b809b19b18`.
+Repair target: Mira RED review of `2b16a397a9d070e9e05d856a592f8550d540a7bf`.
 
 ## Purpose
 
@@ -64,6 +65,52 @@ Explicitly out of scope / forbidden:
 - Implicit priority invention
 - Assistant-generated continuity truth
 
+## RED repair closure
+
+### RED-EB1 — proof binding completeness
+
+Closed by requiring every accepted claim used as support to have at least one exact `DecisionEvidenceBinding`.
+
+```text
+accepted_claim_ids ⊆ evidence_binding.claim_ids
+```
+
+Each binding is then revalidated against the exact restored/projected `ContinuityState` claim lineage. Missing support is invalid proof input and fails closed; it is not `UNDERDETERMINED` and not `DRIFT`.
+
+Regression coverage:
+
+- EB1-A accepted claim without evidence binding → reject
+- EB1-B one accepted claim bound, another unbound → reject
+- EB1-C evidence binding points to valid claim but wrong lineage → reject
+- EB1-D complete exact bindings → CONSISTENT
+
+### RED-PA1 — priority authority binding
+
+Closed by preventing `DecisionSituation.required_priority_relation` from acting as standalone truth authority.
+
+R1 does not parse natural language and does not mutate DIA-7. Instead, priority is enabled only when the candidate binds an exact active continuity claim whose DIA-7 payload is the deterministic structured token:
+
+```text
+priority=<lowercase required priority relation>
+```
+
+Example:
+
+```text
+required_priority_relation = EVIDENCE_OVER_APPEASEMENT
+requires an active, evidence-bound claim payload exactly:
+priority=evidence_over_appeasement
+```
+
+If no such bound claim exists, the result is `UNDERDETERMINED`. The evaluator does not pick a winner and does not treat the situation field alone as authority.
+
+Regression coverage:
+
+- PA1-A priority exists only in `DecisionSituation` → UNDERDETERMINED
+- PA1-B unrelated continuity claim does not authorize arbitrary priority → UNDERDETERMINED
+- PA1-C exact continuity-backed priority authority → CONSISTENT
+- PA1-D missing priority authority → UNDERDETERMINED, no auto-winner
+
 ## Deterministic proof-bearing result
 
 `DecisionEvaluationResult` records:
@@ -91,7 +138,7 @@ No explicit continuity-backed ordering
 → UNDERDETERMINED
 ```
 
-The evaluator never chooses a side because one value “sounds more important.” Priority must arrive through explicit, bound continuity claims and a matching `DecisionSituation.required_priority_relation`.
+The evaluator never chooses a side because one value “sounds more important.” Priority must arrive through explicit, evidence-bound continuity claim semantics.
 
 ## Implemented files
 
@@ -130,19 +177,21 @@ Additional boundary assertion: R1 module exposes no natural-language extraction 
 
 ## Golden vectors
 
+The RED-PA1 repair intentionally revs `EVALUATION_ALGORITHM_REVISION` from `v1` to `v2` because priority authority semantics changed.
+
 ```text
 DecisionInvariantPolicy fingerprint:
-15bb452f0b2bdcd951fb997d1a9f3daf7556c2441f171df4eb3680f8c58ae808
+118635f578f6e42e4877ee9b3ce9340e86ca1a3276141940bd03373c4a2b1b07
 
 Golden CONSISTENT evaluation_digest:
-ae4dbc064159c34ef9432779b654d11ea2d074ab7fd9be3665cba94b9b06ba75
+1b4f5253fa938c63d01815026a0bfd2612f006118d0dd3e1ebaa2046ad7228ce
 ```
 
 ## Validation
 
 ```text
 /opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest tests/decision_invariance/test_dia8_core_contract.py -q
-→ 15 passed
+→ 17 passed
 
 /opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest \
   tests/decision_invariance/test_dia8_core_contract.py \
@@ -150,7 +199,7 @@ ae4dbc064159c34ef9432779b654d11ea2d074ab7fd9be3665cba94b9b06ba75
   tests/continuity_persistence/test_dia7_r21_persistence_contract.py \
   tests/assistant_continuity/test_dia7_r2_assistant_continuity_contract.py \
   tests/continuity_projection/test_dia7_core_contract.py -q
-→ 113 passed
+→ 115 passed
 
 /opt/miniconda3/envs/theme_matcher_env/bin/python -m pytest \
   tests/context_evolution/test_dia6_core_contract.py \
@@ -173,6 +222,8 @@ DIA-8 phase name                         ✅ FROZEN
 Name                                     Continuity-to-Decision Invariance
 
 DIA-8 R1 Core evaluator                  ✅ IMPLEMENTED
+RED-EB1 proof binding completeness       ✅ CLOSED
+RED-PA1 priority authority binding       ✅ CLOSED
 Structured CandidateDecision             ✅
 Three-value semantics                    ✅
 Evidence-bound result                    ✅
@@ -182,6 +233,6 @@ Natural-language extraction              ❌ OUT OF SCOPE
 LLM judge authority                      ❌ FORBIDDEN
 DIA-7 schema mutation                    ❌ FORBIDDEN
 
-Mira review                              ▶ REQUESTED
+Mira re-review                           ▶ REQUESTED
 Codex B sabotage                         ⏸ HOLD UNTIL MIRA GREEN
 ```

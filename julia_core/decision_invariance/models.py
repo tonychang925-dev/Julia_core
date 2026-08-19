@@ -19,7 +19,7 @@ CANDIDATE_DOMAIN_SEPARATOR = "julia_core.decision_invariance.candidate.v1"
 POLICY_DOMAIN_SEPARATOR = "julia_core.decision_invariance.policy.v1"
 RESULT_DOMAIN_SEPARATOR = "julia_core.decision_invariance.result.v1"
 EVIDENCE_BINDING_DOMAIN_SEPARATOR = "julia_core.decision_invariance.evidence_binding.v1"
-EVALUATION_ALGORITHM_REVISION = "dia8-r1-deterministic-evaluation-v1"
+EVALUATION_ALGORITHM_REVISION = "dia8-r1-deterministic-evaluation-v2"
 
 
 def _require_non_empty_str(name: str, value: object) -> None:
@@ -326,6 +326,10 @@ class StrictDecisionInvariantEvaluator:
         for claim_id in set(candidate.accepted_claim_ids) | set(candidate.rejected_claim_ids) | set(situation.required_claim_ids) | set(situation.unresolved_claim_ids):
             if claim_id not in known_claim_ids:
                 raise ValueError("decision references foreign continuity claim")
+        evidence_bound_claim_ids = {binding.claim_id for binding in candidate.evidence_bindings}
+        unbound_accepted = set(candidate.accepted_claim_ids) - evidence_bound_claim_ids
+        if unbound_accepted:
+            raise ValueError("accepted continuity claims require evidence binding")
         for binding in candidate.evidence_bindings:
             claim = active_claims.get(binding.claim_id) or unresolved_claims.get(binding.claim_id)
             if claim is None:
@@ -369,11 +373,32 @@ class StrictDecisionInvariantEvaluator:
                     situation,
                     candidate,
                 )
-        elif candidate.priority_applied != situation.required_priority_relation:
-            violated.update(situation.required_claim_ids or candidate.accepted_claim_ids)
-            applied_rules.append("PRIORITY_RELATION_VIOLATED")
         else:
-            applied_rules.append("PRIORITY_RELATION_APPLIED")
+            priority_authority_claim_ids = _priority_authority_claim_ids(
+                active_claims,
+                candidate.evidence_bindings,
+                situation.required_priority_relation,
+            )
+            if not priority_authority_claim_ids:
+                applied_rules.append("PRIORITY_AUTHORITY_UNDERDETERMINED")
+                return DecisionEvaluationResult(
+                    DecisionConsistencyStatus.UNDERDETERMINED,
+                    tuple(supporting),
+                    (),
+                    tuple(unresolved or situation.required_claim_ids),
+                    tuple(applied_rules),
+                    policy,
+                    state,
+                    situation,
+                    candidate,
+                )
+            supporting.update(priority_authority_claim_ids)
+            if candidate.priority_applied != situation.required_priority_relation:
+                violated.update(priority_authority_claim_ids or situation.required_claim_ids or candidate.accepted_claim_ids)
+                applied_rules.append("PRIORITY_RELATION_VIOLATED")
+            else:
+                applied_rules.append("PRIORITY_AUTHORITY_BOUND")
+                applied_rules.append("PRIORITY_RELATION_APPLIED")
 
         if violated:
             return DecisionEvaluationResult(
@@ -429,6 +454,17 @@ class StrictDecisionInvariantEvaluator:
 class DecisionInvariantEvaluator(Protocol):
     def evaluate(self, state: ContinuityState, situation: DecisionSituation, candidate: CandidateDecision, policy: DecisionInvariantPolicy) -> DecisionEvaluationResult:
         ...
+
+
+def _priority_authority_claim_ids(active_claims: dict[str, object], evidence_bindings: tuple[DecisionEvidenceBinding, ...], required_priority_relation: str) -> set[str]:
+    token = "priority=" + required_priority_relation.lower()
+    bound_claim_ids = {binding.claim_id for binding in evidence_bindings}
+    authorized: set[str] = set()
+    for claim_id in bound_claim_ids:
+        claim = active_claims.get(claim_id)
+        if claim is not None and getattr(claim, "claim_payload", "") == token:
+            authorized.add(claim_id)
+    return authorized
 
 
 def _validate_state_integrity(state: ContinuityState) -> None:

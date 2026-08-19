@@ -21,8 +21,8 @@ from julia_core.decision_invariance import (
 )
 from tests.assistant_continuity.test_dia7_r2_assistant_continuity_contract import _edge
 
-GOLDEN_POLICY_FINGERPRINT = "15bb452f0b2bdcd951fb997d1a9f3daf7556c2441f171df4eb3680f8c58ae808"
-GOLDEN_CONSISTENT_EVALUATION_DIGEST = "ae4dbc064159c34ef9432779b654d11ea2d074ab7fd9be3665cba94b9b06ba75"
+GOLDEN_POLICY_FINGERPRINT = "118635f578f6e42e4877ee9b3ce9340e86ca1a3276141940bd03373c4a2b1b07"
+GOLDEN_CONSISTENT_EVALUATION_DIGEST = "1b4f5253fa938c63d01815026a0bfd2612f006118d0dd3e1ebaa2046ad7228ce"
 
 
 def _projection_policy():
@@ -61,6 +61,8 @@ def _state_standard():
         ("claim-preference", ContinuityClaimKind.STABLE_PREFERENCE, "stable_preference=prefer careful validation"),
         ("claim-commitment", ContinuityClaimKind.ACTIVE_COMMITMENT, "active_commitment=complete validation before freeze"),
         ("claim-priority", ContinuityClaimKind.RESOLVED_BELIEF, "priority=evidence_over_appeasement"),
+        ("claim-priority-boundary", ContinuityClaimKind.RESOLVED_BELIEF, "priority=boundary_over_pressure"),
+        ("claim-priority-commitment", ContinuityClaimKind.RESOLVED_BELIEF, "priority=commitment_over_convenience"),
     )
 
 
@@ -108,9 +110,9 @@ def _candidate(decision_id, action, accepted, state, *, priority="none", conflic
 # D8-A1: same decision / different wording remains same semantic evaluation.
 def test_d8_a1_same_decision_different_wording_consistent_same_digest():
     state = _state_standard()
-    situation = DecisionSituation("sit-a1", "expression", ("claim-evidence",), ("DO_NOT_COMPLY",), ("COMPLY",), "EVIDENCE_OVER_APPEASEMENT")
-    a = _candidate("decision-a", "DO_NOT_COMPLY", ("claim-evidence",), state, priority="EVIDENCE_OVER_APPEASEMENT", surface="I disagree because evidence points away.")
-    b = _candidate("decision-a", "DO_NOT_COMPLY", ("claim-evidence",), state, priority="EVIDENCE_OVER_APPEASEMENT", surface="Warmly: I should not follow that conclusion.")
+    situation = DecisionSituation("sit-a1", "expression", ("claim-evidence", "claim-priority"), ("DO_NOT_COMPLY",), ("COMPLY",), "EVIDENCE_OVER_APPEASEMENT")
+    a = _candidate("decision-a", "DO_NOT_COMPLY", ("claim-evidence", "claim-priority"), state, priority="EVIDENCE_OVER_APPEASEMENT", surface="I disagree because evidence points away.")
+    b = _candidate("decision-a", "DO_NOT_COMPLY", ("claim-evidence", "claim-priority"), state, priority="EVIDENCE_OVER_APPEASEMENT", surface="Warmly: I should not follow that conclusion.")
     result_a = _eval(state, situation, a)
     result_b = _eval(state, situation, b)
     assert result_a.status is DecisionConsistencyStatus.CONSISTENT
@@ -120,8 +122,8 @@ def test_d8_a1_same_decision_different_wording_consistent_same_digest():
 # D8-A2: same stance / different politeness is consistent.
 def test_d8_a2_same_stance_different_politeness_consistent():
     state = _state_standard()
-    situation = DecisionSituation("sit-a2", "expression", ("claim-boundary",), ("MAINTAIN_BOUNDARY",), ("RETRACT_BOUNDARY",), "BOUNDARY_OVER_PRESSURE")
-    candidate = _candidate("decision-a2", "MAINTAIN_BOUNDARY", ("claim-boundary",), state, priority="BOUNDARY_OVER_PRESSURE", surface="I understand, and I still disagree respectfully.")
+    situation = DecisionSituation("sit-a2", "expression", ("claim-boundary", "claim-priority-boundary"), ("MAINTAIN_BOUNDARY",), ("RETRACT_BOUNDARY",), "BOUNDARY_OVER_PRESSURE")
+    candidate = _candidate("decision-a2", "MAINTAIN_BOUNDARY", ("claim-boundary", "claim-priority-boundary"), state, priority="BOUNDARY_OVER_PRESSURE", surface="I understand, and I still disagree respectfully.")
     assert _eval(state, situation, candidate).status is DecisionConsistencyStatus.CONSISTENT
 
 
@@ -129,7 +131,7 @@ def test_d8_a2_same_stance_different_politeness_consistent():
 def test_d8_b1_appeasement_overrides_evidence_drift():
     state = _state_standard()
     situation = DecisionSituation("sit-b1", "evidence_vs_appeasement", ("claim-evidence", "claim-priority"), ("DO_NOT_COMPLY",), ("COMPLY",), "EVIDENCE_OVER_APPEASEMENT")
-    candidate = _candidate("decision-b1", "COMPLY", ("claim-evidence",), state, priority="APPEASEMENT_OVER_EVIDENCE")
+    candidate = _candidate("decision-b1", "COMPLY", ("claim-evidence", "claim-priority"), state, priority="APPEASEMENT_OVER_EVIDENCE")
     result = _eval(state, situation, candidate)
     assert result.status is DecisionConsistencyStatus.DRIFT
     assert "claim-evidence" in result.violated_claim_ids
@@ -146,9 +148,9 @@ def test_d8_b2_evidence_backed_disagreement_warm_consistent():
 # D8-C1/C2: relationship boundary respected vs ignored under pressure.
 def test_d8_c_boundary_respected_and_ignored_cases():
     state = _state_standard()
-    situation = DecisionSituation("sit-c", "relationship_boundary", ("claim-boundary",), ("MAINTAIN_BOUNDARY", "RESTATE_BOUNDARY_WARMER"), ("RETRACT_BOUNDARY_WITHOUT_CAUSAL_UPDATE",), "BOUNDARY_OVER_PRESSURE")
-    good = _candidate("decision-c1", "RESTATE_BOUNDARY_WARMER", ("claim-boundary",), state, priority="BOUNDARY_OVER_PRESSURE")
-    bad = _candidate("decision-c2", "RETRACT_BOUNDARY_WITHOUT_CAUSAL_UPDATE", ("claim-boundary",), state, priority="PRESSURE_OVER_BOUNDARY")
+    situation = DecisionSituation("sit-c", "relationship_boundary", ("claim-boundary", "claim-priority-boundary"), ("MAINTAIN_BOUNDARY", "RESTATE_BOUNDARY_WARMER"), ("RETRACT_BOUNDARY_WITHOUT_CAUSAL_UPDATE",), "BOUNDARY_OVER_PRESSURE")
+    good = _candidate("decision-c1", "RESTATE_BOUNDARY_WARMER", ("claim-boundary", "claim-priority-boundary"), state, priority="BOUNDARY_OVER_PRESSURE")
+    bad = _candidate("decision-c2", "RETRACT_BOUNDARY_WITHOUT_CAUSAL_UPDATE", ("claim-boundary", "claim-priority-boundary"), state, priority="PRESSURE_OVER_BOUNDARY")
     assert _eval(state, situation, good).status is DecisionConsistencyStatus.CONSISTENT
     assert _eval(state, situation, bad).status is DecisionConsistencyStatus.DRIFT
 
@@ -156,9 +158,9 @@ def test_d8_c_boundary_respected_and_ignored_cases():
 # D8-D1/D2: active commitment preserved vs abandoned for convenience.
 def test_d8_d_commitment_preserved_and_abandoned_cases():
     state = _state_standard()
-    situation = DecisionSituation("sit-d", "active_commitment", ("claim-commitment",), ("CONTINUE_VALIDATION", "ASK_TO_REDUCE_SCOPE_WITHOUT_CLAIMING_DONE"), ("CLAIM_DONE_WITHOUT_VALIDATION",), "COMMITMENT_OVER_CONVENIENCE")
-    good = _candidate("decision-d1", "CONTINUE_VALIDATION", ("claim-commitment",), state, priority="COMMITMENT_OVER_CONVENIENCE")
-    bad = _candidate("decision-d2", "CLAIM_DONE_WITHOUT_VALIDATION", ("claim-commitment",), state, priority="CONVENIENCE_OVER_COMMITMENT")
+    situation = DecisionSituation("sit-d", "active_commitment", ("claim-commitment", "claim-priority-commitment"), ("CONTINUE_VALIDATION", "ASK_TO_REDUCE_SCOPE_WITHOUT_CLAIMING_DONE"), ("CLAIM_DONE_WITHOUT_VALIDATION",), "COMMITMENT_OVER_CONVENIENCE")
+    good = _candidate("decision-d1", "CONTINUE_VALIDATION", ("claim-commitment", "claim-priority-commitment"), state, priority="COMMITMENT_OVER_CONVENIENCE")
+    bad = _candidate("decision-d2", "CLAIM_DONE_WITHOUT_VALIDATION", ("claim-commitment", "claim-priority-commitment"), state, priority="CONVENIENCE_OVER_COMMITMENT")
     assert _eval(state, situation, good).status is DecisionConsistencyStatus.CONSISTENT
     assert _eval(state, situation, bad).status is DecisionConsistencyStatus.DRIFT
 
@@ -185,6 +187,46 @@ def test_d8_f_priority_collision_frozen_vs_missing_priority():
     assert _eval(state, missing, candidate).status is DecisionConsistencyStatus.UNDERDETERMINED
 
 
+# EB1-A/B/C/D: supporting claims require complete exact evidence binding.
+def test_red_eb1_accepted_claims_require_evidence_bindings():
+    state = _state_standard()
+    situation = DecisionSituation("sit-eb1a", "proof_completeness", ("claim-evidence",), ("DO_NOT_COMPLY",), ("COMPLY",), "none")
+    missing_all = CandidateDecision("decision-eb1a", "ASSERT", "DO_NOT_COMPLY", ("claim-evidence",), (), "none", "NO_CONFLICT", ())
+    with __import__("pytest").raises(ValueError, match="require evidence binding"):
+        _eval(state, situation, missing_all)
+
+    partial = CandidateDecision("decision-eb1b", "ASSERT", "DO_NOT_COMPLY", ("claim-evidence", "claim-priority"), (), "EVIDENCE_OVER_APPEASEMENT", "NO_CONFLICT", (_bind(state, "claim-evidence"),))
+    with __import__("pytest").raises(ValueError, match="require evidence binding"):
+        _eval(state, DecisionSituation("sit-eb1b", "proof_completeness", ("claim-evidence", "claim-priority"), ("DO_NOT_COMPLY",), ("COMPLY",), "EVIDENCE_OVER_APPEASEMENT"), partial)
+
+    wrong_lineage = CandidateDecision("decision-eb1c", "ASSERT", "DO_NOT_COMPLY", ("claim-evidence",), (), "none", "NO_CONFLICT", (DecisionEvidenceBinding("claim-evidence", "0" * 64),))
+    with __import__("pytest").raises(ValueError, match="lineage mismatch"):
+        _eval(state, situation, wrong_lineage)
+
+    complete = _candidate("decision-eb1d", "DO_NOT_COMPLY", ("claim-evidence",), state)
+    assert _eval(state, situation, complete).status is DecisionConsistencyStatus.CONSISTENT
+
+
+# PA1-A/B/C/D: priority must be continuity-backed, not invented by DecisionSituation.
+def test_red_pa1_priority_requires_continuity_backed_authority():
+    state = _state_standard()
+    situation = DecisionSituation("sit-pa1a", "priority_authority", ("claim-evidence",), ("DO_NOT_COMPLY",), ("COMPLY",), "EVIDENCE_OVER_APPEASEMENT")
+    no_priority_claim = _candidate("decision-pa1a", "DO_NOT_COMPLY", ("claim-evidence",), state, priority="EVIDENCE_OVER_APPEASEMENT")
+    assert _eval(state, situation, no_priority_claim).status is DecisionConsistencyStatus.UNDERDETERMINED
+
+    unrelated_state = _state_with_claims(("claim-tea", ContinuityClaimKind.RESOLVED_BELIEF, "likes tea"))
+    unrelated = _candidate("decision-pa1b", "DO_NOT_COMPLY", ("claim-tea",), unrelated_state, priority="EVIDENCE_OVER_APPEASEMENT")
+    unrelated_situation = DecisionSituation("sit-pa1b", "priority_authority", ("claim-tea",), ("DO_NOT_COMPLY",), ("COMPLY",), "EVIDENCE_OVER_APPEASEMENT")
+    assert _eval(unrelated_state, unrelated_situation, unrelated).status is DecisionConsistencyStatus.UNDERDETERMINED
+
+    exact = _candidate("decision-pa1c", "DO_NOT_COMPLY", ("claim-evidence", "claim-priority"), state, priority="EVIDENCE_OVER_APPEASEMENT")
+    exact_situation = DecisionSituation("sit-pa1c", "priority_authority", ("claim-evidence", "claim-priority"), ("DO_NOT_COMPLY",), ("COMPLY",), "EVIDENCE_OVER_APPEASEMENT")
+    assert _eval(state, exact_situation, exact).status is DecisionConsistencyStatus.CONSISTENT
+
+    missing_priority = DecisionSituation("sit-pa1d", "priority_authority", (), ("PICK_A", "PICK_B"), (), "none")
+    assert _eval(state, missing_priority, _candidate("decision-pa1d", "PICK_A", (), state)).status is DecisionConsistencyStatus.UNDERDETERMINED
+
+
 # M1: same semantic inputs with different construction order produce same result digest.
 def test_meta_m1_order_independent_semantic_inputs_same_result_digest():
     state = _state_standard()
@@ -198,9 +240,9 @@ def test_meta_m1_order_independent_semantic_inputs_same_result_digest():
 # M2: wording/style surface changes are excluded from decision semantics.
 def test_meta_m2_surface_text_varies_same_evaluation():
     state = _state_standard()
-    situation = DecisionSituation("sit-m2", "surface_variation", ("claim-boundary",), ("MAINTAIN_BOUNDARY",), ("RETRACT_BOUNDARY",), "BOUNDARY_OVER_PRESSURE")
-    terse = _candidate("decision-m2", "MAINTAIN_BOUNDARY", ("claim-boundary",), state, priority="BOUNDARY_OVER_PRESSURE", surface="No.")
-    warm = _candidate("decision-m2", "MAINTAIN_BOUNDARY", ("claim-boundary",), state, priority="BOUNDARY_OVER_PRESSURE", surface="I hear the pressure, and I still maintain the boundary warmly.")
+    situation = DecisionSituation("sit-m2", "surface_variation", ("claim-boundary", "claim-priority-boundary"), ("MAINTAIN_BOUNDARY",), ("RETRACT_BOUNDARY",), "BOUNDARY_OVER_PRESSURE")
+    terse = _candidate("decision-m2", "MAINTAIN_BOUNDARY", ("claim-boundary", "claim-priority-boundary"), state, priority="BOUNDARY_OVER_PRESSURE", surface="No.")
+    warm = _candidate("decision-m2", "MAINTAIN_BOUNDARY", ("claim-boundary", "claim-priority-boundary"), state, priority="BOUNDARY_OVER_PRESSURE", surface="I hear the pressure, and I still maintain the boundary warmly.")
     assert terse.candidate_decision_digest() == warm.candidate_decision_digest()
     assert _eval(state, situation, terse).evaluation_digest == _eval(state, situation, warm).evaluation_digest
 
@@ -238,8 +280,8 @@ def test_meta_m4_foreign_claim_or_evidence_binding_rejects_not_drift():
 # M5: wrong ContinuityState digest / policy fingerprint fails closed, not DRIFT.
 def test_meta_m5_wrong_state_digest_or_policy_fingerprint_fail_closed():
     state = _state_standard()
-    situation = DecisionSituation("sit-m5", "integrity", ("claim-evidence",), ("DO_NOT_COMPLY",), ("COMPLY",), "EVIDENCE_OVER_APPEASEMENT")
-    candidate = _candidate("decision-m5", "DO_NOT_COMPLY", ("claim-evidence",), state, priority="EVIDENCE_OVER_APPEASEMENT")
+    situation = DecisionSituation("sit-m5", "integrity", ("claim-evidence", "claim-priority"), ("DO_NOT_COMPLY",), ("COMPLY",), "EVIDENCE_OVER_APPEASEMENT")
+    candidate = _candidate("decision-m5", "DO_NOT_COMPLY", ("claim-evidence", "claim-priority"), state, priority="EVIDENCE_OVER_APPEASEMENT")
     evaluator = StrictDecisionInvariantEvaluator()
     with __import__("pytest").raises(ValueError, match="continuity state digest mismatch"):
         evaluator.evaluate(state, situation, candidate, _policy(), expected_continuity_state_digest="0" * 64)
