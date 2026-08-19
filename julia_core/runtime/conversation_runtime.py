@@ -400,7 +400,7 @@ class ConversationRuntime:
         if session is None:
             return []
         return [
-            {"role": m.role, "content": m.content}
+            m.to_dict()
             for m in session.messages
             if m.role in ("user", "assistant") and m.status == "completed"
         ]

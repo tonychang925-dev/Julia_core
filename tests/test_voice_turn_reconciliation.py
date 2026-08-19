@@ -273,3 +273,26 @@ def test_modality_is_voice_by_default():
     history = crt.get_canonical_history(conv.conversation_id)
     for m in history:
         assert m["modality"] == "voice"
+
+
+def test_canonical_history_full_fidelity_contract():
+    crt = get_conversation_runtime()
+    conv = crt.create_conversation("Full Fidelity")
+
+    crt.append_external_turns(
+        conv.conversation_id,
+        [_make_turn("voice:vws:0001", "Voice message", "Voice reply")],
+    )
+
+    history = crt.get_canonical_history(conv.conversation_id)
+    assert len(history) == 2  # user + assistant
+
+    user_msg = history[0]
+    assert user_msg["role"] == "user"
+    assert user_msg["content"] == "Voice message"
+    assert user_msg["modality"] == "voice"
+    assert user_msg["turn_id"] == "voice:vws:0001"
+    assert user_msg["status"] == "completed"
+
+    # completed-only invariant
+    assert all(m["status"] == "completed" for m in history)
