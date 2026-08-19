@@ -128,8 +128,9 @@ def test_restart_idempotency_same_conversation(tmp_path):
 # ── fail-closed: corruption never treated as empty ─────────────────────────
 def test_corrupt_idempotency_state_fail_closed(svc):
     svc._idempotency.corrupt = True
-    with pytest.raises(RuntimeError):
+    with pytest.raises(CreateFailedError) as exc:
         svc.create(idempotency_key="req-x")
+    assert isinstance(exc.value.__cause__, RuntimeError)
     # zero second canonical conversation manufactured
     assert len(svc.list()) == 0
 
