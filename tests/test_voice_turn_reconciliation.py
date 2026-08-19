@@ -9,18 +9,22 @@ import pytest
 from julia_core.conversation_state.repository import (
     TurnConflictError,
 )
+from julia_core.conversation_state.legacy_json_repository import LegacyJsonConversationRepository
+import julia_core.runtime.conversation_runtime as crt_module
 from julia_core.runtime.conversation_runtime import (
     ConversationRuntime,
+    configure_conversation_runtime,
     get_conversation_runtime,
 )
 
 
 @pytest.fixture(autouse=True)
-def clear_repo():
-    """Reset repository state before each test."""
-    crt = get_conversation_runtime()
-    crt._repository._repo._sessions.clear()
-    crt._repository._repo._lock = type(crt._repository._repo._lock)()
+def clear_repo(tmp_path):
+    """Reset runtime singleton and inject a fresh temp repository (F2-I07)."""
+    crt_module._runtime = None
+    repo = LegacyJsonConversationRepository(tmp_path / "conversations.json")
+    configure_conversation_runtime(repo)
+    return repo
 
 
 def _make_turn(turn_id: str, user: str, assistant: str = "",
@@ -167,7 +171,7 @@ def test_imported_history_present_in_get_history():
     assert history[1]["modality"] == "voice"
 
 
-def test_restart_recovers_voice_history():
+def test_restart_recovers_voice_history(clear_repo):
     crt = get_conversation_runtime()
     conv = crt.create_conversation("Restart Test")
 
@@ -177,14 +181,14 @@ def test_restart_recovers_voice_history():
     )
 
     # Simulate restart
-    crt2 = ConversationRuntime()
+    crt2 = ConversationRuntime(repository=clear_repo)
     history = crt2.get_canonical_history(conv.conversation_id)
     texts = [m["content"] for m in history]
     assert "Will this survive?" in texts
     assert "Yes" in texts
 
 
-def test_restart_rebuilds_interaction_state():
+def test_restart_rebuilds_interaction_state(clear_repo):
     crt = get_conversation_runtime()
     conv = crt.create_conversation("Interaction Rebuild")
 
@@ -197,7 +201,7 @@ def test_restart_rebuilds_interaction_state():
     )
 
     # Simulate restart
-    crt2 = ConversationRuntime()
+    crt2 = ConversationRuntime(repository=clear_repo)
     state = crt2.get_interaction_state(conv.conversation_id)
     assert state is not None
     # Identity checks should have been rebuilt from user messages

@@ -12,6 +12,8 @@ Hardening:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 import json as _json
 import logging
 import threading
@@ -22,7 +24,6 @@ from typing import Any, Callable
 
 from julia_core.conversation_state.models import ConversationMessage, ConversationSession
 from julia_core.conversation_state.repository_protocol import ConversationRepository
-from julia_core.conversation_state.legacy_json_repository import LegacyJsonConversationRepository
 
 logger = logging.getLogger("julia.conversation_runtime")
 
@@ -76,6 +77,50 @@ class TurnStreamingContext:
     completed_content: str = ""  # Cached content if already_completed
 
 
+# ── S1D Governed Cutover types ────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class CutoverActivationPermit:
+    """One-shot activation permit (typed immutable, no filesystem path)."""
+    cutover_id: str
+    freeze_epoch: str
+    source_binding_epoch: int
+    candidate_binding_id: str
+    reconciliation_evidence_id: str
+    freeze_boundary_id: str
+    verification_digest: str
+    issued_at: str
+
+
+@dataclass(frozen=True)
+class RuntimeFreezeAck:
+    cutover_id: str
+    binding_epoch: int
+    write_acceptance: str = "DISABLED"
+    frozen_repository: str = ""
+
+
+@dataclass(frozen=True)
+class RepositoryActivationRecord:
+    cutover_id: str
+    source_repository: str
+    activated_repository: str
+    new_binding_epoch: int
+    commit_receipt: str = ""
+
+
+class CutoverConflictError(Exception):
+    """Governed cutover state violation (AT-CUT fail-closed)."""
+
+
+# Core cutover phases (S1D §1)
+CUTOVER_ACTIVE = "ACTIVE"
+CUTOVER_FROZEN = "FROZEN"
+CUTOVER_VERIFIED = "VERIFIED"
+CUTOVER_PENDING_COMMIT = "ACTIVATED_PENDING_COMMIT"
+CUTOVER_RECOVERY_HOLD = "RECOVERY_HOLD"
+
+
 # ── Runtime ──────────────────────────────────────────────────────────────────
 
 class ConversationRuntime:
@@ -97,14 +142,169 @@ class ConversationRuntime:
     """
 
     def __init__(self, repository: ConversationRepository | None = None):
-        self._repository: ConversationRepository = (
-            repository or LegacyJsonConversationRepository("data/conversations.json")
-        )
+        # F2-I02 / F2-I07: Core receives a repository dependency only. It
+        # MUST NOT construct a physical repository, hardcode a filesystem
+        # path, or know JULIA_PRIVATE_DATA_ROOT. The Assistant composition
+        # root injects the bound repository via configure_conversation_runtime.
+        self._repository: ConversationRepository | None = repository
         self._locks: dict[str, threading.Lock] = {}
         self._locks_lock = threading.Lock()
         self._interaction_states: dict[str, "ConversationInteractionState"] = {}
+        # S1D governed cutover state (Core-owned semantic gate + write barrier)
+        self._cutover_phase: str = CUTOVER_ACTIVE
+        self._active_cutover_id: str | None = None
+        self._binding_epoch: int = 0
+        self._binding_lock = threading.Lock()
+        self._writer_cond = threading.Condition(self._binding_lock)
+        self._active_writers: int = 0
+        self._source_repository: ConversationRepository | None = None
+        self._registered_candidate: ConversationRepository | None = None
+        self._registered_digest: str | None = None
+        self._registered_boundary: str | None = None
+        self._issued_permit: CutoverActivationPermit | None = None
+        self._pending_commit_receipt: str | None = None
         from julia_core.runtime.relationship import ConversationInteractionState as CIS
         self._CIS = CIS
+
+    @property
+    def repository(self) -> ConversationRepository:
+        if self._repository is None:
+            raise RuntimeError(
+                "ConversationRuntime has no bound repository; the Assistant "
+                "composition root must inject one (F2-I07)"
+            )
+        return self._repository
+
+    # ── S1D governed cutover surface (Core-owned semantic gate) ──────────
+
+    def _assert_canonical_write_allowed(self) -> None:
+        with self._binding_lock:
+            if self._cutover_phase != CUTOVER_ACTIVE:
+                raise CutoverConflictError(
+                    f"canonical write acceptance DISABLED (cutover phase {self._cutover_phase})"
+                )
+
+    def _begin_canonical_write(self) -> None:
+        with self._binding_lock:
+            if self._cutover_phase != CUTOVER_ACTIVE:
+                raise CutoverConflictError(
+                    f"canonical write acceptance DISABLED (cutover phase {self._cutover_phase})"
+                )
+            self._active_writers += 1
+
+    def _end_canonical_write(self) -> None:
+        with self._binding_lock:
+            self._active_writers -= 1
+            if self._active_writers == 0:
+                self._writer_cond.notify_all()
+
+    @contextmanager
+    def _canonical_write(self):
+        """Write barrier: register an active writer; FREEZE drains it before
+        returning (no in-flight canonical write survives FREEZE)."""
+        self._begin_canonical_write()
+        try:
+            yield
+        finally:
+            self._end_canonical_write()
+
+    def freeze_repository_cutover(
+        self, *, cutover_id: str, expected_active_repository: ConversationRepository,
+    ) -> RuntimeFreezeAck:
+        """FREEZE: disable new writers and drain in-flight writers atomically;
+        the repository stays the expected active legacy (S1D §1)."""
+        with self._binding_lock:
+            if self._repository is not expected_active_repository:
+                raise CutoverConflictError("expected active repository mismatch")
+            if self._cutover_phase != CUTOVER_ACTIVE:
+                raise CutoverConflictError("conflicting cutover already active")
+            self._cutover_phase = CUTOVER_FROZEN  # disable new writers
+            while self._active_writers > 0:  # drain in-flight writers
+                self._writer_cond.wait()
+            self._active_cutover_id = cutover_id
+            self._source_repository = expected_active_repository
+            return RuntimeFreezeAck(
+                cutover_id=cutover_id,
+                binding_epoch=self._binding_epoch,
+                write_acceptance="DISABLED",
+                frozen_repository=type(expected_active_repository).__name__,
+            )
+
+    def authorize_verified(
+        self, *, cutover_id: str, candidate_repository: ConversationRepository,
+        verification_digest: str, freeze_boundary_id: str,
+        reconciliation_evidence_id: str,
+    ) -> CutoverActivationPermit:
+        """Assistant authorizes VERIFIED after the 7 CUTOVER_ALLOWED conditions.
+        Core registers candidate + evidence digest and issues the one-shot
+        activation permit (a caller cannot fabricate it)."""
+        with self._binding_lock:
+            if self._active_cutover_id != cutover_id:
+                raise CutoverConflictError("no matching frozen cutover")
+            if self._cutover_phase != CUTOVER_FROZEN:
+                raise CutoverConflictError("cutover not FROZEN")
+            if candidate_repository is self._repository:
+                raise CutoverConflictError("candidate must differ from current")
+            self._registered_candidate = candidate_repository
+            self._registered_digest = verification_digest
+            self._registered_boundary = freeze_boundary_id
+            self._cutover_phase = CUTOVER_VERIFIED
+            self._issued_permit = CutoverActivationPermit(
+                cutover_id=cutover_id,
+                freeze_epoch="",
+                source_binding_epoch=self._binding_epoch,
+                candidate_binding_id=type(candidate_repository).__name__,
+                reconciliation_evidence_id=reconciliation_evidence_id,
+                freeze_boundary_id=freeze_boundary_id,
+                verification_digest=verification_digest,
+                issued_at=_time.strftime("%Y-%m-%dT%H:%M:%S"),
+            )
+            return self._issued_permit
+
+    def activate_repository_cutover(
+        self, *, cutover_id: str, candidate_repository: ConversationRepository,
+        activation_permit: CutoverActivationPermit,
+    ) -> RepositoryActivationRecord:
+        """ACTIVATE: one atomic authority switch, gated by the Core-issued
+        permit (phase VERIFIED). Writes stay DISABLED after the switch."""
+        with self._binding_lock:
+            if self._cutover_phase != CUTOVER_VERIFIED:
+                raise CutoverConflictError("cutover not VERIFIED; authorize_verified required")
+            if self._active_cutover_id != cutover_id:
+                raise CutoverConflictError("no matching frozen cutover")
+            if candidate_repository is not self._registered_candidate:
+                raise CutoverConflictError("candidate mismatch against registered verification")
+            if activation_permit is not self._issued_permit:
+                raise CutoverConflictError("activation permit not issued for this cutover")
+            self._repository = candidate_repository
+            self._binding_epoch += 1
+            self._cutover_phase = CUTOVER_PENDING_COMMIT
+            receipt = f"commit_{_time.time_ns()}"
+            self._pending_commit_receipt = receipt
+            return RepositoryActivationRecord(
+                cutover_id=cutover_id,
+                source_repository=type(self._source_repository).__name__,
+                activated_repository=type(candidate_repository).__name__,
+                new_binding_epoch=self._binding_epoch,
+                commit_receipt=receipt,
+            )
+
+    def enable_canonical_writes(self, *, commit_receipt: str) -> None:
+        """Re-enable canonical writes only with a valid activation commit
+        receipt (crash-safe: cannot be skipped or forged)."""
+        with self._binding_lock:
+            if self._cutover_phase != CUTOVER_PENDING_COMMIT:
+                raise CutoverConflictError("activation not pending commit")
+            if commit_receipt != self._pending_commit_receipt:
+                raise CutoverConflictError("invalid activation commit receipt")
+            self._cutover_phase = CUTOVER_ACTIVE
+
+    def enter_recovery_hold(self) -> None:
+        """RECOVERY_HOLD: block canonical writes until governed recovery
+        completes (journal shows an uncommitted/ambiguous activation)."""
+        with self._binding_lock:
+            if self._cutover_phase == CUTOVER_ACTIVE:
+                self._cutover_phase = CUTOVER_RECOVERY_HOLD
 
     # ── Public API ───────────────────────────────────────────────────────
 
@@ -112,7 +312,7 @@ class ConversationRuntime:
         """Get conversation handle. With create=True, explicitly create if absent.
         CM-FAILCLOSED F4: resume/bind/turn paths must NOT auto-create.
         """
-        session = self._repository.get(conversation_id)
+        session = self.repository.get(conversation_id)
         if session is None:
             if not create:
                 raise ValueError(f"Conversation not found: {conversation_id}")
@@ -127,7 +327,7 @@ class ConversationRuntime:
         """
         if conversation_id not in self._interaction_states:
             state = self._CIS()
-            session = self._repository.get(conversation_id)
+            session = self.repository.get(conversation_id)
             if session:
                 for m in session.messages:
                     if m.role == "user" and m.status == "completed":
@@ -158,10 +358,11 @@ class ConversationRuntime:
             )
 
             try:
-                appended, skipped, last_msg_id = self._repository.append_external_turns_atomic(
-                    conversation_id, turns,
-                    base_last_message_id=base_last_message_id,
-                )
+                with self._canonical_write():
+                    appended, skipped, last_msg_id = self.repository.append_external_turns_atomic(
+                        conversation_id, turns,
+                        base_last_message_id=base_last_message_id,
+                    )
             except (TurnConflictError, ConversationAdvancedError,
                      ConversationNotFoundError, InvalidTurnStateError):
                 raise
@@ -169,13 +370,13 @@ class ConversationRuntime:
             # Update interaction cache from newly appended user messages
             if appended and conversation_id in self._interaction_states:
                 state = self._interaction_states[conversation_id]
-                session = self._repository.get(conversation_id)
+                session = self.repository.get(conversation_id)
                 if session:
                     for m in session.messages:
                         if m.turn_id in appended and m.role == "user" and m.status == "completed":
                             state.update(m.content)
 
-            session = self._repository.get(conversation_id)
+            session = self.repository.get(conversation_id)
             return {
                 "conversation_id": conversation_id,
                 "appended_turn_ids": appended,
@@ -194,7 +395,7 @@ class ConversationRuntime:
 
         This replaces the old get_history(max_messages=40) cognitive cap.
         """
-        session = self._repository.get(conversation_id)
+        session = self.repository.get(conversation_id)
         if session is None:
             return []
         return [
@@ -231,7 +432,7 @@ class ConversationRuntime:
             )
 
     def restore(self, conversation_id: str) -> ConversationHandle | None:
-        session = self._repository.get(conversation_id)
+        session = self.repository.get(conversation_id)
         if session is None:
             return None
         return self._to_handle(session)
@@ -268,7 +469,7 @@ class ConversationRuntime:
                         completed_content=existing.assistant_content,
                     )
 
-            session = self._repository.get(conversation_id)
+            session = self.repository.get(conversation_id)
             if session is None:
                 raise ValueError(f"Conversation not found for turn: {conversation_id}")
 
@@ -354,16 +555,17 @@ class ConversationRuntime:
         lock = self._get_lock(conversation_id)
         with lock:
             try:
-                imported, skipped, last_id = self._repository.import_messages_atomic(
-                    conversation_id, messages,
-                )
+                with self._canonical_write():
+                    imported, skipped, last_id = self.repository.import_messages_atomic(
+                        conversation_id, messages,
+                    )
             except (TurnConflictError, ConversationNotFoundError, InvalidTurnStateError):
                 raise
 
             # Invalidate interaction cache — will rebuild from merged history
             self._interaction_states.pop(conversation_id, None)
 
-            session = self._repository.get(conversation_id)
+            session = self.repository.get(conversation_id)
             return {
                 "conversation_id": conversation_id,
                 "imported_count": imported,
@@ -373,14 +575,15 @@ class ConversationRuntime:
             }
 
     def list_conversations(self) -> list[ConversationHandle]:
-        return [self._to_handle(s) for s in self._repository.list_all()]
+        return [self._to_handle(s) for s in self.repository.list_all()]
 
     def delete_conversation(self, conversation_id: str) -> bool:
         """Delete conversation, history, interaction state, and lock."""
         self._interaction_states.pop(conversation_id, None)
         with self._locks_lock:
             self._locks.pop(conversation_id, None)
-        return self._repository.delete(conversation_id)
+        with self._canonical_write():
+            return self.repository.delete(conversation_id)
 
     # ── CORE-CM1: Management API ─────────────────────────────────────────
 
@@ -392,34 +595,36 @@ class ConversationRuntime:
         existing conversation. Conversation exists independently of any message.
         """
         cid = conversation_id or f"conv_{_time.strftime('%Y%m%d_%H%M%S')}_{id(self)}"
-        self._repository.create_with_id(cid, title)
+        with self._canonical_write():
+            self.repository.create_with_id(cid, title)
         self._interaction_states.pop(cid, None)
-        return self._to_handle(self._repository.get(cid))
+        return self._to_handle(self.repository.get(cid))
 
     def get_conversation(self, conversation_id: str) -> dict | None:
         """Get full conversation detail including messages."""
-        session = self._repository.get(conversation_id)
+        session = self.repository.get(conversation_id)
         if session is None:
             return None
         return session.detail()
 
     def get_messages(self, conversation_id: str, max_messages: int = 100) -> list[dict]:
         """Get messages as dicts with full metadata (message_id, turn_id, modality, status)."""
-        session = self._repository.get(conversation_id)
+        session = self.repository.get(conversation_id)
         if session is None:
             return []
         return [m.to_dict() for m in session.messages[-max_messages:]]
 
     def rename_conversation(self, conversation_id: str, title: str) -> ConversationHandle | None:
         """Rename a conversation. Title persists across restarts."""
-        session = self._repository.update_title(conversation_id, title)
+        with self._canonical_write():
+            session = self.repository.update_title(conversation_id, title)
         if session is None:
             return None
         return self._to_handle(session)
 
     def search_conversations(self, query: str) -> list[ConversationHandle]:
         """Search conversations by title or message content."""
-        sessions = self._repository.search(query)
+        sessions = self.repository.search(query)
         return [self._to_handle(s) for s in sessions]
 
     # ── Legacy Migration ──────────────────────────────────────────────────
@@ -438,7 +643,7 @@ class ConversationRuntime:
 
         migrated = 0
         for sid, meta in sessions.items():
-            if self._repository.get(sid) is not None:
+            if self.repository.get(sid) is not None:
                 continue
             self._create_conversation(sid)
             for m in meta.get("messages", []):
@@ -447,7 +652,8 @@ class ConversationRuntime:
                 if role in ("user", "assistant") and content.strip():
                     self._add_message(sid, role=role, content=content, modality="text", status="completed")
             if meta.get("title"):
-                self._repository.update_title(sid, str(meta["title"]))
+                with self._canonical_write():
+                    self.repository.update_title(sid, str(meta["title"]))
             migrated += 1
 
         if migrated > 0:
@@ -504,7 +710,7 @@ class ConversationRuntime:
                 )
 
         # Ensure conversation exists
-        if self._repository.get(conversation_id) is None:
+        if self.repository.get(conversation_id) is None:
             self._create_conversation(conversation_id)
 
         now = _time.strftime("%Y-%m-%dT%H:%M:%S")
@@ -600,7 +806,7 @@ class ConversationRuntime:
         Finds any turn by turn_id with a user message.
         Returns TurnResult with _user_content set for idempotency comparison.
         """
-        msgs = self._repository.find_turn(conversation_id, turn_id)
+        msgs = self.repository.find_turn(conversation_id, turn_id)
         user_msg = None
         assistant_msg = None
         for m in msgs:
@@ -627,18 +833,21 @@ class ConversationRuntime:
         self, conversation_id: str, *, role: str, content: str,
         turn_id: str = "", modality: str = "text", status: str = "completed",
     ) -> ConversationSession | None:
-        return self._repository.add_message(
-            conversation_id, role=role, content=content,
-            turn_id=turn_id, modality=modality, status=status,
-        )
+        with self._canonical_write():
+            return self.repository.add_message(
+                conversation_id, role=role, content=content,
+                turn_id=turn_id, modality=modality, status=status,
+            )
 
     def _update_message_status(self, message_id: str, status: str) -> None:
         """Update a persisted message's status via public repo API."""
         if message_id:
-            self._repository.update_message_status(message_id, status)
+            with self._canonical_write():
+                self.repository.update_message_status(message_id, status)
 
     def _create_conversation(self, conversation_id: str) -> ConversationSession:
-        return self._repository.create_with_id(conversation_id, "New Conversation")
+        with self._canonical_write():
+            return self.repository.create_with_id(conversation_id, "New Conversation")
 
     def _to_handle(self, session: ConversationSession) -> ConversationHandle:
         return ConversationHandle(
@@ -659,15 +868,45 @@ class ConversationBusyError(Exception):
         super().__init__(f"Conversation {conversation_id} is busy with another turn")
 
 
+class ConversationCutoverRequired(Exception):
+    """F2-I11: replacing an active canonical adapter is an authority cutover."""
+
+    def __init__(self):
+        super().__init__(
+            "PERSISTENCE_CUTOVER_REQUIRED: active repository binding is "
+            "immutable; replacement requires a governed FREEZE→RECONCILE→"
+            "VERIFY→ACTIVATE→RETIRE sequence"
+        )
+
+
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
 _runtime: ConversationRuntime | None = None
+_runtime_lock = threading.Lock()
+
+
+def configure_conversation_runtime(repository: ConversationRepository) -> ConversationRuntime:
+    """F2-I01/I07: the Assistant composition root injects the bound physical
+    repository. First configuration establishes the binding epoch. Re-binding
+    the SAME repository is idempotent; re-binding a DIFFERENT repository is a
+    governed adapter cutover and MUST raise (F2-I10/I11 / F2A-R3)."""
+    global _runtime
+    with _runtime_lock:
+        if _runtime is not None:
+            if _runtime.repository is repository:
+                return _runtime  # idempotent same binding
+            raise ConversationCutoverRequired()
+        _runtime = ConversationRuntime(repository=repository)
+        return _runtime
 
 
 def get_conversation_runtime() -> ConversationRuntime:
     global _runtime
     if _runtime is None:
-        _runtime = ConversationRuntime()
+        raise RuntimeError(
+            "ConversationRuntime is not configured; the Assistant composition "
+            "root must call configure_conversation_runtime(repository) first (F2-I07)"
+        )
     return _runtime
 
 
@@ -676,5 +915,16 @@ __all__ = [
     "ConversationHandle",
     "TurnResult",
     "ConversationBusyError",
+    "ConversationCutoverRequired",
+    "CutoverActivationPermit",
+    "RuntimeFreezeAck",
+    "RepositoryActivationRecord",
+    "CutoverConflictError",
+    "CUTOVER_ACTIVE",
+    "CUTOVER_FROZEN",
+    "CUTOVER_VERIFIED",
+    "CUTOVER_PENDING_COMMIT",
+    "CUTOVER_RECOVERY_HOLD",
+    "configure_conversation_runtime",
     "get_conversation_runtime",
 ]

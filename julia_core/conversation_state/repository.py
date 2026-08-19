@@ -37,6 +37,11 @@ class InvalidTurnStateError(ValueError):
     pass
 
 
+class RepositoryReadOnlyError(RuntimeError):
+    """Repository has been retired to read-only; canonical writes are rejected."""
+    pass
+
+
 class SessionRepository:
     """Thread-safe in-memory store with atomic JSON persistence.
 
@@ -47,6 +52,7 @@ class SessionRepository:
         self._filepath = Path(filepath)
         self._sessions: dict[str, ConversationSession] = {}
         self._lock = threading.RLock()
+        self._read_only = False
         self._load()
 
     def _load(self) -> None:
@@ -70,6 +76,8 @@ class SessionRepository:
 
     def _save(self) -> None:
         """Atomic write: temp file → fsync → os.replace. Must hold _lock."""
+        if self._read_only:
+            raise RepositoryReadOnlyError("repository retired; read-only")
         self._filepath.parent.mkdir(parents=True, exist_ok=True)
         data = [s.detail() for s in self.list_all()]
         tmp = self._filepath.with_suffix(".json.tmp")
@@ -78,6 +86,16 @@ class SessionRepository:
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp, self._filepath)
+
+    def set_read_only(self) -> None:
+        """RETIRE: mark this repository read-only. Canonical writes rejected."""
+        with self._lock:
+            self._read_only = True
+
+    def _assert_writable(self) -> None:
+        """Fail BEFORE any in-memory mutation (true read-only: zero mutation)."""
+        if self._read_only:
+            raise RepositoryReadOnlyError("repository retired; read-only")
 
     # ── Public API (all locked) ──────────────────────────────────────────
 
@@ -95,6 +113,7 @@ class SessionRepository:
 
     def create(self, title: str = "New Conversation") -> ConversationSession:
         with self._lock:
+            self._assert_writable()
             session = ConversationSession(title=title)
             self._sessions[session.id] = session
             self._save()
@@ -106,6 +125,7 @@ class SessionRepository:
             existing = self._sessions.get(session_id)
             if existing is not None:
                 return existing
+            self._assert_writable()
             session = ConversationSession(id=session_id, title=title)
             self._sessions[session_id] = session
             self._save()
@@ -125,6 +145,7 @@ class SessionRepository:
             session = self._sessions.get(session_id)
             if not session:
                 return None
+            self._assert_writable()
             msg = ConversationMessage(
                 conversation_id=session_id,
                 turn_id=turn_id,
@@ -144,6 +165,7 @@ class SessionRepository:
             session = self._sessions.get(session_id)
             if not session:
                 return None
+            self._assert_writable()
             session.title = title
             session.touch()
             self._save()
@@ -155,6 +177,7 @@ class SessionRepository:
             for session in self._sessions.values():
                 for m in session.messages:
                     if m.message_id == message_id:
+                        self._assert_writable()
                         m.status = status
                         self._save()
                         return True
@@ -188,6 +211,7 @@ class SessionRepository:
             session = self._sessions.get(session_id)
             if session is None:
                 raise ConversationNotFoundError(f"Conversation not found: {session_id}")
+            self._assert_writable()
 
             # Full snapshot for rollback
             saved_messages = list(session.messages)
@@ -365,6 +389,7 @@ class SessionRepository:
             session = self._sessions.get(session_id)
             if session is None:
                 raise ConversationNotFoundError(f"Conversation not found: {session_id}")
+            self._assert_writable()
 
             # Phase 1: validate ALL messages — every field required
             seen_in_batch: set[str] = set()
@@ -505,6 +530,7 @@ class SessionRepository:
         with self._lock:
             if session_id not in self._sessions:
                 return False
+            self._assert_writable()
             del self._sessions[session_id]
             self._save()
             return True

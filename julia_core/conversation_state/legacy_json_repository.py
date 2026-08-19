@@ -31,6 +31,10 @@ class LegacyJsonConversationRepository:
     def __init__(self, filepath: str | Path = "data/conversations.json"):
         self._repo = SessionRepository(filepath)
 
+    def set_read_only(self) -> None:
+        """RETIRE: mark the underlying legacy store read-only (physical)."""
+        self._repo.set_read_only()
+
     # ── Conversation Lifecycle ──────────────────────────────────────────
 
     def get(self, session_id: str) -> ConversationSession | None:
