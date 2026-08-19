@@ -18,6 +18,7 @@ import json as _json
 import logging
 import threading
 import time as _time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -587,6 +588,12 @@ class ConversationRuntime:
 
     # ── CORE-CM1: Management API ─────────────────────────────────────────
 
+    def allocate_conversation_id(self) -> str:
+        """Allocate a fresh canonical conversation_id (Core is the identity
+        allocator). Allocation ≠ existence: a conversation does not exist until
+        create_conversation() durably creates it."""
+        return f"conv_{uuid.uuid4().hex}"
+
     def create_conversation(self, conversation_id: str = "", title: str = "New Conversation") -> ConversationHandle:
         """R1-D Core-first create: durable canonical conversation before client bind.
 
@@ -594,7 +601,7 @@ class ConversationRuntime:
         and survives Core restart. Idempotent: same conversation_id returns the
         existing conversation. Conversation exists independently of any message.
         """
-        cid = conversation_id or f"conv_{_time.strftime('%Y%m%d_%H%M%S')}_{id(self)}"
+        cid = conversation_id or self.allocate_conversation_id()
         with self._canonical_write():
             self.repository.create_with_id(cid, title)
         self._interaction_states.pop(cid, None)
