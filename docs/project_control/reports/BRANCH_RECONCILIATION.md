@@ -12,7 +12,7 @@
 
 | Branch | HEAD | Purpose | frozen? | superseded? | unique production code? | merge target | retire? |
 |---|---|---|---|---|---|---|---|
-| `cm-r0-fix` | `8e871ba` | Julia_core repository authority | NO | NO | YES (authority manifests/docs) | — | NO |
+| `cm-r0-fix` | `ea32072` | Julia_core repository authority | NO | NO | YES (authority manifests/docs) | — | NO |
 | `main` | `5bc33ba` | legacy default | NO | YES (by `cm-r0-fix`) | NO | `cm-r0-fix` | YES |
 | `wave0-closeout` | `c5f0fbd` | Wave0 authority & contracts closure | YES | NO | YES (W0-1..W0-6 PASS record) | — | NO |
 | `sto-d0` / `sto-d0-integrate` / `sto-f1` / `sto-f1-integrate` / `sto-f2` / `sto-f2-integrate` | (various) | Wave0 subtasks | YES | YES (folded into `wave0-closeout`) | NO | `wave0-closeout` | YES |

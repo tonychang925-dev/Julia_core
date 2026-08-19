@@ -37,6 +37,7 @@
 | `DiaryRepository` Port | `DIARY-IMPL-DIA-2A` | Core contract | reuse | `REUSE` |
 | Diary Persistence | `DIARY-IMPL-DIA-2B` | Assistant adapter | keep | `ADAPTER` |
 | Trigger Runtime | `STORAGE-DIA-3` | Assistant | implement adapter only | `ADAPTER` |
+| Reflection Context Assembly | `STORAGE-DIA-4` | Core (`CONT-DIA-4`) | adapter / orchestration only | `ADAPTER` |
 | Reflection Generation | `STORAGE-DIA-5` | product (LLM-authored) | product-only | `PRODUCT-ONLY` |
 | Reflection Governance | `STORAGE-DIA-6` | product orchestration | product-only (consumes CONT-DIA) | `PRODUCT-ONLY` |
 | Diary Retrieval | `STORAGE-DIA-7` | product (Context OS source) | adapter onto Context OS | `ADAPTER` |
@@ -52,13 +53,19 @@
 - **STORAGE-DIA-3 may only do:** timer / event / manual signal → **adapter** → CONT-DIA-3 canonical objects.
 - **Must NOT reimplement:** opportunity identity, admission semantics, causal identity, trigger truth.
 
-### 2.2 Diary Persistence (DIARY-IMPL-DIA-2A vs 2B)
+### 2.2 Reflection Context (CONT-DIA-4 vs STORAGE-DIA-4)
+
+- **CONT-DIA-4 owns (frozen):** `ReflectionContext` identity/schema, canonical assembly semantics, serialization/invariants.
+- **STORAGE-DIA-4 may:** gather product inputs, call Core assembly, bind runtime dependencies.
+- **STORAGE-DIA-4 must NOT:** redefine `ReflectionContext`, create alternate context identity, duplicate assembly semantics.
+
+### 2.3 Diary Persistence (DIARY-IMPL-DIA-2A vs 2B)
 
 - **Julia_core owns:** `DiaryRepository` Port — interface + semantic contract only.
 - **Julia-AI-Assistant owns:** concrete persistence adapter (JSON/Markdown/SQLite, `PRIVATE_DATA_ROOT`, product paths).
 - **Forbidden in Core:** writing JSON/Markdown/SQLite, resolving `PRIVATE_DATA_ROOT`, holding product-specific paths.
 
-### 2.3 Conversation (Wave1/Wave2)
+### 2.4 Conversation (Wave1/Wave2)
 
 - **Wave1** owns canonical conversation storage (durable append, idempotency, segment rotation).
 - **Wave2** owns product conversation management (CRUD, pagination, rename, search).
@@ -75,6 +82,7 @@ CONT-DIA-3..8   → consumed via import/adapter (REUSE)
 Wave1/Wave2     → kept (PRODUCT-ONLY)
 DIARY-IMPL      → Core contract reused, Assistant adapter kept (REUSE + ADAPTER)
 STORAGE-DIA-3   → adapter only (ADAPTER)
+STORAGE-DIA-4   → adapter / orchestration only (ADAPTER)
 STORAGE-DIA-5/6 → product orchestration only (PRODUCT-ONLY)
 STORAGE-DIA-8   → Electron, later (PRODUCT-ONLY)
 ```
