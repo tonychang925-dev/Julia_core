@@ -195,8 +195,8 @@ def test_restart_rebuilds_interaction_state(clear_repo):
     crt.append_external_turns(
         conv.conversation_id,
         [
-            _make_turn("voice:vws:0001", "I am Tony", "Hello Tony"),
-            _make_turn("voice:vws:0002", "call me 老公", "好的老公"),
+            _make_turn("voice:vws:0001", "你知道我是谁吗？", "当然，你是 Tony"),
+            _make_turn("voice:vws:0002", "认识我吗？", "认识，你是 Tony"),
         ],
     )
 
@@ -218,10 +218,18 @@ def test_interrupted_assistant():
                      "I was going to say a lot but got", "interrupted")],
     )
 
-    history = crt.get_canonical_history(conv.conversation_id)
-    assistant_msgs = [m for m in history if m["role"] == "assistant"]
+    # Interrupted assistant output IS persisted in the canonical transcript
+    # store (get_messages is the raw read surface)…
+    messages = crt.get_messages(conv.conversation_id)
+    assistant_msgs = [m for m in messages if m["role"] == "assistant"]
     assert len(assistant_msgs) == 1
     assert assistant_msgs[0]["status"] == "interrupted"
+
+    # …but is NOT admissible as completed cognitive context. The
+    # get_canonical_history() surface projects completed-only.
+    history = crt.get_canonical_history(conv.conversation_id)
+    assert all(m["status"] == "completed" for m in history)
+    assert not any(m["role"] == "assistant" and m["status"] == "interrupted" for m in history)
 
 
 def test_brain_endpoint_returns_409_on_conflict():
