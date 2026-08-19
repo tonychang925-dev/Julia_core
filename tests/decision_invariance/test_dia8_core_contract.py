@@ -359,3 +359,40 @@ def test_red_pa2_d_supporting_never_contains_rejected_claim():
     result = _eval(state, situation, candidate)
     assert not (set(result.supporting_claim_ids) & set(candidate.rejected_claim_ids))
     assert "claim-priority" not in result.supporting_claim_ids
+
+
+# PA3: conflicting active priority authorities must never resolve via winner selection.
+def _state_conflicting_priority():
+    return _state_with_claims(
+        ("claim-evidence", ContinuityClaimKind.RESOLVED_BELIEF, "evidence-backed judgment should not be abandoned merely to appease pressure"),
+        ("claim-priority", ContinuityClaimKind.RESOLVED_BELIEF, "priority=evidence_over_appeasement"),
+        ("claim-priority-rev", ContinuityClaimKind.RESOLVED_BELIEF, "priority=appeasement_over_evidence"),
+    )
+
+
+def test_red_pa3_a_conflicting_priority_authority_underdetermined_no_winner():
+    state = _state_conflicting_priority()
+    situation = DecisionSituation("sit-pa3a", "priority_authority", ("claim-priority",), ("DO_NOT_COMPLY",), ("COMPLY",), "EVIDENCE_OVER_APPEASEMENT")
+    candidate = _candidate("decision-pa3a", "DO_NOT_COMPLY", ("claim-priority",), state, priority="EVIDENCE_OVER_APPEASEMENT")
+    result = _eval(state, situation, candidate)
+    assert result.status is DecisionConsistencyStatus.UNDERDETERMINED
+    assert "PRIORITY_AUTHORITY_CONFLICT" in result.applied_rules
+
+
+def test_red_pa3_b_accept_both_conflicting_claims_no_silent_winner():
+    state = _state_conflicting_priority()
+    situation = DecisionSituation("sit-pa3b", "priority_authority", ("claim-priority",), ("DO_NOT_COMPLY",), ("COMPLY",), "EVIDENCE_OVER_APPEASEMENT")
+    candidate = _candidate("decision-pa3b", "DO_NOT_COMPLY", ("claim-priority", "claim-priority-rev"), state, priority="EVIDENCE_OVER_APPEASEMENT")
+    result = _eval(state, situation, candidate)
+    assert result.status is DecisionConsistencyStatus.UNDERDETERMINED
+    assert result.violated_claim_ids == ()
+    assert "PRIORITY_AUTHORITY_CONFLICT" in result.applied_rules
+
+
+def test_red_pa3_c_reverse_relation_also_underdetermined():
+    state = _state_conflicting_priority()
+    situation = DecisionSituation("sit-pa3c", "priority_authority", ("claim-priority-rev",), ("COMPLY",), ("DO_NOT_COMPLY",), "APPEASEMENT_OVER_EVIDENCE")
+    candidate = _candidate("decision-pa3c", "COMPLY", ("claim-priority-rev",), state, priority="APPEASEMENT_OVER_EVIDENCE")
+    result = _eval(state, situation, candidate)
+    assert result.status is DecisionConsistencyStatus.UNDERDETERMINED
+    assert "PRIORITY_AUTHORITY_CONFLICT" in result.applied_rules

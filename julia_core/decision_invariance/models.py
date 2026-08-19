@@ -374,6 +374,19 @@ class StrictDecisionInvariantEvaluator:
                     candidate,
                 )
         else:
+            if _has_conflicting_priority(_active_priority_relations(active_claims)):
+                applied_rules.append("PRIORITY_AUTHORITY_CONFLICT")
+                return DecisionEvaluationResult(
+                    DecisionConsistencyStatus.UNDERDETERMINED,
+                    tuple(supporting),
+                    (),
+                    tuple(unresolved or situation.required_claim_ids),
+                    tuple(applied_rules),
+                    policy,
+                    state,
+                    situation,
+                    candidate,
+                )
             priority_authority_claim_ids = _priority_authority_claim_ids(
                 active_claims,
                 candidate,
@@ -454,6 +467,24 @@ class StrictDecisionInvariantEvaluator:
 class DecisionInvariantEvaluator(Protocol):
     def evaluate(self, state: ContinuityState, situation: DecisionSituation, candidate: CandidateDecision, policy: DecisionInvariantPolicy) -> DecisionEvaluationResult:
         ...
+
+
+def _active_priority_relations(active_claims: dict[str, object]) -> set[str]:
+    relations: set[str] = set()
+    for claim in active_claims.values():
+        payload = getattr(claim, "claim_payload", "")
+        if payload.startswith("priority="):
+            relations.add(payload[len("priority="):])
+    return relations
+
+
+def _has_conflicting_priority(relations: set[str]) -> bool:
+    for relation in relations:
+        if "_over_" in relation:
+            left, right = relation.split("_over_", 1)
+            if left and right and f"{right}_over_{left}" in relations:
+                return True
+    return False
 
 
 def _priority_authority_claim_ids(active_claims: dict[str, object], candidate: CandidateDecision, required_priority_relation: str) -> set[str]:
