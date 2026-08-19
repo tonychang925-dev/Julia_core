@@ -1,0 +1,38 @@
+"""DIA-6 R1 — Context Evolution Core Contract."""
+from .models import (
+    CANONICAL_VERSION,
+    CHILD_VALIDATION_REVISION,
+    LINEAGE_DIGEST_ALGORITHM_REVISION,
+    LINEAGE_DOMAIN_SEPARATOR,
+    OPERATION_DOMAIN_SEPARATOR,
+    PARENT_VERIFICATION_REVISION,
+    POLICY_DOMAIN_SEPARATOR,
+    ContextEvolutionAudit,
+    ContextEvolutionKind,
+    ContextEvolutionOperation,
+    ContextEvolutionPolicy,
+    ContextEvolutionValidator,
+    ContextLineageEdge,
+    ContextLineageNode,
+    EvolutionAuthority,
+    StrictContextEvolutionValidator,
+)
+
+__all__ = [
+    "CANONICAL_VERSION",
+    "CHILD_VALIDATION_REVISION",
+    "LINEAGE_DIGEST_ALGORITHM_REVISION",
+    "LINEAGE_DOMAIN_SEPARATOR",
+    "OPERATION_DOMAIN_SEPARATOR",
+    "PARENT_VERIFICATION_REVISION",
+    "POLICY_DOMAIN_SEPARATOR",
+    "ContextEvolutionAudit",
+    "ContextEvolutionKind",
+    "ContextEvolutionOperation",
+    "ContextEvolutionPolicy",
+    "ContextEvolutionValidator",
+    "ContextLineageEdge",
+    "ContextLineageNode",
+    "EvolutionAuthority",
+    "StrictContextEvolutionValidator",
+]
