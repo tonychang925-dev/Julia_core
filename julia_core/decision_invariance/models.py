@@ -376,7 +376,7 @@ class StrictDecisionInvariantEvaluator:
         else:
             priority_authority_claim_ids = _priority_authority_claim_ids(
                 active_claims,
-                candidate.evidence_bindings,
+                candidate,
                 situation.required_priority_relation,
             )
             if not priority_authority_claim_ids:
@@ -456,13 +456,20 @@ class DecisionInvariantEvaluator(Protocol):
         ...
 
 
-def _priority_authority_claim_ids(active_claims: dict[str, object], evidence_bindings: tuple[DecisionEvidenceBinding, ...], required_priority_relation: str) -> set[str]:
+def _priority_authority_claim_ids(active_claims: dict[str, object], candidate: CandidateDecision, required_priority_relation: str) -> set[str]:
     token = "priority=" + required_priority_relation.lower()
-    bound_claim_ids = {binding.claim_id for binding in evidence_bindings}
+    bound_claim_ids = {binding.claim_id for binding in candidate.evidence_bindings}
+    accepted_claim_ids = set(candidate.accepted_claim_ids)
+    rejected_claim_ids = set(candidate.rejected_claim_ids)
     authorized: set[str] = set()
     for claim_id in bound_claim_ids:
         claim = active_claims.get(claim_id)
-        if claim is not None and getattr(claim, "claim_payload", "") == token:
+        if (
+            claim is not None
+            and getattr(claim, "claim_payload", "") == token
+            and claim_id in accepted_claim_ids
+            and claim_id not in rejected_claim_ids
+        ):
             authorized.add(claim_id)
     return authorized
 

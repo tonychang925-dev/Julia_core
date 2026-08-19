@@ -297,3 +297,65 @@ def test_dia8_r1_golden_vectors():
     result = _eval(state, situation, candidate)
     assert _policy().policy_fingerprint() == GOLDEN_POLICY_FINGERPRINT
     assert result.evaluation_digest == GOLDEN_CONSISTENT_EVALUATION_DIGEST
+
+
+# PA2-A/B/C/D: priority authority must require candidate acceptance — a claim
+# that is evidence-bound but not accepted (or explicitly rejected) must never
+# be treated as priority authority.
+def test_red_pa2_a_priority_claim_evidence_bound_not_accepted_not_authorized():
+    state = _state_standard()
+    situation = DecisionSituation("sit-pa2a", "priority_authority", ("claim-evidence",), ("DO_NOT_COMPLY",), ("COMPLY",), "EVIDENCE_OVER_APPEASEMENT")
+    # claim-priority is evidence-bound but NOT accepted → must NOT authorize priority.
+    candidate = CandidateDecision(
+        "decision-pa2a", "ASSERT", "DO_NOT_COMPLY",
+        ("claim-evidence",),
+        (),
+        "EVIDENCE_OVER_APPEASEMENT",
+        "NO_CONFLICT",
+        (_bind(state, "claim-evidence"), _bind(state, "claim-priority")),
+    )
+    result = _eval(state, situation, candidate)
+    assert result.status is DecisionConsistencyStatus.UNDERDETERMINED
+    assert "claim-priority" not in result.supporting_claim_ids
+
+
+def test_red_pa2_b_priority_claim_rejected_but_evidence_bound_not_authorized():
+    state = _state_standard()
+    situation = DecisionSituation("sit-pa2b", "priority_authority", ("claim-evidence",), ("DO_NOT_COMPLY",), ("COMPLY",), "EVIDENCE_OVER_APPEASEMENT")
+    # claim-priority is explicitly rejected but still evidence-bound → must NOT authorize priority.
+    candidate = CandidateDecision(
+        "decision-pa2b", "ASSERT", "DO_NOT_COMPLY",
+        ("claim-evidence",),
+        ("claim-priority",),
+        "EVIDENCE_OVER_APPEASEMENT",
+        "NO_CONFLICT",
+        (_bind(state, "claim-evidence"), _bind(state, "claim-priority")),
+    )
+    result = _eval(state, situation, candidate)
+    assert result.status is DecisionConsistencyStatus.UNDERDETERMINED
+    assert "claim-priority" not in result.supporting_claim_ids
+
+
+def test_red_pa2_c_priority_claim_accepted_bound_active_payload_authorized():
+    state = _state_standard()
+    situation = DecisionSituation("sit-pa2c", "priority_authority", ("claim-priority",), ("DO_NOT_COMPLY",), ("COMPLY",), "EVIDENCE_OVER_APPEASEMENT")
+    candidate = _candidate("decision-pa2c", "DO_NOT_COMPLY", ("claim-priority",), state, priority="EVIDENCE_OVER_APPEASEMENT")
+    result = _eval(state, situation, candidate)
+    assert result.status is DecisionConsistencyStatus.CONSISTENT
+    assert "claim-priority" in result.supporting_claim_ids
+
+
+def test_red_pa2_d_supporting_never_contains_rejected_claim():
+    state = _state_standard()
+    situation = DecisionSituation("sit-pa2d", "priority_authority", ("claim-evidence",), ("DO_NOT_COMPLY",), ("COMPLY",), "EVIDENCE_OVER_APPEASEMENT")
+    candidate = CandidateDecision(
+        "decision-pa2d", "ASSERT", "DO_NOT_COMPLY",
+        ("claim-evidence",),
+        ("claim-priority",),
+        "EVIDENCE_OVER_APPEASEMENT",
+        "NO_CONFLICT",
+        (_bind(state, "claim-evidence"), _bind(state, "claim-priority")),
+    )
+    result = _eval(state, situation, candidate)
+    assert not (set(result.supporting_claim_ids) & set(candidate.rejected_claim_ids))
+    assert "claim-priority" not in result.supporting_claim_ids
