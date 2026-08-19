@@ -248,15 +248,15 @@ CM-S4    Brain HTTP Management API
 CM-S5    Electron Conversation Manager
 CM-S6    Archive/Delete Governance
 CM-S7    Legacy Migration / Cutover
-DIA-0    Claude Julia Diary Audit & Semantic Reclassification
-DIA-1    Diary Domain Contract Implementation
-DIA-2    Diary Persistence
-DIA-3    Reflection Trigger Runtime
-DIA-4    Reflection Context Assembly
-DIA-5    Julia Reflection Generation
-DIA-6    Reflection Governance
-DIA-7    Diary Retrieval / Context Integration
-DIA-8    Electron Diary UI
+STORAGE-DIA-0    Claude Julia Diary Audit & Semantic Reclassification
+STORAGE-DIA-1    Diary Domain Contract Implementation
+STORAGE-DIA-2    Diary Persistence
+STORAGE-DIA-3    Reflection Trigger Runtime
+STORAGE-DIA-4    Reflection Context Assembly
+STORAGE-DIA-5    Julia Reflection Generation
+STORAGE-DIA-6    Reflection Governance
+STORAGE-DIA-7    Diary Retrieval / Context Integration
+STORAGE-DIA-8    Electron Diary UI
 OPS-1    Backup / Restore
 OPS-2    Index Rebuild / Repair
 AT-1     End-to-End Acceptance
@@ -1150,13 +1150,13 @@ No dual authority.
 
 ---
 
-# 14. DIA-0 — Claude Julia Diary Audit & Semantic Reclassification
+# 14. STORAGE-DIA-0 — Claude Julia Diary Audit & Semantic Reclassification
 
 Claude Julia is a reference source, not direct authority for the new taxonomy.
 
 Known historical `claude_diary` content mixes several semantic classes.
 
-## DIA-0-T01 — Inventory all Claude Julia long-term files
+## STORAGE-DIA-0-T01 — Inventory all Claude Julia long-term files
 
 Examples:
 
@@ -1180,7 +1180,7 @@ Record:
 
 ---
 
-## DIA-0-T02 — Reclassification rules
+## STORAGE-DIA-0-T02 — Reclassification rules
 
 Example:
 
@@ -1205,7 +1205,7 @@ Do NOT copy the whole old directory into new `diary/`.
 
 ---
 
-## DIA-0-T03 — Provenance tagging
+## STORAGE-DIA-0-T03 — Provenance tagging
 
 Migrated artifact records origin:
 
@@ -1218,7 +1218,7 @@ review_status: ...
 
 ---
 
-## DIA-0 Gate
+## STORAGE-DIA-0 Gate
 
 ```text
 [ ] every old file inventoried
@@ -1229,11 +1229,11 @@ review_status: ...
 
 ---
 
-# 15. DIA-1 — Diary Domain Implementation
+# 15. STORAGE-DIA-1 — Diary Domain Implementation
 
 Diary semantics are already frozen.
 
-## DIA-1-T01 — DiaryEntry model
+## STORAGE-DIA-1-T01 — DiaryEntry model
 
 Suggested logical model:
 
@@ -1258,7 +1258,7 @@ Body:
 
 ---
 
-## DIA-1-T02 — Candidate vs Accepted
+## STORAGE-DIA-1-T02 — Candidate vs Accepted
 
 Separate:
 
@@ -1271,13 +1271,13 @@ Candidate is not durable reflective truth until governance accepts it.
 
 ---
 
-## DIA-1-T03 — NO_ENTRY
+## STORAGE-DIA-1-T03 — NO_ENTRY
 
 Represent explicitly in execution result, but do not create meaningless empty diary files.
 
 ---
 
-# 16. DIA-2 — Diary Persistence
+# 16. STORAGE-DIA-2 — Diary Persistence
 
 Canonical path:
 
@@ -1285,7 +1285,7 @@ Canonical path:
 memory/diary/YYYY/MM/YYYY-MM-DD.md
 ```
 
-## DIA-2-T01 — File format
+## STORAGE-DIA-2-T01 — File format
 
 Recommended human-readable Markdown with machine-readable front matter.
 
@@ -1308,7 +1308,7 @@ source_refs:
 
 ---
 
-## DIA-2-T02 — Multiple entries in one day
+## STORAGE-DIA-2-T02 — Multiple entries in one day
 
 Define one of:
 
@@ -1330,7 +1330,7 @@ Decision must be frozen before implementation.
 
 ---
 
-## DIA-2-T03 — Diary index
+## STORAGE-DIA-2-T03 — Diary index
 
 Derived:
 
@@ -1342,7 +1342,7 @@ Never canonical.
 
 ---
 
-# 17. DIA-3 — Reflection Trigger Runtime
+# 17. STORAGE-DIA-3 — Reflection Trigger Runtime
 
 Triggers allowed by frozen architecture:
 
@@ -1353,7 +1353,7 @@ major-event opportunity
 manual “Julia, write your diary”
 ```
 
-## DIA-3-T01 — Daily trigger
+## STORAGE-DIA-3-T01 — Daily trigger
 
 The schedule creates an opportunity only.
 
@@ -1361,7 +1361,7 @@ It does not force a write.
 
 ---
 
-## DIA-3-T02 — Session-close trigger
+## STORAGE-DIA-3-T02 — Session-close trigger
 
 Use only when a real semantic close boundary exists.
 
@@ -1369,7 +1369,7 @@ Do not treat every Voice reconnect as session closure.
 
 ---
 
-## DIA-3-T03 — Major-event trigger
+## STORAGE-DIA-3-T03 — Major-event trigger
 
 May be emitted by governed signals such as:
 
@@ -1383,7 +1383,7 @@ Signal is candidate evidence, not automatic diary authorship.
 
 ---
 
-## DIA-3-T04 — Manual trigger
+## STORAGE-DIA-3-T04 — Manual trigger
 
 User can ask Julia to reflect/write diary.
 
@@ -1391,11 +1391,11 @@ Manual request still produces source-grounded reflection.
 
 ---
 
-# 18. DIA-4 — Reflection Context Assembly
+# 18. STORAGE-DIA-4 — Reflection Context Assembly
 
 **Context OS remains the gateway.**
 
-## DIA-4-T01 — Reflection context source set
+## STORAGE-DIA-4-T01 — Reflection context source set
 
 May include:
 
@@ -1408,7 +1408,7 @@ May include:
 
 ---
 
-## DIA-4-T02 — No full-transcript dump by default
+## STORAGE-DIA-4-T02 — No full-transcript dump by default
 
 Reflection context is selected through Context OS policy.
 
@@ -1421,15 +1421,15 @@ read all conversations today
 
 ---
 
-## DIA-4-T03 — Source reference preservation
+## STORAGE-DIA-4-T03 — Source reference preservation
 
 Every source fragment supplied to reflection cognition has a stable ref suitable for eventual `source_refs`.
 
 ---
 
-# 19. DIA-5 — Julia Reflection Generation
+# 19. STORAGE-DIA-5 — Julia Reflection Generation
 
-## DIA-5-T01 — Reflection decision
+## STORAGE-DIA-5-T01 — Reflection decision
 
 Julia first determines:
 
@@ -1439,7 +1439,7 @@ or
 WORTH_REFLECTING
 ```
 
-## DIA-5-T02 — Meaning criteria
+## STORAGE-DIA-5-T02 — Meaning criteria
 
 A diary entry should usually require at least one of:
 
@@ -1462,7 +1462,7 @@ Not sufficient by itself:
 
 ---
 
-## DIA-5-T03 — First-person authorship
+## STORAGE-DIA-5-T03 — First-person authorship
 
 Diary should read like Julia's reflective voice, not a system-generated report.
 
@@ -1482,7 +1482,7 @@ Good style target:
 
 ---
 
-## DIA-5-T04 — No fabricated certainty
+## STORAGE-DIA-5-T04 — No fabricated certainty
 
 When evidence is ambiguous:
 
@@ -1492,9 +1492,9 @@ When evidence is ambiguous:
 
 ---
 
-# 20. DIA-6 — Reflection Governance
+# 20. STORAGE-DIA-6 — Reflection Governance
 
-## DIA-6-T01 — Validation
+## STORAGE-DIA-6-T01 — Validation
 
 Reject candidate if:
 
@@ -1506,7 +1506,7 @@ Reject candidate if:
 
 ---
 
-## DIA-6-T02 — Accept / Reject / Supersede
+## STORAGE-DIA-6-T02 — Accept / Reject / Supersede
 
 Support:
 
@@ -1521,7 +1521,7 @@ A later insight may reinterpret an old diary entry but must not silently rewrite
 
 ---
 
-## DIA-6-T03 — Relationship with Memory OS
+## STORAGE-DIA-6-T03 — Relationship with Memory OS
 
 Diary does not automatically become Memory.
 
@@ -1538,11 +1538,11 @@ Separate gate.
 
 ---
 
-# 21. DIA-7 — Diary Retrieval / Context Integration
+# 21. STORAGE-DIA-7 — Diary Retrieval / Context Integration
 
 Diary may inform Julia later, but never bypass Context OS.
 
-## DIA-7-T01 — Diary retrieval source
+## STORAGE-DIA-7-T01 — Diary retrieval source
 
 Implement a governed Context source:
 
@@ -1554,7 +1554,7 @@ It returns relevant accepted DiaryEntry candidates + provenance.
 
 ---
 
-## DIA-7-T02 — Retrieval ranking
+## STORAGE-DIA-7-T02 — Retrieval ranking
 
 Potential signals:
 
@@ -1567,7 +1567,7 @@ Potential signals:
 
 ---
 
-## DIA-7-T03 — Identity protection
+## STORAGE-DIA-7-T03 — Identity protection
 
 Do not repeat the historical Claude behavior where all `claude_diary` files are loaded as unconditional highest-priority raw memory.
 
@@ -1577,15 +1577,15 @@ Diary can support self-reflection but cannot silently overwrite identity contrac
 
 ---
 
-# 22. DIA-8 — Electron Diary UI
+# 22. STORAGE-DIA-8 — Electron Diary UI
 
 Diary UI is optional for first backend milestone but recommended.
 
-## DIA-8-T01 — Diary browser
+## STORAGE-DIA-8-T01 — Diary browser
 
 User can browse accepted entries by date.
 
-## DIA-8-T02 — Source inspection
+## STORAGE-DIA-8-T02 — Source inspection
 
 Optional:
 
@@ -1595,7 +1595,7 @@ View sources
 
 opens referenced conversation/message evidence.
 
-## DIA-8-T03 — Manual reflection action
+## STORAGE-DIA-8-T03 — Manual reflection action
 
 UI action:
 
@@ -1605,7 +1605,7 @@ UI action:
 
 This invokes reflection opportunity; `NO_ENTRY` remains valid.
 
-## DIA-8-T04 — Edit policy
+## STORAGE-DIA-8-T04 — Edit policy
 
 Do not allow casual UI editing to silently mutate Julia-authored historical reflection.
 
@@ -1872,15 +1872,15 @@ backup/repair
 ## Wave 4 — Julia Diary
 
 ```text
-DIA-0
-DIA-1
-DIA-2
-DIA-3
-DIA-4
-DIA-5
-DIA-6
-DIA-7
-DIA-8
+STORAGE-DIA-0
+STORAGE-DIA-1
+STORAGE-DIA-2
+STORAGE-DIA-3
+STORAGE-DIA-4
+STORAGE-DIA-5
+STORAGE-DIA-6
+STORAGE-DIA-7
+STORAGE-DIA-8
 ```
 
 Important:
