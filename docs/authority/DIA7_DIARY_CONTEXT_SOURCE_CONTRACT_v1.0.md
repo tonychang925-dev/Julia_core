@@ -34,12 +34,13 @@ The retrieval intent — governed signals only (e.g. relevance query, time windo
 class DiaryRetrievalQuery:
     query_text: str              # optional relevance hint — matching/ranking only
     as_of: str | None = None     # explicit reference time for recency (no hidden wall-clock)
-    before: str | None = None    # optional recency bound
-    limit: int = 20              # retrieval work/candidate bound — NOT model-visible count
+    before: str | None = None    # optional created_at upper bound (reuses DiaryRepository semantics)
+    limit: int = 20              # returned-candidate bound — NOT model-visible count
 ```
 
-- `limit` is a retrieval **work/candidate bound**, not model-visibility authority. Bounding the candidate set for efficiency/relevance is legal; "admit top-K" is not. Context OS still performs explicit admission.
+- `limit` is a **returned-candidate bound**, not model-visibility authority, and NOT a guarantee of repository scan/work boundedness. "admit top-K" is illegal; Context OS still performs explicit admission. (Repository-side scan/work bound is a separate concern, deferred.)
 - `query_text` influences **ranking only**. It may not be copied into a candidate, become retrieved truth, modify an entry, or act as a Context OS admission fact.
+- `as_of` is the recency **ranking** reference time; `before` is a `created_at` **filter** upper bound (reused from `DiaryRepository.list_entries`). They are distinct: `as_of` shapes ordering, `before` narrows the eligible set.
 
 ### 1.2 `DiaryRetrievalCandidate`
 
@@ -137,7 +138,7 @@ same repository snapshot
 
 - [ ] `DiaryContextSource.retrieve` returns ranked immutable candidates only
 - [ ] no `selected`/`admitted` field on candidate
-- [ ] `limit` is a retrieval bound, not model-visible count / admission directive
+- [ ] `limit` is a returned-candidate bound, not model-visible count / admission directive
 - [ ] recency derives from explicit `as_of`, no hidden wall-clock
 - [ ] ranking is deterministic total ordering (stable tie-break)
 - [ ] entry semantics preserved field-for-field exactly

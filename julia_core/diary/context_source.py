@@ -55,13 +55,22 @@ def _rank(entry: AcceptedDiaryEntry, query: DiaryRetrievalQuery) -> DiaryRetriev
     if query.as_of is not None:
         # deterministic recency from explicit as_of — no hidden wall-clock
         recency = -abs((datetime.fromisoformat(query.as_of) - datetime.fromisoformat(entry.reflection_time)).total_seconds())
-    significance = 1.0
+    significance = 1.0  # minimal implementation: neutral constant, not real significance scoring
     return DiaryRetrievalRanking(relevance, recency, significance)
 
 
 def _sort_key(candidate: DiaryRetrievalCandidate) -> tuple:
     r = candidate.ranking
     return (-r.relevance, -r.recency, -r.significance, candidate.entry.entry_id)
+
+
+def _validate_query(query: DiaryRetrievalQuery) -> None:
+    if query.limit < 0:
+        raise ValueError("limit must be non-negative")
+    if query.as_of is not None:
+        datetime.fromisoformat(query.as_of)
+    if query.before is not None:
+        datetime.fromisoformat(query.before)
 
 
 class DeterministicDiaryContextSource:
@@ -71,7 +80,8 @@ class DeterministicDiaryContextSource:
         self._repository = repository
 
     def retrieve(self, query: DiaryRetrievalQuery) -> tuple[DiaryRetrievalCandidate, ...]:
-        entries = self._repository.list_entries()
+        _validate_query(query)
+        entries = self._repository.list_entries(before=query.before)
         candidates = [DiaryRetrievalCandidate(e, _rank(e, query)) for e in entries]
         # deterministic total ordering: relevance desc, recency desc, significance desc, entry_id asc
         candidates.sort(key=_sort_key)

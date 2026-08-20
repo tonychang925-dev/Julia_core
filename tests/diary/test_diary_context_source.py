@@ -15,14 +15,21 @@ class _RecordingRepository:
     def __init__(self, entries=()):
         self._entries = list(entries)
 
-    def list_entries(self, **kwargs):
-        return list(self._entries)
+    def list_entries(self, before=None, after=None, limit=None, **kwargs):
+        result = list(self._entries)
+        if before is not None:
+            result = [e for e in result if e.created_at < before]
+        if after is not None:
+            result = [e for e in result if e.created_at > after]
+        if limit is not None:
+            result = result[:limit]
+        return result
 
 
-def _entry(entry_id="e1", body="entry body", reflection_time="2026-08-17T00:00:00+08:00"):
+def _entry(entry_id="e1", body="entry body", reflection_time="2026-08-17T00:00:00+08:00", created_at="2026-08-17T00:00:00+08:00"):
     return AcceptedDiaryEntry(
         entry_id=entry_id,
-        created_at="2026-08-17T00:00:00+08:00",
+        created_at=created_at,
         reflection_time=reflection_time,
         source_refs=(DiarySourceRef("handoff://handoff-1"),),
         body=body,
@@ -99,3 +106,22 @@ def test_recency_uses_explicit_as_of():
     src = DeterministicDiaryContextSource(_RecordingRepository([older, newer]))
     result = src.retrieve(DiaryRetrievalQuery(as_of="2026-08-17T00:00:00+08:00", limit=10))
     assert result[0].entry.entry_id == "newer"
+
+
+# RET-TIME-01: before narrows the eligible set by created_at.
+def test_before_filters_by_created_at():
+    old = _entry(entry_id="old", created_at="2026-08-10T00:00:00+08:00")
+    new = _entry(entry_id="new", created_at="2026-08-17T00:00:00+08:00")
+    src = DeterministicDiaryContextSource(_RecordingRepository([old, new]))
+    result = src.retrieve(DiaryRetrievalQuery(before="2026-08-15T00:00:00+08:00", limit=10))
+    ids = {c.entry.entry_id for c in result}
+    assert ids == {"old"}
+
+
+# Query validation: negative limit fails closed.
+def test_negative_limit_fails_closed():
+    import pytest
+
+    src = DeterministicDiaryContextSource(_RecordingRepository([_entry()]))
+    with pytest.raises(ValueError, match="limit must be non-negative"):
+        src.retrieve(DiaryRetrievalQuery(limit=-1))
