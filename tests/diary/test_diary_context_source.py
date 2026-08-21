@@ -125,3 +125,14 @@ def test_negative_limit_fails_closed():
     src = DeterministicDiaryContextSource(_RecordingRepository([_entry()]))
     with pytest.raises(ValueError, match="limit must be non-negative"):
         src.retrieve(DiaryRetrievalQuery(limit=-1))
+
+
+# Query validation: naive datetime (no timezone) fails closed.
+def test_naive_datetime_fails_closed():
+    import pytest
+
+    src = DeterministicDiaryContextSource(_RecordingRepository([_entry()]))
+    with pytest.raises(ValueError, match="must be offset-aware"):
+        src.retrieve(DiaryRetrievalQuery(as_of="2026-08-17T12:00:00"))
+    with pytest.raises(ValueError, match="must be offset-aware"):
+        src.retrieve(DiaryRetrievalQuery(before="2026-08-17T12:00:00"))

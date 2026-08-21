@@ -53,8 +53,10 @@ def _rank(entry: AcceptedDiaryEntry, query: DiaryRetrievalQuery) -> DiaryRetriev
     relevance = 1.0 if query.query_text and query.query_text.lower() in entry.body.lower() else 0.0
     recency = 0.0
     if query.as_of is not None:
-        # deterministic recency from explicit as_of — no hidden wall-clock
-        recency = -abs((datetime.fromisoformat(query.as_of) - datetime.fromisoformat(entry.reflection_time)).total_seconds())
+        # deterministic recency from explicit offset-aware as_of — no hidden wall-clock
+        as_of_dt = _parse_offset_aware_iso(query.as_of, "as_of")
+        ref_dt = _parse_offset_aware_iso(entry.reflection_time, "reflection_time")
+        recency = -abs((as_of_dt - ref_dt).total_seconds())
     significance = 1.0  # minimal implementation: neutral constant, not real significance scoring
     return DiaryRetrievalRanking(relevance, recency, significance)
 
@@ -64,13 +66,20 @@ def _sort_key(candidate: DiaryRetrievalCandidate) -> tuple:
     return (-r.relevance, -r.recency, -r.significance, candidate.entry.entry_id)
 
 
+def _parse_offset_aware_iso(value: str, field: str) -> datetime:
+    dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if dt.tzinfo is None or dt.utcoffset() is None:
+        raise ValueError(f"{field} must be offset-aware")
+    return dt
+
+
 def _validate_query(query: DiaryRetrievalQuery) -> None:
     if query.limit < 0:
         raise ValueError("limit must be non-negative")
     if query.as_of is not None:
-        datetime.fromisoformat(query.as_of)
+        _parse_offset_aware_iso(query.as_of, "as_of")
     if query.before is not None:
-        datetime.fromisoformat(query.before)
+        _parse_offset_aware_iso(query.before, "before")
 
 
 class DeterministicDiaryContextSource:
