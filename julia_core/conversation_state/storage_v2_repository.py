@@ -29,6 +29,8 @@ from julia_core.conversation_state.repository import (
 )
 
 SCHEMA_VERSION = 2
+DEFAULT_SEGMENT_MAX_BYTES = 33_554_432
+DEFAULT_SEGMENT_MAX_MESSAGES = 10_000
 
 
 def _now_iso() -> str:
@@ -38,10 +40,18 @@ def _now_iso() -> str:
 class StorageV2ConversationRepository:
     """Hybrid: JSONL canonical + SQLite derived catalog."""
 
-    def __init__(self, base_dir: str | Path):
+    def __init__(
+        self,
+        base_dir: str | Path,
+        *,
+        segment_max_bytes: int = DEFAULT_SEGMENT_MAX_BYTES,
+        segment_max_messages: int = DEFAULT_SEGMENT_MAX_MESSAGES,
+    ):
         self._base = Path(base_dir)
         self._base.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
+        self._segment_max_bytes = segment_max_bytes
+        self._segment_max_messages = segment_max_messages
         self._cat_path = self._base / "catalog.sqlite"
         self._cat = self._open_catalog()
         self._init_schema()
@@ -119,6 +129,51 @@ class StorageV2ConversationRepository:
     def _segment_path(self, conv_id: str, seg: int = 1) -> Path:
         return self._conv_dir(conv_id) / f"transcript-{seg:06d}.jsonl"
 
+    def _segment_number(self, path: Path) -> int:
+        try:
+            return int(path.stem.split("-")[-1])
+        except (ValueError, IndexError):
+            return 1
+
+    def _latest_segment_number(self, conv_id: str) -> int:
+        segments = sorted(self._conv_dir(conv_id).glob("transcript-*.jsonl"))
+        if not segments:
+            return 1
+        return max(self._segment_number(p) for p in segments)
+
+    def _segment_message_count(self, path: Path) -> int:
+        if not path.exists():
+            return 0
+        return sum(1 for line in path.read_text().splitlines() if line.strip())
+
+    def _select_segment_for_write(self, conv_id: str, encoded_line: str) -> Path:
+        """AT-07: choose the physical segment for the next whole message.
+
+        Rotation is a persistence concern only. Selection happens before writing
+        a complete JSONL record; no canonical message is split across segments.
+        """
+        current_num = self._latest_segment_number(conv_id)
+        current = self._segment_path(conv_id, current_num)
+        current_count = self._segment_message_count(current)
+
+        # Empty current segment, including oversized single record: write here.
+        if current_count == 0:
+            return current
+
+        projected_count = current_count + 1
+        current_bytes = current.stat().st_size if current.exists() else 0
+        projected_bytes = current_bytes + len(encoded_line.encode("utf-8"))
+
+        if (
+            self._segment_max_messages > 0
+            and projected_count > self._segment_max_messages
+        ) or (
+            self._segment_max_bytes > 0
+            and projected_bytes > self._segment_max_bytes
+        ):
+            return self._segment_path(conv_id, current_num + 1)
+        return current
+
     def _meta_path(self, conv_id: str) -> Path:
         return self._conv_dir(conv_id) / "meta.json"
 
@@ -144,9 +199,9 @@ class StorageV2ConversationRepository:
                     continue
 
     def _write_canonical_message(self, conv_id: str, msg: dict):
-        """Append one canonical line. Flush + fsync before returning."""
-        seg_path = self._segment_path(conv_id)
+        """Append one complete canonical line. Flush + fsync before returning."""
         line = json.dumps(msg, ensure_ascii=False) + "\n"
+        seg_path = self._select_segment_for_write(conv_id, line)
         with open(seg_path, "a") as f:
             f.write(line)
             f.flush()
