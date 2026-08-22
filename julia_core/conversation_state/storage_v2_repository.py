@@ -336,8 +336,12 @@ class StorageV2ConversationRepository:
                     raise InvalidTurnStateError("turn_id required")
                 existing = self.find_turn(session_id, tid)
                 if existing:
-                    skipped.append(tid)
-                    continue
+                    if self._turn_equals(existing, turn):
+                        skipped.append(tid)
+                        continue
+                    raise TurnConflictError(
+                        f"Turn {tid}: content differs from persisted"
+                    )
                 # User message
                 seq = self._next_sequence(session_id)
                 user_msg = {
@@ -369,6 +373,37 @@ class StorageV2ConversationRepository:
                     last_id = asst_msg["message_id"]
                 appended.append(tid)
             return appended, skipped, last_id
+
+    @staticmethod
+    def _turn_equals(existing_msgs: list[ConversationMessage], turn: dict) -> bool:
+        """Compare an incoming external turn against existing canonical messages.
+
+        Same turn_id is idempotent only when the canonical user content,
+        modality, assistant content, and assistant status match the incoming
+        turn. Different content is an identity conflict, not a retry.
+        """
+        user_existing = next((m for m in existing_msgs if m.role == "user"), None)
+        assistant_existing = next((m for m in existing_msgs if m.role == "assistant"), None)
+
+        if user_existing is None:
+            return False
+        if user_existing.content != turn.get("user_content", ""):
+            return False
+        if user_existing.modality != turn.get("modality", "voice"):
+            return False
+
+        assistant_new_content = turn.get("assistant_content")
+        assistant_new_status = turn.get("assistant_status")
+
+        if assistant_existing is None:
+            return assistant_new_content is None
+        if assistant_new_content is None:
+            return False
+        return (
+            assistant_existing.content == assistant_new_content
+            and assistant_existing.status == assistant_new_status
+            and assistant_existing.modality == turn.get("modality", "voice")
+        )
 
     def import_messages_atomic(
         self, session_id: str, messages: list[dict],

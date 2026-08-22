@@ -1,6 +1,6 @@
 # Wave5 AT-04-R0 Contract — Voice Reconnect UUID Identity
 
-Status: R0 FROZEN / IMPLEMENTATION BLOCKED BY P0 GAPS
+Status: R0 FROZEN / MINIMAL REMEDIATION GREEN / R1 HOLD / IA HOLD
 Date: 2026-08-22
 Scope: AT-04 — Voice reconnect UUID identity
 Source audit: `docs/project_control/reports/WAVE5_AT04_VOICE_RECONNECT_UUID_IDENTITY_AUDIT.md`
@@ -23,14 +23,14 @@ This is not a test of UUID formatting alone. It is a test of semantic turn ident
 ```text
 AT-04 Audit: COMPLETE
 Core semantic intent: CLEAR
-Implementation readiness: BLOCKED
-Implementation: HOLD
+Implementation readiness: MINIMAL REMEDIATION GREEN
+Implementation: COMPLETED FOR P0-GAP-1/P0-GAP-2
 R1: HOLD
 ```
 
 Reason:
 
-The audit found two P0 authority gaps that must be frozen as fail-closed requirements before implementation or R1 evidence can be accepted.
+The audit found two P0 authority gaps. They are frozen as fail-closed requirements and now have minimal remediation evidence; R1 evidence remains on HOLD until the remediation commit is reviewed/accepted.
 
 ## 3. P0 Gaps Frozen by This Contract
 
@@ -235,7 +235,7 @@ AT-04-R0 does not freeze or test:
 
 ```text
 AT-04-R0 Contract: FROZEN
-Implementation: BLOCKED BY P0-GAP-1 and P0-GAP-2
+Implementation: MINIMAL REMEDIATION GREEN
 R1: HOLD
 IA: HOLD
 Freeze: NOT READY

@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from julia_core.conversation_state.models import ConversationMessage, ConversationSession
+from julia_core.conversation_state.repository import ConversationNotFoundError
 from julia_core.conversation_state.repository_protocol import ConversationRepository
 from julia_core.conversation_state.legacy_json_repository import LegacyJsonConversationRepository
 
@@ -503,9 +504,12 @@ class ConversationRuntime:
                     f"Turn {turn_id}: content differs from persisted"
                 )
 
-        # Ensure conversation exists
+        # AT-04 P0-GAP-2: turn ingestion is not conversation creation authority.
+        # Unknown/stale conversation_id must fail closed instead of manufacturing
+        # ghost canonical truth. Explicit create_conversation() remains the only
+        # governed creation path.
         if self._repository.get(conversation_id) is None:
-            self._create_conversation(conversation_id)
+            raise ConversationNotFoundError(conversation_id)
 
         now = _time.strftime("%Y-%m-%dT%H:%M:%S")
 

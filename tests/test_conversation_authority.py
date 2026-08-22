@@ -32,6 +32,15 @@ def runtime():
     """Fresh runtime with temp storage."""
     path = tempfile.mktemp(suffix=".json")
     rt = ConversationRuntime(repository=LegacyJsonConversationRepository(path))
+    # AT-04 remediation: turn ingestion is no longer conversation creation
+    # authority. Legacy authority tests use fixed conversation IDs, so create
+    # them explicitly in the fixture instead of relying on process_turn()
+    # auto-create side effects.
+    for cid in (
+        "A", "B", "C", "D", "D1", "I1", "R", "R1", "R2",
+        "T1", "W1", "X1", "J1", "J2", "C1",
+    ):
+        rt.create_conversation(conversation_id=cid, title=cid)
     yield rt
 
 
