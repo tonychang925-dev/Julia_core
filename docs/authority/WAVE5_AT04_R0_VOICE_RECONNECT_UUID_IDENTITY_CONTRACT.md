@@ -1,6 +1,6 @@
 # Wave5 AT-04-R0 Contract — Voice Reconnect UUID Identity
 
-Status: R0 FROZEN / MINIMAL REMEDIATION GREEN / R1 HOLD / IA HOLD
+Status: R0 FROZEN / MINIMAL REMEDIATION GREEN / R1 GREEN / IA HOLD
 Date: 2026-08-22
 Scope: AT-04 — Voice reconnect UUID identity
 Source audit: `docs/project_control/reports/WAVE5_AT04_VOICE_RECONNECT_UUID_IDENTITY_AUDIT.md`
@@ -25,7 +25,7 @@ AT-04 Audit: COMPLETE
 Core semantic intent: CLEAR
 Implementation readiness: MINIMAL REMEDIATION GREEN
 Implementation: COMPLETED FOR P0-GAP-1/P0-GAP-2
-R1: HOLD
+R1: GREEN
 ```
 
 Reason:
@@ -236,7 +236,7 @@ AT-04-R0 does not freeze or test:
 ```text
 AT-04-R0 Contract: FROZEN
 Implementation: MINIMAL REMEDIATION GREEN
-R1: HOLD
+R1: GREEN
 IA: HOLD
 Freeze: NOT READY
 ```

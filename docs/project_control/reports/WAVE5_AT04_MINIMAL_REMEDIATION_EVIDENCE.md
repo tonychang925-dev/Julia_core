@@ -1,6 +1,6 @@
 # Wave5 AT-04 Minimal Remediation Evidence
 
-Status: MINIMAL REMEDIATION GREEN / R1 HOLD / IA HOLD
+Status: MINIMAL REMEDIATION GREEN / R1 GREEN / IA HOLD
 Date: 2026-08-22
 Scope: AT-04 P0-GAP-1 and P0-GAP-2 only
 Branch: `codex/bugfix/at04-reconnect-identity-boundary`
@@ -191,7 +191,7 @@ compileall_exit=0
 
 ```text
 AT-04 Minimal Remediation: GREEN
-AT-04 R1: HOLD
+AT-04 R1: GREEN
 AT-04 IA: HOLD
 AT-04 Freeze: NOT READY
 ```
