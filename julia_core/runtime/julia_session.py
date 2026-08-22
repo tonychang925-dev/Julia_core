@@ -283,8 +283,7 @@ class JuliaSession:
         ctx._last_package = pkg
 
         # P2: ActiveTail replaces history[-20:]
-        tail = self.context_os._compute_active_tail(ctx.history)
-        messages = pkg.to_messages(tail, text)
+        messages = pkg.to_messages(pkg.active_tail_messages, text)
         return messages
 
     def _chat_impl(self, text: str, ctx: TurnContext) -> str:
@@ -331,7 +330,7 @@ class JuliaSession:
                     tool_result=tool_result,
                     generation_id=f"gen_tool_{ctx.turn_count}",
                 )
-                messages = delta.to_messages(self.context_os._compute_active_tail(ctx.history), "")
+                messages = delta.to_messages(delta.active_tail_messages, "")
                 # Re-append the prior assistant reply for context
                 messages.insert(-1, {"role": "assistant", "content": reply}) if messages else None
                 reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")

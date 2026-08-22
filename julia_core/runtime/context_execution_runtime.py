@@ -33,6 +33,7 @@ class CognitiveContextPackage:
     continuity_frame: dict[str, Any] = field(default_factory=dict)
 
     active_tail_turn_ids: list[str] = field(default_factory=list)
+    active_tail_messages: list[dict] = field(default_factory=list)
     retrieval_handles: dict[str, Any] = field(default_factory=dict)
     projection_metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -50,9 +51,14 @@ class CognitiveContextPackage:
         """Return list of required frame failures. Empty = all required frames available."""
         return [f["frame"] for f in self._frame_failures if f["required"]]
 
-    def to_messages(self, history: list[dict], user_text: str) -> list[dict]:
+    def to_messages(self, history: list[dict] | None, user_text: str) -> list[dict]:
         """Render the package as model messages. Transitional — will be replaced
-        by structured Alignment projection (C-09) in P6."""
+        by structured Alignment projection (C-09) in P6.
+
+        AT-06: model-visible conversation history must come from the
+        conversation-scoped active tail admitted during prepare(), not from a
+        caller-supplied list that may contain foreign conversation messages.
+        """
         system_parts = []
 
         if self.identity_frame:
@@ -74,7 +80,12 @@ class CognitiveContextPackage:
         messages = []
         if system_text:
             messages.append({"role": "system", "content": system_text})
-        messages.extend(history)
+        admitted_history = (
+            self.active_tail_messages
+            if self.projection_metadata.get("conversation_history_scoped")
+            else (history or [])
+        )
+        messages.extend(admitted_history)
         messages.append({"role": "user", "content": user_text})
         return messages
 
@@ -147,14 +158,21 @@ class ContextExecutionRuntime:
             pkg.add_provenance("identity", "persona:feature_store", reason="base identity", stage=0)
 
         # ── ConversationFrame — ActiveTail from canonical history (C-02) ──
-        tail = self._compute_active_tail(history)
+        scoped_history = self._scope_history_to_conversation(conversation_id, history)
+        tail = self._compute_active_tail(scoped_history)
         pkg.conversation_frame = {
             "active_turn_count": len(tail),
             "active_tail_topic": "",
         }
+        pkg.active_tail_messages = list(tail)
+        pkg.projection_metadata["conversation_history_scoped"] = True
         pkg.active_tail_turn_ids = [m.get("turn_id", "") for m in tail if m.get("turn_id")]
+        dropped_foreign = len(history or []) - len(scoped_history)
         pkg.add_provenance("conversation", f"conversation:{conversation_id}", reason="active tail", stage=0,
                           token_estimate=sum(len(str(m)) for m in tail) // 4)
+        if dropped_foreign:
+            pkg.add_provenance("conversation_boundary", f"conversation:{conversation_id}",
+                               reason=f"dropped_foreign_history:{dropped_foreign}", stage=0)
 
         # ── ExperienceFrame — recent experiences (C-05) ──
         if self._js is not None:
@@ -350,6 +368,23 @@ class ContextExecutionRuntime:
         except Exception:
             pass
         return self._density_cache  # type: ignore[attr-defined]
+
+    def _scope_history_to_conversation(self, conversation_id: str, history: list[dict]) -> list[dict]:
+        """AT-06: caller-supplied history is not model-visible authority.
+
+        Messages without the active conversation_id are dropped before
+        ActiveTail admission. Legacy unscoped history is preserved only when
+        there is no active conversation_id, i.e. legacy chat mode.
+        """
+        if not conversation_id:
+            return list(history or [])
+        scoped = []
+        for msg in history or []:
+            msg_cid = msg.get("conversation_id")
+            if msg_cid != conversation_id:
+                continue
+            scoped.append(msg)
+        return scoped
 
     def _compute_active_tail(self, history: list[dict], max_turns: int = 20) -> list[dict]:
         """C-03 ActiveTail: budget-driven recent turns. Replaces history[-20:]."""
