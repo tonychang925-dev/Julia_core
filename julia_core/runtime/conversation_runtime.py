@@ -404,12 +404,28 @@ class ConversationRuntime:
             return None
         return session.detail()
 
-    def get_messages(self, conversation_id: str, max_messages: int = 100) -> list[dict]:
-        """Get messages as dicts with full metadata (message_id, turn_id, modality, status)."""
+    def get_messages(
+        self,
+        conversation_id: str,
+        max_messages: int = 100,
+        *,
+        before: str | None = None,
+        after: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Get canonical messages with governed, cursor-aware pagination.
+
+        Existing callers that pass only max_messages keep tail-read behavior.
+        Cursor callers use exclusive message_id boundaries through the repository.
+        """
         session = self._repository.get(conversation_id)
         if session is None:
             return []
-        return [m.to_dict() for m in session.messages[-max_messages:]]
+        page_size = limit if limit is not None else max_messages
+        messages = self._repository.get_messages(
+            conversation_id, before=before, after=after, limit=page_size
+        )
+        return [m.to_dict() for m in messages]
 
     def rename_conversation(self, conversation_id: str, title: str) -> ConversationHandle | None:
         """Rename a conversation. Title persists across restarts."""

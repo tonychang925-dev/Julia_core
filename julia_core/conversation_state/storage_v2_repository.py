@@ -363,6 +363,12 @@ class StorageV2ConversationRepository:
         self, session_id: str, *, before: str | None = None,
         after: str | None = None, limit: int | None = None,
     ) -> list[ConversationMessage]:
+        """Return canonical messages with cursor-aware, segment-transparent pagination.
+
+        Cursor boundaries are exclusive message_id positions scoped to this
+        conversation. Unknown/stale boundaries return an empty page rather than
+        silently restarting from tail/head.
+        """
         msgs = []
         for m in self._iter_transcript(session_id):
             msgs.append(ConversationMessage(
@@ -371,9 +377,34 @@ class StorageV2ConversationRepository:
                 modality=m.get("modality", "text"), content=m["content"],
                 status=m.get("status", "completed"), created_at=m.get("created_at", ""),
             ))
+
+        start, end = 0, len(msgs)
+        ids = [m.message_id for m in msgs]
+
+        if after is not None:
+            if after not in ids:
+                return []
+            start = ids.index(after) + 1
+
+        if before is not None:
+            if before not in ids:
+                return []
+            end = ids.index(before)
+
+        if start > end:
+            return []
+
+        window = msgs[start:end]
         if limit is not None:
-            msgs = msgs[-limit:]
-        return msgs
+            if limit <= 0:
+                return []
+            if before is not None and after is None:
+                window = window[-limit:]
+            elif before is None and after is None:
+                window = window[-limit:]
+            else:
+                window = window[:limit]
+        return window
 
     def append_external_turns_atomic(
         self, session_id: str, turns: list[dict],

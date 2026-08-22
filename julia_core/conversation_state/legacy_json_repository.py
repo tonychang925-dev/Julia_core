@@ -86,16 +86,40 @@ class LegacyJsonConversationRepository:
     ) -> list[ConversationMessage]:
         """Return messages for a conversation.
 
-        limit = storage/query pagination only.
-        Not cognitive context selection policy.
+        Pagination is a storage/query read projection only. Cursor boundaries are
+        exclusive message_id positions scoped to this conversation.
         """
         session = self._repo.get(session_id)
         if session is None:
             return []
         messages = list(session.messages)
+        ids = [m.message_id for m in messages]
+        start, end = 0, len(messages)
+
+        if after is not None:
+            if after not in ids:
+                return []
+            start = ids.index(after) + 1
+
+        if before is not None:
+            if before not in ids:
+                return []
+            end = ids.index(before)
+
+        if start > end:
+            return []
+
+        window = messages[start:end]
         if limit is not None:
-            messages = messages[-limit:]
-        return messages
+            if limit <= 0:
+                return []
+            if before is not None and after is None:
+                window = window[-limit:]
+            elif before is None and after is None:
+                window = window[-limit:]
+            else:
+                window = window[:limit]
+        return window
 
     # ── Batch Operations ───────────────────────────────────────────────
 
