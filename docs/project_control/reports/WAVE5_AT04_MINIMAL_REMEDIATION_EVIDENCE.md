@@ -1,6 +1,6 @@
 # Wave5 AT-04 Minimal Remediation Evidence
 
-Status: MINIMAL REMEDIATION GREEN / R1 GREEN / IA GREEN / FROZEN READY
+Status: MINIMAL REMEDIATION GREEN / R1 GREEN / IA GREEN / FROZEN
 Date: 2026-08-22
 Scope: AT-04 P0-GAP-1 and P0-GAP-2 only
 Branch: `codex/bugfix/at04-reconnect-identity-boundary`
@@ -193,7 +193,7 @@ compileall_exit=0
 AT-04 Minimal Remediation: GREEN
 AT-04 R1: GREEN
 AT-04 IA: GREEN
-AT-04 Freeze: FROZEN READY
+AT-04 Freeze: FROZEN
 ```
 
 Next allowed step:

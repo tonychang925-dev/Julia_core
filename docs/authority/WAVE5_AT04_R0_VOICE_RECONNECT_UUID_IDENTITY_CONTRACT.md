@@ -1,6 +1,6 @@
 # Wave5 AT-04-R0 Contract — Voice Reconnect UUID Identity
 
-Status: R0 FROZEN / MINIMAL REMEDIATION GREEN / R1 GREEN / IA GREEN / FROZEN READY
+Status: R0 FROZEN / MINIMAL REMEDIATION GREEN / R1 GREEN / IA GREEN / FROZEN
 Date: 2026-08-22
 Scope: AT-04 — Voice reconnect UUID identity
 Source audit: `docs/project_control/reports/WAVE5_AT04_VOICE_RECONNECT_UUID_IDENTITY_AUDIT.md`
@@ -238,5 +238,5 @@ AT-04-R0 Contract: FROZEN
 Implementation: MINIMAL REMEDIATION GREEN
 R1: GREEN
 IA: GREEN
-Freeze: FROZEN READY
+Freeze: FROZEN
 ```

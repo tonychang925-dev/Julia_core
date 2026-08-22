@@ -1,6 +1,6 @@
 # Wave5 AT-04 IA / Final Freeze Evidence Bundle
 
-Status: FROZEN READY
+Status: FROZEN
 Date: 2026-08-22
 Scope: AT-04 — Voice reconnect UUID identity
 Branch: `codex/bugfix/at04-reconnect-identity-boundary`
@@ -11,8 +11,8 @@ Base lineage: `a59d625` R0 → `e966375` remediation → `30eb91e` R1
 ```text
 Wave5 Authority Boundary Set        FROZEN
 AT-01 Conversation Create Durability FROZEN
-AT-02 Accepted User Crash            FROZEN READY
-AT-03 Text → Voice → Text            FROZEN READY
+AT-02 Accepted User Crash            FROZEN
+AT-03 Text → Voice → Text            FROZEN
 AT-04 Audit                          COMPLETE
 AT-04 R0 Contract                    FROZEN
 AT-04 Minimal Remediation            GREEN
@@ -132,7 +132,7 @@ Confirmed boundaries:
 
 ```text
 AT-04 Integration Acceptance: GREEN
-AT-04 Final Freeze Evidence: FROZEN READY
+AT-04 Final Freeze Evidence: FROZEN
 ```
 
 Next allowed step:

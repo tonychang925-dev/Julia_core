@@ -1,6 +1,6 @@
 # Wave5 AT-04-R1 Sabotage Evidence — Voice Reconnect UUID Identity
 
-Status: R1 GREEN / IA GREEN / FROZEN READY
+Status: R1 GREEN / IA GREEN / FROZEN
 Date: 2026-08-22
 Scope: AT-04 voice reconnect canonical turn identity sabotage evidence
 Branch: `codex/bugfix/at04-reconnect-identity-boundary`
@@ -87,7 +87,7 @@ Result:
 ```text
 AT-04-R1 sabotage evidence: GREEN
 AT-04 IA: GREEN
-AT-04 Final Freeze Evidence: FROZEN READY
+AT-04 Final Freeze Evidence: FROZEN
 ```
 
 Next allowed step:
