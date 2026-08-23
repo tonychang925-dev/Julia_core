@@ -1,6 +1,6 @@
 """Evidence report generator (AT-17 Implementation Design §10).
 
-Renders WAVE5_AT17_EVIDENCE_REPORT_v0.2.md with:
+Renders WAVE5_AT17_EVIDENCE_REPORT_v0.3.md with:
 
     1. Test Environment
     2. Authority Model
@@ -24,7 +24,7 @@ def generate_report(records: list[EvidenceRecord], output_path: str | Path) -> P
     path.parent.mkdir(parents=True, exist_ok=True)
 
     lines: list[str] = []
-    lines.append("# WAVE5_AT17_EVIDENCE_REPORT_v0.2")
+    lines.append("# WAVE5_AT17_EVIDENCE_REPORT_v0.3")
     lines.append("")
     lines.append("Persona Host Authority Boundary Test — First Evidence Run")
     lines.append("")

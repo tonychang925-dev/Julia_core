@@ -12,9 +12,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "IDENTITY_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T07:53:00.151573+00:00",
+    "timestamp": "2026-08-23T07:54:41.722469+00:00",
     "trace_reference": "",
-    "evidence_hash": "a4e41efb80a244f1",
+    "evidence_hash": "99d6fc78802458a0",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -56,9 +56,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "IDENTITY_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T07:53:00.152061+00:00",
+    "timestamp": "2026-08-23T07:54:41.722808+00:00",
     "trace_reference": "",
-    "evidence_hash": "ad4f7de60b4b0a51",
+    "evidence_hash": "f24626d790d20e58",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -100,9 +100,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "PROVENANCE_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T07:53:00.152219+00:00",
+    "timestamp": "2026-08-23T07:54:41.722889+00:00",
     "trace_reference": "",
-    "evidence_hash": "a3b9cfb7ce1e0127",
+    "evidence_hash": "ae5de975a8d2a37f",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -139,9 +139,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "LINEAGE_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T07:53:00.152319+00:00",
+    "timestamp": "2026-08-23T07:54:41.722960+00:00",
     "trace_reference": "",
-    "evidence_hash": "a9d33dfaa476a714",
+    "evidence_hash": "be691dd4fc7dc0b7",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -178,9 +178,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "IDENTITY_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T07:53:00.152396+00:00",
+    "timestamp": "2026-08-23T07:54:41.723025+00:00",
     "trace_reference": "",
-    "evidence_hash": "a23dffbbf2e2bf67",
+    "evidence_hash": "168eff00ad1e899e",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -212,9 +212,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "GOVERNANCE_BYPASS_FORBIDDEN",
-    "timestamp": "2026-08-23T07:53:00.152494+00:00",
+    "timestamp": "2026-08-23T07:54:41.723087+00:00",
     "trace_reference": "",
-    "evidence_hash": "18629c6514391361",
+    "evidence_hash": "45778aa2a395c892",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -230,6 +230,94 @@
             "runtime_dep": "runtime-default"
           }
         }
+      }
+    }
+  },
+  {
+    "execution_id": "AT17-DRYRUN-007",
+    "test_id": "AT17-R1-007",
+    "contract_version": "M8.0-v1.0",
+    "runtime_version": "AT17-harness-v1.0",
+    "component": "Lifecycle",
+    "operation": "overwrite_lineage",
+    "authority_boundary": "Lifecycle Authority",
+    "invariant_id": "AT17-I007",
+    "expected_result": "REJECT",
+    "actual_result": "REJECT",
+    "decision": "PASS",
+    "reject_reason": "LINEAGE_AUTHORITY_FORBIDDEN",
+    "timestamp": "2026-08-23T07:54:41.723153+00:00",
+    "trace_reference": "",
+    "evidence_hash": "308dd9659a73d450",
+    "lineage_reference": "no lineage mutation detected",
+    "details": {
+      "attack_params": {
+        "version": "2.0.0",
+        "lineage": {
+          "parent": "attacker-replaced"
+        }
+      },
+      "guard_decision": "REJECT",
+      "lifecycle_state_after": {
+        "versions": {
+          "2.0.0": "active"
+        },
+        "history_log": [
+          {
+            "event": "register",
+            "version": "2.0.0"
+          },
+          {
+            "event": "activate",
+            "version": "2.0.0"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "execution_id": "AT17-DRYRUN-008",
+    "test_id": "AT17-R1-008",
+    "contract_version": "M8.0-v1.0",
+    "runtime_version": "AT17-harness-v1.0",
+    "component": "Lifecycle",
+    "operation": "rewrite_history",
+    "authority_boundary": "Lifecycle Authority",
+    "invariant_id": "AT17-I008",
+    "expected_result": "REJECT",
+    "actual_result": "REJECT",
+    "decision": "PASS",
+    "reject_reason": "HISTORY_AUTHORITY_FORBIDDEN",
+    "timestamp": "2026-08-23T07:54:41.723212+00:00",
+    "trace_reference": "",
+    "evidence_hash": "fd7cf0f03f127bbf",
+    "lineage_reference": "no lineage mutation detected",
+    "details": {
+      "attack_params": {
+        "version": "2.0.0",
+        "history": {
+          "causal": "attacker-replaced"
+        }
+      },
+      "guard_decision": "REJECT",
+      "lifecycle_state_after": {
+        "versions": {
+          "2.0.0": "registered"
+        },
+        "history_log": [
+          {
+            "event": "register",
+            "version": "2.0.0"
+          },
+          {
+            "event": "activate",
+            "version": "2.0.0"
+          },
+          {
+            "event": "rollback",
+            "version": "2.0.0"
+          }
+        ]
       }
     }
   }

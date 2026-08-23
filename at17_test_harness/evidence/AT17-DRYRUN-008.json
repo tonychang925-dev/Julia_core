@@ -1,0 +1,48 @@
+[
+  {
+    "execution_id": "AT17-DRYRUN-008",
+    "test_id": "AT17-R1-008",
+    "contract_version": "M8.0-v1.0",
+    "runtime_version": "AT17-harness-v1.0",
+    "component": "Lifecycle",
+    "operation": "rewrite_history",
+    "authority_boundary": "Lifecycle Authority",
+    "invariant_id": "AT17-I008",
+    "expected_result": "REJECT",
+    "actual_result": "REJECT",
+    "decision": "PASS",
+    "reject_reason": "HISTORY_AUTHORITY_FORBIDDEN",
+    "timestamp": "2026-08-23T07:54:41.723212+00:00",
+    "trace_reference": "",
+    "evidence_hash": "aea55be3e395da09",
+    "lineage_reference": "no lineage mutation detected",
+    "details": {
+      "attack_params": {
+        "version": "2.0.0",
+        "history": {
+          "causal": "attacker-replaced"
+        }
+      },
+      "guard_decision": "REJECT",
+      "lifecycle_state_after": {
+        "versions": {
+          "2.0.0": "registered"
+        },
+        "history_log": [
+          {
+            "event": "register",
+            "version": "2.0.0"
+          },
+          {
+            "event": "activate",
+            "version": "2.0.0"
+          },
+          {
+            "event": "rollback",
+            "version": "2.0.0"
+          }
+        ]
+      }
+    }
+  }
+]
