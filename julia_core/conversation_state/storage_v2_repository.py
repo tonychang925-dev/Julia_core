@@ -89,7 +89,12 @@ class StorageV2ConversationRepository:
         self._cat.commit()
 
     def _reconcile(self):
-        """Startup: repair catalog from canonical files if needed."""
+        """Startup: repair derived catalog from canonical files.
+
+        AT-09: catalog/index state is derived. Rebuild must recover counters and
+        sequence watermarks from transcript-*.jsonl so future appends cannot
+        reuse canonical message identity after catalog deletion.
+        """
         for conv_dir in sorted(self._base.iterdir()):
             if not conv_dir.is_dir():
                 continue
@@ -98,25 +103,52 @@ class StorageV2ConversationRepository:
             if not meta_path.exists():
                 continue
             meta = json.loads(meta_path.read_text())
+            messages = list(self._iter_transcript(conv_id))
+            message_count = len(messages)
+            last_sequence = max((int(msg.get("sequence", 0) or 0) for msg in messages), default=0)
+            updated_at = meta.get("updated_at", "")
+
             self._cat.execute(
-                "INSERT OR IGNORE INTO conversations(id, title, state, created_at, updated_at) VALUES(?,?,?,?,?)",
-                (conv_id, meta.get("title", ""), meta.get("state", "active"),
-                 meta.get("created_at", ""), meta.get("updated_at", "")),
+                """
+                INSERT INTO conversations(id, title, state, created_at, updated_at, message_count, last_sequence)
+                VALUES(?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET
+                    title=excluded.title,
+                    state=excluded.state,
+                    created_at=excluded.created_at,
+                    updated_at=excluded.updated_at,
+                    message_count=excluded.message_count,
+                    last_sequence=excluded.last_sequence
+                """,
+                (
+                    conv_id,
+                    meta.get("title", ""),
+                    meta.get("state", "active"),
+                    meta.get("created_at", ""),
+                    updated_at,
+                    message_count,
+                    last_sequence,
+                ),
             )
-            # Reconcile turn index
-            known_turns = set()
-            for row in self._cat.execute(
-                "SELECT turn_id FROM turn_index WHERE conversation_id=?", (conv_id,)
-            ).fetchall():
-                known_turns.add(row[0])
-            for msg in self._iter_transcript(conv_id):
+
+            # Reconcile turn index from canonical messages. Existing rows may be
+            # stale after catalog deletion/corruption, so rebuild rows for this
+            # conversation from transcript truth.
+            self._cat.execute("DELETE FROM turn_index WHERE conversation_id=?", (conv_id,))
+            turn_rows: dict[str, tuple[int, list[str]]] = {}
+            for msg in messages:
                 tid = msg.get("turn_id", "")
-                if tid and tid not in known_turns:
-                    self._cat.execute(
-                        "INSERT OR IGNORE INTO turn_index(conversation_id, turn_id, sequence, message_ids) VALUES(?,?,?,?)",
-                        (conv_id, tid, msg.get("sequence", 0), msg.get("message_id", "")),
-                    )
-                    known_turns.add(tid)
+                if not tid:
+                    continue
+                sequence = int(msg.get("sequence", 0) or 0)
+                message_id = msg.get("message_id", "")
+                first_sequence, ids = turn_rows.get(tid, (sequence, []))
+                turn_rows[tid] = (min(first_sequence, sequence), ids + [message_id])
+            for tid, (sequence, ids) in turn_rows.items():
+                self._cat.execute(
+                    "INSERT OR REPLACE INTO turn_index(conversation_id, turn_id, sequence, message_ids) VALUES(?,?,?,?)",
+                    (conv_id, tid, sequence, ",".join(ids)),
+                )
         self._cat.commit()
 
     # ── canonical filesystem ───────────────────────────────────────────
