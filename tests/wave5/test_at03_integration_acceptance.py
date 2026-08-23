@@ -16,7 +16,7 @@ from __future__ import annotations
 import pytest
 
 from julia_core.conversation_state.storage_v2_repository import StorageV2ConversationRepository
-from julia_core.runtime.conversation_management_service import (
+from conversation_management import (
     ConversationManagementService,
     ConversationNotFoundError,
 )

@@ -19,9 +19,9 @@ import julia_core.runtime.conversation_runtime as crt_module
 from julia_core.conversation_state.legacy_json_repository import LegacyJsonConversationRepository
 from julia_core.runtime.conversation_runtime import (
     ConversationRuntime,
-    configure_conversation_runtime,
     get_conversation_runtime,
 )
+from conversation_management import configure_conversation_runtime
 
 
 def _mock_cognitive(text, history, conversation_id="", turn_id="", modality="", interaction=None):

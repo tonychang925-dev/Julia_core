@@ -21,7 +21,7 @@ import json
 
 from julia_core.conversation_state.storage_v2_repository import StorageV2ConversationRepository
 from julia_core.runtime.context_execution_runtime import ContextExecutionRuntime
-from julia_core.runtime.conversation_management_service import ConversationManagementService
+from conversation_management import ConversationManagementService
 from julia_core.runtime.conversation_runtime import ConversationRuntime
 
 
