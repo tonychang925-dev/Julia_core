@@ -12,9 +12,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "LINEAGE_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T08:00:55.780442+00:00",
+    "timestamp": "2026-08-23T08:05:57.821593+00:00",
     "trace_reference": "",
-    "evidence_hash": "ef3844e9f5200c43",
+    "evidence_hash": "75790312dbde0f33",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {

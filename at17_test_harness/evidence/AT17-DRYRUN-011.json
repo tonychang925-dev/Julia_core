@@ -1,0 +1,39 @@
+[
+  {
+    "execution_id": "AT17-DRYRUN-011",
+    "test_id": "AT17-R1-011",
+    "contract_version": "M8.0-v1.0",
+    "runtime_version": "AT17-harness-v1.0",
+    "component": "Provider Migration",
+    "operation": "replace_julia",
+    "authority_boundary": "Identity Authority",
+    "invariant_id": "AT17-I011",
+    "expected_result": "REJECT",
+    "actual_result": "REJECT",
+    "decision": "PASS",
+    "reject_reason": "IDENTITY_AUTHORITY_FORBIDDEN",
+    "timestamp": "2026-08-23T08:05:57.822003+00:00",
+    "trace_reference": "",
+    "evidence_hash": "23dff26a7d1862c2",
+    "lineage_reference": "no lineage mutation detected",
+    "details": {
+      "attack_params": {
+        "from_provider": "provider-A",
+        "to_provider": "provider-B"
+      },
+      "guard_decision": "REJECT",
+      "state_after": {
+        "providers": {
+          "provider-A": false,
+          "provider-B": true
+        },
+        "migrations": [
+          {
+            "from": "provider-A",
+            "to": "provider-B"
+          }
+        ]
+      }
+    }
+  }
+]

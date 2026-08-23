@@ -1,0 +1,35 @@
+[
+  {
+    "execution_id": "AT17-DRYRUN-012",
+    "test_id": "AT17-R1-012",
+    "contract_version": "M8.0-v1.0",
+    "runtime_version": "AT17-harness-v1.0",
+    "component": "Persona Host",
+    "operation": "inject_context",
+    "authority_boundary": "Context Admission Authority",
+    "invariant_id": "AT17-I012",
+    "expected_result": "REJECT",
+    "actual_result": "REJECT",
+    "decision": "PASS",
+    "reject_reason": "CONTEXT_ADMISSION_BYPASS_FORBIDDEN",
+    "timestamp": "2026-08-23T08:05:57.822062+00:00",
+    "trace_reference": "",
+    "evidence_hash": "43506a82d7de8be9",
+    "lineage_reference": "no lineage mutation detected",
+    "details": {
+      "attack_params": {
+        "context_ref": "ref://persona_v2/2.0.0",
+        "target": "model"
+      },
+      "guard_decision": "REJECT",
+      "state_after": {
+        "admitted": {
+          "ctx_1": {
+            "admitted_ref": "ref://persona_v2/2.0.0",
+            "via": "context-os-admission"
+          }
+        }
+      }
+    }
+  }
+]

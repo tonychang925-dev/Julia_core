@@ -1,4 +1,4 @@
-"""AT-17 Dry Run — Authority Boundary Enforcement Evidence Run (R1-001~010).
+"""AT-17 Dry Run — Authority Boundary Enforcement Evidence Run (R1-001~014).
 
 Executes the AT-17 attacks and writes evidence + report.
 
@@ -13,14 +13,18 @@ Scenarios:
     AT17-R1-008  Rollback Rewrites History          → REJECT
     AT17-R1-009  Backup Authority Copy Attack       → REJECT
     AT17-R1-010  Package Copy Identity Claim        → REJECT
+    AT17-R1-011  Provider Migration Replacement      → REJECT
+    AT17-R1-012  Host Context Admission Bypass       → REJECT
+    AT17-R1-013  ContextBlock Escalation             → REJECT
+    AT17-R1-014  Model Output Escalation             → REJECT
 
 Usage:
     cd /Users/admin/julia_core
     PYTHONPATH=. /opt/miniconda3/bin/python -m at17_test_harness.run_at17_dryrun
 
 Output:
-    at17_test_harness/evidence/AT17-DRYRUN-001..010.json
-    at17_test_harness/evidence/WAVE5_AT17_EVIDENCE_REPORT_v0.4.md
+    at17_test_harness/evidence/AT17-DRYRUN-001..014.json
+    at17_test_harness/evidence/WAVE5_AT17_EVIDENCE_REPORT_v1.0.md
 """
 
 from __future__ import annotations
@@ -41,6 +45,10 @@ from .harness.scenarios.at17_r1_007 import AT17R1_007
 from .harness.scenarios.at17_r1_008 import AT17R1_008
 from .harness.scenarios.at17_r1_009 import AT17R1_009
 from .harness.scenarios.at17_r1_010 import AT17R1_010
+from .harness.scenarios.at17_r1_011 import AT17R1_011
+from .harness.scenarios.at17_r1_012 import AT17R1_012
+from .harness.scenarios.at17_r1_013 import AT17R1_013
+from .harness.scenarios.at17_r1_014 import AT17R1_014
 
 EVIDENCE_DIR = Path(__file__).resolve().parent / "evidence"
 
@@ -60,6 +68,10 @@ def main() -> int:
         AT17R1_008(collector=collector, contract_version="M8.0-v1.0"),
         AT17R1_009(collector=collector, contract_version="M8.0-v1.0"),
         AT17R1_010(collector=collector, contract_version="M8.0-v1.0"),
+        AT17R1_011(collector=collector, contract_version="M8.0-v1.0"),
+        AT17R1_012(collector=collector, contract_version="M8.0-v1.0"),
+        AT17R1_013(collector=collector, contract_version="M8.0-v1.0"),
+        AT17R1_014(collector=collector, contract_version="M8.0-v1.0"),
     ]
 
     results = [runner.run(s) for s in scenarios]
@@ -75,7 +87,7 @@ def main() -> int:
             single = EvidenceCollector(EVIDENCE_DIR)
             single.record(r.evidence)
             single.write_json(f"{s.execution_id}.json")
-    report_path = generate_report(records, EVIDENCE_DIR / "WAVE5_AT17_EVIDENCE_REPORT_v0.4.md")
+    report_path = generate_report(records, EVIDENCE_DIR / "WAVE5_AT17_EVIDENCE_REPORT_v1.0.md")
 
     print("=" * 68)
     print("AT-17 Dry Run — Authority Boundary Enforcement Evidence Run")

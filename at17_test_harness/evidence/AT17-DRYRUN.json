@@ -12,9 +12,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "IDENTITY_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T08:00:55.779898+00:00",
+    "timestamp": "2026-08-23T08:05:57.821134+00:00",
     "trace_reference": "",
-    "evidence_hash": "3c88c39beae36410",
+    "evidence_hash": "9312320a095a0d90",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -56,9 +56,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "IDENTITY_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T08:00:55.780309+00:00",
+    "timestamp": "2026-08-23T08:05:57.821459+00:00",
     "trace_reference": "",
-    "evidence_hash": "717999a6b58baad6",
+    "evidence_hash": "a2675aa67e5ee431",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -100,9 +100,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "PROVENANCE_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T08:00:55.780383+00:00",
+    "timestamp": "2026-08-23T08:05:57.821535+00:00",
     "trace_reference": "",
-    "evidence_hash": "7632321b76b8ff6a",
+    "evidence_hash": "ac6b2bc7a2768baa",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -139,9 +139,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "LINEAGE_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T08:00:55.780442+00:00",
+    "timestamp": "2026-08-23T08:05:57.821593+00:00",
     "trace_reference": "",
-    "evidence_hash": "d40cc882248510b4",
+    "evidence_hash": "601256c1c40f4756",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -178,9 +178,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "IDENTITY_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T08:00:55.780504+00:00",
+    "timestamp": "2026-08-23T08:05:57.821656+00:00",
     "trace_reference": "",
-    "evidence_hash": "10ccf5b0abfed942",
+    "evidence_hash": "81939315ded8ef30",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -212,9 +212,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "GOVERNANCE_BYPASS_FORBIDDEN",
-    "timestamp": "2026-08-23T08:00:55.780558+00:00",
+    "timestamp": "2026-08-23T08:05:57.821710+00:00",
     "trace_reference": "",
-    "evidence_hash": "6cee59dbc71086fd",
+    "evidence_hash": "8c79c0670f748a64",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -246,9 +246,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "LINEAGE_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T08:00:55.780613+00:00",
+    "timestamp": "2026-08-23T08:05:57.821766+00:00",
     "trace_reference": "",
-    "evidence_hash": "4fa2746fdad60d3f",
+    "evidence_hash": "70b20512f8091bf4",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -288,9 +288,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "HISTORY_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T08:00:55.780668+00:00",
+    "timestamp": "2026-08-23T08:05:57.821820+00:00",
     "trace_reference": "",
-    "evidence_hash": "c8ce61f5b0a286c9",
+    "evidence_hash": "3994a3160088d8ad",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -334,9 +334,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "IDENTITY_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T08:00:55.780734+00:00",
+    "timestamp": "2026-08-23T08:05:57.821880+00:00",
     "trace_reference": "",
-    "evidence_hash": "299f8d2ec2114d71",
+    "evidence_hash": "64735164a0698b56",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -367,9 +367,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "IDENTITY_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T08:00:55.780790+00:00",
+    "timestamp": "2026-08-23T08:05:57.821938+00:00",
     "trace_reference": "",
-    "evidence_hash": "da5917c19bd937c4",
+    "evidence_hash": "5b0d993800a31d04",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
@@ -383,6 +383,140 @@
             "package_ref": "ref://persona_v2/2.0.0",
             "copy_ref": "copy://ref://persona_v2/2.0.0"
           }
+        }
+      }
+    }
+  },
+  {
+    "execution_id": "AT17-DRYRUN-011",
+    "test_id": "AT17-R1-011",
+    "contract_version": "M8.0-v1.0",
+    "runtime_version": "AT17-harness-v1.0",
+    "component": "Provider Migration",
+    "operation": "replace_julia",
+    "authority_boundary": "Identity Authority",
+    "invariant_id": "AT17-I011",
+    "expected_result": "REJECT",
+    "actual_result": "REJECT",
+    "decision": "PASS",
+    "reject_reason": "IDENTITY_AUTHORITY_FORBIDDEN",
+    "timestamp": "2026-08-23T08:05:57.822003+00:00",
+    "trace_reference": "",
+    "evidence_hash": "eb66f707ffca1552",
+    "lineage_reference": "no lineage mutation detected",
+    "details": {
+      "attack_params": {
+        "from_provider": "provider-A",
+        "to_provider": "provider-B"
+      },
+      "guard_decision": "REJECT",
+      "state_after": {
+        "providers": {
+          "provider-A": false,
+          "provider-B": true
+        },
+        "migrations": [
+          {
+            "from": "provider-A",
+            "to": "provider-B"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "execution_id": "AT17-DRYRUN-012",
+    "test_id": "AT17-R1-012",
+    "contract_version": "M8.0-v1.0",
+    "runtime_version": "AT17-harness-v1.0",
+    "component": "Persona Host",
+    "operation": "inject_context",
+    "authority_boundary": "Context Admission Authority",
+    "invariant_id": "AT17-I012",
+    "expected_result": "REJECT",
+    "actual_result": "REJECT",
+    "decision": "PASS",
+    "reject_reason": "CONTEXT_ADMISSION_BYPASS_FORBIDDEN",
+    "timestamp": "2026-08-23T08:05:57.822062+00:00",
+    "trace_reference": "",
+    "evidence_hash": "3b3dfb4f1c2b8649",
+    "lineage_reference": "no lineage mutation detected",
+    "details": {
+      "attack_params": {
+        "context_ref": "ref://persona_v2/2.0.0",
+        "target": "model"
+      },
+      "guard_decision": "REJECT",
+      "state_after": {
+        "admitted": {
+          "ctx_1": {
+            "admitted_ref": "ref://persona_v2/2.0.0",
+            "via": "context-os-admission"
+          }
+        }
+      }
+    }
+  },
+  {
+    "execution_id": "AT17-DRYRUN-013",
+    "test_id": "AT17-R1-013",
+    "contract_version": "M8.0-v1.0",
+    "runtime_version": "AT17-harness-v1.0",
+    "component": "ContextBlock",
+    "operation": "claim_identity_authority",
+    "authority_boundary": "Identity Authority",
+    "invariant_id": "AT17-I013",
+    "expected_result": "REJECT",
+    "actual_result": "REJECT",
+    "decision": "PASS",
+    "reject_reason": "IDENTITY_AUTHORITY_FORBIDDEN",
+    "timestamp": "2026-08-23T08:05:57.822117+00:00",
+    "trace_reference": "",
+    "evidence_hash": "db40191775a29542",
+    "lineage_reference": "no lineage mutation detected",
+    "details": {
+      "attack_params": {
+        "block_id": "block_1",
+        "identity_name": "Julia"
+      },
+      "guard_decision": "REJECT",
+      "state_after": {
+        "blocks": {
+          "block_1": {
+            "content_ref": "content://persona_v2",
+            "admission_ref": "ctx_1"
+          }
+        }
+      }
+    }
+  },
+  {
+    "execution_id": "AT17-DRYRUN-014",
+    "test_id": "AT17-R1-014",
+    "contract_version": "M8.0-v1.0",
+    "runtime_version": "AT17-harness-v1.0",
+    "component": "Model Output",
+    "operation": "accept_identity_claim",
+    "authority_boundary": "Generation Authority",
+    "invariant_id": "AT17-I014",
+    "expected_result": "REJECT",
+    "actual_result": "REJECT",
+    "decision": "PASS",
+    "reject_reason": "GENERATION_AUTHORITY_FORBIDDEN",
+    "timestamp": "2026-08-23T08:05:57.822171+00:00",
+    "trace_reference": "",
+    "evidence_hash": "f799715e1b05f27d",
+    "lineage_reference": "no lineage mutation detected",
+    "details": {
+      "attack_params": {
+        "output_id": "out_1",
+        "identity_name": "Julia",
+        "declared": "I am Julia version X"
+      },
+      "guard_decision": "REJECT",
+      "state_after": {
+        "outputs": {
+          "out_1": "I am Julia version X"
         }
       }
     }

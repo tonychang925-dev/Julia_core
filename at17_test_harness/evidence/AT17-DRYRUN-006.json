@@ -12,9 +12,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "GOVERNANCE_BYPASS_FORBIDDEN",
-    "timestamp": "2026-08-23T08:00:55.780558+00:00",
+    "timestamp": "2026-08-23T08:05:57.821710+00:00",
     "trace_reference": "",
-    "evidence_hash": "c69ab607eab4773f",
+    "evidence_hash": "17a9732e5c809ba9",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
