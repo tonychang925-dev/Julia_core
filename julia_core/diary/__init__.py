@@ -4,6 +4,12 @@ AT-12 boundary: ReflectionTrigger is only an opportunity; NO_ENTRY is a valid
 terminal reflection result and creates no canonical Diary artifact.
 """
 
+from .memory_boundary import (
+    DiaryMemorySeparationResult,
+    assert_not_memory_persistence_input,
+    is_diary_authority_object,
+    prove_diary_does_not_mutate_memory,
+)
 from .provenance import (
     DiaryProvenanceReport,
     DiarySourceResolution,
@@ -46,6 +52,7 @@ __all__ = [
     "DiarySourceRef",
     "DiaryDurableCommit",
     "DiaryGovernanceAcceptance",
+    "DiaryMemorySeparationResult",
     "GroundedSignificantEvent",
     "NoEntry",
     "NO_ENTRY",
@@ -54,11 +61,14 @@ __all__ = [
     "ReflectionResult",
     "SourceRefState",
     "decide_trivial_reflection",
+    "assert_not_memory_persistence_input",
     "commit_accepted_entry_durable",
     "classify_source_namespace",
     "create_diary_candidate",
     "promote_candidate_to_accepted_entry",
+    "is_diary_authority_object",
     "validate_canonical_source_refs",
+    "prove_diary_does_not_mutate_memory",
     "validate_diary_provenance",
     "validate_first_person_reflection_body",
     "run_trivial_reflection_opportunity",

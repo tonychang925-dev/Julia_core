@@ -113,26 +113,16 @@ class SessionRecorder:
         return None
 
     def _write_diary(self, data: dict):
-        """Write a diary entry to memory/."""
-        date = _time.strftime("%Y-%m-%d")
-        path = MEMORY_DIR / f"julia_diary_{date}.md"
+        """Legacy session diary writer is not Diary or Memory authority.
 
-        entry = f"""# Julia 的日记 — {date}
-
-{data.get('diary_entry', '')}
-
-## 关键词
-
-- Tony状态: {data.get('tony_state', '未知')}
-- 关系变化: {data.get('relationship_update', '无')}
-- 关键事件: {', '.join(data.get('key_events', []))}
-"""
-        # Append if file exists, create if not
-        mode = "a" if path.exists() else "w"
-        with open(path, mode) as f:
-            if mode == "a":
-                f.write("\n---\n\n")
-            f.write(entry)
+        AT-15 freezes that session recording cannot auto-promote provider
+        reflection into canonical Diary or Memory. Use governed Diary and
+        Memory governance paths instead.
+        """
+        raise RuntimeError(
+            "Legacy SessionRecorder._write_diary is disabled for canonical Diary/Memory v1; "
+            "use governed Diary and explicit Memory governance"
+        )
 
 
 # ── Singleton ───────────────────────────────────────────────────────────────

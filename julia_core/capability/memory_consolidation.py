@@ -80,9 +80,16 @@ importance: {stars} ({overall:.0%})
 
     @staticmethod
     def save(candidate: ExperienceCandidate, confirmed: bool = False) -> str:
-        """Save a confirmed memory to the events directory."""
+        """Save a confirmed memory to the events directory.
+
+        AT-15: diary-derived content is not canonical Memory authority.
+        """
         if not confirmed:
             return "未确认，不保存。"
+        if type(candidate) is not ExperienceCandidate:
+            raise TypeError("MemoryConsolidator.save requires ExperienceCandidate")
+        if candidate.category == "diary" or str(candidate.content if hasattr(candidate, "content") else "").startswith("diary://"):
+            raise RuntimeError("Diary-derived memory requires explicit Memory governance; legacy save_memory is not canonical authority")
 
         date_str = datetime.now().strftime("%Y_%m_%d")
         safe_title = candidate.title.replace(" ", "_").replace("/", "-")[:50]
