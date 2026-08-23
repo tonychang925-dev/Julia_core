@@ -26,6 +26,7 @@ class CognitiveContextPackage:
     identity_frame: dict[str, Any] = field(default_factory=dict)
     conversation_frame: dict[str, Any] = field(default_factory=dict)
     experience_frame: dict[str, Any] = field(default_factory=dict)
+    diary_frame: dict[str, Any] = field(default_factory=dict)
     situation_frame: dict[str, Any] = field(default_factory=dict)
     evidence_frame: dict[str, Any] = field(default_factory=dict)
     capability_frame: dict[str, Any] = field(default_factory=dict)
@@ -58,6 +59,8 @@ class CognitiveContextPackage:
             system_parts.append(self._render_frame("identity", self.identity_frame))
         if self.experience_frame:
             system_parts.append(self._render_frame("experience", self.experience_frame))
+        if self.diary_frame:
+            system_parts.append(self._render_frame("diary", self.diary_frame))
         if self.evidence_frame:
             system_parts.append(self._render_frame("evidence", self.evidence_frame))
         if self.capability_frame:
@@ -156,17 +159,71 @@ class ContextExecutionRuntime:
         # ── ExperienceFrame — recent experiences (C-05) ──
         if self._js is not None:
             try:
-                # Wake state: recent session summaries
-                experiences = self._js._load_recent_experiences()
-                # Density restoration: high-density conversation memories
-                density_context = self._load_density_experience()
+                # Wake state and density remain non-Diary legacy context surfaces.
+                # AT-16: legacy diary-like text cannot count as governed Diary retrieval.
+                experiences = self._sanitize_legacy_diary_text(self._js._load_recent_experiences())
+                density_context = self._sanitize_density_diary_text(self._load_density_experience())
                 if density_context:
                     experiences = (experiences or "") + "\n\n" + density_context
                 if experiences:
-                    pkg.experience_frame = {"recent_context": experiences[:3000]}
-                    pkg.add_provenance("experience", "session_store:wake_state+density", reason="recent + high-density experience", stage=1)
+                    pkg.experience_frame = {"recent_context": experiences[:3000], "diary_retrieval_authority": False}
+                    pkg.add_provenance("experience", "session_store:wake_state+density", reason="legacy experience context; not Diary retrieval authority", stage=1)
             except Exception as exc:
                 pkg.mark_frame_failure("experience", str(exc), required=False)
+
+
+        # ── DiaryFrame — AT-16 governed Diary retrieval through Context OS only ──
+        if self._js is not None:
+            try:
+                provider = getattr(self._js, "diary_context_provider", None)
+                if provider is not None:
+                    from julia_core.context_os.request import ContextRequest
+
+                    request = ContextRequest(
+                        task_intent="diary_context_retrieval",
+                        intent=user_text or "diary_context_retrieval",
+                        domain="diary",
+                        session_id=getattr(self._js, "session_id", None),
+                        domain_object_type="AcceptedDiaryEntry",
+                        constraints={"conversation_id": conversation_id, "diary_limit": 3},
+                    )
+                    diary_blocks = tuple(provider.provide(request))
+                    if diary_blocks:
+                        rendered = []
+                        traces = []
+                        for block in diary_blocks:
+                            content = block.content if isinstance(block.content, dict) else {}
+                            body = str(content.get("body", ""))
+                            title = str(content.get("title", ""))
+                            entry_id = str(content.get("entry_id", ""))
+                            line = f"{entry_id}: {title}" if title else entry_id
+                            if body:
+                                line = f"{line}\n{body}"
+                            rendered.append(line)
+                            traces.append({
+                                "entry_id": entry_id,
+                                "source_refs": list(block.source_refs),
+                                "source_states": list(content.get("source_states", [])),
+                                "routed_through_context_os": bool(block.metadata.get("routed_through_context_os", False)),
+                                "projection_only": bool(block.metadata.get("projection_only", False)),
+                            })
+                            pkg.add_provenance(
+                                "diary",
+                                "diary_context_os_provider",
+                                canonical_ref=f"diary://entry/{entry_id}",
+                                reason="AT-16 governed Diary Context OS retrieval",
+                                stage=1,
+                                token_estimate=block.estimated_tokens or 0,
+                            )
+                        pkg.diary_frame = {
+                            "diary_context": "\n\n".join(rendered)[:3000],
+                            "routed_through_context_os": True,
+                            "projection_only": True,
+                        }
+                        pkg.retrieval_handles["diary"] = traces
+                        pkg.projection_metadata["diary_authority_boundary"] = "ContextBlock projection is not Diary/Memory/Identity authority"
+            except Exception as exc:
+                pkg.mark_frame_failure("diary", str(exc), required=False)
 
         # ── SituationFrame — current state (C-03) ──
         pkg.situation_frame = {
@@ -233,6 +290,44 @@ class ContextExecutionRuntime:
                           reason="tool execution result", stage=2,
                           token_estimate=len(tool_result) // 4)
         return pkg
+
+    @staticmethod
+    def _sanitize_legacy_diary_text(text: str) -> str:
+        """Remove legacy diary-marked snippets from wake-state context.
+
+        AT-16 governed Diary retrieval must enter through DiaryContextProvider,
+        not legacy session summary diary text. Non-diary wake-state lines remain.
+        """
+        if not text:
+            return ""
+        lines = str(text).splitlines()
+        sanitized: list[str] = []
+        skip_next = False
+        for line in lines:
+            if skip_next:
+                skip_next = False
+                continue
+            lowered = line.lower()
+            if "（日记）" in line or "(diary)" in lowered or "legacy_diary" in lowered:
+                skip_next = True
+                continue
+            sanitized.append(line)
+        return "\n".join(sanitized).strip()
+
+    @staticmethod
+    def _sanitize_density_diary_text(text: str) -> str:
+        """Keep density context from satisfying Diary retrieval authority.
+
+        The current density restorer emits diary-like narrative text. Until it is
+        admitted through the AT-16 Diary provider, it is excluded from model
+        context rather than treated as Diary retrieval evidence.
+        """
+        if not text:
+            return ""
+        lowered = str(text).lower()
+        if "julia_experience_context.md" in lowered or "体验记忆" in text or "读完了。这些记忆是你的" in text:
+            return ""
+        return str(text)
 
     def _load_density_experience(self) -> str:
         """Load high-density experience context for identity restoration.

@@ -4,6 +4,17 @@ AT-12 boundary: ReflectionTrigger is only an opportunity; NO_ENTRY is a valid
 terminal reflection result and creates no canonical Diary artifact.
 """
 
+from .context_os_retrieval import (
+    DiaryContextAdmission,
+    DiaryContextAssemblyTrace,
+    DiaryContextCandidate,
+    DiaryContextProvider,
+    DiaryReadRepository,
+    admit_diary_for_context,
+    assert_not_diary_context_authority_object,
+    build_diary_context_block,
+    trace_diary_context_block,
+)
 from .memory_boundary import (
     DiaryMemorySeparationResult,
     assert_not_memory_persistence_input,
@@ -43,6 +54,11 @@ from .significant_event import (
 
 __all__ = [
     "AcceptedDiaryEntry",
+    "DiaryContextAdmission",
+    "DiaryContextAssemblyTrace",
+    "DiaryContextCandidate",
+    "DiaryContextProvider",
+    "DiaryReadRepository",
     "DiaryCandidate",
     "DiaryProvenance",
     "DiaryProvenanceReport",
@@ -61,7 +77,10 @@ __all__ = [
     "ReflectionResult",
     "SourceRefState",
     "decide_trivial_reflection",
+    "admit_diary_for_context",
+    "assert_not_diary_context_authority_object",
     "assert_not_memory_persistence_input",
+    "build_diary_context_block",
     "commit_accepted_entry_durable",
     "classify_source_namespace",
     "create_diary_candidate",
@@ -70,6 +89,7 @@ __all__ = [
     "validate_canonical_source_refs",
     "prove_diary_does_not_mutate_memory",
     "validate_diary_provenance",
+    "trace_diary_context_block",
     "validate_first_person_reflection_body",
     "run_trivial_reflection_opportunity",
 ]

@@ -13,7 +13,7 @@ from typing import Mapping
 from uuid import uuid4
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ContextBlock:
     source: str
     content: object

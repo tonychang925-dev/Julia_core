@@ -11,7 +11,7 @@ from typing import Mapping
 from uuid import uuid4
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ContextRequest:
     task_intent: str
     intent: str
