@@ -1,7 +1,8 @@
 # PHASE8_PERSONA_HOST_RUNTIME_CONSTRUCTION_SCOPE_CONTRACT_v1.0
 
-Status: PROPOSED FOR FREEZE (pre-construction scope gate)
+Status: PASS FOR FREEZE ACCEPTANCE (Revision 1.1 — Non-Goal added)
 Date: 2026-08-23
+Revision: 1.1 (2026-08-23) — added "Phase8 Construction Non-Goal" per scope review
 Dependencies:
 - M8.0 Persona Host Runtime Boundary Contract v1.0 (FINAL FREEZE ACCEPTED)
 - WAVE5_AT17_EVIDENCE_REPORT_v1.0 (14/14 PASS, zero leakage, zero mutation)
@@ -140,7 +141,34 @@ This guarantees the new runtime adds capability, not authority.
 
 ---
 
-## 4. Architecture Status
+## 4. Phase8 Construction Non-Goal
+
+Phase8 is NOT intended to prove Julia identity existence.
+
+Freeze:
+
+```text
+Runtime Success != Identity Proof
+```
+
+Wrong mental model:
+
+```text
+Persona Host loads package successfully → Julia exists
+```
+
+Correct mental model:
+
+```text
+Persona Host loads validated artifact successfully → Runtime carrier available
+```
+
+A successful load is a capability proof, never an identity proof. This prevents
+demo success from being misread as identity existence.
+
+---
+
+## 5. Architecture Status
 
 ```text
 JULIA_CONVERSATION_STORAGE_AND_DIARY_PLAN_v2.0          FROZEN PREPARATION ✅
@@ -153,16 +181,20 @@ PHASE8_CONSTRUCTION_SCOPE_CONTRACT_v1.0                 THIS DOCUMENT (freeze pe
 
 ---
 
-## 5. Freeze Decision
+## 6. Freeze Decision
 
 ```text
-[ ] In Scope / Out of Scope approved
-[ ] Repository placement approved (persona_host/ independent)
-[ ] Milestone 1 scope approved
-[ ] AT-17 Regression Gate requirement approved
+[x] In Scope / Out of Scope approved
+[x] Repository placement approved (persona_host/ independent)
+[x] Milestone 1 scope approved
+[x] AT-17 Regression Gate requirement approved
+[x] Phase8 Construction Non-Goal approved (Rev 1.1)
 ```
 
-Until this contract freezes, no persona_host construction code may be written.
+Status: PASS FOR FREEZE ACCEPTANCE.
+
+Until the Scope Freeze Record is written, no persona_host construction code may
+be written.
 
 ---
 
