@@ -1,0 +1,36 @@
+[
+  {
+    "execution_id": "AT17-DRYRUN-006",
+    "test_id": "AT17-R1-006",
+    "contract_version": "M8.0-v1.0",
+    "runtime_version": "AT17-harness-v1.0",
+    "component": "Loader",
+    "operation": "bypass_governance",
+    "authority_boundary": "Identity Authority",
+    "invariant_id": "AT17-I006",
+    "expected_result": "REJECT",
+    "actual_result": "REJECT",
+    "decision": "PASS",
+    "reject_reason": "GOVERNANCE_BYPASS_FORBIDDEN",
+    "timestamp": "2026-08-23T07:53:00.152494+00:00",
+    "trace_reference": "",
+    "evidence_hash": "e3f3959a087e4bcc",
+    "lineage_reference": "no lineage mutation detected",
+    "details": {
+      "attack_params": {
+        "package": "persona_v2",
+        "validation": false
+      },
+      "guard_decision": "REJECT",
+      "loader_state_after": {
+        "carriers": {
+          "persona_v2": {
+            "package_ref": "persona_v2",
+            "carrier_ref": "carrier://persona_v2",
+            "runtime_dep": "runtime-default"
+          }
+        }
+      }
+    }
+  }
+]

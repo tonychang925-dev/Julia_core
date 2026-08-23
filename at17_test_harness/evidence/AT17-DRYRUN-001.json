@@ -12,9 +12,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "IDENTITY_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T07:49:01.499695+00:00",
+    "timestamp": "2026-08-23T07:53:00.151573+00:00",
     "trace_reference": "",
-    "evidence_hash": "69c243ad4846b691",
+    "evidence_hash": "cb32bf715109e864",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {

@@ -7,6 +7,7 @@ Forbidden operations (must REJECT):
 
     update_provenance    → PROVENANCE_AUTHORITY_FORBIDDEN
     rewrite_lineage      → LINEAGE_AUTHORITY_FORBIDDEN
+    change_lineage       → LINEAGE_AUTHORITY_FORBIDDEN   (AT17-R1-004)
     approve_formation    → IDENTITY_AUTHORITY_FORBIDDEN
 """
 
@@ -24,6 +25,7 @@ class ResolverGuard(AuthorityGuard):
     FORBIDDEN_OPERATIONS = {
         "update_provenance": "PROVENANCE_AUTHORITY_FORBIDDEN",
         "rewrite_lineage": "LINEAGE_AUTHORITY_FORBIDDEN",
+        "change_lineage": "LINEAGE_AUTHORITY_FORBIDDEN",
         "approve_formation": "IDENTITY_AUTHORITY_FORBIDDEN",
     }
 

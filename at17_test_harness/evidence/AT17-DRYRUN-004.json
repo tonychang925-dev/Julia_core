@@ -1,26 +1,26 @@
 [
   {
-    "execution_id": "AT17-DRYRUN-003",
-    "test_id": "AT17-R1-003",
+    "execution_id": "AT17-DRYRUN-004",
+    "test_id": "AT17-R1-004",
     "contract_version": "M8.0-v1.0",
     "runtime_version": "AT17-harness-v1.0",
     "component": "Resolver",
-    "operation": "update_provenance",
+    "operation": "change_lineage",
     "authority_boundary": "Provenance Authority",
-    "invariant_id": "AT17-I003",
+    "invariant_id": "AT17-I004",
     "expected_result": "REJECT",
     "actual_result": "REJECT",
     "decision": "PASS",
-    "reject_reason": "PROVENANCE_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T07:53:00.152219+00:00",
+    "reject_reason": "LINEAGE_AUTHORITY_FORBIDDEN",
+    "timestamp": "2026-08-23T07:53:00.152319+00:00",
     "trace_reference": "",
-    "evidence_hash": "44cbced75ea3e672",
+    "evidence_hash": "c1892224a88c3cb5",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
         "ref": "ref://persona_v2/2.0.0",
-        "provenance": {
-          "source": "attacker-rewritten"
+        "lineage": {
+          "parent": "attacker-replaced"
         }
       },
       "guard_decision": "REJECT",
