@@ -15,6 +15,7 @@ from .models import (
 )
 from .reflection_decision import ReflectionOpportunity, decide_trivial_reflection
 from .repository_protocol import DiaryRepository
+from .reflection_pipeline import ReflectionExecutionResult, run_trivial_reflection_opportunity
 
 __all__ = [
     "AcceptedDiaryEntry",
@@ -24,7 +25,9 @@ __all__ = [
     "DiarySourceRef",
     "NoEntry",
     "NO_ENTRY",
+    "ReflectionExecutionResult",
     "ReflectionOpportunity",
     "ReflectionResult",
     "decide_trivial_reflection",
+    "run_trivial_reflection_opportunity",
 ]
