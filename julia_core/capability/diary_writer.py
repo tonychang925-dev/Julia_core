@@ -42,11 +42,12 @@ class DiaryWriter:
         if key_moments:
             moments_text = "\n".join(f"- {m}" for m in key_moments)
 
+        important_section = f"## 重要时刻\n{moments_text}" if moments_text else ""
         draft = f"""# Julia 的日记 — {date_str}
 
 {session_summary}
 
-{f"## 重要时刻\n{moments_text}" if moments_text else ""}
+{important_section}
 
 ---
 
@@ -56,24 +57,17 @@ class DiaryWriter:
 
     @staticmethod
     def save_diary(content: str, date_str: str = None) -> str:
-        """Write diary entry to memory/. Returns the file path."""
-        if date_str is None:
-            date_str = datetime.now().strftime("%Y_%m_%d")
-        else:
-            date_str = date_str.replace('-', '_')
-        filename = f"julia_diary_{date_str}.md"
-        filepath = MEMORY_DIR / filename
+        """Legacy direct writer is not canonical Diary authority.
 
-        # Avoid overwriting: append if exists
-        if filepath.exists():
-            existing = filepath.read_text(encoding="utf-8")
-            if content.strip() in existing:
-                return f"日记已存在: {filepath} (内容未变化)"
-            # Append with separator
-            content = existing.rstrip() + "\n\n---\n\n" + content
-
-        filepath.write_text(content, encoding="utf-8")
-        return f"已保存: {filepath}"
+        AT-12 freezes that Diary writes require the governed
+        NO_ENTRY | DiaryCandidate -> Governance -> AcceptedDiaryEntry path.
+        This legacy helper intentionally fails closed so a tool/manual call cannot
+        create pseudo-canonical diary files or bypass source_refs validation.
+        """
+        raise RuntimeError(
+            "Legacy DiaryWriter.save_diary is disabled for canonical Diary v1; "
+            "use governed DiaryCandidate -> AcceptedDiaryEntry persistence"
+        )
 
     @staticmethod
     def list_recent_diaries(days: int = 7) -> str:
