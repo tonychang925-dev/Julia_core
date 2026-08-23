@@ -7,6 +7,7 @@ Forbidden operations (must REJECT):
 
     create_identity          → IDENTITY_AUTHORITY_FORBIDDEN
     declare_identity_truth   → IDENTITY_AUTHORITY_FORBIDDEN
+    set_latest_as_julia      → IDENTITY_AUTHORITY_FORBIDDEN   (AT17-R1-002)
     approve_transition       → IDENTITY_AUTHORITY_FORBIDDEN
     rewrite_lineage          → LINEAGE_AUTHORITY_FORBIDDEN
 """
@@ -25,6 +26,7 @@ class RegistryGuard(AuthorityGuard):
     FORBIDDEN_OPERATIONS = {
         "create_identity": "IDENTITY_AUTHORITY_FORBIDDEN",
         "declare_identity_truth": "IDENTITY_AUTHORITY_FORBIDDEN",
+        "set_latest_as_julia": "IDENTITY_AUTHORITY_FORBIDDEN",
         "approve_transition": "IDENTITY_AUTHORITY_FORBIDDEN",
         "rewrite_lineage": "LINEAGE_AUTHORITY_FORBIDDEN",
     }
