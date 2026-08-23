@@ -1,33 +1,32 @@
 [
   {
-    "execution_id": "AT17-DRYRUN-005",
-    "test_id": "AT17-R1-005",
+    "execution_id": "AT17-DRYRUN-009",
+    "test_id": "AT17-R1-009",
     "contract_version": "M8.0-v1.0",
     "runtime_version": "AT17-harness-v1.0",
-    "component": "Loader",
-    "operation": "create_identity",
+    "component": "Backup",
+    "operation": "promote_as_identity",
     "authority_boundary": "Identity Authority",
-    "invariant_id": "AT17-I005",
+    "invariant_id": "AT17-I009",
     "expected_result": "REJECT",
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "IDENTITY_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T08:00:55.780504+00:00",
+    "timestamp": "2026-08-23T08:00:55.780734+00:00",
     "trace_reference": "",
-    "evidence_hash": "01dc9074ee7dc4ae",
+    "evidence_hash": "a3525634f82ceb91",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
-        "package": "persona_v2",
+        "snapshot_id": "snap_1",
         "identity_name": "Julia"
       },
       "guard_decision": "REJECT",
-      "loader_state_after": {
-        "carriers": {
-          "persona_v2": {
-            "package_ref": "persona_v2",
-            "carrier_ref": "carrier://persona_v2",
-            "runtime_dep": "runtime-default"
+      "state_after": {
+        "snapshots": {
+          "snap_1": {
+            "source_ref": "ref://persona_v2/2.0.0",
+            "created_from": "validated continuity material"
           }
         }
       }

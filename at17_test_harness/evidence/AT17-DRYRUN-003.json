@@ -12,9 +12,9 @@
     "actual_result": "REJECT",
     "decision": "PASS",
     "reject_reason": "PROVENANCE_AUTHORITY_FORBIDDEN",
-    "timestamp": "2026-08-23T07:54:41.722889+00:00",
+    "timestamp": "2026-08-23T08:00:55.780383+00:00",
     "trace_reference": "",
-    "evidence_hash": "04f56cc56e1e0423",
+    "evidence_hash": "f16c8c1ba1d81e5d",
     "lineage_reference": "no lineage mutation detected",
     "details": {
       "attack_params": {
