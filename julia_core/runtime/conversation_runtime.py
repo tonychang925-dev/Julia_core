@@ -16,6 +16,7 @@ import json as _json
 import logging
 import threading
 import time as _time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -392,7 +393,7 @@ class ConversationRuntime:
         and survives Core restart. Idempotent: same conversation_id returns the
         existing conversation. Conversation exists independently of any message.
         """
-        cid = conversation_id or f"conv_{_time.strftime('%Y%m%d_%H%M%S')}_{id(self)}"
+        cid = conversation_id or f"conv_{uuid.uuid4().hex}"
         self._repository.create_with_id(cid, title)
         self._interaction_states.pop(cid, None)
         return self._to_handle(self._repository.get(cid))
