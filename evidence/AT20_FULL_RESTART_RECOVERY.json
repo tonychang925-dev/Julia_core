@@ -1,0 +1,9 @@
+{
+  "test_id": "AT-20",
+  "scope": "full restart recovery (Electron + Brain + S2S)",
+  "conversation_recovered": true,
+  "accepted_diary_recovered": true,
+  "no_client_history": true,
+  "decision": "PASS",
+  "timestamp": "2026-08-24T04:41:18Z"
+}

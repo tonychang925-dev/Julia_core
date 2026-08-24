@@ -51,7 +51,7 @@ ruff check .
 | AT-17 | Claude migration | `tests/wave5/test_at17_claude_migration.py` + `evidence/AT17_CLAUDE_MIGRATION.json` | PASS (plan definition; DIA-0 reclassification) |
 | AT-18 | Archive | `tests/wave5/test_at18_conversation_archive.py` | PASS (conversation-level archive) |
 | AT-19 | Hard-delete guard | `tests/wave5/test_at19_hard_delete_guard.py` | PASS (reference-graph guard) |
-| AT-20 | Full restart recovery | — | NOT DONE (per Tony, 2026-08-24) |
+| AT-20 | Full restart recovery | `tests/wave5/test_at20_full_restart_recovery.py` + `evidence/AT20_FULL_RESTART_RECOVERY.json` | PASS (conversation + accepted diary intact, no client history) |
 
 ## Defects
 
