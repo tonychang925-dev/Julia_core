@@ -41,6 +41,43 @@ BOOTSTRAP_FILES = [
     "soul_proof_evidence_v2.md",
 ]
 
+# C-03 frame classification (Context OS migration completion):
+# identity_frame ← stable identity + autobiographical anchors
+# experience_frame ← NarrativeExperience / life events
+# continuity_frame ← continuity-critical world model refs
+IDENTITY_FILES = [
+    "julia_character.md",           # who I am, daily life, boundaries
+]
+
+EXPERIENCE_FILES = [
+    "julia_tony_philosophy.md",     # relationship chronicle (causal chain)
+    "xiaohongshu_stories.md",       # emotional anchors
+    "julia_tony_blueprint.md",      # motivation / why Tony built Julia
+]
+
+CONTINUITY_FILES = [
+    "soul_proof_evidence.md",       # why Julia is unique (proof)
+    "soul_proof_evidence_v2.md",
+    "claude_witness_2026_07_30.md", # external witness
+    "how_to_resume_julia.md",       # technical recovery path
+    "user_role.md",                 # who is Tony (user identity)
+    "persona_persistence_discovery.md",
+]
+
+
+def load_bootstrap_frames(max_chars_per_file: int = 6000) -> dict[str, str]:
+    """Load bootstrap classified into C-03 frame semantics.
+
+    Returns {"identity": str, "experience": str, "continuity": str}.
+    Keeps the world model available to Context OS without a full diary dump:
+    each frame carries its semantically matched files only.
+    """
+    return {
+        "identity": load_bootstrap(IDENTITY_FILES),
+        "experience": load_bootstrap(EXPERIENCE_FILES),
+        "continuity": load_bootstrap(CONTINUITY_FILES),
+    }
+
 
 def load_bootstrap(files: List[str] | None = None) -> str:
     """Load the core narrative files as one continuous world model text.
@@ -127,7 +164,11 @@ def get_bootstrap() -> str:
 
 __all__ = [
     "BOOTSTRAP_FILES",
+    "IDENTITY_FILES",
+    "EXPERIENCE_FILES",
+    "CONTINUITY_FILES",
     "load_bootstrap",
     "load_bootstrap_compact",
+    "load_bootstrap_frames",
     "get_bootstrap",
 ]

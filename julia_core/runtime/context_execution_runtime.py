@@ -111,6 +111,15 @@ class CognitiveContextPackage:
         return list(self._provenance_entries)
 
 
+# C-03 Frame Budget Contract (AT-21): classify-and-project, never unbounded dump.
+# Past budget → governed retrieval / compaction, not silent growth.
+FRAME_BUDGETS = {
+    "identity": 5_000,      # autobiographical anchors (stable, small)
+    "experience": 20_000,   # life events / relationship chronicle
+    "continuity": 20_000,   # world model / continuity-critical refs
+}
+
+
 class ContextExecutionRuntime:
     """C-03 production binding — single model-visible context authority.
 
@@ -127,6 +136,23 @@ class ContextExecutionRuntime:
 
     def __init__(self, julia_session=None):
         self._js = julia_session
+
+    def _get_bootstrap_frames(self) -> dict[str, str]:
+        """Load classified bootstrap once per session, then cache.
+
+        Bootstrap is a one-time world-model initialization (J0.12.2); reading
+        the memory files on every turn would be wasteful. ContextExecutionRuntime
+        is a session-scoped singleton held by JuliaSession, so instance caching
+        is safe.
+        """
+        if not hasattr(self, "_bootstrap_frames_cache"):
+            self._bootstrap_frames_cache = {}
+            try:
+                from julia_core.narrative.bootstrap import load_bootstrap_frames
+                self._bootstrap_frames_cache = load_bootstrap_frames()
+            except Exception:
+                self._bootstrap_frames_cache = {}
+        return self._bootstrap_frames_cache
 
     def prepare(
         self,
@@ -150,12 +176,29 @@ class ContextExecutionRuntime:
             generation_id=generation_id or f"gen_{uuid.uuid4().hex[:12]}",
         )
 
-        # ── IdentityFrame — from Persona (C-04) ──
+        # Bootstrap world model, classified into C-03 frame semantics.
+        # Identity formation history must not vanish in Context OS migration:
+        # it is projected per-frame (identity / experience / continuity),
+        # not dumped as one monolithic system prompt.
+        # Loaded once per session and cached (Check: performance).
+        bootstrap_frames: dict[str, str] = {}
+        try:
+            bootstrap_frames = self._get_bootstrap_frames()
+        except Exception as exc:
+            pkg.mark_frame_failure("bootstrap", str(exc), required=False)
+
+        # ── IdentityFrame — from Persona (C-04) + autobiographical anchors ──
         if self._js is not None:
             pkg.identity_frame = {
                 "persona_traits": self._js.persona.get_traits_for_injection() if hasattr(self._js, 'persona') else "",
             }
             pkg.add_provenance("identity", "persona:feature_store", reason="base identity", stage=0)
+            identity_anchors = bootstrap_frames.get("identity", "")[:FRAME_BUDGETS["identity"]]
+            if identity_anchors:
+                pkg.identity_frame["autobiographical_anchors"] = identity_anchors
+                pkg.add_provenance("identity", "narrative:bootstrap:identity",
+                                   reason="autobiographical anchors (budgeted)", stage=0,
+                                   token_estimate=len(identity_anchors) // 4)
 
         # ── ConversationFrame — ActiveTail from canonical history (C-02) ──
         scoped_history = self._scope_history_to_conversation(conversation_id, history)
@@ -174,7 +217,7 @@ class ContextExecutionRuntime:
             pkg.add_provenance("conversation_boundary", f"conversation:{conversation_id}",
                                reason=f"dropped_foreign_history:{dropped_foreign}", stage=0)
 
-        # ── ExperienceFrame — recent experiences (C-05) ──
+        # ── ExperienceFrame — recent experiences + life events (C-05) ──
         if self._js is not None:
             try:
                 # Wake state and density remain non-Diary legacy context surfaces.
@@ -186,6 +229,14 @@ class ContextExecutionRuntime:
                 if experiences:
                     pkg.experience_frame = {"recent_context": experiences[:3000], "diary_retrieval_authority": False}
                     pkg.add_provenance("experience", "session_store:wake_state+density", reason="legacy experience context; not Diary retrieval authority", stage=1)
+                life_events = bootstrap_frames.get("experience", "")[:FRAME_BUDGETS["experience"]]
+                if life_events:
+                    existing = dict(pkg.experience_frame)
+                    existing["life_events"] = life_events
+                    pkg.experience_frame = existing
+                    pkg.add_provenance("experience", "narrative:bootstrap:experience",
+                                       reason="life events / relationship chronicle (budgeted)", stage=1,
+                                       token_estimate=len(life_events) // 4)
             except Exception as exc:
                 pkg.mark_frame_failure("experience", str(exc), required=False)
 
@@ -277,8 +328,24 @@ class ContextExecutionRuntime:
             except Exception as exc:
                 pkg.mark_frame_failure("capability", str(exc), required=False)
 
-        # ── ContinuityFrame — when applicable (C-06) ──
-        # Reserved for P5 Continuity binding
+        # ── ContinuityFrame — world model / continuity-critical refs (C-06) ──
+        # world_model classification note (AT-21): continuity_frame carries the
+        # explanation model of HOW Julia became who she is (proof, witness,
+        # recovery path, user identity) — i.e. what must remain recoverable
+        # across disruption. Tony's factual description (user_role.md) is here
+        # as user identity ref; Julia's own lived experience lives in
+        # experience_frame.life_events. If a fact is plain "about Tony" rather
+        # than continuity-critical, it belongs in experience, not continuity.
+        world_model = bootstrap_frames.get("continuity", "")[:FRAME_BUDGETS["continuity"]]
+        if world_model:
+            pkg.continuity_frame = {
+                "world_model": world_model,
+                "source": "narrative:bootstrap:continuity",
+            }
+            pkg.add_provenance("continuity", "narrative:bootstrap:continuity",
+                               reason="continuity-critical world model (budgeted)", stage=0,
+                               token_estimate=len(world_model) // 4)
+        pkg.projection_metadata["continuity_authority_boundary"] = "ContextBlock projection is not Continuity authority"
 
         return pkg
 
