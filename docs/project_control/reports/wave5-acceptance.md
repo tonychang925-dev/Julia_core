@@ -42,7 +42,7 @@ ruff check .
 | AT-08 | Pagination | `tests/wave5/test_at08_*` (consolidated) | PASS (114 suite closed) |
 | AT-09 | Delete derived indexes | `tests/wave5/test_at09_*` (consolidated) | PASS (114 suite closed) |
 | AT-10 | Electron cache destruction | Electron `node --test` AT10- suite (14 pass, gate `a25f0dc`) | PASS (Electron boundary) |
-| AT-11 | S2S state destruction | WAVE5_PRE_E2E_AT11_S2S_SCOPE_ISOLATION_RECORD | HOLD (scope isolated) |
+| AT-11 | S2S state destruction | `tests/wave5/test_at11_s2s_state_destruction.py` | PASS (continuity preserved, no S2S history transfer) |
 | AT-12 | Diary NO_ENTRY | `tests/diary/test_at12_*` (96 suite pass) | PASS / FROZEN |
 | AT-13 | Diary significant event | `tests/diary/test_at13_*` | PASS / FROZEN |
 | AT-14 | Diary provenance | `tests/diary/test_at14_*` | PASS / FROZEN |
