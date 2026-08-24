@@ -83,7 +83,7 @@ E2E Composition:       DONE (Layer 1) (ConversationRuntime layer; Brain API E2E
                                        excluded from baseline)
 ```
 
-Route freeze (2026-08-24):
+Route freeze (2026-08-24, updated):
 
 ```text
 Wave5 Conversation Storage Baseline   ← ACTIVE (this phase)
@@ -92,18 +92,12 @@ Wave5 Conversation Storage Baseline   ← ACTIVE (this phase)
     +-- Gateway Closure ✅
     +-- Acceptance Update
         ↓
-Persona Migration Baseline            ← NEXT (independent verification:
-                                           artifact/continuity package across
-                                           runtime/provider/environment)
-        ↓
-Phase8 Persona Host Runtime           ← PAUSED (waiting for storage + migration
-                                           foundations)
-        ↓
-Phase9 Product Runtime                ← PAUSED
+(remainder — TBD by Tony; Persona Migration Baseline TERMINATED 2026-08-24)
 ```
 
-M8.0 Persona Host Runtime Boundary Contract remains FROZEN (PAUSED).
-Persona migration is a SEPARATE baseline, not Phase8 construction.
+Persona Migration Baseline: **TERMINATED (2026-08-24)** — removed from the
+route. Phase8/9 remain PAUSED. M8.0 Persona Host Runtime Boundary Contract
+remains FROZEN (PAUSED).
 
 ---
 

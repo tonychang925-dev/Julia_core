@@ -91,14 +91,11 @@ migrate persona state later.
 
 ```text
 Phase 2 — Cognitive Continuity Migration
-
-Conversation History
-  + Memory
-  + Identity Artifact
-  + Context State
-        ↓
-Julia Core Cognitive Runtime
+    ⚠️ TERMINATED 2026-08-24 (Tony) — no longer a planned next phase.
 ```
+
+Persona Migration / Cognitive Continuity Migration is removed from the route.
+Remaining direction after Wave5 Conversation Storage Baseline is TBD by Tony.
 
 ## Impact
 

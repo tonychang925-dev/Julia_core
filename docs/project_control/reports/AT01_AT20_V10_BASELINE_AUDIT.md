@@ -159,7 +159,8 @@ AT-17 Claude migration, AT-18/19/20 conversation-level archive/delete/restart.
 Conversation storage core loop (AT-01~16): COMPLETE ✅
 
 Remaining to close v1.0 baseline (plan definitions):
-  AT-17  Claude migration              → Persona Migration Baseline (ADR-034)
+  AT-17  Claude migration              → Persona Migration Baseline TERMINATED
+                                         (2026-08-24); disposition TBD
   AT-18  conversation-level archive    → Baseline 1 remaining
   AT-19  conversation hard-delete guard → Baseline 1 remaining
   AT-20  full-stack restart recovery   → Baseline 1 remaining
