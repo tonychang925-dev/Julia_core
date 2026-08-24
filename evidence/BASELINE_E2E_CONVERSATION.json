@@ -1,0 +1,20 @@
+{
+  "test_id": "BASELINE-E2E",
+  "scope": "conversation storage / continuity loop (ADR-034 Layer 1)",
+  "cases": [
+    "01 conversation create durable",
+    "02 multi-turn canonical order",
+    "03 restart recovery",
+    "04 resume same conversation",
+    "05 canonical non-loss",
+    "06 client reconnect no dup/loss",
+    "07 crash consistency"
+  ],
+  "out_of_scope": [
+    "persona",
+    "cognitive context",
+    "provider equivalence"
+  ],
+  "decision": "PASS",
+  "timestamp": "2026-08-24T01:25:46Z"
+}
