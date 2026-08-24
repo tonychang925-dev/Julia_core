@@ -1,7 +1,7 @@
 # ADR-034: Baseline Scope Freeze — Conversation Persistence as E2E Acceptance Foundation
 
 **Date:** 2026-08-24
-**Status:** PROPOSED
+**Status:** APPROVED (with Phase Boundary Protection, Rev 1.1)
 **Supersedes/Relates:** ADR-033 (application persistence host binding), Wave5 Acceptance / Freeze scope
 
 ---
@@ -107,8 +107,32 @@ Julia Core Cognitive Runtime
   implemented in this baseline.
 - Persona migration: frozen until conversation lineage baseline is accepted.
 
+## Phase Boundary Protection (Rev 1.1)
+
+```text
+Baseline implementation MUST NOT introduce temporary cognitive authority
+shortcuts that become permanent migration debt.
+```
+
+Baseline MAY implement transcript / session / persistence.
+
+Baseline MUST NOT add:
+
+```text
+prompt assembly
+identity injection
+memory authority
+provider decision logic
+```
+
+Rationale: history shows convenience shortcuts (e.g. assistant_runtime →
+provider) tend to become permanent architecture. The baseline acceptance
+must not mint new cognitive authority paths.
+
 ## Status
 
 ```text
-PROPOSED — pending Tony approval.
+APPROVED — 2026-08-24 (Scope: BASELINE E2E ONLY.
+Reason: preserve continuity foundation before cognitive migration.
+Risk: controlled. Next: Cognitive Continuity Migration.)
 ```
