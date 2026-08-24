@@ -1,9 +1,46 @@
 # WAVE5_REAL_USER_E2E_PREFLIGHT_SYNC_REPORT_v1.0
 
-Status: PRE-FLIGHT SYNC AUDIT
+Status: PRE-FLIGHT SYNC AUDIT (Rev 1.1 — source-verified)
 Date: 2026-08-24
 Purpose: verify Local Working Tree = Remote Git Repository = Runtime Server
 Deployment before Real User E2E. No E2E until ALL MATCH.
+
+## Source-Verified Evidence (Rev 1.1)
+
+### S2S commit lineage (verified)
+
+```text
+98071f3  = "authority: freeze SOP v1.0 as single canonical deployment document"
+           (SOP v1.1 TARGET_SHA; deployed on AutoDL ✅)
+    ↓ (ancestor of both)
+9d44c22  = remote tip (CURRENT_AUTHORITY refresh, VOICE-C1 closed)
+    ↓
+a8788c8 / e7db6af = local HEAD (AT-11 audit + defer docs)
+
+merge-base(e7db6af, 98071f3) = 98071f3  → server is SOP frozen target
+merge-base(98071f3, 9d44c22) = 98071f3  → server is ancestor of remote tip
+98071f3 is ancestor of BOTH → server deployment is the FROZEN SOP point.
+```
+
+Post-98071f3 commits NOT deployed: `5c85c4f` (RP-2B UUID turn_id),
+`9ae63a1` (RP-2 turn_id propagation), `315f359`, `7190d90`, `9d44c22`.
+
+### rmd3g_prod / Brain runtime (verified)
+
+```text
+BRAIN START: SHA=bbd90af CRT=/Users/admin/julia_core/... PATH=rmd3g_prod
+Brain PID 63955, cwd = rmd3g_prod (detached at bbd90af, approved SHA)
+→ running commit = approved SHA bbd90af (RP-1 gate satisfied)
+→ julia_core loaded from /Users/admin/julia_core (wave5 91e5a8d)
+```
+
+### Electron (verified)
+
+```text
+Local HEAD a25f0dc (codex/bugfix/at10-electron-cache-boundary)
+Remote: branch NOT present (only electron-c10-c11-projection / wave2-*)
+→ E2E Electron artifact NOT traceable on remote → SYNC REQUIRED
+```
 
 ---
 
