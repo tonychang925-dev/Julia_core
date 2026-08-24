@@ -45,6 +45,9 @@ class LegacyJsonConversationRepository:
     def delete(self, session_id: str) -> bool:
         return self._repo.delete(session_id)
 
+    def set_state(self, session_id: str, state: str) -> bool:
+        return self._repo.set_state(session_id, state)
+
     def update_title(self, session_id: str, title: str) -> ConversationSession | None:
         return self._repo.update_title(session_id, title)
 

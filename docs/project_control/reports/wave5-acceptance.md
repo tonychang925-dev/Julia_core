@@ -48,10 +48,10 @@ ruff check .
 | AT-14 | Diary provenance | `tests/diary/test_at14_*` | PASS / FROZEN |
 | AT-15 | Diary ≠ Memory | `tests/diary/test_at15_*` | PASS / FROZEN |
 | AT-16 | Diary retrieval through Context OS only | `tests/diary/test_at16_*` | PASS / FROZEN |
-| AT-17 | Persona Host Authority Boundary Test | `at17_test_harness/evidence/WAVE5_AT17_EVIDENCE_REPORT_v1.0.md` | COMPLETE — 14/14 PASS |
-| AT-18 | Archive | — | NOT STARTED |
-| AT-19 | Hard-delete guard | — | NOT STARTED |
-| AT-20 | Full restart recovery | — | NOT STARTED |
+| AT-17 | Claude migration | `tests/wave5/test_at17_claude_migration.py` + `evidence/AT17_CLAUDE_MIGRATION.json` | PASS (plan definition; DIA-0 reclassification) |
+| AT-18 | Archive | `tests/wave5/test_at18_conversation_archive.py` | PASS (conversation-level archive) |
+| AT-19 | Hard-delete guard | `tests/wave5/test_at19_hard_delete_guard.py` | PASS (reference-graph guard) |
+| AT-20 | Full restart recovery | — | NOT DONE (per Tony, 2026-08-24) |
 
 ## Defects
 

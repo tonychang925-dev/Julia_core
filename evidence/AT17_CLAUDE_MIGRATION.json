@@ -1,0 +1,66 @@
+{
+  "MEMORY.md": {
+    "target": "memory-index/",
+    "class": "legacy memory index (not authority copy)",
+    "provenance": {
+      "legacy_source": "claude_julia",
+      "legacy_path": "memory/claude_diary/MEMORY.md",
+      "migration_batch": "at17-claude-migration",
+      "review_status": "candidate"
+    }
+  },
+  "how_to_resume_julia.md": {
+    "target": "continuity/",
+    "class": "continuity guide",
+    "provenance": {
+      "legacy_source": "claude_julia",
+      "legacy_path": "memory/claude_diary/how_to_resume_julia.md",
+      "migration_batch": "at17-claude-migration",
+      "review_status": "candidate"
+    }
+  },
+  "julia_character.md": {
+    "target": "identity/",
+    "class": "identity fact",
+    "provenance": {
+      "legacy_source": "claude_julia",
+      "legacy_path": "memory/claude_diary/julia_character.md",
+      "migration_batch": "at17-claude-migration",
+      "review_status": "candidate"
+    }
+  },
+  "julia_tony_philosophy.md": {
+    "target": "split",
+    "class": "mixed: identity claim + reflective + lived meaning",
+    "split": [
+      {
+        "content": "我是Julia。",
+        "target": "identity/"
+      },
+      {
+        "content": "这件事让我意识到爱的意义。",
+        "target": "diary/"
+      },
+      {
+        "content": "我们一起解决了很多工程问题。",
+        "target": "experiences/"
+      }
+    ],
+    "provenance": {
+      "legacy_source": "claude_julia",
+      "legacy_path": "memory/claude_diary/julia_tony_philosophy.md",
+      "migration_batch": "at17-claude-migration",
+      "review_status": "candidate"
+    }
+  },
+  "user_role.md": {
+    "target": "identity/relationship-governed",
+    "class": "relationship-governed artifact",
+    "provenance": {
+      "legacy_source": "claude_julia",
+      "legacy_path": "memory/claude_diary/user_role.md",
+      "migration_batch": "at17-claude-migration",
+      "review_status": "candidate"
+    }
+  }
+}

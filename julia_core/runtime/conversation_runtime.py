@@ -105,6 +105,7 @@ class ConversationRuntime:
         self._locks: dict[str, threading.Lock] = {}
         self._locks_lock = threading.Lock()
         self._interaction_states: dict[str, "ConversationInteractionState"] = {}
+        self._references: dict[str, set[str]] = {}  # AT-19 hard-delete guard
         from julia_core.runtime.relationship import ConversationInteractionState as CIS
         self._CIS = CIS
 
@@ -375,14 +376,63 @@ class ConversationRuntime:
             }
 
     def list_conversations(self) -> list[ConversationHandle]:
-        return [self._to_handle(s) for s in self._repository.list_all()]
+        """Default list: active conversations only (archived hidden).
 
-    def delete_conversation(self, conversation_id: str) -> bool:
-        """Delete conversation, history, interaction state, and lock."""
+        Archive semantics (AT-18): archived conversations disappear from the
+        default list, remain canonical, and remain retrievable via
+        get_conversation / get_archived_conversations.
+        """
+        return [
+            self._to_handle(s)
+            for s in self._repository.list_all()
+            if s.state != "archived"
+        ]
+
+    def get_archived_conversations(self) -> list[ConversationHandle]:
+        """Archived conversations (canonical, retrievable)."""
+        return [
+            self._to_handle(s)
+            for s in self._repository.list_all()
+            if s.state == "archived"
+        ]
+
+    def archive_conversation(self, conversation_id: str) -> bool:
+        """Archive a conversation: hidden from default list, canonical kept.
+
+        AT-18: archive != deletion. Transcript, lineage, and provenance
+        remain intact; conversation stays retrievable.
+        """
+        return self._repository.set_state(conversation_id, "archived")
+
+    def restore_archived(self, conversation_id: str) -> bool:
+        """Restore an archived conversation back to the active list."""
+        return self._repository.set_state(conversation_id, "active")
+
+    def delete_conversation(self, conversation_id: str, *, force: bool = False) -> bool:
+        """Delete conversation, history, interaction state, and lock.
+
+        AT-19 hard-delete guard: a conversation referenced by Diary / Memory /
+        Continuity (or any governed source) cannot be hard-deleted without
+        governed resolution. `force=True` is the explicit governed override.
+        """
+        if not force:
+            refs = self.get_references(conversation_id)
+            if refs:
+                return False  # guarded: referenced, no governed resolution
         self._interaction_states.pop(conversation_id, None)
         with self._locks_lock:
             self._locks.pop(conversation_id, None)
+        self._references.pop(conversation_id, None)
         return self._repository.delete(conversation_id)
+
+    # ── AT-19 reference graph ─────────────────────────────────────────────
+    def register_reference(self, conversation_id: str, source: str) -> None:
+        """Register a governed reference (e.g. diary/memory/continuity)."""
+        self._references.setdefault(conversation_id, set()).add(source)
+
+    def get_references(self, conversation_id: str) -> list[str]:
+        """References held against this conversation (governed sources)."""
+        return sorted(self._references.get(conversation_id, set()))
 
     # ── CORE-CM1: Management API ─────────────────────────────────────────
 

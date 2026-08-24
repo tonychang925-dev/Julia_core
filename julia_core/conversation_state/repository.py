@@ -63,6 +63,7 @@ class SessionRepository:
                         created_at=item.get("created_at", ""),
                         updated_at=item.get("updated_at", ""),
                         message_count=item.get("message_count", 0),
+                        state=item.get("state", "active"),
                     )
                     self._sessions[session.id] = session
             except (json.JSONDecodeError, KeyError):
@@ -506,6 +507,20 @@ class SessionRepository:
             if session_id not in self._sessions:
                 return False
             del self._sessions[session_id]
+            self._save()
+            return True
+
+    def set_state(self, session_id: str, state: str) -> bool:
+        """Set conversation lifecycle state ("active" | "archived").
+
+        Archive semantics (AT-18): state change only — canonical transcript
+        and messages are preserved; the conversation remains retrievable.
+        """
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                return False
+            session.state = state
             self._save()
             return True
 

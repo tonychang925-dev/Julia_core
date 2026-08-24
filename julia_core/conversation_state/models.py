@@ -38,6 +38,7 @@ class ConversationSession:
     updated_at: str = field(default_factory=lambda: datetime.now(CST).isoformat())
     summary_status: str = ""  # "none" | "pending" | "completed"
     message_count: int = 0
+    state: str = "active"     # "active" | "archived" (AT-18 archive semantics)
 
     def touch(self) -> None:
         self.updated_at = datetime.now(CST).isoformat()
@@ -61,6 +62,7 @@ class ConversationSession:
             "tags": self.tags,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "state": self.state,
         }
 
     def detail(self) -> dict[str, Any]:
