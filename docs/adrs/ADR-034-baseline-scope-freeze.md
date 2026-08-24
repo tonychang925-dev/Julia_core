@@ -129,6 +129,47 @@ Rationale: history shows convenience shortcuts (e.g. assistant_runtime →
 provider) tend to become permanent architecture. The baseline acceptance
 must not mint new cognitive authority paths.
 
+## Execution Plan (Approved)
+
+```text
+Selected:  Layer 1 — ConversationRuntime E2E (storage loop)
+Deferred:  Layer 2 — Brain API E2E (RP-1 / Brain deployment coupling)
+Reason:    preserve baseline scope isolation; avoid RP-1/provenance/Brain
+           deployment coupling. Brain DOWN is governance protection, NOT a
+           baseline failure — baseline must not pollute production governance.
+```
+
+### Acceptance matrix (7 cases)
+
+```text
+1. Conversation create       unique conversation_id, durable
+2. Multi-turn write          canonical transcript ordering
+3. Restart recovery          conversation recoverable after restart
+4. Resume                    continue writing to same conversation
+5. Canonical non-loss        no transcript loss
+6. Client reconnect          no duplicate / no loss
+7. Crash consistency         transcript state consistent after abnormal exit
+```
+
+### Out of Scope Guard
+
+Baseline E2E MUST NOT verify:
+
+```text
+❌ Persona            (e.g. "Julia identity restored" — Phase 2)
+❌ Cognitive Context  (e.g. "model received same personality context" — Phase 2)
+❌ Provider equivalence (e.g. "model swap behaves identically" — Phase 2)
+```
+
+### Execution waves
+
+```text
+Wave 1 Storage Core:   create → append turn → persist
+Wave 2 Recovery:       shutdown → restart → load conversation
+Wave 3 Continuity:     turn N → restart → turn N+1 → same lineage
+Wave 4 Reconnect:      disconnect → reconnect → resume → no dup/loss
+```
+
 ## Status
 
 ```text
