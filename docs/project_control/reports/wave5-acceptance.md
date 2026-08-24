@@ -34,13 +34,13 @@ ruff check .
 |---|---|---|---|
 | AT-01 | Conversation create durability | `julia_ai_assistant_wave4_integration` AT_01_INTEGRATION_ACCEPTANCE_REPORT | PASS |
 | AT-02 | Accepted user crash | `julia_ai_assistant_wave4_integration` AT_02_R1 + IA reports (9523d7b) | PASS |
-| AT-03 | Text→Voice→Text | `tests/wave5/test_at03_*` (consolidated) | PASS (Layer 1) / regression open |
-| AT-04 | Voice reconnect UUID identity | `tests/wave5/test_at04_*` (consolidated) | PASS (Layer 1) / regression open |
-| AT-05 | Retry idempotency | `tests/wave5/test_at05_*` (consolidated) | PASS (Layer 1) / regression open |
-| AT-06 | Cross-conversation sabotage | `tests/wave5/test_at06_*` (consolidated) | PASS (Layer 1) / regression open |
-| AT-07 | Segment boundary | `tests/wave5/test_at07_*` (consolidated) | PASS (Layer 1) / regression open |
-| AT-08 | Pagination | `tests/wave5/test_at08_*` (consolidated) | PASS (Layer 1) / regression open |
-| AT-09 | Delete derived indexes | `tests/wave5/test_at09_*` (consolidated) | PASS (Layer 1) / regression open |
+| AT-03 | Text→Voice→Text | `tests/wave5/test_at03_*` (consolidated) | PASS (114 suite closed) |
+| AT-04 | Voice reconnect UUID identity | `tests/wave5/test_at04_*` (consolidated) | PASS (114 suite closed) |
+| AT-05 | Retry idempotency | `tests/wave5/test_at05_*` (consolidated) | PASS (114 suite closed) |
+| AT-06 | Cross-conversation sabotage | `tests/wave5/test_at06_*` (consolidated) | PASS (114 suite closed) |
+| AT-07 | Segment boundary | `tests/wave5/test_at07_*` (consolidated) | PASS (114 suite closed) |
+| AT-08 | Pagination | `tests/wave5/test_at08_*` (consolidated) | PASS (114 suite closed) |
+| AT-09 | Delete derived indexes | `tests/wave5/test_at09_*` (consolidated) | PASS (114 suite closed) |
 | AT-10 | Electron cache destruction | Electron `node --test` AT10- suite (14 pass, gate `a25f0dc`) | PASS (Electron boundary) |
 | AT-11 | S2S state destruction | WAVE5_PRE_E2E_AT11_S2S_SCOPE_ISOLATION_RECORD | HOLD (scope isolated) |
 | AT-12 | Diary NO_ENTRY | `tests/diary/test_at12_*` (96 suite pass) | PASS / FROZEN |
@@ -62,21 +62,48 @@ None recorded yet.
 PENDING. Freeze is blocked until all AT-01…AT-20 rows have reproducible PASS evidence
 and baseline regression is closed.
 
-## Current Wave5 State (2026-08-23)
+## Current Wave5 State (2026-08-24, ADR-034 calibrated)
 
-Wave5 Authority Governance Status:
+Wave5 Conversation Storage Baseline:
 
 ```text
-Core Boundary:         COMPLETE      (AT-01~16 authority boundaries proven)
-Evidence Enforcement:  COMPLETE      (AT-17 Persona Host 14/14 PASS, zero leakage, zero mutation)
-Lifecycle Hardening:   PENDING       (AT-18 Archive / AT-19 Hard-delete / AT-20 Restart recovery)
-Regression Closure:    PENDING       (baseline 44 failed / 3 errors; B0 gateway production regression)
-E2E Composition:       DEFERRED      (until Lifecycle Hardening + Regression Closure)
+Baseline E2E:          PASS           (conversation storage/continuity loop,
+                                       evidence/BASELINE_E2E_CONVERSATION.json,
+                                       commit 805efa3, 9 passed)
+Regression Closure:    COMPLETE       (tests/wave5 114 passed / 0 failed;
+                                       WAVE5_AT03_AT09_REGRESSION_CLOSURE_ACCEPTANCE_RECORD)
+Gateway Closure:       ACCEPTED       (B0_GATEWAY_BOUNDARY_EVIDENCE_REPORT_v1.0;
+                                       :8100 legacy classification, Brain :18089
+                                       = current Gateway Boundary; P7 Event Plane
+                                       deferred)
+AT-17:                 COMPLETE       (14/14 PASS, zero leakage)
+Lifecycle Hardening:   COMPLETE       (persona_host AT-18/19/20 boundary evidence)
+E2E Composition:       DONE (Layer 1) (ConversationRuntime layer; Brain API E2E
+                                       deferred per ADR-034 — RP-1/Brain coupling
+                                       excluded from baseline)
 ```
 
-The Wave5 state is NOT "unfinished" — the Core Authority Foundation is complete.
-Operational hardening (AT-18/19/20) and regression closure remain before E2E
-composition. E2E stays DEFERRED per `WAVE5_AUTHORITY_COMPLETION_PHASE_ROUTE_RECORD.md`.
+Route freeze (2026-08-24):
+
+```text
+Wave5 Conversation Storage Baseline   ← ACTIVE (this phase)
+    +-- Baseline E2E ✅
+    +-- Regression Closure ✅
+    +-- Gateway Closure ✅
+    +-- Acceptance Update
+        ↓
+Persona Migration Baseline            ← NEXT (independent verification:
+                                           artifact/continuity package across
+                                           runtime/provider/environment)
+        ↓
+Phase8 Persona Host Runtime           ← PAUSED (waiting for storage + migration
+                                           foundations)
+        ↓
+Phase9 Product Runtime                ← PAUSED
+```
+
+M8.0 Persona Host Runtime Boundary Contract remains FROZEN (PAUSED).
+Persona migration is a SEPARATE baseline, not Phase8 construction.
 
 ---
 
