@@ -259,6 +259,30 @@ wave5/authority-consolidation
 is the active RC1 reconciliation lineage. This is a continuation, not a
 replacement.
 
+### D4 — Voice-S2S authority reconciliation (RESOLVED)
+
+**Status:** CLOSED (2026-08-25)
+
+**Finding:** `ad21dad` (`ADR-VOICE-C1B-R`) is a pure Architecture Decision
+Record (93 lines, zero code, zero runtime mutation). It does not conflict with
+phase5's `VOICE-C1B-V` — the two occupy different layers:
+
+| Layer | Contract | Owns |
+|---|---|---|
+| Authority | `C1B-R` (ad21dad) | Core owns history; Voice owns ephemeral processing; no transcript persistence or identity leakage in Voice |
+| Transport | `C1B-V` (phase5 frozen) | realtime turn binding, websocket flow, voice session, transport metadata |
+
+`C1B-R` does not delete `C1B-V`; it re-constrains its ownership interpretation.
+Previously: "Voice realtime turn → Voice controls conversation semantics".
+Now: "Voice realtime turn → Voice carries transport envelope → Core decides
+canonical conversation semantics."
+
+**Decision:**
+1. **Preserve** `ADR-VOICE-C1B-R` (authority boundary contract).
+2. **Retain** `VOICE-C1B-V` transport implementation (validated transport behavior).
+3. **Reclassify** `VOICE-C1B-V` as transport-layer contract under Core authority boundary.
+4. No code merge required for ADR reconciliation — this is a documentation/interpretation reconciliation, not a code merge.
+
 ---
 
 ## 6. Execution Order
@@ -267,7 +291,7 @@ replacement.
 0. Resolve D6 → authority matrix accepted            [DONE]
 1. Resolve D5 → Julia_core main-only commits         [DONE: superseded]
 2. Resolve D7 → authority lineage succession          [DONE: D7-A successor]
-3. Resolve D4 → Phase A (Electron ff) + Voice-S2S reconciliation decision
+3. Resolve D4 → Voice-S2S ADR reconciliation          [DONE: layered C1B-R/C1B-V]
 4. Resolve D1 → Phase B (Julia_core merge PR)         [requires review]
 5. Resolve D2 + D3 → Phase C (Brain reconciliation)   [runtime truth first]
 ```
