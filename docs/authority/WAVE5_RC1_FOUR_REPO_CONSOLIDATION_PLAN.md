@@ -172,7 +172,7 @@ Steps (illustrative, NOT executed):
 
 | # | Decision | Blocking |
 |---|---|---|
-| D1 | Julia_core `main` = `5bc33ba` — confirm whether main moved post-RC1 and what it contains | Phase B |
+| D1 | Julia_core `main` role — repoint to wave5 canonical lineage (Option B, DECIDED; execution deferred to D1-E) | Phase B |
 | D2 | Brain source lineage correction (behind 8 / ahead 2, not ahead 8 / behind 2) — propagate to all prior docs | Phase C |
 | D3 | Brain dirty `assistant_runtime.py` — runtime-authority or experiment residue? | Phase C |
 | D4 | Voice-S2S main divergence — `ad21dad` (ADR-VOICE-C1B-R) detected after previous snapshot. Should it be preserved, merged, or superseded during reconciliation? | Voice-S2S consolidation |
@@ -356,7 +356,8 @@ by this record.
 3. Resolve D4 → Voice-S2S ADR reconciliation          [DONE: layered C1B-R/C1B-V]
 4. Resolve D3 → Brain dirty runtime + identity        [DONE: exclude + record]
 5. Resolve D2 → Brain lineage reconciliation          [DONE: topology corrected]
-6. Resolve D1 → Phase B (Julia_core merge PR)         [requires review]
+6. Resolve D1 → main role DECIDED (Option B repoint)  [DONE: decision only]
+7. D1-E → execution readiness check                   [OPEN: not authorized]
 ```
 
 No merge begins until D6 (authority acceptance) and its phase-specific blocking
