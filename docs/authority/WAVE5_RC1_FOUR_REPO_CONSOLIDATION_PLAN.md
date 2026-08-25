@@ -26,15 +26,18 @@ observation itself remains valid regardless.
 | Julia_core | `Julia_core` | `wave5/authority-consolidation` | `989b5a9` | `5bc33ba` | non-ancestor divergence observed at audit snapshot | 154 / 4 | exclusion-registered only |
 | Voice-S2S | `Julia-Voice-S2S` | `phase5/rmd-3g-observability` | `cbbb10a` | `ad21dad` (origin/main) | **correction:** origin/main advanced by `ad21dad`; non-ancestor divergence observed | 0/0 (vs origin/phase5); 1/77 (vs origin/main) | clean |
 | Electron | `Julia_client` (julia_electron_v2) | `fix/voice-ws-lifecycle-001` | `7a9506d` | `c44bb7e` | main is ancestor (observed) | 0 / 0 | clean |
-| Brain (source) | `Julia-AI-Assistant` | `phase5/rmd-3g-observability` | `47a3e4a` | `accc977` | — | 8 / 2 | **runtime code modified** |
+| Brain (source) | `Julia-AI-Assistant` | `phase5/rmd-3g-observability` | `47a3e4a` | `accc977` | source diverged onto parallel line not containing `bbd90af` | behind 8 / ahead 2 (vs origin/phase5) | **runtime code modified** |
 | Brain (runtime) | worktree `julia_ai_assistant_rmd3g_prod` | (detached HEAD) | `bbd90af` | — | not ancestor of local source HEAD (observed) | — | runtime artifacts |
 
 **Corrections vs prior records (must propagate):**
 
 1. Julia_core `main` HEAD is `5bc33ba`, **not** `ffc7c38` (as previously
    recorded). Needs confirmation whether main was updated post-RC1.
-2. Brain source is **ahead 8 / behind 2**, not "behind 8" as previously
-   recorded. The old description is stale and must be updated everywhere.
+2. Brain source is **behind 8 / ahead 2** relative to `origin/phase5` (i.e.
+   it lacks 8 commits including `bbd90af` itself, and adds 2 of its own). This
+   corrects the earlier "ahead 8 / behind 2" reading, which reversed the
+   `rev-list --left-right` output. The old description is stale and must be
+   updated everywhere.
 3. Brain source has **uncommitted runtime code changes**
    (`M runtime/assistant_runtime.py`, `M memory/claude_diary/julia_character.md`,
    `?? providers/llm/claude_provider.py`). These cannot enter reconciliation
@@ -170,7 +173,7 @@ Steps (illustrative, NOT executed):
 | # | Decision | Blocking |
 |---|---|---|
 | D1 | Julia_core `main` = `5bc33ba` — confirm whether main moved post-RC1 and what it contains | Phase B |
-| D2 | Brain source ahead/behind correction (8/2, not behind-8) — propagate to all prior docs | Phase C |
+| D2 | Brain source lineage correction (behind 8 / ahead 2, not ahead 8 / behind 2) — propagate to all prior docs | Phase C |
 | D3 | Brain dirty `assistant_runtime.py` — runtime-authority or experiment residue? | Phase C |
 | D4 | Voice-S2S main divergence — `ad21dad` (ADR-VOICE-C1B-R) detected after previous snapshot. Should it be preserved, merged, or superseded during reconciliation? | Voice-S2S consolidation |
 | D5 | Julia_core 4 main-only commits — enumerate and review | Phase B |
@@ -312,6 +315,36 @@ Other Brain dirty items (`claude_provider.py`, `experiments/provider_smoke/*`,
 `data/conversations.json`, density) are classified as experiment/runtime and
 excluded from RC1.
 
+### D2 — Brain lineage reconciliation (RESOLVED)
+
+**Status:** CLOSED (2026-08-25)
+
+**Corrected topology** (the earlier "ahead 8 / behind 2" reading was reversed;
+`rev-list --left-right` prints `left=first-arg-only, right=second-arg-only`):
+
+```
+9bd8963  (merge base)
+  ├─ 4522862 → … → bbd90af → 78f267c → 197ada9 → 44cea89   (origin/phase5, 8 commits)
+  └─ f74fc05 → 47a3e4a                                        (source HEAD, 2 commits)
+```
+
+- Source HEAD `47a3e4a` is **behind 8** (lacks the 8 commits that include
+  runtime authority `bbd90af`) and **ahead 2** (its own development line:
+  `f74fc05` G0-T02, `47a3e4a` Ledger).
+- Runtime authority `bbd90af` is **0 commits** diverged from `origin/phase5`
+  (it is a strict ancestor) — production runtime is fully aligned with the
+  reconciled authority line.
+
+**Core principle:** *source newer ≠ source authoritative*. The 2 ahead commits
+are development-line evolution, not runtime authority. The 8 behind commits
+are the reconciled line that already absorbed `bbd90af`. No merge strategy can
+be inferred from the ahead/behind count alone.
+
+**Merge implication:** any future reconciliation must first classify — runtime
+preservation, source evolution, identity provenance, feature adoption — before
+any branch movement. No merge, checkout, reset, or dirty cleanup is authorized
+by this record.
+
 ---
 
 ## 6. Execution Order
@@ -322,8 +355,8 @@ excluded from RC1.
 2. Resolve D7 → authority lineage succession          [DONE: D7-A successor]
 3. Resolve D4 → Voice-S2S ADR reconciliation          [DONE: layered C1B-R/C1B-V]
 4. Resolve D3 → Brain dirty runtime + identity        [DONE: exclude + record]
-5. Resolve D1 → Phase B (Julia_core merge PR)         [requires review]
-6. Resolve D2 → Phase C (Brain reconciliation)        [runtime truth first]
+5. Resolve D2 → Brain lineage reconciliation          [DONE: topology corrected]
+6. Resolve D1 → Phase B (Julia_core merge PR)         [requires review]
 ```
 
 No merge begins until D6 (authority acceptance) and its phase-specific blocking
