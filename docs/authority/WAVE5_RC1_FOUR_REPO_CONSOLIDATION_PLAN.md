@@ -23,7 +23,7 @@ observation itself remains valid regardless.
 
 | Repo | Remote | RC1 branch | HEAD | main HEAD | main↔RC1 | ahead/behind | dirty |
 |---|---|---|---|---|---|---|---|
-| Julia_core | `Julia_core` | `wave5/authority-consolidation` | `989b5a9` | `5bc33ba` | non-ancestor divergence observed at audit snapshot | 154 / 4 | exclusion-registered only |
+| Julia_core | `Julia_core` | `wave5/authority-consolidation` | `22738dbd` | `ffc7c381` (GitHub truth) | **corrected:** main is strict ancestor → fast-forward, not divergence | 149 / 0 | exclusion-registered only |
 | Voice-S2S | `Julia-Voice-S2S` | `phase5/rmd-3g-observability` | `cbbb10a` | `ad21dad` (origin/main) | **correction:** origin/main advanced by `ad21dad`; non-ancestor divergence observed | 0/0 (vs origin/phase5); 1/77 (vs origin/main) | clean |
 | Electron | `Julia_client` (julia_electron_v2) | `fix/voice-ws-lifecycle-001` | `7a9506d` | `c44bb7e` | main is ancestor (observed) | 0 / 0 | clean |
 | Brain (source) | `Julia-AI-Assistant` | `phase5/rmd-3g-observability` | `47a3e4a` | `accc977` | source diverged onto parallel line not containing `bbd90af` | behind 8 / ahead 2 (vs origin/phase5) | **runtime code modified** |
@@ -31,8 +31,11 @@ observation itself remains valid regardless.
 
 **Corrections vs prior records (must propagate):**
 
-1. Julia_core `main` HEAD is `5bc33ba`, **not** `ffc7c38` (as previously
-   recorded). Needs confirmation whether main was updated post-RC1.
+1. Julia_core `main` HEAD is `ffc7c381` (GitHub truth), **not** `5bc33ba` (a
+   stale local ref). The earlier D5/D1/D1-E analysis used the stale ref and
+   incorrectly concluded divergence; the true main is a strict ancestor of
+   wave5 (fast-forward, 149 ahead / 0 behind). See
+   `WAVE5_RC1_MAIN_TOPOLOGY_CORRECTION.md`.
 2. Brain source is **behind 8 / ahead 2** relative to `origin/phase5` (i.e.
    it lacks 8 commits including `bbd90af` itself, and adds 2 of its own). This
    corrects the earlier "ahead 8 / behind 2" reading, which reversed the
@@ -105,18 +108,16 @@ initial snapshot, so `origin/main` is no longer an ancestor of
 Required: decide whether `ad21dad` is preserved/merged/superseded, then
 reconcile `phase5` onto `origin/main`. See D4.
 
-**Julia_core** — `wave5/authority-consolidation` and `main` are true divergent
-branches (154 vs 4 commits, no ancestor relationship). This is **not** a
-fast-forward.
+**Julia_core** — `main` (`ffc7c381`) is a **strict ancestor** of
+`wave5/authority-consolidation` (`22738dbd`): 149 ahead / 0 behind. This is a
+**fast-forward**, not a divergence. (The earlier "154 vs 4, no ancestor
+relationship" was based on a stale local `main` ref; see
+`WAVE5_RC1_MAIN_TOPOLOGY_CORRECTION.md`.)
 
 Required:
-- Review of 154 wave5 commits (authority lineage is 6 commits on top of a long
-  wave5 history; the RC1 governance slice is `935b231..989b5a9`).
-- Review of 4 main-only commits — what are they? Do they overlap or conflict?
-- A merge PR (or release branch) that preserves review, not a silent merge.
-
-**Open question:** what are the 4 `main`-only commits? Must be enumerated
-before merge strategy is finalized.
+- Confirm `main` (GitHub) has no commits beyond `ffc7c381` (server-side truth,
+  verified 2026-08-25).
+- Fast-forward `main` to wave5 HEAD (D1-B) — a ref advancement, not a rewrite.
 
 ### Phase C — Brain Runtime Authority Reconciliation (NOT a merge)
 
@@ -195,26 +196,20 @@ Steps (illustrative, NOT executed):
 runtime replacement authorization.
 **Next:** proceed to D5 (Julia_core lineage analysis).
 
-### D5 — Julia_core main-only commits (RESOLVED)
+### D5 — Julia_core main-only commits (SUPERSEDED by GitHub truth audit)
 
-**Status:** CLOSED (2026-08-25)
+**Status:** SUPERSEDED (2026-08-25) — see `WAVE5_RC1_MAIN_TOPOLOGY_CORRECTION.md`
 
-The 4 `main`-only commits are all docs-only (no code/runtime/tests/behavior):
+The original D5 analysis classified "4 main-only commits" against a **stale
+local `main` ref (`5bc33ba`)**. The GitHub truth audit revealed the real
+`main` is `ffc7c381`, which is a strict ancestor of wave5 with **0 commits
+not already absorbed**. The "4 main-only commits / true divergence" conclusion
+is therefore invalid.
 
-| Commit | Content | Disposition |
-|---|---|---|
-| `0d72b05` | CSA-00 provenance snapshot (08-10) | historical; exclude from reconciliation |
-| `c156fcb` + `a5fd74d` | four-repo authority manifests (old) | superseded by wave5 authority evolution |
-| `5bc33ba` | FINAL_FREEZE_CANDIDATE (1536 lines) | superseded by wave5 tracked version |
-
-**`5bc33ba` reconciliation evidence:** wave5 tracked version is a strict
-superset — +278 lines (`APPENDIX C`, `PART VI CC-2`, `PART VII ADR-001`,
-`PART VIII ADR-002`), **0 deletions**, no runtime/code reference. CLN-04
-(`BRANCH_RECONCILIATION.md`, 2026-08-19) already recorded `main` (`5bc33ba`)
-as superseded by `cm-r0-fix`.
-
-`5bc33ba` remains as a historical freeze artifact (audit value), but is
-excluded from active authority reconciliation.
+The historical note about `5bc33ba`'s `FINAL_FREEZE_CANDIDATE` (+278-line
+superset in the wave5 tracked version, 0 deletions, no runtime reference)
+remains factually accurate for that specific artifact, but `5bc33ba` is no
+longer treated as the `main` reference.
 
 ### D7 — Authority Lineage Succession (OPEN)
 
@@ -225,9 +220,9 @@ Three objects are now in scope:
 
 | Object | HEAD | Role |
 |---|---|---|
-| `main` | `5bc33ba` | legacy default; superseded (CLN-04) |
+| `main` | `ffc7c381` | GitHub truth; strict ancestor of wave5 |
 | `cm-r0-fix` | `b0dedbe` | CLN-04 repository authority anchor (2026-08-19) |
-| `wave5/authority-consolidation` | `989b5a9` | active RC1 governance lineage |
+| `wave5/authority-consolidation` | `22738dbd` | active RC1 governance lineage |
 
 **Ancestry evidence (verified):** `cm-r0-fix` is a direct ancestor of
 `wave5/authority-consolidation`; `cm-r0-fix` has **0** commits not absorbed by
@@ -357,7 +352,8 @@ by this record.
 4. Resolve D3 → Brain dirty runtime + identity        [DONE: exclude + record]
 5. Resolve D2 → Brain lineage reconciliation          [DONE: topology corrected]
 6. Resolve D1 → main role DECIDED (Option B repoint)  [DONE: decision only]
-7. D1-E → execution readiness check                   [OPEN: not authorized]
+7. D1-E → execution readiness check                   [DONE: READY (ff, no force)]
+8. Execute repoint → pending explicit Tony authorization
 ```
 
 No merge begins until D6 (authority acceptance) and its phase-specific blocking
