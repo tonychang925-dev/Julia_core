@@ -103,6 +103,152 @@ def test_r3_at03_cognition_failure_user_survives(runtime_with_v2):
     repo2.close()
 
 
+def test_rmd2_inv_stream_success_keeps_accepted_user_completed(runtime_with_v2):
+    """INV-01: accepted user remains completed after streaming assistant success."""
+    rt = runtime_with_v2
+    rt.create_conversation("rmd2_stream_success")
+
+    ctx = rt.begin_turn_streaming(
+        conversation_id="rmd2_stream_success",
+        turn_id="rmd2_success_t",
+        modality="text",
+        input="accepted before stream success",
+    )
+    result = rt.commit_streaming_turn(ctx, "assistant completed")
+    assert result.status == "completed"
+
+    msgs = rt._repository.find_turn("rmd2_stream_success", "rmd2_success_t")
+    user_msgs = [m for m in msgs if m.role == "user"]
+    assistant_msgs = [m for m in msgs if m.role == "assistant"]
+    assert len(user_msgs) == 1
+    assert user_msgs[0].status == "completed"
+    assert len(assistant_msgs) == 1
+    assert assistant_msgs[0].status == "completed"
+
+
+def test_rmd2_inv_assistant_failure_does_not_mutate_user(runtime_with_v2):
+    """INV-02/05: failed assistant does not mutate or erase accepted user fact."""
+    rt = runtime_with_v2
+    rt.create_conversation("rmd2_failure")
+
+    def failing_cog(text, history, cid, tid, mod, interaction=None):
+        raise RuntimeError("provider failure")
+
+    result = rt.process_turn(
+        conversation_id="rmd2_failure",
+        turn_id="rmd2_failure_t",
+        modality="text",
+        input="accepted before provider failure",
+        cognitive_fn=failing_cog,
+    )
+    assert result.status == "failed"
+
+    msgs = rt._repository.find_turn("rmd2_failure", "rmd2_failure_t")
+    user_msgs = [m for m in msgs if m.role == "user"]
+    assistant_msgs = [m for m in msgs if m.role == "assistant"]
+    assert len(user_msgs) == 1
+    assert user_msgs[0].status == "completed"
+    assert len(assistant_msgs) == 1
+    assert assistant_msgs[0].status == "failed"
+
+    history = rt.get_canonical_history("rmd2_failure")
+    assert {"role": "user", "content": "accepted before provider failure"} in history
+
+
+def test_rmd2_inv_assistant_cancel_does_not_mutate_user_or_history(runtime_with_v2):
+    """INV-03/04: assistant cancel/barge-in equivalent leaves accepted user visible."""
+    rt = runtime_with_v2
+    rt.create_conversation("rmd2_cancel")
+
+    ctx = rt.begin_turn_streaming(
+        conversation_id="rmd2_cancel",
+        turn_id="rmd2_cancel_t",
+        modality="voice",
+        input="accepted before barge-in cancel",
+    )
+    rt.cancel_streaming_turn(ctx)
+
+    msgs = rt._repository.find_turn("rmd2_cancel", "rmd2_cancel_t")
+    user_msgs = [m for m in msgs if m.role == "user"]
+    assistant_msgs = [m for m in msgs if m.role == "assistant"]
+    assert len(user_msgs) == 1
+    assert user_msgs[0].content == "accepted before barge-in cancel"
+    assert user_msgs[0].status == "completed"
+    assert assistant_msgs == []
+
+    history = rt.get_canonical_history("rmd2_cancel")
+    assert {"role": "user", "content": "accepted before barge-in cancel"} in history
+
+
+def test_rmd2_inv_next_turn_sees_accepted_pre_barge_in_user(runtime_with_v2):
+    """INV-06: next cognition receives accepted user turn after prior cancel."""
+    rt = runtime_with_v2
+    rt.create_conversation("rmd2_next")
+
+    ctx = rt.begin_turn_streaming(
+        conversation_id="rmd2_next",
+        turn_id="rmd2_cancelled_voice",
+        modality="voice",
+        input="PRE_BARGE_IN_ANCHOR",
+    )
+    rt.cancel_streaming_turn(ctx)
+
+    observed = {}
+
+    def assert_anchor_seen(text, history, cid, tid, mod, interaction=None):
+        observed["history"] = list(history)
+        assert any(m.get("content") == "PRE_BARGE_IN_ANCHOR" for m in history)
+        return "anchor seen"
+
+    result = rt.process_turn(
+        conversation_id="rmd2_next",
+        turn_id="rmd2_after_cancel",
+        modality="text",
+        input="what did I just say?",
+        cognitive_fn=assert_anchor_seen,
+    )
+    assert result.status == "completed"
+    assert any(m.get("content") == "PRE_BARGE_IN_ANCHOR" for m in observed["history"])
+
+
+def test_rmd2_inv_cancel_retry_isolated_and_no_duplicate_user(runtime_with_v2):
+    """INV-07/08: cancel does not leak across conversations or duplicate on retry."""
+    rt = runtime_with_v2
+    rt.create_conversation("rmd2_retry_a")
+    rt.create_conversation("rmd2_retry_b")
+
+    ctx = rt.begin_turn_streaming(
+        conversation_id="rmd2_retry_a",
+        turn_id="rmd2_same_turn",
+        modality="voice",
+        input="retry anchor A",
+    )
+    rt.cancel_streaming_turn(ctx)
+
+    replay = rt.process_turn(
+        conversation_id="rmd2_retry_a",
+        turn_id="rmd2_same_turn",
+        modality="voice",
+        input="retry anchor A",
+        cognitive_fn=_mock_cog,
+    )
+    assert replay.status == "completed"
+
+    msgs_a = rt._repository.find_turn("rmd2_retry_a", "rmd2_same_turn")
+    assert len([m for m in msgs_a if m.role == "user"]) == 1
+    assert [m.status for m in msgs_a if m.role == "user"] == ["completed"]
+
+    rt.process_turn(
+        conversation_id="rmd2_retry_b",
+        turn_id="rmd2_other",
+        modality="text",
+        input="conversation B only",
+        cognitive_fn=_mock_cog,
+    )
+    history_b = rt.get_canonical_history("rmd2_retry_b")
+    assert not any(m.get("content") == "retry anchor A" for m in history_b)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # R3-AT04: Retry exactly-once
 # ═══════════════════════════════════════════════════════════════════════════
