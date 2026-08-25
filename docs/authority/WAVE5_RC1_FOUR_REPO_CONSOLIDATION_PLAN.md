@@ -175,20 +175,80 @@ Steps (illustrative, NOT executed):
 | D4 | Voice-S2S main divergence — `ad21dad` (ADR-VOICE-C1B-R) detected after previous snapshot. Should it be preserved, merged, or superseded during reconciliation? | Voice-S2S consolidation |
 | D5 | Julia_core 4 main-only commits — enumerate and review | Phase B |
 | D6 | Consolidation Authority Acceptance — has the four-repo authority matrix been accepted as the basis for merge execution? | All merge phases |
+| D7 | Authority Lineage Succession — does `wave5/authority-consolidation` represent the successor authority lineage of `cm-r0-fix`? | Julia_core consolidation |
 
-D6 is the gate that converts this plan from a draft into an execution basis.
-Committing this document does **not** imply D6 is resolved; D6 is OPEN until
-Tony explicitly accepts the matrix.
+### D6 — Authority Acceptance (RESOLVED)
+
+**Status:** ACCEPTED (2026-08-25)
+
+- **D6-A** — four-repo authority matrix accepted as baseline reference. ✅
+- **D6-B** — Voice-S2S snapshot correction accepted (authority state changed
+  after snapshot, not audit contradiction). ✅
+- **D6-C** — Brain runtime/source boundary accepted (`bbd90af` ≠ `47a3e4a`;
+  Phase C reconciliation required). ✅
+
+**Scope:** authority matrix accepted as baseline reference.
+**Non-scope:** no merge authorization; no branch mutation authorization; no
+runtime replacement authorization.
+**Next:** proceed to D5 (Julia_core lineage analysis).
+
+### D5 — Julia_core main-only commits (RESOLVED)
+
+**Status:** CLOSED (2026-08-25)
+
+The 4 `main`-only commits are all docs-only (no code/runtime/tests/behavior):
+
+| Commit | Content | Disposition |
+|---|---|---|
+| `0d72b05` | CSA-00 provenance snapshot (08-10) | historical; exclude from reconciliation |
+| `c156fcb` + `a5fd74d` | four-repo authority manifests (old) | superseded by wave5 authority evolution |
+| `5bc33ba` | FINAL_FREEZE_CANDIDATE (1536 lines) | superseded by wave5 tracked version |
+
+**`5bc33ba` reconciliation evidence:** wave5 tracked version is a strict
+superset — +278 lines (`APPENDIX C`, `PART VI CC-2`, `PART VII ADR-001`,
+`PART VIII ADR-002`), **0 deletions**, no runtime/code reference. CLN-04
+(`BRANCH_RECONCILIATION.md`, 2026-08-19) already recorded `main` (`5bc33ba`)
+as superseded by `cm-r0-fix`.
+
+`5bc33ba` remains as a historical freeze artifact (audit value), but is
+excluded from active authority reconciliation.
+
+### D7 — Authority Lineage Succession (OPEN)
+
+**Question:** does `wave5/authority-consolidation` represent the successor
+authority lineage of `cm-r0-fix`?
+
+Three objects are now in scope:
+
+| Object | HEAD | Role |
+|---|---|---|
+| `main` | `5bc33ba` | legacy default; superseded (CLN-04) |
+| `cm-r0-fix` | `b0dedbe` | CLN-04 repository authority anchor (2026-08-19) |
+| `wave5/authority-consolidation` | `989b5a9` | active RC1 governance lineage |
+
+**Ancestry evidence (verified):** `cm-r0-fix` is a direct ancestor of
+`wave5/authority-consolidation`; `cm-r0-fix` has **0** commits not absorbed by
+wave5, while wave5 is ahead by **76** commits. This is a strong successor
+(continuation) relationship, not a competitor relationship.
+
+**Decision options:**
+- **D7-A** — wave5 accepted as successor authority lineage of `cm-r0-fix`
+  (`cm-r0-fix` = historical anchor; wave5 = active RC1 authority).
+- **D7-B** — not successor; wave5 requires explicit authority transfer.
+
+**Status:** OPEN — requires explicit Tony decision; not resolved by this commit.
 
 ---
 
 ## 6. Execution Order
 
 ```
-0. Resolve D6 → authority matrix accepted            [gate: no merge before this]
-1. Resolve D4 → Phase A (Electron ff) + Voice-S2S reconciliation decision
-2. Resolve D1 + D5 → Phase B (Julia_core merge PR)    [requires review]
-3. Resolve D2 + D3 → Phase C (Brain reconciliation)   [runtime truth first]
+0. Resolve D6 → authority matrix accepted            [DONE]
+1. Resolve D5 → Julia_core main-only commits         [DONE: superseded]
+2. Resolve D7 → authority lineage succession          [OPEN: cm-r0-fix → wave5?]
+3. Resolve D4 → Phase A (Electron ff) + Voice-S2S reconciliation decision
+4. Resolve D1 → Phase B (Julia_core merge PR)         [requires review]
+5. Resolve D2 + D3 → Phase C (Brain reconciliation)   [runtime truth first]
 ```
 
 No merge begins until D6 (authority acceptance) and its phase-specific blocking
