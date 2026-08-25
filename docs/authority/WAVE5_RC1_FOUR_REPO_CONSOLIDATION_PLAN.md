@@ -283,6 +283,35 @@ canonical conversation semantics."
 3. **Reclassify** `VOICE-C1B-V` as transport-layer contract under Core authority boundary.
 4. No code merge required for ADR reconciliation — this is a documentation/interpretation reconciliation, not a code merge.
 
+### D3 — Brain dirty runtime + identity (PARTIALLY CLOSED)
+
+**Status:** PARTIALLY CLOSED (2026-08-25)
+
+**D3-A — `assistant_runtime.py` (RESOLVED: exclude from RC1)**
+
+C-08 Full Cognitive Tool Loop is an incomplete experimental mutation:
+it imports `julia_core.runtime.capability_bridge`, which does not exist in
+either source HEAD (`47a3e4a`) or runtime (`bbd90af`). The runtime worktree's
+`assistant_runtime.py` is clean — it was never loaded by production runtime.
+
+- Classification: incomplete C-08 experimental mutation (Case C).
+- Action: freeze residue; no commit, no revert, no runtime adoption.
+
+**D3-B — `julia_character.md` (RESOLVED: intentional identity refinement)**
+
+Tony explicitly confirmed the removal of two autobiographical narrative
+fragments as intentional identity abstraction refinement (not accidental
+deletion). Recorded in `docs/authority/IDENTITY_MUTATION_RECORD_2026-08-25.md`.
+
+- Mutation type: intentional identity narrative refinement.
+- Authority: Tony-approved, 2026-08-25.
+- Record location: `julia_core` governance (active authority lineage).
+- Brain mirror: deferred to Phase C reconciliation.
+
+Other Brain dirty items (`claude_provider.py`, `experiments/provider_smoke/*`,
+`data/conversations.json`, density) are classified as experiment/runtime and
+excluded from RC1.
+
 ---
 
 ## 6. Execution Order
@@ -292,8 +321,9 @@ canonical conversation semantics."
 1. Resolve D5 → Julia_core main-only commits         [DONE: superseded]
 2. Resolve D7 → authority lineage succession          [DONE: D7-A successor]
 3. Resolve D4 → Voice-S2S ADR reconciliation          [DONE: layered C1B-R/C1B-V]
-4. Resolve D1 → Phase B (Julia_core merge PR)         [requires review]
-5. Resolve D2 + D3 → Phase C (Brain reconciliation)   [runtime truth first]
+4. Resolve D3 → Brain dirty runtime + identity        [DONE: exclude + record]
+5. Resolve D1 → Phase B (Julia_core merge PR)         [requires review]
+6. Resolve D2 → Phase C (Brain reconciliation)        [runtime truth first]
 ```
 
 No merge begins until D6 (authority acceptance) and its phase-specific blocking
