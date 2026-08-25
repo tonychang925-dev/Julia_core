@@ -236,7 +236,28 @@ wave5, while wave5 is ahead by **76** commits. This is a strong successor
   (`cm-r0-fix` = historical anchor; wave5 = active RC1 authority).
 - **D7-B** — not successor; wave5 requires explicit authority transfer.
 
-**Status:** OPEN — requires explicit Tony decision; not resolved by this commit.
+**Status:** CLOSED — **D7-A ACCEPTED** (2026-08-25)
+
+**Finding:** `wave5/authority-consolidation` is the successor authority lineage
+of `cm-r0-fix`.
+
+**Rationale:**
+- `cm-r0-fix` is a direct ancestor of `wave5/authority-consolidation`.
+- No unabsorbed commits exist (wave5 ahead by 76, cm-r0-fix contributes 0).
+- wave5 preserves authority documents and adds verified RC1 governance evidence.
+- No conflicting authority model was introduced.
+
+**Authority relationship:**
+
+```
+cm-r0-fix
+    ↓ successor continuation
+wave5/authority-consolidation
+```
+
+`cm-r0-fix` remains a historical authority anchor; `wave5/authority-consolidation`
+is the active RC1 reconciliation lineage. This is a continuation, not a
+replacement.
 
 ---
 
@@ -245,7 +266,7 @@ wave5, while wave5 is ahead by **76** commits. This is a strong successor
 ```
 0. Resolve D6 → authority matrix accepted            [DONE]
 1. Resolve D5 → Julia_core main-only commits         [DONE: superseded]
-2. Resolve D7 → authority lineage succession          [OPEN: cm-r0-fix → wave5?]
+2. Resolve D7 → authority lineage succession          [DONE: D7-A successor]
 3. Resolve D4 → Phase A (Electron ff) + Voice-S2S reconciliation decision
 4. Resolve D1 → Phase B (Julia_core merge PR)         [requires review]
 5. Resolve D2 + D3 → Phase C (Brain reconciliation)   [runtime truth first]
