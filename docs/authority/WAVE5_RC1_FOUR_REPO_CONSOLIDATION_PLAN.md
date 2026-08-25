@@ -24,7 +24,7 @@ observation itself remains valid regardless.
 | Repo | Remote | RC1 branch | HEAD | main HEAD | main↔RC1 | ahead/behind | dirty |
 |---|---|---|---|---|---|---|---|
 | Julia_core | `Julia_core` | `wave5/authority-consolidation` | `989b5a9` | `5bc33ba` | non-ancestor divergence observed at audit snapshot | 154 / 4 | exclusion-registered only |
-| Voice-S2S | `Julia-Voice-S2S` | `phase5/rmd-3g-observability` | `cbbb10a` | `4b4154e` | main is ancestor (observed) | 0 / 0 | clean |
+| Voice-S2S | `Julia-Voice-S2S` | `phase5/rmd-3g-observability` | `cbbb10a` | `ad21dad` (origin/main) | **correction:** origin/main advanced by `ad21dad`; non-ancestor divergence observed | 0/0 (vs origin/phase5); 1/77 (vs origin/main) | clean |
 | Electron | `Julia_client` (julia_electron_v2) | `fix/voice-ws-lifecycle-001` | `7a9506d` | `c44bb7e` | main is ancestor (observed) | 0 / 0 | clean |
 | Brain (source) | `Julia-AI-Assistant` | `phase5/rmd-3g-observability` | `47a3e4a` | `accc977` | — | 8 / 2 | **runtime code modified** |
 | Brain (runtime) | worktree `julia_ai_assistant_rmd3g_prod` | (detached HEAD) | `bbd90af` | — | not ancestor of local source HEAD (observed) | — | runtime artifacts |
@@ -39,6 +39,11 @@ observation itself remains valid regardless.
    (`M runtime/assistant_runtime.py`, `M memory/claude_diary/julia_character.md`,
    `?? providers/llm/claude_provider.py`). These cannot enter reconciliation
    without first being classified.
+4. **Voice-S2S ff eligibility was superseded.** The original Phase A assessment
+   was based on the local `main` snapshot (`4b4154e`); the remote `origin/main`
+   has since advanced to `ad21dad` (`ADR-VOICE-C1B-R`). This is not a
+   contradiction in the audit — the authority state changed after the initial
+   snapshot. Current assessment supersedes the previous one.
 
 ---
 
@@ -66,25 +71,40 @@ authority; source lineage is reconciled to match it.
 
 ### Phase A — Safe fast-forward merges
 
-These repos have `main` as a direct ancestor of the RC1 branch. They are
-*eligible* for `git merge --ff-only` **once D4 is resolved**. Eligibility is
-**not** approval — no merge is authorized by this document.
+A repo is *eligible* for `git merge --ff-only` only when `main` is a direct
+ancestor of the RC1 branch. Eligibility is **not** approval — no merge is
+authorized by this document.
 
 | Repo | Action | Command (illustrative, NOT executed) |
 |---|---|---|
-| Voice-S2S | ff `phase5/rmd-3g-observability` → `main` | `git checkout main && git merge --ff-only phase5/rmd-3g-observability` |
 | Electron (Julia_client) | ff `fix/voice-ws-lifecycle-001` → `main` | `git checkout main && git merge --ff-only fix/voice-ws-lifecycle-001` |
 
-**Precondition (D4):** confirm `main` has no local-only commits beyond `4b4154e`
-(Voice-S2S) and `c44bb7e` (Julia_client). If clean, these are the two
-lowest-risk consolidation steps.
+**Precondition (D4):** Electron `main` is confirmed clean and equal to
+`origin/main` (`c44bb7e`), `0 / 0`. This is the only remaining ff-eligible
+candidate.
 
 **No merge operation is authorized by this document.**
 
-### Phase B — Julia_core reconciliation merge
+### Phase B — Reconciliation merges
 
-`wave5/authority-consolidation` and `main` are true divergent branches
-(154 vs 4 commits, no ancestor relationship). This is **not** a fast-forward.
+Two repos now require reconciliation (not fast-forward):
+
+**Voice-S2S** — `origin/main` advanced to `ad21dad` (ADR-VOICE-C1B-R) after the
+initial snapshot, so `origin/main` is no longer an ancestor of
+`phase5/rmd-3g-observability`. Divergence:
+
+```
+4b4154e  (common ancestor)
+ ├─ ad21dad  → origin/main   (ADR doc, 1 commit)
+ └─ cbbb10a  → phase5/rmd-3g-observability  (77 commits)
+```
+
+Required: decide whether `ad21dad` is preserved/merged/superseded, then
+reconcile `phase5` onto `origin/main`. See D4.
+
+**Julia_core** — `wave5/authority-consolidation` and `main` are true divergent
+branches (154 vs 4 commits, no ancestor relationship). This is **not** a
+fast-forward.
 
 Required:
 - Review of 154 wave5 commits (authority lineage is 6 commits on top of a long
@@ -152,7 +172,7 @@ Steps (illustrative, NOT executed):
 | D1 | Julia_core `main` = `5bc33ba` — confirm whether main moved post-RC1 and what it contains | Phase B |
 | D2 | Brain source ahead/behind correction (8/2, not behind-8) — propagate to all prior docs | Phase C |
 | D3 | Brain dirty `assistant_runtime.py` — runtime-authority or experiment residue? | Phase C |
-| D4 | Voice-S2S / Electron: confirm main has no local-only commits before ff | Phase A |
+| D4 | Voice-S2S main divergence — `ad21dad` (ADR-VOICE-C1B-R) detected after previous snapshot. Should it be preserved, merged, or superseded during reconciliation? | Voice-S2S consolidation |
 | D5 | Julia_core 4 main-only commits — enumerate and review | Phase B |
 | D6 | Consolidation Authority Acceptance — has the four-repo authority matrix been accepted as the basis for merge execution? | All merge phases |
 
@@ -166,7 +186,7 @@ Tony explicitly accepts the matrix.
 
 ```
 0. Resolve D6 → authority matrix accepted            [gate: no merge before this]
-1. Resolve D4 → Phase A (Voice-S2S ff, Electron ff)  [lowest risk, unblocks]
+1. Resolve D4 → Phase A (Electron ff) + Voice-S2S reconciliation decision
 2. Resolve D1 + D5 → Phase B (Julia_core merge PR)    [requires review]
 3. Resolve D2 + D3 → Phase C (Brain reconciliation)   [runtime truth first]
 ```
