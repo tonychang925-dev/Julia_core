@@ -1,15 +1,54 @@
-"""M0.4 Permission Policy — Capability-level access control.
+"""Permission Policy — Capability-level access control.
 
 Controls WHAT Julia is ALLOWED to do, not HOW to do it.
-Simple allow/deny rules for M0. Future: confirmation gates, rate limits, RBAC.
 
-This is the enforcement layer for JULIA_CORE_PRINCIPLES.md P5:
-Provider Output ≠ Identity Truth — nothing executes without permission.
+C-08 canonical authorization now returns AuthorizationDecision. Existing callers
+may still use ``allowed, reason = policy.check(scope)`` through an explicit
+compatibility projection; the tuple is not the canonical authorization contract.
 """
 
 from __future__ import annotations
 
+import time as _time
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import Iterator
+
+
+class AuthorizationStatus(str, Enum):
+    """C-08 authorization decision space."""
+
+    ALLOW = "ALLOW"
+    DENY = "DENY"
+    REQUIRE_CONFIRMATION = "REQUIRE_CONFIRMATION"
+    REQUIRE_ELEVATION = "REQUIRE_ELEVATION"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+@dataclass(frozen=True, slots=True)
+class AuthorizationDecision:
+    """First-class C-08 authorization decision.
+
+    ``decision`` is the canonical authority. The iterator exists only so legacy
+    code can continue doing ``allowed, reason = policy.check(scope)`` during the
+    staged migration.
+    """
+
+    decision: str | AuthorizationStatus
+    scope: str
+    reason: str = ""
+    policy_ref: str = "default"
+    requested_at: str = field(default_factory=lambda: _iso_timestamp())
+    provenance: dict = field(default_factory=dict)
+
+    @property
+    def allowed(self) -> bool:
+        return self.decision == AuthorizationStatus.ALLOW or self.decision == AuthorizationStatus.ALLOW.value
+
+    def __iter__(self) -> Iterator[bool | str]:
+        """Legacy compatibility: ``allowed, reason = decision``."""
+        yield self.allowed
+        yield self.reason
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,18 +58,26 @@ class PermissionRule:
     allow: bool
     reason: str = ""               # Why allowed/denied
 
+    def to_decision(self, *, policy_ref: str = "default") -> AuthorizationDecision:
+        return AuthorizationDecision(
+            decision=AuthorizationStatus.ALLOW if self.allow else AuthorizationStatus.DENY,
+            scope=self.scope,
+            reason=self.reason,
+            policy_ref=policy_ref,
+            provenance={"source": "PermissionRule", "compat_allow_bool": self.allow},
+        )
+
 
 @dataclass
 class PermissionPolicy:
     """Controls what capabilities Julia can invoke.
 
-    Simple key-based rules for M0. Designed for future extension:
-      - require_confirmation: bool
-      - rate_limit: "10/hour"
-      - time_window: "09:00-15:00"
+    Current defaults remain M0-compatible. The canonical API is
+    AuthorizationDecision; tuple-unpack is transitional compatibility only.
     """
 
     rules: dict[str, PermissionRule] = field(default_factory=dict)
+    policy_ref: str = "default"
 
     @classmethod
     def with_defaults(cls) -> "PermissionPolicy":
@@ -52,17 +99,21 @@ class PermissionPolicy:
                                reason="Requires Tony explicit action"),
         })
 
-    def check(self, scope: str) -> tuple[bool, str]:
-        """Check if a permission scope is allowed.
+    def check(self, scope: str) -> AuthorizationDecision:
+        """Return a first-class AuthorizationDecision.
 
-        Returns (allowed, reason).
-        Unknown scopes default to DENY.
+        Unknown scopes default to DENY. Legacy callers may still unpack the
+        returned decision as ``allowed, reason``.
         """
         if scope in self.rules:
-            rule = self.rules[scope]
-            return rule.allow, rule.reason
-        # Unknown scope: deny by default (secure-by-default)
-        return False, f"unknown scope '{scope}' — denied by default"
+            return self.rules[scope].to_decision(policy_ref=self.policy_ref)
+        return AuthorizationDecision(
+            decision=AuthorizationStatus.DENY,
+            scope=scope,
+            reason=f"unknown scope '{scope}' — denied by default",
+            policy_ref=self.policy_ref,
+            provenance={"source": "PermissionPolicy", "rule": "default_deny"},
+        )
 
     def add_rule(self, rule: PermissionRule):
         self.rules[rule.scope] = rule
@@ -71,4 +122,13 @@ class PermissionPolicy:
         self.rules.pop(scope, None)
 
 
-__all__ = ["PermissionPolicy", "PermissionRule"]
+def _iso_timestamp() -> str:
+    return _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime())
+
+
+__all__ = [
+    "AuthorizationDecision",
+    "AuthorizationStatus",
+    "PermissionPolicy",
+    "PermissionRule",
+]
