@@ -80,40 +80,24 @@ def _dataclass_fields(cls: type[Any]) -> set[str]:
     return {f.name for f in fields(cls)}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B-01/C-03 / C-08: current CapabilityRequest predates frozen C-08; pending R2-P1",
-)
 def test_c08_capability_request_fields_are_representable_losslessly():
     """CapabilityRequest must expose the frozen C-08 correlation/idempotency fields."""
     actual = _dataclass_fields(CapabilityRequest)
     assert C08_CAPABILITY_REQUEST_FIELDS <= actual
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="C-03 / C-08: REV1-only request schema must not remain canonical; pending R2-P1",
-)
 def test_rev1_request_schema_fields_are_not_canonical_contract_requirements():
     """REV2 must not keep REV1's replacement request schema as the contract truth."""
     actual = _dataclass_fields(CapabilityRequest)
     assert actual.isdisjoint(REV1_ONLY_REQUEST_FIELDS)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B-01 / C-08: capability_id is canonical, current code still uses capability_name; pending R2-P1",
-)
 def test_capability_request_uses_capability_id_not_capability_name_as_canonical_field():
     actual = _dataclass_fields(CapabilityRequest)
     assert "capability_id" in actual
     assert "capability_name" not in actual
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="C-08: CapabilityCall first-class object is not implemented yet; pending R2-P1",
-)
 def test_capability_call_is_first_class_invocation_attempt():
     """One execution attempt must be represented separately from request/result."""
     CapabilityCall = getattr(capability_models, "CapabilityCall")

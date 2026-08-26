@@ -72,10 +72,6 @@ def _dataclass_fields(cls: type[Any]) -> set[str]:
     return {f.name for f in fields(cls)}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B-03/C-08: AuthorizationDecision is not first-class; PermissionPolicy still returns (bool, reason); pending R2-P1/R2-P2",
-)
 def test_authorization_decision_is_first_class_not_bool_tuple():
     """TC-ID: C1-R2.5-AUTH-001. Authorization result must carry decision semantics."""
     AuthorizationDecision = getattr(capability_policy, "AuthorizationDecision")
@@ -83,10 +79,6 @@ def test_authorization_decision_is_first_class_not_bool_tuple():
     assert {"decision", "scope", "reason", "policy_ref", "requested_at", "provenance"} <= actual
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B-03/C-08: policy lacks ALLOW/DENY/REQUIRE_CONFIRMATION/REQUIRE_ELEVATION/UNAVAILABLE decision enum; pending R2-P1/R2-P2",
-)
 def test_authorization_statuses_include_confirmation_and_elevation():
     """TC-ID: C1-R2.5-AUTH-002. Confirmation/elevation are not deny/error aliases."""
     AuthorizationStatus = getattr(capability_policy, "AuthorizationStatus")
@@ -94,10 +86,6 @@ def test_authorization_statuses_include_confirmation_and_elevation():
     assert {"ALLOW", "DENY", "REQUIRE_CONFIRMATION", "REQUIRE_ELEVATION", "UNAVAILABLE"} <= set(AuthorizationStatus.__members__)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B-03/C-08: PermissionPolicy.check currently returns tuple[bool, str], not AuthorizationDecision; pending R2-P1/R2-P2",
-)
 def test_permission_policy_check_returns_authorization_decision_object():
     """TC-ID: C1-R2.5-AUTH-001. Policy check output must be auditable, not bool-only."""
     decision = PermissionPolicy.with_defaults().check("system.read")
