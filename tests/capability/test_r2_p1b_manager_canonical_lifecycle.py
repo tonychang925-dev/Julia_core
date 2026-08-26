@@ -114,10 +114,6 @@ def _canonical_evidence(manager: CapabilityManager) -> list[Evidence]:
     return list(getattr(manager, "canonical_evidence"))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P1B: Manager does not yet create canonical CapabilityCall/ToolResult/Evidence lifecycle artifacts",
-)
 @pytest.mark.asyncio
 async def test_allow_provider_success_creates_call_tool_result_and_linked_evidence():
     provider = RecordingProvider(data={"observed": True, "value": 42})
@@ -144,10 +140,6 @@ async def test_allow_provider_success_creates_call_tool_result_and_linked_eviden
     assert evidence[0].source_type == "TOOL_OBSERVATION"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P1B: Manager does not yet preserve AuthorizationDecision as the non-execution boundary",
-)
 @pytest.mark.asyncio
 async def test_deny_creates_authorization_decision_only_and_no_execution_artifacts():
     provider = RecordingProvider(data={"should_not": "execute"})
@@ -164,10 +156,6 @@ async def test_deny_creates_authorization_decision_only_and_no_execution_artifac
     assert _canonical_evidence(manager) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P1B: confirmation/elevation decisions must not enter CapabilityCall execution",
-)
 @pytest.mark.parametrize("decision", [AuthorizationStatus.REQUIRE_CONFIRMATION, AuthorizationStatus.REQUIRE_ELEVATION])
 @pytest.mark.asyncio
 async def test_confirmation_or_elevation_do_not_enter_execution(decision: AuthorizationStatus):
@@ -185,10 +173,6 @@ async def test_confirmation_or_elevation_do_not_enter_execution(decision: Author
     assert _canonical_evidence(manager) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P1B: unavailable provider paths do not yet create canonical call/result without fabricated Evidence",
-)
 @pytest.mark.asyncio
 async def test_missing_provider_after_allow_creates_unavailable_tool_result_without_evidence():
     manager = _manager(providers={})
@@ -207,10 +191,6 @@ async def test_missing_provider_after_allow_creates_unavailable_tool_result_with
     assert evidence == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P1B: unhealthy provider paths do not yet create canonical unavailable ToolResult without execution",
-)
 @pytest.mark.asyncio
 async def test_unhealthy_provider_after_allow_does_not_execute_and_creates_unavailable_result():
     provider = RecordingProvider(healthy=False, data={"should_not": "execute"})
@@ -230,10 +210,6 @@ async def test_unhealthy_provider_after_allow_does_not_execute_and_creates_unava
     assert _canonical_evidence(manager) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P1B: provider exception does not yet terminate canonical call/result without fabricated Evidence",
-)
 @pytest.mark.asyncio
 async def test_provider_exception_creates_error_tool_result_and_no_fabricated_evidence():
     provider = RecordingProvider(raises=RuntimeError("fixture boom"))
@@ -255,10 +231,6 @@ async def test_provider_exception_creates_error_tool_result_and_no_fabricated_ev
     assert evidence == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P1B: ToolResult evidence_refs do not yet resolve to Manager-owned canonical Evidence IDs",
-)
 @pytest.mark.asyncio
 async def test_tool_result_evidence_refs_resolve_to_actual_canonical_evidence_ids():
     manager = _manager(provider=RecordingProvider(data={"observed": "material"}))
@@ -271,10 +243,6 @@ async def test_tool_result_evidence_refs_resolve_to_actual_canonical_evidence_id
     assert set(result.evidence_refs) <= set(evidence_by_id)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P1B: legacy CapabilityResult is not yet derived from canonical ToolResult lifecycle artifacts",
-)
 @pytest.mark.asyncio
 async def test_legacy_capability_result_remains_compatible_and_derived_from_canonical_artifacts():
     manager = _manager(provider=RecordingProvider(data={"observed": "material"}))
@@ -289,10 +257,6 @@ async def test_legacy_capability_result_remains_compatible_and_derived_from_cano
     assert legacy.capability_name == "fixture.observe"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P1B: unsuccessful execution paths must not fabricate canonical TOOL_OBSERVATION Evidence",
-)
 @pytest.mark.parametrize(
     "provider,providers,expected_status",
     [
