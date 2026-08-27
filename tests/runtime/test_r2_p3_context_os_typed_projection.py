@@ -27,13 +27,17 @@ from typing import Any, get_type_hints
 import pytest
 
 from julia_core.capability.models import (
+    CapabilityDefinition,
+    CapabilityLayer,
     CapabilityResult,
+    CapabilityStatus,
     Evidence,
     EvidenceSourceType,
     ToolResult,
     ToolResultStatus,
 )
 from julia_core.capability.policy import AuthorizationDecision, AuthorizationStatus
+from julia_core.capability.registry import CapabilityRegistry
 from julia_core.runtime.context_execution_runtime import (
     CognitiveContextPackage,
     ContextExecutionRuntime,
@@ -223,6 +227,27 @@ def test_p3_capability_frame_canonical_state_is_structured_not_truncated_text():
     """F. Text rendering may exist downstream, but canonical frame is structured."""
 
     class _Capability:
+        def __init__(self):
+            self.registry = CapabilityRegistry()
+            self.registry.register_definition(CapabilityDefinition(
+                name="file.read",
+                description="Read file contents from the local filesystem",
+                layer=CapabilityLayer.KNOWLEDGE,
+                provider="local",
+                permission_scope="file.read",
+                input_schema={"path": "file path"},
+                status=CapabilityStatus.AVAILABLE,
+            ))
+            self.registry.register_definition(CapabilityDefinition(
+                name="file.search",
+                description="Search for files by name pattern",
+                layer=CapabilityLayer.KNOWLEDGE,
+                provider="local",
+                permission_scope="file.read",
+                input_schema={"pattern": "search pattern"},
+                status=CapabilityStatus.AVAILABLE,
+            ))
+
         def tool_manifest(self):
             return "file.read: Read file\nfile.search: Search files"
 
