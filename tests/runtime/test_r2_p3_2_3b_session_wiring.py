@@ -38,39 +38,23 @@ def _session_source() -> str:
 
 # ── Source-inspection contract ─────────────────────────────────────────────
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.3B: session typed wiring not implemented",
-)
 def test_session_uses_execute_tool_typed_not_legacy_string_seam():
     source = _session_source()
     assert "self.capability.execute_tool_typed" in source
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.3B: session typed wiring not implemented",
-)
 def test_session_dispatches_authorization_and_control_outcomes():
     source = _session_source()
     assert "project_authorization_outcome" in source
     assert "project_capability_resolution_failure" in source
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.3B: session typed wiring not implemented",
-)
 def test_session_replaces_legacy_string_seam_with_typed_seam():
     source = _session_source()
     assert "self.capability.execute_tool_typed" in source
     assert "self.capability.execute_tool(" not in source
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.3B: session typed wiring not implemented",
-)
 def test_session_does_not_requery_registry_for_preauth_failure():
     source = _session_source()
     assert "CapabilityPreAuthorizationFailure" in source
@@ -216,10 +200,6 @@ def _expected_generation(captured: dict[str, Any]) -> str:
     return f"gen_tool_{captured['turn_count']}"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.3B: session typed wiring not implemented",
-)
 def test_session_typed_non_allow_dispatches_authorization_outcome(monkeypatch):
     decision = AuthorizationDecision(decision=AuthorizationStatus.DENY, scope="file.read", reason="deny")
     carrier = CapabilityExecution(decision, None, None, ())
@@ -238,10 +218,6 @@ def test_session_typed_non_allow_dispatches_authorization_outcome(monkeypatch):
     assert SENTINEL in session.provider.chat_calls[1][0]["content"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.3B: session typed wiring not implemented",
-)
 def test_session_typed_allow_dispatches_exact_tool_result_and_evidence(monkeypatch):
     call = _call("call-1")
     evidence = _evidence("ev-1")
@@ -268,10 +244,6 @@ def test_session_typed_allow_dispatches_exact_tool_result_and_evidence(monkeypat
     assert SENTINEL in session.provider.chat_calls[1][0]["content"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.3B: session typed wiring not implemented",
-)
 def test_session_typed_unknown_dispatches_control_projection(monkeypatch):
     session, captured = _typed_session(monkeypatch, CapabilityPreAuthorizationFailure("no.such", "UNKNOWN"))
 
@@ -288,10 +260,6 @@ def test_session_typed_unknown_dispatches_control_projection(monkeypatch):
     assert SENTINEL in session.provider.chat_calls[1][0]["content"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.3B: session typed wiring not implemented",
-)
 def test_session_typed_disabled_dispatches_control_projection(monkeypatch):
     session, captured = _typed_session(monkeypatch, CapabilityPreAuthorizationFailure("file.disabled", "DISABLED"))
 
@@ -307,10 +275,6 @@ def test_session_typed_disabled_dispatches_control_projection(monkeypatch):
     assert SENTINEL in session.provider.chat_calls[1][0]["content"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.3B: session typed wiring not implemented",
-)
 def test_session_typed_malformed_none_skips_continuation(monkeypatch):
     session, _ = _typed_session(monkeypatch, None)
 
