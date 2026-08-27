@@ -299,6 +299,9 @@ class JuliaSession:
 
         # Shared preparation
         messages = self._prepare_turn(text, ctx)
+        # Explicit causal projection parent (P0). Do NOT mutate ctx._last_package
+        # to thread retry causality; keep an explicit local parent instead.
+        projection_parent = ctx._last_package
 
         # Layer 4: LLM (Pass 1)
         reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")
@@ -308,13 +311,16 @@ class JuliaSession:
         tool_json = self.capability.detect_tool_call(reply)
 
         if needs_evidence and not tool_json:
-            # Force retry: LLM must use a tool for this request
-            messages.append({"role": "assistant", "content": reply})
-            messages.append({"role": "user", "content": (
-                "[系统提示] 这个问题需要调用工具读取实际文件内容——不是从记忆推测。"
-                "请调用合适的工具（read_file/search_files/list_directory），"
-                "基于工具返回的实际内容重新回答。不要编造文件内容。"
-            )})
+            # Structured retry/control through Context OS (P3.3). No direct
+            # raw control-message injection; no ad-hoc prompt.
+            retry_package = self.context_os.project_retry_control(
+                parent_package=projection_parent,
+                reason="required_tool_call_missing",
+                generation_id=f"gen_retry_{ctx.turn_count}",
+            )
+            projection_parent = retry_package
+            messages = retry_package.to_messages(retry_package.active_tail_messages, "")
+            messages.insert(-1, {"role": "assistant", "content": reply}) if messages else None
             reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")
             tool_json = self.capability.detect_tool_call(reply)
 
@@ -322,10 +328,10 @@ class JuliaSession:
         if tool_json:
             self._execute_tool_with_action(tool_json, ctx)
             outcome = self.capability.execute_tool_typed(tool_json)
-            delta = self._dispatch_typed_outcome(outcome, ctx)
+            delta = self._dispatch_typed_outcome(outcome, ctx, parent_package=projection_parent)
             if delta is not None:
                 # P2-I: ToolResult must re-enter via Context OS (C-03 §11)
-                # NOT: messages.append(...) bypassing Context OS
+                # NOT: bypassing Context OS with a direct message injection
                 messages = delta.to_messages(delta.active_tail_messages, "")
                 # Re-append the prior assistant reply for context
                 messages.insert(-1, {"role": "assistant", "content": reply}) if messages else None
@@ -374,12 +380,13 @@ class JuliaSession:
             name = "?"
         self.action.start(name, f"执行 {name}", correlation_id=ctx.correlation_id)
 
-    def _dispatch_typed_outcome(self, outcome, ctx: TurnContext):
+    def _dispatch_typed_outcome(self, outcome, ctx: TurnContext, *, parent_package):
         """Dispatch a typed bridge outcome to the exact Context OS projection.
 
         Returns a CognitiveContextPackage delta for projectable outcomes, or
         None for malformed (None). No Registry re-query, no Manager artifact
         list lookup, no latest selection, no legacy CapabilityResult conversion.
+        The explicit causal parent_package (P0 or P1) threads retry causality.
         """
         from julia_core.capability.policy import AuthorizationStatus
         from julia_core.runtime.capability_bridge import CapabilityPreAuthorizationFailure
@@ -391,7 +398,7 @@ class JuliaSession:
 
         if isinstance(outcome, CapabilityPreAuthorizationFailure):
             return self.context_os.project_capability_resolution_failure(
-                parent_package=ctx._last_package,
+                parent_package=parent_package,
                 capability_id=outcome.capability_id,
                 reason=outcome.reason,
                 generation_id=generation_id,
@@ -403,13 +410,13 @@ class JuliaSession:
         )
         if decision_value != AuthorizationStatus.ALLOW.value:
             return self.context_os.project_authorization_outcome(
-                parent_package=ctx._last_package,
+                parent_package=parent_package,
                 authorization_decision=decision,
                 generation_id=generation_id,
             )
 
         return self.context_os.project_tool_result(
-            parent_package=ctx._last_package,
+            parent_package=parent_package,
             tool_result=outcome.tool_result,
             evidence=outcome.evidence,
             generation_id=generation_id,
