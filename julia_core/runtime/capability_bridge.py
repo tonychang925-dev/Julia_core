@@ -18,9 +18,10 @@ ADR-026 P4: Provider supplies capability, not cognition.
 from __future__ import annotations
 
 import json as _json
+from dataclasses import dataclass
 from typing import Optional
 
-from julia_core.capability.manager import CapabilityManager
+from julia_core.capability.manager import CapabilityExecution, CapabilityManager
 from julia_core.capability.models import (
     CapabilityDefinition,
     CapabilityLayer,
@@ -29,6 +30,19 @@ from julia_core.capability.models import (
 )
 from julia_core.capability.policy import PermissionPolicy
 from julia_core.capability.registry import CapabilityRegistry
+
+
+@dataclass(frozen=True, slots=True)
+class CapabilityPreAuthorizationFailure:
+    """Bridge-local non-canonical transport/control signal.
+
+    Distinguishes UNKNOWN / DISABLED pre-authorization resolution failure from
+    malformed request-decoding failure (None) and from a recognized execution
+    (CapabilityExecution). It is NOT a canonical lifecycle object and NOT an
+    AuthorizationDecision / CapabilityResult / ToolResult / Evidence.
+    """
+    capability_id: str
+    reason: str  # "UNKNOWN" | "DISABLED"
 
 
 class LocalProviderRouter:
@@ -262,6 +276,61 @@ class RuntimeCapabilityBridge:
 
         # Format result for LLM
         return self._format_tool_result(result)
+
+    def execute_tool_typed(
+        self,
+        tool_json: str,
+    ) -> CapabilityExecution | CapabilityPreAuthorizationFailure | None:
+        """P3.2.2B typed delivery seam.
+
+        Decodes the same tool-call JSON, normalizes legacy names, and delivers
+        the exact CapabilityExecution from Manager for recognized, non-DISABLED
+        capabilities. Returns a CapabilityPreAuthorizationFailure for
+        UNKNOWN/DISABLED and None for malformed input. Never flattens the
+        carrier, never scans Manager lists, never selects latest artifacts.
+        """
+        self.initialize()
+
+        try:
+            call = _json.loads(tool_json)
+            name = call["name"]
+            args = call.get("arguments", {})
+        except (_json.JSONDecodeError, KeyError):
+            return None
+
+        # Map legacy tool names to new capability names
+        legacy_to_new = {
+            "read_file": "file.read",
+            "search_files": "file.search",
+            "list_directory": "file.list",
+        }
+        capability_id = legacy_to_new.get(name, name)
+
+        # Deterministic pre-check against the audited immutable registry.
+        definition = self.manager.registry.get(capability_id)
+        if definition is None:
+            return CapabilityPreAuthorizationFailure(capability_id, "UNKNOWN")
+        if definition.status == CapabilityStatus.DISABLED:
+            return CapabilityPreAuthorizationFailure(capability_id, "DISABLED")
+
+        request = CapabilityRequest(
+            capability_name=capability_id,
+            arguments=args,
+            reason=f"LLM tool call: {name}",
+        )
+
+        # Execute through manager (sync wrapper around async)
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, self.manager.execute_typed(request))
+                    return future.result(timeout=30)
+            return asyncio.run(self.manager.execute_typed(request))
+        except RuntimeError:
+            return asyncio.run(self.manager.execute_typed(request))
 
     def _format_tool_result(self, result) -> str:
         """Format CapabilityResult as tool_result block for LLM."""
