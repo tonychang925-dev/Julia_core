@@ -27,20 +27,12 @@ from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
 ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.2B: typed bridge seam not implemented",
-)
 def test_bridge_delivers_typed_execution_carrier_not_flattened_string():
     """Typed seam must reference the exact CapabilityExecution carrier (typed)."""
     source = (ROOT / "julia_core" / "runtime" / "capability_bridge.py").read_text()
     assert "CapabilityExecution" in source
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.2B: typed bridge seam not implemented",
-)
 def test_bridge_typed_seam_returns_capability_execution():
     """Behavioral: recognized capability → exact CapabilityExecution (no string)."""
     bridge = RuntimeCapabilityBridge()
