@@ -14,6 +14,7 @@ runtime/provider callers; they are not the canonical execution truth.
 from __future__ import annotations
 
 import time as _time
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from julia_core.capability.models import (
@@ -33,6 +34,36 @@ from julia_core.capability.models import (
 )
 from julia_core.capability.policy import AuthorizationDecision, AuthorizationStatus, PermissionPolicy
 from julia_core.capability.registry import CapabilityRegistry
+
+
+@dataclass(frozen=True, slots=True)
+class CapabilityExecution:
+    """Manager-local immutable carrier grouping one execution's canonical artifacts.
+
+    NOT a new canonical lifecycle/domain object. Groups the existing
+    AuthorizationDecision / CapabilityCall / ToolResult / Evidence belonging to
+    ONE execution transaction so the bridge can deliver them without latest /
+    list rediscovery.
+
+    Invariants:
+      - authorization-only (non-ALLOW): capability_call/tool_result = None,
+        evidence = ().
+      - executed: capability_call + tool_result present; evidence = exact tuple
+        associated with tool_result.
+      - all-None is INVALID (never represents unknown/DISABLED).
+    """
+    authorization_decision: AuthorizationDecision | None
+    capability_call: CapabilityCall | None
+    tool_result: ToolResult | None
+    evidence: tuple[Evidence, ...]
+
+
+class _PreAuthorizationResolutionError(Exception):
+    """Manager-local: recognized capability hit pre-authorization unknown/DISABLED.
+
+    Not a canonical lifecycle contract; used only so execute_typed() fails
+    closed without fabricating an all-None CapabilityExecution.
+    """
 
 
 # ── Evidence Ledger (legacy compatibility view) ─────────────────────────────
@@ -119,47 +150,76 @@ class CapabilityManager:
     # ── Execute ──────────────────────────────────────────────────────────
 
     async def execute(self, request: CapabilityRequest) -> CapabilityResult:
-        """Full capability invocation lifecycle.
+        """Legacy compatibility entry point.
 
-        Only AuthorizationDecision(ALLOW) enters CapabilityCall execution.
-        Non-ALLOW decisions remain authorization outcomes, not execution
-        failures. The returned CapabilityResult is a legacy compatibility view
-        derived from the canonical ToolResult where a call exists.
+        Recognized capabilities run through the single typed execution spine
+        (_execute_recognized) and derive a legacy CapabilityResult from the
+        exact canonical artifacts. Unknown/DISABLED pre-authorization paths
+        preserve their existing legacy-only returns.
         """
-        start = _time.time()
-
-        # Step 1: Registry lookup
         definition = self.registry.get(request.capability_name)
         if definition is None:
             return CapabilityResult.unknown(request.capability_name)
-
-        # Step 2: Status check. Disabled is a pre-execution denial and does not
-        # create CapabilityCall/ToolResult canonical execution artifacts.
         if definition.status == CapabilityStatus.DISABLED:
             return CapabilityResult.denied(
                 request.capability_name,
                 f"Capability '{request.capability_name}' is DISABLED",
             )
+        execution = await self._execute_recognized(request, definition)
+        return self._legacy_from_execution(request, execution)
+
+    async def execute_typed(self, request: CapabilityRequest) -> CapabilityExecution:
+        """Typed execution entry point (P3.2.1).
+
+        Returns one immutable CapabilityExecution carrying the exact canonical
+        artifacts from this invocation. Pre-authorization unknown/DISABLED
+        resolution has no canonical AuthorizationDecision and fails closed via
+        _PreAuthorizationResolutionError (never an all-None bundle).
+        """
+        definition = self.registry.get(request.capability_name)
+        if definition is None:
+            raise _PreAuthorizationResolutionError(
+                f"unknown capability '{request.capability_name}'"
+            )
+        if definition.status == CapabilityStatus.DISABLED:
+            raise _PreAuthorizationResolutionError(
+                f"capability '{request.capability_name}' is DISABLED"
+            )
+        return await self._execute_recognized(request, definition)
+
+    async def _execute_recognized(
+        self,
+        request: CapabilityRequest,
+        definition: CapabilityDefinition,
+    ) -> CapabilityExecution:
+        """Single typed execution spine for a recognized capability.
+
+        ONE invocation executes the provider at most once. Canonical artifacts
+        flow directly from this transaction into the returned carrier; no
+        global/latest/list rediscovery.
+        """
+        start = _time.time()
+
         if definition.status == CapabilityStatus.DEGRADED:
             # DEGRADED means we attempt but record the risk.
             pass
 
-        # Step 3: Permission check
+        # Permission check
         decision = self.policy.check(definition.permission_scope)
         self._authorization_decisions.append(decision)
         if not self._is_authorized(decision):
             # Authorization denial/confirmation/elevation is not execution
             # failure. Provider health/execute must not be reached.
             self._record_legacy_evidence(definition, request, "denied")
-            return CapabilityResult.denied(request.capability_name, decision.reason)
+            return CapabilityExecution(decision, None, None, ())
 
         # From this point onward, we have an authorized invocation attempt.
         call = self._start_call(definition, request)
 
-        # Step 4: Resolve provider
+        # Resolve provider
         provider = self._resolve_provider(definition)
         if provider is None:
-            result = self._finish_call_with_result(
+            completed_call, result = self._finish_call_with_result(
                 call,
                 status=CapabilityCallStatus.FAILED,
                 tool_status=ToolResultStatus.UNAVAILABLE,
@@ -171,12 +231,12 @@ class CapabilityManager:
                 },
             )
             self._record_legacy_evidence(definition, request, "unavailable")
-            return self._legacy_from_tool_result(request, result)
+            return CapabilityExecution(decision, completed_call, result, ())
 
-        # Step 5: Provider health
+        # Provider health
         healthy, detail = await provider.health()
         if not healthy:
-            result = self._finish_call_with_result(
+            completed_call, result = self._finish_call_with_result(
                 call,
                 status=CapabilityCallStatus.FAILED,
                 tool_status=ToolResultStatus.UNAVAILABLE,
@@ -185,20 +245,21 @@ class CapabilityManager:
                 error={"code": "provider_unhealthy", "message": detail},
             )
             self._record_legacy_evidence(definition, request, "unavailable")
-            return self._legacy_from_tool_result(request, result)
+            return CapabilityExecution(decision, completed_call, result, ())
 
-        # Step 6: Execute
+        # Execute
         executing_call = self._replace_call(call, status=CapabilityCallStatus.EXECUTING)
         try:
             data = await provider.execute(request)
             duration_ms = int((_time.time() - start) * 1000)
-            evidence_refs = self._record_canonical_observation_evidence(
+            evidence = self._record_canonical_observation_evidence(
                 definition=definition,
                 request=request,
                 call=executing_call,
                 data=data,
             )
-            result = self._finish_call_with_result(
+            evidence_refs = (evidence.evidence_id,) if evidence is not None else ()
+            completed_call, result = self._finish_call_with_result(
                 executing_call,
                 status=CapabilityCallStatus.COMPLETED,
                 tool_status=ToolResultStatus.SUCCESS,
@@ -210,9 +271,14 @@ class CapabilityManager:
                 schema_version=definition.schema_version,
             )
             self._record_legacy_evidence(definition, request, "success")
-            return self._legacy_from_tool_result(request, result)
+            return CapabilityExecution(
+                decision,
+                completed_call,
+                result,
+                (evidence,) if evidence is not None else (),
+            )
         except Exception as exc:
-            result = self._finish_call_with_result(
+            completed_call, result = self._finish_call_with_result(
                 executing_call,
                 status=CapabilityCallStatus.FAILED,
                 tool_status=ToolResultStatus.ERROR,
@@ -222,7 +288,14 @@ class CapabilityManager:
                 schema_version=definition.schema_version,
             )
             self._record_legacy_evidence(definition, request, "error")
-            return self._legacy_from_tool_result(request, result)
+            return CapabilityExecution(decision, completed_call, result, ())
+
+    def _legacy_from_execution(self, request: CapabilityRequest, execution: CapabilityExecution) -> CapabilityResult:
+        """Derive the legacy CapabilityResult from the typed execution carrier."""
+        if execution.tool_result is None:
+            assert execution.authorization_decision is not None
+            return CapabilityResult.denied(request.capability_name, execution.authorization_decision.reason)
+        return self._legacy_from_tool_result(request, execution.tool_result)
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
@@ -261,8 +334,13 @@ class CapabilityManager:
             correlation_id=call.correlation_id,
             provenance=dict(call.provenance),
         )
-        self._capability_calls[-1] = updated
-        return updated
+        for i, existing in enumerate(self._capability_calls):
+            if existing.capability_call_id == call.capability_call_id:
+                self._capability_calls[i] = updated
+                return updated
+        raise ValueError(
+            f"CapabilityCall '{call.capability_call_id}' not found for exact-ID replacement"
+        )
 
     def _finish_call_with_result(
         self,
@@ -277,7 +355,7 @@ class CapabilityManager:
         evidence_refs: tuple[str, ...] = (),
         duration_ms: int = 0,
         schema_version: str = "1.0",
-    ) -> ToolResult:
+    ) -> tuple[CapabilityCall, ToolResult]:
         completed_at = _iso_timestamp()
         completed_call = self._replace_call(call, status=status, completed_at=completed_at)
         result = ToolResult(
@@ -293,7 +371,7 @@ class CapabilityManager:
             schema_version=schema_version,
         )
         self._tool_results.append(result)
-        return result
+        return completed_call, result
 
     def _record_canonical_observation_evidence(
         self,
@@ -302,7 +380,7 @@ class CapabilityManager:
         request: CapabilityRequest,
         call: CapabilityCall,
         data: dict[str, Any],
-    ) -> tuple[str, ...]:
+    ) -> Evidence | None:
         """Create generic TOOL_OBSERVATION Evidence from actual provider data.
 
         The Manager records only that provider observation material exists. It
@@ -311,7 +389,7 @@ class CapabilityManager:
         domain-specific mapping.
         """
         if not data:
-            return ()
+            return None
 
         evidence = Evidence(
             evidence_id=f"ev_{_time.time_ns()}",
@@ -333,7 +411,7 @@ class CapabilityManager:
             correlation_id=request.correlation_id,
         )
         self._canonical_evidence.append(evidence)
-        return (evidence.evidence_id,)
+        return evidence
 
     def _legacy_from_tool_result(self, request: CapabilityRequest, result: ToolResult) -> CapabilityResult:
         status = result.status.value if hasattr(result.status, "value") else str(result.status)
@@ -397,4 +475,4 @@ def _iso_timestamp() -> str:
     return _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime())
 
 
-__all__ = ["CapabilityManager", "EvidenceLedger"]
+__all__ = ["CapabilityManager", "CapabilityExecution", "EvidenceLedger"]
