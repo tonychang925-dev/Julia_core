@@ -43,11 +43,13 @@ def test_bridge_typed_seam_returns_capability_execution():
     assert isinstance(result, CapabilityExecution)
 
 
-def test_active_julia_session_still_uses_legacy_bridge_execute_tool():
-    """PASS guard: active JuliaSession continuation still uses legacy execute_tool.
+def test_legacy_bridge_surface_still_exists_until_p3_2_4():
+    """PASS guard: legacy Bridge surface still exists until P3.2.4 cleanup.
 
-    P3.2.2B must NOT break this active consumer; the switch to the typed seam is
-    P3.2.3.
+    Guards the CapabilityBridge compatibility surface (execute_tool +
+    _format_tool_result), NOT JuliaSession consumption. This must remain PASS
+    both before and after P3.2.3B; P3.2.4 owns its eventual removal.
     """
-    source = (ROOT / "julia_core" / "runtime" / "julia_session.py").read_text()
-    assert "self.capability.execute_tool" in source
+    source = (ROOT / "julia_core" / "runtime" / "capability_bridge.py").read_text()
+    assert "def execute_tool" in source
+    assert "def _format_tool_result" in source
