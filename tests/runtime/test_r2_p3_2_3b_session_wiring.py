@@ -85,7 +85,7 @@ class _DeltaPackage:
     active_tail_messages: list[dict[str, Any]] = []
 
     def to_messages(self, history, user_text):
-        return [{"role": "system", "content": SENTINEL}]
+        return [{"role": "system", "content": SENTINEL}, {"role": "user", "content": user_text}]
 
 
 class _FakeProvider:

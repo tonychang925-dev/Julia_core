@@ -321,20 +321,16 @@ class JuliaSession:
         # Layer 6: Capability Execution (Pass 2 — if tool called)
         if tool_json:
             self._execute_tool_with_action(tool_json, ctx)
-            tool_result = self.capability.execute_tool(tool_json)
-            if tool_result:
+            outcome = self.capability.execute_tool_typed(tool_json)
+            delta = self._dispatch_typed_outcome(outcome, ctx)
+            if delta is not None:
                 # P2-I: ToolResult must re-enter via Context OS (C-03 §11)
-                # NOT: messages.append(tool_result) bypassing Context OS
-                delta = self.context_os.project_tool_result(
-                    parent_package=ctx._last_package,
-                    tool_result=tool_result,
-                    generation_id=f"gen_tool_{ctx.turn_count}",
-                )
+                # NOT: messages.append(...) bypassing Context OS
                 messages = delta.to_messages(delta.active_tail_messages, "")
                 # Re-append the prior assistant reply for context
                 messages.insert(-1, {"role": "assistant", "content": reply}) if messages else None
                 reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")
-                self.action.finish("完成" if "error" not in tool_result else "失败", correlation_id=ctx.correlation_id)
+                self.action.finish(self._outcome_action_status(outcome), correlation_id=ctx.correlation_id)
 
         # Layer 7: Update state
         ctx.history.append({"role": "user", "content": text})
@@ -377,6 +373,56 @@ class JuliaSession:
         except Exception:
             name = "?"
         self.action.start(name, f"执行 {name}", correlation_id=ctx.correlation_id)
+
+    def _dispatch_typed_outcome(self, outcome, ctx: TurnContext):
+        """Dispatch a typed bridge outcome to the exact Context OS projection.
+
+        Returns a CognitiveContextPackage delta for projectable outcomes, or
+        None for malformed (None). No Registry re-query, no Manager artifact
+        list lookup, no latest selection, no legacy CapabilityResult conversion.
+        """
+        from julia_core.capability.policy import AuthorizationStatus
+        from julia_core.runtime.capability_bridge import CapabilityPreAuthorizationFailure
+
+        if outcome is None:
+            return None
+
+        generation_id = f"gen_tool_{ctx.turn_count}"
+
+        if isinstance(outcome, CapabilityPreAuthorizationFailure):
+            return self.context_os.project_capability_resolution_failure(
+                parent_package=ctx._last_package,
+                capability_id=outcome.capability_id,
+                reason=outcome.reason,
+                generation_id=generation_id,
+            )
+
+        decision = outcome.authorization_decision
+        decision_value = (
+            decision.decision.value if hasattr(decision.decision, "value") else str(decision.decision)
+        )
+        if decision_value != AuthorizationStatus.ALLOW.value:
+            return self.context_os.project_authorization_outcome(
+                parent_package=ctx._last_package,
+                authorization_decision=decision,
+                generation_id=generation_id,
+            )
+
+        return self.context_os.project_tool_result(
+            parent_package=ctx._last_package,
+            tool_result=outcome.tool_result,
+            evidence=outcome.evidence,
+            generation_id=generation_id,
+        )
+
+    @staticmethod
+    def _outcome_action_status(outcome) -> str:
+        """Map a typed outcome to an action lifecycle status string."""
+        tool_result = getattr(outcome, "tool_result", None)
+        if tool_result is None:
+            return "失败"
+        status = tool_result.status.value if hasattr(tool_result.status, "value") else str(tool_result.status)
+        return "完成" if status == "success" else "失败"
 
     # ── R0.3b: Market Context Resolution ─────────────────────────────────
 
