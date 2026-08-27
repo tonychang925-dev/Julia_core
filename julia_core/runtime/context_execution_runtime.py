@@ -12,7 +12,10 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Sequence
+
+from julia_core.capability.models import Evidence, ToolResult
+from julia_core.capability.policy import AuthorizationDecision
 
 
 @dataclass
@@ -90,14 +93,46 @@ class CognitiveContextPackage:
         return messages
 
     def _render_frame(self, name: str, frame: dict) -> str:
-        """Render a frame as text. Transitional — structured projection in P6."""
+        """Render a frame as text.
+
+        P3.1A: renders nested typed dict/list projections deterministically.
+        Truncation/bounding occurs here (render time only); the structured
+        Context OS projection itself is never truncated.
+        """
         lines = [f"[{name}]"]
         for k, v in frame.items():
-            if isinstance(v, str):
-                lines.append(f"{k}: {v}")
-            elif isinstance(v, list):
-                lines.append(f"{k}: {', '.join(str(x) for x in v[:5])}")
+            lines.append(f"{k}: {self._render_value(v, depth=0)}")
         return "\n".join(lines)
+
+    _RENDER_MAX_SCALAR = 2000
+    _RENDER_MAX_ITEMS = 20
+    _RENDER_MAX_DEPTH = 4
+    _RENDER_TRUNC_MARKER = "…[truncated]"
+
+    def _render_value(self, value: Any, *, depth: int) -> str:
+        """Deterministically render a nested scalar/dict/list value.
+
+        Bounds are applied before any serialization so output stays well-formed.
+        Dict ordering follows insertion order (the projection field order).
+        """
+        if isinstance(value, str):
+            if len(value) > self._RENDER_MAX_SCALAR:
+                return value[: self._RENDER_MAX_SCALAR] + self._RENDER_TRUNC_MARKER
+            return value
+        if isinstance(value, dict):
+            if depth >= self._RENDER_MAX_DEPTH:
+                return "{…}" + self._RENDER_TRUNC_MARKER
+            parts = [f"{k}={self._render_value(v, depth=depth + 1)}" for k, v in value.items()]
+            return "{ " + ", ".join(parts) + " }"
+        if isinstance(value, (list, tuple)):
+            if depth >= self._RENDER_MAX_DEPTH:
+                return "[…]" + self._RENDER_TRUNC_MARKER
+            items = [self._render_value(v, depth=depth + 1) for v in value[: self._RENDER_MAX_ITEMS]]
+            suffix = ""
+            if len(value) > self._RENDER_MAX_ITEMS:
+                suffix = f", …[{len(value) - self._RENDER_MAX_ITEMS} more]"
+            return "[" + ", ".join(items) + suffix + "]"
+        return str(value)
 
     def add_provenance(self, frame: str, source_ref: str, canonical_ref: str = "",
                        reason: str = "", stage: int = 0, token_estimate: int = 0):
@@ -353,14 +388,94 @@ class ContextExecutionRuntime:
         self,
         *,
         parent_package: CognitiveContextPackage | None = None,
-        tool_result: str = "",
+        tool_result: ToolResult,
+        evidence: Sequence[Evidence] = (),
         generation_id: str = "",
     ) -> CognitiveContextPackage:
-        """P2-I: Incremental Context projection for ToolResult (C-03 §11).
+        """P3.1A: typed capability outcome projection (C-03 §11, C-08 §9, C-12 §2).
 
-        Creates a ContextPackageDelta with the tool result in EvidenceFrame.
-        Same turn_id, new generation_id. ToolResult must pass through Context OS.
+        Receives ONE exact canonical ToolResult plus its supplied Evidence
+        collection. The Context OS frame is a structured derived projection,
+        never canonical truth. Does not query the Manager, does not select among
+        multiple ToolResults, and does not infer correlation from ordering.
+
+        Temporary legacy ingress: the serial runtime still passes a flattened
+        string until P3.2 typed bridge delivery. A str input is delegated to a
+        private legacy text projection. This shim is NOT part of the long-term
+        canonical API contract and must be removed once P3.2 lands.
         """
+        if isinstance(tool_result, str):
+            return self._project_legacy_text_result(
+                parent_package=parent_package,
+                tool_result=tool_result,
+                generation_id=generation_id,
+            )
+
+        resolved_evidence = self._resolve_evidence_refs(tool_result, evidence)
+
+        pkg = CognitiveContextPackage(
+            conversation_id=parent_package.conversation_id if parent_package else "",
+            turn_id=parent_package.turn_id if parent_package else "",
+            generation_id=generation_id,
+        )
+        pkg.evidence_frame = {
+            "tool_result": self._project_tool_result_view(tool_result),
+            "evidence": [self._project_evidence_view(e) for e in resolved_evidence],
+            "source": "capability_execution",
+        }
+        pkg.situation_frame = {"mode": "tool_continuation"}
+        pkg.add_provenance("evidence", "capability:tool_result",
+                          reason="tool execution result (typed)", stage=2)
+        return pkg
+
+    def project_authorization_outcome(
+        self,
+        *,
+        parent_package: CognitiveContextPackage | None = None,
+        authorization_decision: AuthorizationDecision,
+        generation_id: str = "",
+    ) -> CognitiveContextPackage:
+        """P3.1A: structured projection of a non-ALLOW AuthorizationDecision.
+
+        Authorization/control material is NOT external Evidence. CapabilityCall,
+        ToolResult and Evidence are all NONE; nothing here renders as a
+        TOOL_OBSERVATION.
+        """
+        decision_value = (
+            authorization_decision.decision.value
+            if hasattr(authorization_decision.decision, "value")
+            else str(authorization_decision.decision)
+        )
+        pkg = CognitiveContextPackage(
+            conversation_id=parent_package.conversation_id if parent_package else "",
+            turn_id=parent_package.turn_id if parent_package else "",
+            generation_id=generation_id,
+        )
+        pkg.evidence_frame = {
+            "authorization_outcome": {
+                "decision": decision_value,
+                "scope": authorization_decision.scope,
+                "reason": authorization_decision.reason,
+                "capability_call_id": None,
+                "tool_result": None,
+                "evidence": [],
+            },
+        }
+        pkg.situation_frame = {"mode": "authorization_outcome"}
+        pkg.add_provenance("evidence", "capability:authorization_outcome",
+                          reason="authorization-only outcome", stage=2)
+        return pkg
+
+    # ── P3.1A helpers ─────────────────────────────────────────────────────
+
+    def _project_legacy_text_result(
+        self,
+        *,
+        parent_package: CognitiveContextPackage | None,
+        tool_result: str,
+        generation_id: str,
+    ) -> CognitiveContextPackage:
+        """Legacy flattened-string ingress (pre-P3.2). Preserves P2-I behavior."""
         pkg = CognitiveContextPackage(
             conversation_id=parent_package.conversation_id if parent_package else "",
             turn_id=parent_package.turn_id if parent_package else "",
@@ -375,6 +490,77 @@ class ContextExecutionRuntime:
                           reason="tool execution result", stage=2,
                           token_estimate=len(tool_result) // 4)
         return pkg
+
+    def _resolve_evidence_refs(
+        self,
+        tool_result: ToolResult,
+        evidence: Sequence[Evidence],
+    ) -> list[Evidence]:
+        """Validate ToolResult.evidence_refs against supplied Evidence (fail closed).
+
+        - duplicate supplied Evidence.evidence_id -> ValueError
+        - dangling ToolResult.evidence_refs -> ValueError
+        - unrelated supplied Evidence is not projected
+        - repeated evidence_refs are deduped preserving first-reference order
+        - projection order follows evidence_refs order, not supplied-list order
+        """
+        by_id: dict[str, Evidence] = {}
+        for e in evidence:
+            if e.evidence_id in by_id:
+                raise ValueError(f"duplicate supplied Evidence.evidence_id: {e.evidence_id}")
+            by_id[e.evidence_id] = e
+
+        resolved: list[Evidence] = []
+        emitted: set[str] = set()
+        for ref in tool_result.evidence_refs:
+            if ref not in by_id:
+                raise ValueError(f"dangling ToolResult.evidence_refs: {ref}")
+            if ref in emitted:
+                continue
+            emitted.add(ref)
+            resolved.append(by_id[ref])
+        return resolved
+
+    def _project_tool_result_view(self, tr: ToolResult) -> dict[str, Any]:
+        """Explicit whitelist projection of ToolResult fields (no asdict dump)."""
+        status = tr.status.value if hasattr(tr.status, "value") else str(tr.status)
+        side_effect = (
+            tr.side_effect_state.value
+            if hasattr(tr.side_effect_state, "value")
+            else str(tr.side_effect_state)
+        )
+        view: dict[str, Any] = {
+            "capability_call_id": tr.capability_call_id,
+            "status": status,
+            "evidence_refs": list(tr.evidence_refs),
+            "provider": tr.provider,
+            "side_effect_state": side_effect,
+        }
+        if tr.structured_output:
+            view["structured_output"] = dict(tr.structured_output)
+        if tr.error is not None:
+            view["error"] = dict(tr.error)
+        return view
+
+    def _project_evidence_view(self, e: Evidence) -> dict[str, Any]:
+        """Explicit whitelist projection of Evidence fields (no asdict dump)."""
+        source_type = e.source_type.value if hasattr(e.source_type, "value") else str(e.source_type)
+        provenance = {
+            k: e.provenance[k]
+            for k in ("capability_request_id", "capability_call_id", "capability_id", "provider")
+            if k in e.provenance
+        }
+        return {
+            "evidence_id": e.evidence_id,
+            "source_type": source_type,
+            "source_ref": e.source_ref,
+            "observed_at": e.observed_at,
+            "content_ref": e.content_ref,
+            "freshness": e.freshness,
+            "confidence": e.confidence,
+            "correlation_id": e.correlation_id,
+            "provenance": provenance,
+        }
 
     @staticmethod
     def _sanitize_legacy_diary_text(text: str) -> str:
