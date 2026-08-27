@@ -10,6 +10,7 @@ P2 target: MODEL_VISIBLE_BYPASS_COUNT = 0.
 
 from __future__ import annotations
 
+import copy
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Sequence
@@ -362,14 +363,30 @@ class ContextExecutionRuntime:
             except Exception as exc:
                 pkg.mark_frame_failure("evidence:market", str(exc), required=False)
 
-        # ── CapabilityFrame — tool manifest (C-08) ──
+        # ── CapabilityFrame — structured registry catalog (C-08) ──
+        # `available_tools` is the structured advertised/registered capability
+        # catalog for this Context OS path. It is NOT authoritative proof that
+        # every entry is executable at this instant; execution availability is
+        # governed later by authorization, provider readiness, and lifecycle.
         if self._js is not None:
             try:
-                manifest = self._js.capability.tool_manifest()
-                if manifest:
-                    pkg.capability_frame = {"available_tools": manifest[:600]}
-                    pkg.add_provenance("capability", "capability:manifest", reason="available tools", stage=0,
-                                      token_estimate=len(manifest) // 4)
+                definitions = self._js.capability.registry.all()
+                entries = sorted(
+                    (
+                        {
+                            "capability_id": d.name,
+                            "description": d.description,
+                            "input_schema": copy.deepcopy(d.input_schema),
+                        }
+                        for d in definitions
+                    ),
+                    key=lambda entry: entry["capability_id"],
+                )
+                if entries:
+                    pkg.capability_frame = {"available_tools": entries}
+                    pkg.add_provenance("capability", "capability:registry",
+                                      reason="structured capability catalog", stage=0,
+                                      token_estimate=len(entries))
             except Exception as exc:
                 pkg.mark_frame_failure("capability", str(exc), required=False)
 
