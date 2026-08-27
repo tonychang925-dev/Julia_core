@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from julia_core.capability.models import CapabilityRequest
+from julia_core.capability.providers.local.security import authorize_path
 
 SEARCH_ROOTS = [
     Path("/Users/admin/.claude-dev/projects/-Users-admin/memory"),
@@ -29,14 +30,22 @@ class FileSearchProvider:
 
         results = []
         for root in SEARCH_ROOTS:
-            if not root.exists():
+            root_auth = authorize_path(str(root))
+            if not root_auth.allowed:
+                continue
+            canonical_root = Path(root_auth.canonical_path)
+            if not canonical_root.exists():
                 continue
             try:
-                for p in root.rglob(f"*{pattern}*"):
-                    if not p.name.startswith(".") and "__pycache__" not in str(p) and ".venv" not in str(p):
-                        results.append(str(p))
-                        if len(results) >= 20:
-                            break
+                for p in canonical_root.rglob(f"*{pattern}*"):
+                    if p.name.startswith(".") or "__pycache__" in str(p) or ".venv" in str(p):
+                        continue
+                    result_auth = authorize_path(str(p))
+                    if not result_auth.allowed:
+                        continue
+                    results.append(result_auth.canonical_path)
+                    if len(results) >= 20:
+                        break
             except PermissionError:
                 continue
 
