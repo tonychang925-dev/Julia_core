@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any, Sequence
 
 from julia_core.capability.models import Evidence, ToolResult
-from julia_core.capability.policy import AuthorizationDecision
+from julia_core.capability.policy import AuthorizationDecision, AuthorizationStatus
 
 
 @dataclass
@@ -97,23 +97,33 @@ class CognitiveContextPackage:
 
         P3.1A: renders nested typed dict/list projections deterministically.
         Truncation/bounding occurs here (render time only); the structured
-        Context OS projection itself is never truncated.
+        Context OS projection itself is never truncated. An explicit overall
+        frame budget caps total model-visible characters per frame.
         """
         lines = [f"[{name}]"]
+        total = len(lines[0])
+        budget = self._RENDER_MAX_FRAME_CHARS
         for k, v in frame.items():
-            lines.append(f"{k}: {self._render_value(v, depth=0)}")
+            rendered = f"{k}: {self._render_value(v, depth=0)}"
+            if total + len(rendered) + 1 > budget:
+                lines.append(self._RENDER_TRUNC_MARKER + f"[frame budget {budget} chars]")
+                break
+            lines.append(rendered)
+            total += len(rendered) + 1
         return "\n".join(lines)
 
     _RENDER_MAX_SCALAR = 2000
     _RENDER_MAX_ITEMS = 20
     _RENDER_MAX_DEPTH = 4
+    _RENDER_MAX_FRAME_CHARS = 8000
     _RENDER_TRUNC_MARKER = "…[truncated]"
 
     def _render_value(self, value: Any, *, depth: int) -> str:
         """Deterministically render a nested scalar/dict/list value.
 
         Bounds are applied before any serialization so output stays well-formed.
-        Dict ordering follows insertion order (the projection field order).
+        Nested mappings use stable sorted-key order so equivalent structured
+        values render identically regardless of input dict construction order.
         """
         if isinstance(value, str):
             if len(value) > self._RENDER_MAX_SCALAR:
@@ -122,7 +132,7 @@ class CognitiveContextPackage:
         if isinstance(value, dict):
             if depth >= self._RENDER_MAX_DEPTH:
                 return "{…}" + self._RENDER_TRUNC_MARKER
-            parts = [f"{k}={self._render_value(v, depth=depth + 1)}" for k, v in value.items()]
+            parts = [f"{k}={self._render_value(v, depth=depth + 1)}" for k, v in sorted(value.items())]
             return "{ " + ", ".join(parts) + " }"
         if isinstance(value, (list, tuple)):
             if depth >= self._RENDER_MAX_DEPTH:
@@ -446,6 +456,10 @@ class ContextExecutionRuntime:
             if hasattr(authorization_decision.decision, "value")
             else str(authorization_decision.decision)
         )
+        if decision_value == AuthorizationStatus.ALLOW.value:
+            raise ValueError(
+                "project_authorization_outcome only accepts non-ALLOW AuthorizationDecision"
+            )
         pkg = CognitiveContextPackage(
             conversation_id=parent_package.conversation_id if parent_package else "",
             turn_id=parent_package.turn_id if parent_package else "",
