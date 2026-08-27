@@ -78,3 +78,37 @@ def test_control_projection_renders_deterministically_without_tool_observation()
     assert "capability_resolution_failure" in rendered
     assert "no.such.capability" in rendered
     assert "UNKNOWN" in rendered
+
+
+def _parent() -> CognitiveContextPackage:
+    return CognitiveContextPackage(conversation_id="c", turn_id="t", generation_id="g")
+
+
+def test_control_projection_requires_parent_package():
+    with pytest.raises(ValueError):
+        ContextExecutionRuntime().project_capability_resolution_failure(
+            parent_package=None,
+            capability_id="no.such.capability",
+            reason="UNKNOWN",
+            generation_id="g2",
+        )
+
+
+def test_control_projection_requires_generation_id():
+    with pytest.raises(ValueError):
+        ContextExecutionRuntime().project_capability_resolution_failure(
+            parent_package=_parent(),
+            capability_id="no.such.capability",
+            reason="UNKNOWN",
+            generation_id="",
+        )
+
+
+def test_control_projection_rejects_blank_generation_id():
+    with pytest.raises(ValueError):
+        ContextExecutionRuntime().project_capability_resolution_failure(
+            parent_package=_parent(),
+            capability_id="no.such.capability",
+            reason="UNKNOWN",
+            generation_id="   ",
+        )

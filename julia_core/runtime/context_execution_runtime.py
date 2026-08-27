@@ -503,10 +503,10 @@ class ContextExecutionRuntime:
     def project_capability_resolution_failure(
         self,
         *,
-        parent_package: CognitiveContextPackage | None = None,
+        parent_package: CognitiveContextPackage,
         capability_id: str,
         reason: str,
-        generation_id: str = "",
+        generation_id: str,
     ) -> CognitiveContextPackage:
         """P3.2.3A: structured projection of a pre-authorization capability
         resolution failure (UNKNOWN / DISABLED).
@@ -514,16 +514,21 @@ class ContextExecutionRuntime:
         This is a NON-CANONICAL runtime control fact, NOT Evidence. It is
         projected into the dedicated control_frame (never evidence_frame),
         turn/generation scoped, and mutates no identity/memory/relationship/
-        continuity authority.
+        continuity authority. A concrete parent_package and non-empty
+        generation_id are required (fail closed otherwise).
         """
         if reason not in ("UNKNOWN", "DISABLED"):
             raise ValueError(f"invalid capability resolution reason: {reason!r}")
         if not capability_id or not str(capability_id).strip():
             raise ValueError("capability resolution failure requires a non-empty capability_id")
+        if parent_package is None:
+            raise ValueError("capability resolution failure projection requires a parent_package")
+        if not generation_id or not generation_id.strip():
+            raise ValueError("capability resolution failure projection requires a non-empty generation_id")
 
         pkg = CognitiveContextPackage(
-            conversation_id=parent_package.conversation_id if parent_package else "",
-            turn_id=parent_package.turn_id if parent_package else "",
+            conversation_id=parent_package.conversation_id,
+            turn_id=parent_package.turn_id,
             generation_id=generation_id,
         )
         pkg.control_frame = {
