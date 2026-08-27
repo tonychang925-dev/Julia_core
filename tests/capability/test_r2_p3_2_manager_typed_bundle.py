@@ -108,10 +108,6 @@ async def test_manager_execute_still_returns_legacy_capability_result():
 
 # ── strict-XFAIL: typed execution bundle ──────────────────────────────────
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2: manager typed execution bundle (execute_typed) not implemented",
-)
 @pytest.mark.asyncio
 async def test_manager_execute_typed_returns_exact_bundle_for_success():
     provider = RecordingProvider(data={"observed": True, "value": 42})
@@ -128,10 +124,6 @@ async def test_manager_execute_typed_returns_exact_bundle_for_success():
     assert bundle.tool_result.evidence_refs == tuple(e.evidence_id for e in bundle.evidence)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2: manager typed execution bundle (execute_typed) not implemented",
-)
 @pytest.mark.asyncio
 async def test_manager_typed_bundle_associates_exact_artifacts_not_latest():
     provider = RecordingProvider(data={"which": "first"})
@@ -159,10 +151,6 @@ async def test_manager_typed_bundle_associates_exact_artifacts_not_latest():
         AuthorizationStatus.UNAVAILABLE,
     ],
 )
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2: manager typed execution bundle (execute_typed) not implemented",
-)
 @pytest.mark.asyncio
 async def test_manager_typed_bundle_authorization_only_has_no_execution_artifacts(decision: AuthorizationStatus):
     provider = RecordingProvider(data={"should_not": "execute"})
@@ -185,10 +173,6 @@ async def test_manager_typed_bundle_authorization_only_has_no_execution_artifact
         (None, {}, "unavailable"),
         (RecordingProvider(raises=RuntimeError("fixture boom")), None, "error"),
     ],
-)
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2: manager typed execution bundle (execute_typed) not implemented",
 )
 @pytest.mark.asyncio
 async def test_manager_typed_bundle_execution_failure_no_fabricated_evidence(
