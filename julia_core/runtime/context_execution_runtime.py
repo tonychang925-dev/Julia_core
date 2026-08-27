@@ -34,6 +34,7 @@ class CognitiveContextPackage:
     situation_frame: dict[str, Any] = field(default_factory=dict)
     evidence_frame: dict[str, Any] = field(default_factory=dict)
     capability_frame: dict[str, Any] = field(default_factory=dict)
+    control_frame: dict[str, Any] = field(default_factory=dict)
     continuity_frame: dict[str, Any] = field(default_factory=dict)
 
     active_tail_turn_ids: list[str] = field(default_factory=list)
@@ -77,6 +78,8 @@ class CognitiveContextPackage:
             system_parts.append(self._render_frame("capability", self.capability_frame))
         if self.situation_frame:
             system_parts.append(self._render_frame("situation", self.situation_frame))
+        if self.control_frame:
+            system_parts.append(self._render_frame("control", self.control_frame))
         if self.continuity_frame:
             system_parts.append(self._render_frame("continuity", self.continuity_frame))
 
@@ -495,6 +498,42 @@ class ContextExecutionRuntime:
         pkg.situation_frame = {"mode": "authorization_outcome"}
         pkg.add_provenance("evidence", "capability:authorization_outcome",
                           reason="authorization-only outcome", stage=2)
+        return pkg
+
+    def project_capability_resolution_failure(
+        self,
+        *,
+        parent_package: CognitiveContextPackage | None = None,
+        capability_id: str,
+        reason: str,
+        generation_id: str = "",
+    ) -> CognitiveContextPackage:
+        """P3.2.3A: structured projection of a pre-authorization capability
+        resolution failure (UNKNOWN / DISABLED).
+
+        This is a NON-CANONICAL runtime control fact, NOT Evidence. It is
+        projected into the dedicated control_frame (never evidence_frame),
+        turn/generation scoped, and mutates no identity/memory/relationship/
+        continuity authority.
+        """
+        if reason not in ("UNKNOWN", "DISABLED"):
+            raise ValueError(f"invalid capability resolution reason: {reason!r}")
+        if not capability_id or not str(capability_id).strip():
+            raise ValueError("capability resolution failure requires a non-empty capability_id")
+
+        pkg = CognitiveContextPackage(
+            conversation_id=parent_package.conversation_id if parent_package else "",
+            turn_id=parent_package.turn_id if parent_package else "",
+            generation_id=generation_id,
+        )
+        pkg.control_frame = {
+            "kind": "capability_resolution_failure",
+            "capability_id": capability_id,
+            "reason": reason,
+        }
+        pkg.situation_frame = {"mode": "capability_resolution_failure"}
+        pkg.add_provenance("control", "capability:resolution_failure",
+                          reason=f"{capability_id} {reason}", stage=2)
         return pkg
 
     # ── P3.1A helpers ─────────────────────────────────────────────────────
