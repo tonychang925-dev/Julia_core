@@ -57,6 +57,51 @@ class CapabilityExecution:
     tool_result: ToolResult | None
     evidence: tuple[Evidence, ...]
 
+    def __post_init__(self) -> None:
+        """Enforce the valid artifact-combination invariants.
+
+        Valid shapes (exactly one):
+          - authorization-only: non-ALLOW decision, call/result = None,
+            evidence = ().
+          - executed: ALLOW decision, call + result present, matching
+            capability_call_id, evidence exactly matching result.evidence_refs.
+
+        All contradictory shapes fail closed.
+        """
+        decision = self.authorization_decision
+        if decision is None:
+            raise ValueError(
+                "CapabilityExecution requires a non-None AuthorizationDecision; "
+                "unknown/DISABLED pre-authorization resolution must not be represented here"
+            )
+
+        is_allow = (
+            decision.decision == AuthorizationStatus.ALLOW
+            or decision.decision == AuthorizationStatus.ALLOW.value
+        )
+
+        if not is_allow:
+            if self.capability_call is not None:
+                raise ValueError("non-ALLOW CapabilityExecution must not carry a CapabilityCall")
+            if self.tool_result is not None:
+                raise ValueError("non-ALLOW CapabilityExecution must not carry a ToolResult")
+            if self.evidence:
+                raise ValueError("non-ALLOW CapabilityExecution must not carry Evidence")
+            return
+
+        if self.capability_call is None:
+            raise ValueError("ALLOW CapabilityExecution must carry a CapabilityCall")
+        if self.tool_result is None:
+            raise ValueError("ALLOW CapabilityExecution must carry a ToolResult")
+        if self.tool_result.capability_call_id != self.capability_call.capability_call_id:
+            raise ValueError(
+                "ToolResult.capability_call_id must equal CapabilityCall.capability_call_id"
+            )
+        if tuple(e.evidence_id for e in self.evidence) != self.tool_result.evidence_refs:
+            raise ValueError(
+                "CapabilityExecution evidence must exactly match ToolResult.evidence_refs"
+            )
+
 
 class _PreAuthorizationResolutionError(Exception):
     """Manager-local: recognized capability hit pre-authorization unknown/DISABLED.
