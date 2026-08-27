@@ -216,13 +216,6 @@ def test_p3_retry_control_material_is_context_os_projected_not_direct_message_ap
     assert "project_control_guidance" in context_source or "control_frame" in context_source
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "R2-P3/F: CapabilityFrame currently stores truncated textual manifest "
-        "instead of structured capability manifest entries"
-    ),
-)
 def test_p3_capability_frame_canonical_state_is_structured_not_truncated_text():
     """F. Text rendering may exist downstream, but canonical frame is structured."""
 
