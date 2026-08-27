@@ -541,6 +541,45 @@ class ContextExecutionRuntime:
                           reason=f"{capability_id} {reason}", stage=2)
         return pkg
 
+    def project_retry_control(
+        self,
+        *,
+        parent_package: CognitiveContextPackage,
+        reason: str,
+        generation_id: str,
+    ) -> CognitiveContextPackage:
+        """P3.3A: structured projection of derived retry/control state.
+
+        Represents "evidence/tool use was required but no explicit tool
+        invocation was decoded; retry under capability-aware context". This is
+        derived execution-control state, NOT Evidence / ToolResult /
+        CapabilityCall / AuthorizationDecision / CapabilityPreAuthorizationFailure.
+
+        This is an additive discriminated-union extension of the control_frame
+        (kind discriminator); it does not alter the frozen
+        capability_resolution_failure variant.
+        """
+        if reason != "required_tool_call_missing":
+            raise ValueError(f"unsupported retry control reason: {reason!r}")
+        if parent_package is None:
+            raise ValueError("retry control projection requires a parent_package")
+        if not generation_id or not generation_id.strip():
+            raise ValueError("retry control projection requires a non-empty generation_id")
+
+        pkg = CognitiveContextPackage(
+            conversation_id=parent_package.conversation_id,
+            turn_id=parent_package.turn_id,
+            generation_id=generation_id,
+        )
+        pkg.control_frame = {
+            "kind": "retry_control",
+            "reason": reason,
+        }
+        pkg.situation_frame = {"mode": "retry_control"}
+        pkg.add_provenance("control", "capability:retry_control",
+                          reason=reason, stage=2)
+        return pkg
+
     # ── P3.1A helpers ─────────────────────────────────────────────────────
 
     def _project_legacy_text_result(
