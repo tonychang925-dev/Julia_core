@@ -31,6 +31,32 @@ from julia_core.capability.policy import PermissionPolicy
 from julia_core.capability.registry import CapabilityRegistry
 
 
+class LocalProviderRouter:
+    """Narrow local namespace dispatcher for file.* capabilities.
+
+    This resolves the provider="local" namespace expected by CapabilityDefinition
+    without adding semantic routing. Dispatch is deterministic and uses only the
+    canonical capability_id from CapabilityRequest.
+    """
+
+    def __init__(self, providers: dict):
+        self._providers = dict(providers)
+
+    async def execute(self, request: CapabilityRequest) -> dict:
+        provider = self._providers.get(request.capability_id)
+        if provider is None:
+            return {
+                "status": "unavailable",
+                "error": f"local provider for {request.capability_id} is not registered",
+            }
+        return await provider.execute(request)
+
+    async def health(self) -> tuple[bool, str]:
+        if not self._providers:
+            return False, "local filesystem providers are not registered"
+        return True, "local filesystem namespace — available"
+
+
 class RuntimeCapabilityBridge:
     """Unified capability facade for JuliaSession.
 
@@ -66,11 +92,11 @@ class RuntimeCapabilityBridge:
         from julia_core.capability.providers.local.file_search import FileSearchProvider
         from julia_core.capability.providers.local.directory_list import DirectoryListProvider
 
-        self._providers["local"] = {
-            "file_read": FileReadProvider(),
-            "file_search": FileSearchProvider(),
-            "directory_list": DirectoryListProvider(),
-        }
+        self._providers["local"] = LocalProviderRouter({
+            "file.read": FileReadProvider(),
+            "file.search": FileSearchProvider(),
+            "file.list": DirectoryListProvider(),
+        })
 
         # Register local capabilities
         self.registry.register_definition(CapabilityDefinition(
