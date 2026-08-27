@@ -27,10 +27,6 @@ def _project(reason: str, capability_id: str = "no.such.capability"):
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.3A: capability control projection seam not implemented",
-)
 def test_control_projection_unknown_is_structured():
     delta = _project("UNKNOWN")
     frame = delta.control_frame
@@ -39,10 +35,6 @@ def test_control_projection_unknown_is_structured():
     assert frame["reason"] == "UNKNOWN"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.3A: capability control projection seam not implemented",
-)
 def test_control_projection_disabled_is_structured():
     delta = _project("DISABLED", capability_id="file.disabled")
     frame = delta.control_frame
@@ -50,10 +42,6 @@ def test_control_projection_disabled_is_structured():
     assert frame["reason"] == "DISABLED"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.3A: capability control projection seam not implemented",
-)
 def test_control_projection_is_not_evidence_and_is_authority_isolated():
     delta = _project("UNKNOWN")
     # Not placed in evidence_frame; no ToolResult / authorization_outcome.
@@ -67,10 +55,6 @@ def test_control_projection_is_not_evidence_and_is_authority_isolated():
     assert delta.projection_metadata.get("relationship_updated") is not True
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.3A: capability control projection seam not implemented",
-)
 def test_control_projection_renders_deterministically_without_tool_observation():
     delta = _project("UNKNOWN")
     rendered = "\n".join(str(m.get("content", "")) for m in delta.to_messages([], ""))
