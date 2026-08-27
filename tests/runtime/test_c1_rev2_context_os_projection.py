@@ -147,10 +147,6 @@ def test_julia_session_does_not_append_core_controlled_retry_prompt_directly():
     assert "messages.append" not in source
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A-06/A-07 / C-03+C-08: capability bridge still creates fenced tool_result prompt text; pending R2-P1/R2-P2",
-)
 def test_capability_bridge_does_not_flatten_tool_result_into_prompt_fence():
     """Provider-facing tool-result text blocks must be replaced by typed Context OS projection."""
     source = (ROOT / "julia_core" / "runtime" / "capability_bridge.py").read_text()

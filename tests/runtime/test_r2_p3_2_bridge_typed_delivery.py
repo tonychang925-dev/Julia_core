@@ -45,10 +45,6 @@ def test_bridge_typed_seam_returns_capability_execution():
     assert isinstance(result, CapabilityExecution)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.2.4: legacy bridge string seam not yet deleted",
-)
 def test_bridge_legacy_string_seam_removed():
     """Future deletion acceptance: legacy string seam must be gone after P3.2.4.
 
