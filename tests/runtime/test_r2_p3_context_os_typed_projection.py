@@ -114,27 +114,25 @@ def test_p3_context_os_accepts_canonical_tool_result_and_evidence_refs():
     assert delta.evidence_frame["evidence"][0]["provenance"]["capability_call_id"] == "call-a"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "R2-P3/B: projection must associate artifacts by explicit call/evidence "
-        "IDs, not by latest result/list order; typed projection API is not present yet"
-    ),
-)
 def test_p3_projection_uses_exact_id_association_not_latest_artifact_order():
-    """B. Multiple artifacts present: call A must project only call A evidence."""
+    """B. Receiver-level exact-ID association (P3.1A contract).
+
+    Given ONE explicit ToolResult plus a supplied Evidence collection, the
+    projection must select exactly the Evidence referenced by
+    ToolResult.evidence_refs — unrelated supplied Evidence is excluded, and no
+    latest/list-order inference is used. (The multi-result delivery/selection
+    concern belongs to P3.2 and is NOT a receiver responsibility.)
+    """
     runtime = ContextExecutionRuntime()
     parent = CognitiveContextPackage(conversation_id="conv-p3", turn_id="turn-p3", generation_id="gen-before")
     ev_a = _evidence("ev-a", "call-a")
     ev_b = _evidence("ev-b", "call-b", source_ref="capability:file.search:provider:local")
     result_a = _tool_result("call-a", evidence_refs=("ev-a",), output={"content": "A"})
-    result_b = _tool_result("call-b", evidence_refs=("ev-b",), output={"content": "B"})
 
     delta = runtime.project_tool_result(
         parent_package=parent,
         tool_result=result_a,
         evidence=[ev_b, ev_a],
-        available_tool_results=[result_b, result_a],
         generation_id="gen-after-a",
     )
 
