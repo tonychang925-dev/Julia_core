@@ -26,6 +26,15 @@ from typing import Any
 
 import pytest
 
+from julia_core.capability.manager import CapabilityExecution
+from julia_core.capability.models import (
+    CapabilityCall,
+    Evidence,
+    EvidenceSourceType,
+    ToolResult,
+    ToolResultStatus,
+)
+from julia_core.capability.policy import AuthorizationDecision, AuthorizationStatus
 from julia_core.runtime.julia_session import JuliaSession
 
 
@@ -52,7 +61,31 @@ class FakeCapability:
     def __init__(self):
         self.requires_tool_calls: list[str] = []
         self.detect_tool_call_inputs: list[str] = []
-        self.execute_tool_calls: list[str] = []
+        self.execute_tool_typed_calls: list[str] = []
+        self.outcome = self._build_outcome()
+
+    @staticmethod
+    def _build_outcome() -> CapabilityExecution:
+        call = CapabilityCall(capability_call_id="call-1", capability_request_id="req-1")
+        evidence = Evidence(
+            evidence_id="ev-1",
+            source_type=EvidenceSourceType.TOOL_OBSERVATION,
+            source_ref="capability:file.read:provider:local",
+            observed_at="2026-08-27T00:00:00Z",
+            content_ref="tool_result:call-1:structured_output",
+        )
+        result = ToolResult(
+            capability_call_id="call-1",
+            status=ToolResultStatus.SUCCESS,
+            structured_output={"content": "tool observation"},
+            evidence_refs=("ev-1",),
+        )
+        return CapabilityExecution(
+            AuthorizationDecision(decision=AuthorizationStatus.ALLOW, scope="file.read", reason="allow"),
+            call,
+            result,
+            (evidence,),
+        )
 
     def requires_tool(self, text: str) -> bool:
         self.requires_tool_calls.append(text)
@@ -64,19 +97,20 @@ class FakeCapability:
             return '{"name":"read_file","arguments":{"path":"/Users/admin/julia_core/README.md"}}'
         return None
 
-    def execute_tool(self, tool_json: str) -> str:
-        self.execute_tool_calls.append(tool_json)
-        return "tool observation"
+    def execute_tool_typed(self, tool_json: str) -> CapabilityExecution:
+        self.execute_tool_typed_calls.append(tool_json)
+        return self.outcome
 
 
 class FakeContextOS:
     def __init__(self):
         self.project_tool_result_calls: list[dict[str, Any]] = []
 
-    def project_tool_result(self, *, parent_package=None, tool_result="", generation_id=""):
+    def project_tool_result(self, *, parent_package=None, tool_result=None, evidence=(), generation_id=""):
         self.project_tool_result_calls.append({
             "parent_package": parent_package,
             "tool_result": tool_result,
+            "evidence": evidence,
             "generation_id": generation_id,
         })
 
@@ -84,7 +118,10 @@ class FakeContextOS:
             active_tail_messages: list[dict[str, Any]] = []
 
             def to_messages(self, history, user_text):
-                return [{"role": "system", "content": f"[evidence]\ntool_result: {tool_result}"}, {"role": "user", "content": user_text}]
+                content = ""
+                if tool_result is not None and hasattr(tool_result, "structured_output"):
+                    content = str(tool_result.structured_output.get("content", ""))
+                return [{"role": "system", "content": f"[evidence]\ntool_result: {content}"}, {"role": "user", "content": user_text}]
 
         return DeltaPackage()
 
@@ -150,12 +187,15 @@ def test_sync_path_executes_tool_and_reenters_through_context_os(monkeypatch):
 
     reply = session.process("read the fixture file", [], conversation_id="conv", turn_id="turn")
 
+    carrier = session.capability.outcome
     assert reply == "final answer after context projection"
     assert len(session.provider.chat_calls) == 2
     assert len(session.capability.detect_tool_call_inputs) >= 1
-    assert len(session.capability.execute_tool_calls) == 1
+    assert len(session.capability.execute_tool_typed_calls) == 1
     assert len(session.context_os.project_tool_result_calls) == 1
-    assert session.context_os.project_tool_result_calls[0]["tool_result"] == "tool observation"
+    dispatched = session.context_os.project_tool_result_calls[0]
+    assert dispatched["tool_result"] is carrier.tool_result
+    assert dispatched["evidence"] == carrier.evidence
 
 
 @pytest.mark.xfail(
