@@ -77,9 +77,10 @@ class RuntimeCapabilityBridge:
     Initializes the full Capability Operating Layer:
       CapabilityRegistry + PermissionPolicy + all providers + CapabilityManager.
 
-    Provides both:
-      — Backward compat: tool_manifest() + execute_tool() for LLM tool calls
-      — New path: resolve() for intent-based capability resolution
+    Provides:
+      — tool_manifest() for the LLM tool manifest
+      — execute_tool_typed() for typed capability delivery
+      — resolve() for intent-based capability resolution
     """
 
     def __init__(self):
@@ -216,7 +217,7 @@ class RuntimeCapabilityBridge:
 
         lines.extend([
             "",
-            "工具调用后会收到 ```tool_result``` 块。基于结果回答，不要编造。",
+            "工具调用后会收到执行结果。基于结果回答，不要编造。",
             "",
             "[工具规则 — 必须遵守]",
             "1. 只有用户明确要求读取/搜索/列出时才使用工具。",
@@ -226,56 +227,6 @@ class RuntimeCapabilityBridge:
             "5. 一个回复最多一个工具调用。",
         ])
         return "\n".join(lines)
-
-    # ── Backward Compat: LLM Tool Execution ─────────────────────────────
-
-    def execute_tool(self, tool_json: str) -> Optional[str]:
-        """Execute a tool call from LLM output. Backward compatible with
-        old self.capability.execute().
-
-        Routes through CapabilityManager for permission + evidence.
-        """
-        self.initialize()
-
-        try:
-            call = _json.loads(tool_json)
-            name = call["name"]
-            args = call.get("arguments", {})
-        except (_json.JSONDecodeError, KeyError):
-            return None
-
-        # Map legacy tool names to new capability names
-        legacy_to_new = {
-            "read_file": "file.read",
-            "search_files": "file.search",
-            "list_directory": "file.list",
-        }
-        capability_name = legacy_to_new.get(name, name)
-
-        # Build request
-        request = CapabilityRequest(
-            capability_name=capability_name,
-            arguments=args,
-            reason=f"LLM tool call: {name}",
-        )
-
-        # Execute through manager (sync wrapper around async)
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # In event loop: create task (simplified — returns result)
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, self.manager.execute(request))
-                    result = future.result(timeout=30)
-            else:
-                result = asyncio.run(self.manager.execute(request))
-        except RuntimeError:
-            result = asyncio.run(self.manager.execute(request))
-
-        # Format result for LLM
-        return self._format_tool_result(result)
 
     def execute_tool_typed(
         self,
@@ -332,33 +283,7 @@ class RuntimeCapabilityBridge:
         except RuntimeError:
             return asyncio.run(self.manager.execute_typed(request))
 
-    def _format_tool_result(self, result) -> str:
-        """Format CapabilityResult as tool_result block for LLM."""
-        data = result.data if hasattr(result, 'data') else {}
-        status = result.status if hasattr(result, 'status') else "unknown"
-
-        meta = _json.dumps({
-            "tool": result.capability_name if hasattr(result, 'capability_name') else "?",
-            "status": status,
-            "provider": result.provider if hasattr(result, 'provider') else "",
-        }, ensure_ascii=False)
-
-        content = ""
-        if isinstance(data, dict):
-            if "content" in data:
-                content = data["content"]
-            elif "items" in data:
-                content = "\n".join(data["items"])
-            elif "matches" in data:
-                content = "\n".join(data["matches"])
-            elif "error" in data:
-                content = data["error"]
-            else:
-                content = _json.dumps(data, ensure_ascii=False, indent=2)
-
-        return f"```tool_result\n{meta}\n{content}\n```"
-
-        # ── Evidence Gate (backward compat) ─────────────────────────────────
+    # ── Evidence Gate (backward compat) ─────────────────────────────────
 
     def requires_tool(self, user_text: str) -> bool:
         """Check if user question needs external evidence (file/market read).
