@@ -115,10 +115,6 @@ def test_capability_projection_is_not_a_memory_persona_or_relationship_write():
     assert delta.projection_metadata.get("identity_updated") is not True
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A-06/B-02 / C-08+C-12: project_tool_result still accepts flattened string instead of ToolResult + EvidenceRefs; pending R2-P1/R2-P2",
-)
 def test_project_tool_result_accepts_typed_tool_result_not_flattened_string():
     """Frozen path must project typed ToolResult linked to Evidence, not a string blob."""
     from typing import get_type_hints

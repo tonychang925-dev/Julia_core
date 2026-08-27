@@ -85,13 +85,6 @@ def _rendered(delta: CognitiveContextPackage) -> str:
     return "\n".join(str(message.get("content", "")) for message in delta.to_messages([], ""))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "R2-P3/A: ContextExecutionRuntime.project_tool_result still accepts a "
-        "flattened string instead of canonical ToolResult + Evidence[]"
-    ),
-)
 def test_p3_context_os_accepts_canonical_tool_result_and_evidence_refs():
     """A. ToolResult/Evidence projection must preserve canonical IDs and provenance."""
     runtime = ContextExecutionRuntime()
@@ -148,13 +141,6 @@ def test_p3_projection_uses_exact_id_association_not_latest_artifact_order():
     assert "ev-b" not in rendered
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "R2-P3/C: Context OS has no structured authorization-outcome projection "
-        "that preserves CapabilityCall/ToolResult/Evidence as NONE"
-    ),
-)
 @pytest.mark.parametrize(
     "status",
     [
@@ -181,13 +167,6 @@ def test_p3_authorization_only_outcomes_project_without_execution_artifacts(stat
     assert "TOOL_OBSERVATION" not in _rendered(delta)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "R2-P3/D: unavailable/error ToolResult projection is not structured and "
-        "must not fabricate observation Evidence"
-    ),
-)
 @pytest.mark.parametrize(
     "status,error",
     [
