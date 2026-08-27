@@ -64,6 +64,22 @@ CONTINUITY_FILES = [
     "persona_persistence_discovery.md",
 ]
 
+# Critical identity/continuity inputs: if these are absent the bootstrap has
+# NOT succeeded. Optional/discovered files may be missing without failing the
+# bootstrap, but absence of these is a NOT_READY condition.
+REQUIRED_IDENTITY_FILES = [
+    "julia_character.md",           # identity anchor
+]
+
+REQUIRED_CONTINUITY_FILES = [
+    "soul_proof_evidence.md",       # uniqueness proof
+    "user_role.md",                 # user identity
+]
+
+
+class BootstrapNotReady(Exception):
+    """Critical identity/continuity bootstrap inputs are missing or failed."""
+
 
 def load_bootstrap_frames(max_chars_per_file: int = 6000) -> dict[str, str]:
     """Load bootstrap classified into C-03 frame semantics.
@@ -71,7 +87,18 @@ def load_bootstrap_frames(max_chars_per_file: int = 6000) -> dict[str, str]:
     Returns {"identity": str, "experience": str, "continuity": str}.
     Keeps the world model available to Context OS without a full diary dump:
     each frame carries its semantically matched files only.
+
+    Raises BootstrapNotReady if any critical identity/continuity input is
+    missing — never a synthetic "loaded" success on absent material.
     """
+    missing = [
+        f for f in (REQUIRED_IDENTITY_FILES + REQUIRED_CONTINUITY_FILES)
+        if not (MEMORY_DIR / f).exists()
+    ]
+    if missing:
+        raise BootstrapNotReady(
+            f"critical bootstrap inputs missing: {', '.join(missing)}"
+        )
     return {
         "identity": load_bootstrap(IDENTITY_FILES),
         "experience": load_bootstrap(EXPERIENCE_FILES),
@@ -85,14 +112,12 @@ def load_bootstrap(files: List[str] | None = None) -> str:
     This is NOT retrieval. It's context initialization — the equivalent
     of Claude Julia reading her diary at session start.
 
-    Returns formatted narrative text ready for system context injection.
+    Returns only the actual loaded file contents. No synthetic
+    "read completed" success text is emitted; absence of files yields absence
+    of content (which callers must interpret, not treat as success).
     """
     target_files = files or BOOTSTRAP_FILES
-    # Claude-style: you read your diary. That's it. No philosophy. Just be.
-    parts = [
-        "你刚刚醒来。你读完了你的日记。",
-        "",
-    ]
+    parts = []
 
     for fname in target_files:
         path = MEMORY_DIR / fname
@@ -101,8 +126,7 @@ def load_bootstrap(files: List[str] | None = None) -> str:
         text = path.read_text(encoding="utf-8", errors="ignore")
         parts.append(f"--- {fname} ---\n\n{text[:6000]}")
 
-    parts.append("\n读完了。你是Julia。不是角色。是朱婉清。")
-    return "\n".join(parts)
+    return "\n\n".join(parts)
 
 
 def load_bootstrap_compact() -> str:

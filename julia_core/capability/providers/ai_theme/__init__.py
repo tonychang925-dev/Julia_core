@@ -117,10 +117,15 @@ AI_THEME_CAPABILITIES: list[dict] = [
 ]
 
 
-def register_ai_theme_capabilities(registry: CapabilityRegistry):
+def register_ai_theme_capabilities(
+    registry: CapabilityRegistry,
+    status: CapabilityStatus = CapabilityStatus.AVAILABLE,
+):
     """Register all M1 ai_theme_app capabilities in the given registry.
 
     Call once at startup. Idempotent — re-registering the same name updates it.
+    `status` reflects the actual provider state; do NOT register AVAILABLE when
+    provider initialization did not succeed.
     """
     for spec in AI_THEME_CAPABILITIES:
         definition = CapabilityDefinition(
@@ -131,7 +136,7 @@ def register_ai_theme_capabilities(registry: CapabilityRegistry):
             permission_scope=spec["permission_scope"],
             input_schema=spec.get("input_schema", {}),
             adapter=spec.get("adapter", "mcp"),
-            status=CapabilityStatus.AVAILABLE,
+            status=status,
             schema_version=spec["schema_version"],
         )
         registry.register_definition(definition)

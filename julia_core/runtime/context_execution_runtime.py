@@ -195,12 +195,10 @@ class ContextExecutionRuntime:
         is safe.
         """
         if not hasattr(self, "_bootstrap_frames_cache"):
-            self._bootstrap_frames_cache = {}
-            try:
-                from julia_core.narrative.bootstrap import load_bootstrap_frames
-                self._bootstrap_frames_cache = load_bootstrap_frames()
-            except Exception:
-                self._bootstrap_frames_cache = {}
+            from julia_core.narrative.bootstrap import load_bootstrap_frames
+            # May raise BootstrapNotReady on missing critical inputs. Do NOT
+            # cache failure as empty success — propagate for prepare() to record.
+            self._bootstrap_frames_cache = load_bootstrap_frames()
         return self._bootstrap_frames_cache
 
     def prepare(
@@ -234,7 +232,9 @@ class ContextExecutionRuntime:
         try:
             bootstrap_frames = self._get_bootstrap_frames()
         except Exception as exc:
-            pkg.mark_frame_failure("bootstrap", str(exc), required=False)
+            # Bootstrap is identity/continuity-critical: missing world-model
+            # material must be observable, not silently optional.
+            pkg.mark_frame_failure("bootstrap", str(exc), required=True)
 
         # ── IdentityFrame — from Persona (C-04) + autobiographical anchors ──
         if self._js is not None:
@@ -268,26 +268,32 @@ class ContextExecutionRuntime:
 
         # ── ExperienceFrame — recent experiences + life events (C-05) ──
         if self._js is not None:
+            # Wake state (recent experiences) — explicit degradation, not silent.
             try:
-                # Wake state and density remain non-Diary legacy context surfaces.
-                # AT-16: legacy diary-like text cannot count as governed Diary retrieval.
                 experiences = self._sanitize_legacy_diary_text(self._js._load_recent_experiences())
-                density_context = self._sanitize_density_diary_text(self._load_density_experience())
-                if density_context:
-                    experiences = (experiences or "") + "\n\n" + density_context
-                if experiences:
-                    pkg.experience_frame = {"recent_context": experiences[:3000], "diary_retrieval_authority": False}
-                    pkg.add_provenance("experience", "session_store:wake_state+density", reason="legacy experience context; not Diary retrieval authority", stage=1)
-                life_events = bootstrap_frames.get("experience", "")[:FRAME_BUDGETS["experience"]]
-                if life_events:
-                    existing = dict(pkg.experience_frame)
-                    existing["life_events"] = life_events
-                    pkg.experience_frame = existing
-                    pkg.add_provenance("experience", "narrative:bootstrap:experience",
-                                       reason="life events / relationship chronicle (budgeted)", stage=1,
-                                       token_estimate=len(life_events) // 4)
             except Exception as exc:
                 pkg.mark_frame_failure("experience", str(exc), required=False)
+                experiences = ""
+            # Density (non-authority legacy context) — distinguish NO DATA from
+            # LOAD ERROR; a load error is recorded explicitly, not swallowed.
+            try:
+                density_context = self._sanitize_density_diary_text(self._load_density_experience())
+            except Exception as exc:
+                pkg.mark_frame_failure("experience:density", str(exc), required=False)
+                density_context = ""
+            if density_context:
+                experiences = (experiences or "") + "\n\n" + density_context
+            if experiences:
+                pkg.experience_frame = {"recent_context": experiences[:3000], "diary_retrieval_authority": False}
+                pkg.add_provenance("experience", "session_store:wake_state+density", reason="legacy experience context; not Diary retrieval authority", stage=1)
+            life_events = bootstrap_frames.get("experience", "")[:FRAME_BUDGETS["experience"]]
+            if life_events:
+                existing = dict(pkg.experience_frame)
+                existing["life_events"] = life_events
+                pkg.experience_frame = existing
+                pkg.add_provenance("experience", "narrative:bootstrap:experience",
+                                   reason="life events / relationship chronicle (budgeted)", stage=1,
+                                   token_estimate=len(life_events) // 4)
 
 
         # ── DiaryFrame — AT-16 governed Diary retrieval through Context OS only ──
@@ -727,13 +733,16 @@ class ContextExecutionRuntime:
             return self._density_cache  # type: ignore[attr-defined]
 
         self._density_cache = ""  # type: ignore[attr-defined]
+        # No silent catch: a missing module or a load error propagates so
+        # prepare() records an explicit "experience:density" degradation,
+        # distinguishable from a legitimate no-data empty state.
         try:
             from julia_core.context_assembly.density_restorer import get_experience_context_block
-            ctx = get_experience_context_block(max_tokens=2000)
-            if ctx:
-                self._density_cache = ctx  # type: ignore[attr-defined]
-        except Exception:
-            pass
+        except ImportError as exc:
+            raise RuntimeError(f"density restorer unavailable: {exc}") from exc
+        ctx = get_experience_context_block(max_tokens=2000)
+        if ctx:
+            self._density_cache = ctx  # type: ignore[attr-defined]
         return self._density_cache  # type: ignore[attr-defined]
 
     def _scope_history_to_conversation(self, conversation_id: str, history: list[dict]) -> list[dict]:

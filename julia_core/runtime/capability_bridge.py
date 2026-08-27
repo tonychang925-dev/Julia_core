@@ -45,6 +45,25 @@ class CapabilityPreAuthorizationFailure:
     reason: str  # "UNKNOWN" | "DISABLED"
 
 
+class _UnavailableAiThemeProvider:
+    """Explicitly-unavailable provider for failed ai_theme initialization.
+
+    Not a fallback/mock: health() reports False and execute() returns an
+    unavailable marker. The manager turns this into a typed
+    ToolResult(UNAVAILABLE) — never a fake market result and never an
+    alternate provider.
+    """
+
+    def __init__(self, reason: str):
+        self.reason = reason
+
+    async def health(self) -> tuple[bool, str]:
+        return False, f"ai_theme_app provider unavailable: {self.reason}"
+
+    async def execute(self, request) -> dict:
+        return {"status": "unavailable", "error": self.reason}
+
+
 class LocalProviderRouter:
     """Narrow local namespace dispatcher for file.* capabilities.
 
@@ -144,15 +163,23 @@ class RuntimeCapabilityBridge:
 
         # ai_theme_app provider (M1) — only if not already injected (tests)
         if "ai_theme_app" not in self._providers:
+            from julia_core.capability.providers.ai_theme import (
+                register_ai_theme_capabilities,
+                create_ai_theme_provider,
+            )
             try:
-                from julia_core.capability.providers.ai_theme import (
-                    register_ai_theme_capabilities,
-                    create_ai_theme_provider,
-                )
-                register_ai_theme_capabilities(self.registry)
                 self._providers["ai_theme_app"] = create_ai_theme_provider()
-            except Exception:
-                import logging; logging.getLogger("julia.failclosed").warning("silent fallback removed at julia_core.julia_core.runtime.capability_bridge:113", exc_info=True)
+                register_ai_theme_capabilities(self.registry, status=CapabilityStatus.AVAILABLE)
+            except Exception as exc:
+                # Explicit degradation, NOT silent disappearance: capability
+                # stays known, provider state is DEGRADED/UNAVAILABLE, and
+                # invocation returns a typed unavailable outcome.
+                register_ai_theme_capabilities(self.registry, status=CapabilityStatus.DEGRADED)
+                self._providers["ai_theme_app"] = _UnavailableAiThemeProvider(str(exc))
+                import logging
+                logging.getLogger("julia.capability").warning(
+                    "ai_theme provider unavailable; market capability DEGRADED: %s", exc
+                )
 
         # Build the manager
         self._manager = CapabilityManager(
