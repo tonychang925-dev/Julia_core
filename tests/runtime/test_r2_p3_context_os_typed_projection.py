@@ -197,13 +197,6 @@ def test_p3_execution_failure_projects_structured_non_success_without_observatio
     assert "TOOL_OBSERVATION" not in _rendered(delta)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "R2-P3/E: JuliaSession still appends core-owned retry guidance directly "
-        "as synthetic messages instead of Context OS projection"
-    ),
-)
 def test_p3_retry_control_material_is_context_os_projected_not_direct_message_append():
     """E. Retry/control guidance is Core control material, not external Evidence."""
     session_source = (ROOT / "julia_core" / "runtime" / "julia_session.py").read_text()

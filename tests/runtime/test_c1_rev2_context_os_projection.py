@@ -136,10 +136,6 @@ def test_legacy_capability_result_is_not_the_model_visible_evidence_contract():
     assert "data" not in actual
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A-04 / C-03: JuliaSession forced-retry system prompt is appended directly to messages; pending R2-P2/R2-P4",
-)
 def test_julia_session_does_not_append_core_controlled_retry_prompt_directly():
     """Core-controlled retry instructions must enter through Context OS, not messages.append()."""
     source = (ROOT / "julia_core" / "runtime" / "julia_session.py").read_text()

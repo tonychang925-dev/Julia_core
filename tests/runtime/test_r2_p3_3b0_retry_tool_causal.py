@@ -177,10 +177,6 @@ def _allow_outcome() -> CapabilityExecution:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.3B: retry-then-tool causal chain not implemented",
-)
 def test_retry_then_allow_projects_from_retry_parent(monkeypatch):
     capability = _RetryThenToolCapability(_allow_outcome())
     session, captured = _session(monkeypatch, capability)
@@ -209,10 +205,6 @@ def test_retry_then_allow_projects_from_retry_parent(monkeypatch):
     assert TOOL_SENTINEL in session.provider.chat_calls[2][0]["content"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.3B: retry-then-tool causal chain not implemented",
-)
 def test_retry_then_preauth_projects_from_retry_parent(monkeypatch):
     capability = _RetryThenToolCapability(CapabilityPreAuthorizationFailure("no.such", "UNKNOWN"))
     session, captured = _session(monkeypatch, capability)

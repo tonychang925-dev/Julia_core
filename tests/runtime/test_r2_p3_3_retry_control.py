@@ -65,10 +65,10 @@ class _RetryCapability:
 
 class _RetryContextOS:
     def __init__(self):
-        self.project_control_guidance_calls: list[dict[str, Any]] = []
+        self.project_retry_control_calls: list[dict[str, Any]] = []
 
-    def project_control_guidance(self, **kwargs):
-        self.project_control_guidance_calls.append(kwargs)
+    def project_retry_control(self, **kwargs):
+        self.project_retry_control_calls.append(kwargs)
         return _DeltaPackage()
 
 
@@ -109,17 +109,13 @@ def _retry_session(monkeypatch) -> JuliaSession:
     return session
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.3: retry/control structured projection not implemented",
-)
 def test_session_retry_branch_projects_control_through_context_os(monkeypatch):
     session = _retry_session(monkeypatch)
 
     session.process("question needing evidence", [], conversation_id="conv", turn_id="turn")
 
     # Structured projection seam was used, not a direct message append.
-    assert len(session.context_os.project_control_guidance_calls) == 1
+    assert len(session.context_os.project_retry_control_calls) == 1
     # No capability execution occurred for the no-tool-call branch.
     assert len(session.capability.execute_tool_typed_calls) == 0
     # pass-1 + exactly one retry provider call.
@@ -131,10 +127,6 @@ def test_session_retry_branch_projects_control_through_context_os(monkeypatch):
     assert SENTINEL in session.provider.chat_calls[1][0]["content"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-P3.3: retry/control structured projection not implemented",
-)
 def test_session_retry_branch_does_not_append_direct_system_prompt():
     source = _session_source()
     assert "[系统提示]" not in source
