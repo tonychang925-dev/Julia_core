@@ -8,8 +8,10 @@ lookup. The bridge does not unpack or reconstruct ToolResult/Evidence; it
 passes the carrier through untouched.
 
 The legacy execute_tool() string path and _format_tool_result are retained
-until P3.2.4 (gated by JuliaSession reachability), so formatter removal is NOT
-asserted here — that belongs to the C1 bridge-fence contract.
+until P3.2.4 (gated by JuliaSession reachability). A future deletion acceptance
+(test_bridge_legacy_string_seam_removed) is strict-XFAIL until P3.2.4 removes
+the legacy seam; the C1 bridge-fence contract remains the governed deletion
+guard.
 
 UNKNOWN / DISABLED resolution and streaming are out of scope here.
 """
@@ -43,13 +45,19 @@ def test_bridge_typed_seam_returns_capability_execution():
     assert isinstance(result, CapabilityExecution)
 
 
-def test_legacy_bridge_surface_still_exists_until_p3_2_4():
-    """PASS guard: legacy Bridge surface still exists until P3.2.4 cleanup.
+@pytest.mark.xfail(
+    strict=True,
+    reason="R2-P3.2.4: legacy bridge string seam not yet deleted",
+)
+def test_bridge_legacy_string_seam_removed():
+    """Future deletion acceptance: legacy string seam must be gone after P3.2.4.
 
-    Guards the CapabilityBridge compatibility surface (execute_tool +
-    _format_tool_result), NOT JuliaSession consumption. This must remain PASS
-    both before and after P3.2.3B; P3.2.4 owns its eventual removal.
+    Exact function-definition inspection (no substring false positives):
+    execute_tool_typed must remain, while legacy execute_tool() and
+    _format_tool_result() must be absent.
     """
     source = (ROOT / "julia_core" / "runtime" / "capability_bridge.py").read_text()
-    assert "def execute_tool" in source
-    assert "def _format_tool_result" in source
+    assert "def execute_tool_typed" in source
+    assert "def execute_tool(" not in source
+    assert "def _format_tool_result" not in source
+    assert "```tool_result" not in source
