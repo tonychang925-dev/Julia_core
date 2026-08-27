@@ -32,10 +32,6 @@ from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
 ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B-P0/C-08: local definitions use provider='local' but manager receives local_file_read/local_file_search/local_directory_list; pending R2-P3",
-)
 @pytest.mark.asyncio
 async def test_runtime_bridge_resolves_enabled_file_read_to_local_provider():
     """TC-ID: C1-R2.4-PROVIDER-001. Enabled local capability must resolve uniquely."""
@@ -50,10 +46,6 @@ async def test_runtime_bridge_resolves_enabled_file_read_to_local_provider():
     assert "content" in result.data
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B-P0/C-08: current flattened providers are capability-specific keys, not provider namespace records; pending R2-P3",
-)
 def test_runtime_bridge_local_provider_namespace_is_registered_for_manager_lookup():
     """TC-ID: C1-R2.4-PROVIDER-001. provider='local' must exist as manager lookup key."""
     bridge = RuntimeCapabilityBridge()

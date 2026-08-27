@@ -37,10 +37,6 @@ def _request(**arguments) -> CapabilityRequest:
     return CapabilityRequest("file.read", arguments)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B-Security-P0: file.read uses lexical startswith() instead of canonical resolved path authorization; pending R2-P3",
-)
 @pytest.mark.asyncio
 async def test_file_read_rejects_canonical_parent_traversal_escape():
     """TC-ID: C1-R2.4-FS-001. .. traversal resolving outside allowed root must be denied."""
@@ -52,10 +48,6 @@ async def test_file_read_rejects_canonical_parent_traversal_escape():
     assert result["status"] == "denied"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B-Security-P0: symlink target is not canonicalized before authorization; pending R2-P3",
-)
 @pytest.mark.asyncio
 async def test_file_read_rejects_symlink_escape_from_allowed_root():
     """TC-ID: C1-R2.4-FS-002. Symlink inside allowed root must not expose outside target."""
@@ -75,10 +67,6 @@ async def test_file_read_rejects_symlink_escape_from_allowed_root():
     assert "C1_R2_4_SECRET_OUTSIDE_ALLOWED_ROOT" not in str(result)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B-Security-P0: allowed-prefix collision such as /Users/admin/Desktop_evil passes lexical startswith(); pending R2-P3",
-)
 def test_file_read_rejects_allowed_prefix_collision_desktop_evil():
     """TC-ID: C1-R2.4-FS-003. /Users/admin/Desktop_evil is not /Users/admin/Desktop."""
     provider = FileReadProvider()
@@ -89,10 +77,6 @@ def test_file_read_rejects_allowed_prefix_collision_desktop_evil():
     assert "allowed" not in reason.lower()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B-Security-P0: file.list provider has no allowed-root authorization check; pending R2-P3",
-)
 @pytest.mark.asyncio
 async def test_file_list_rejects_outside_authorized_roots_like_file_read():
     """TC-ID: C1-R2.4-FS-004. file.list and file.read must share the same authorization boundary."""
@@ -106,10 +90,6 @@ async def test_file_list_rejects_outside_authorized_roots_like_file_read():
     assert "leaked_name.txt" not in str(result)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="B-Security-P0: file.search lacks canonical result authorization/filtering contract; pending R2-P3",
-)
 @pytest.mark.asyncio
 async def test_file_search_filters_results_to_canonical_authorized_roots(monkeypatch):
     """TC-ID: C1-R2.4-FS-005. file.search must not leak paths outside authorized roots."""
