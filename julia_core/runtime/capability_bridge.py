@@ -18,9 +18,10 @@ ADR-026 P4: Provider supplies capability, not cognition.
 from __future__ import annotations
 
 import json as _json
+from dataclasses import dataclass
 from typing import Optional
 
-from julia_core.capability.manager import CapabilityManager
+from julia_core.capability.manager import CapabilityExecution, CapabilityManager
 from julia_core.capability.models import (
     CapabilityDefinition,
     CapabilityLayer,
@@ -31,15 +32,74 @@ from julia_core.capability.policy import PermissionPolicy
 from julia_core.capability.registry import CapabilityRegistry
 
 
+@dataclass(frozen=True, slots=True)
+class CapabilityPreAuthorizationFailure:
+    """Bridge-local non-canonical transport/control signal.
+
+    Distinguishes UNKNOWN / DISABLED pre-authorization resolution failure from
+    malformed request-decoding failure (None) and from a recognized execution
+    (CapabilityExecution). It is NOT a canonical lifecycle object and NOT an
+    AuthorizationDecision / CapabilityResult / ToolResult / Evidence.
+    """
+    capability_id: str
+    reason: str  # "UNKNOWN" | "DISABLED"
+
+
+class _UnavailableAiThemeProvider:
+    """Explicitly-unavailable provider for failed ai_theme initialization.
+
+    Not a fallback/mock: health() reports False and execute() returns an
+    unavailable marker. The manager turns this into a typed
+    ToolResult(UNAVAILABLE) — never a fake market result and never an
+    alternate provider.
+    """
+
+    def __init__(self, reason: str):
+        self.reason = reason
+
+    async def health(self) -> tuple[bool, str]:
+        return False, f"ai_theme_app provider unavailable: {self.reason}"
+
+    async def execute(self, request) -> dict:
+        return {"status": "unavailable", "error": self.reason}
+
+
+class LocalProviderRouter:
+    """Narrow local namespace dispatcher for file.* capabilities.
+
+    This resolves the provider="local" namespace expected by CapabilityDefinition
+    without adding semantic routing. Dispatch is deterministic and uses only the
+    canonical capability_id from CapabilityRequest.
+    """
+
+    def __init__(self, providers: dict):
+        self._providers = dict(providers)
+
+    async def execute(self, request: CapabilityRequest) -> dict:
+        provider = self._providers.get(request.capability_id)
+        if provider is None:
+            return {
+                "status": "unavailable",
+                "error": f"local provider for {request.capability_id} is not registered",
+            }
+        return await provider.execute(request)
+
+    async def health(self) -> tuple[bool, str]:
+        if not self._providers:
+            return False, "local filesystem providers are not registered"
+        return True, "local filesystem namespace — available"
+
+
 class RuntimeCapabilityBridge:
     """Unified capability facade for JuliaSession.
 
     Initializes the full Capability Operating Layer:
       CapabilityRegistry + PermissionPolicy + all providers + CapabilityManager.
 
-    Provides both:
-      — Backward compat: tool_manifest() + execute_tool() for LLM tool calls
-      — New path: resolve() for intent-based capability resolution
+    Provides:
+      — tool_manifest() for the LLM tool manifest
+      — execute_tool_typed() for typed capability delivery
+      — resolve() for intent-based capability resolution
     """
 
     def __init__(self):
@@ -66,11 +126,11 @@ class RuntimeCapabilityBridge:
         from julia_core.capability.providers.local.file_search import FileSearchProvider
         from julia_core.capability.providers.local.directory_list import DirectoryListProvider
 
-        self._providers["local"] = {
-            "file_read": FileReadProvider(),
-            "file_search": FileSearchProvider(),
-            "directory_list": DirectoryListProvider(),
-        }
+        self._providers["local"] = LocalProviderRouter({
+            "file.read": FileReadProvider(),
+            "file.search": FileSearchProvider(),
+            "file.list": DirectoryListProvider(),
+        })
 
         # Register local capabilities
         self.registry.register_definition(CapabilityDefinition(
@@ -103,15 +163,23 @@ class RuntimeCapabilityBridge:
 
         # ai_theme_app provider (M1) — only if not already injected (tests)
         if "ai_theme_app" not in self._providers:
+            from julia_core.capability.providers.ai_theme import (
+                register_ai_theme_capabilities,
+                create_ai_theme_provider,
+            )
             try:
-                from julia_core.capability.providers.ai_theme import (
-                    register_ai_theme_capabilities,
-                    create_ai_theme_provider,
-                )
-                register_ai_theme_capabilities(self.registry)
                 self._providers["ai_theme_app"] = create_ai_theme_provider()
-            except Exception:
-                import logging; logging.getLogger("julia.failclosed").warning("silent fallback removed at julia_core.julia_core.runtime.capability_bridge:113", exc_info=True)
+                register_ai_theme_capabilities(self.registry, status=CapabilityStatus.AVAILABLE)
+            except Exception as exc:
+                # Explicit degradation, NOT silent disappearance: capability
+                # stays known, provider state is DEGRADED/UNAVAILABLE, and
+                # invocation returns a typed unavailable outcome.
+                register_ai_theme_capabilities(self.registry, status=CapabilityStatus.DEGRADED)
+                self._providers["ai_theme_app"] = _UnavailableAiThemeProvider(str(exc))
+                import logging
+                logging.getLogger("julia.capability").warning(
+                    "ai_theme provider unavailable; market capability DEGRADED: %s", exc
+                )
 
         # Build the manager
         self._manager = CapabilityManager(
@@ -176,7 +244,7 @@ class RuntimeCapabilityBridge:
 
         lines.extend([
             "",
-            "工具调用后会收到 ```tool_result``` 块。基于结果回答，不要编造。",
+            "工具调用后会收到执行结果。基于结果回答，不要编造。",
             "",
             "[工具规则 — 必须遵守]",
             "1. 只有用户明确要求读取/搜索/列出时才使用工具。",
@@ -187,13 +255,17 @@ class RuntimeCapabilityBridge:
         ])
         return "\n".join(lines)
 
-    # ── Backward Compat: LLM Tool Execution ─────────────────────────────
+    def execute_tool_typed(
+        self,
+        tool_json: str,
+    ) -> CapabilityExecution | CapabilityPreAuthorizationFailure | None:
+        """P3.2.2B typed delivery seam.
 
-    def execute_tool(self, tool_json: str) -> Optional[str]:
-        """Execute a tool call from LLM output. Backward compatible with
-        old self.capability.execute().
-
-        Routes through CapabilityManager for permission + evidence.
+        Decodes the same tool-call JSON, normalizes legacy names, and delivers
+        the exact CapabilityExecution from Manager for recognized, non-DISABLED
+        capabilities. Returns a CapabilityPreAuthorizationFailure for
+        UNKNOWN/DISABLED and None for malformed input. Never flattens the
+        carrier, never scans Manager lists, never selects latest artifacts.
         """
         self.initialize()
 
@@ -210,11 +282,17 @@ class RuntimeCapabilityBridge:
             "search_files": "file.search",
             "list_directory": "file.list",
         }
-        capability_name = legacy_to_new.get(name, name)
+        capability_id = legacy_to_new.get(name, name)
 
-        # Build request
+        # Deterministic pre-check against the audited immutable registry.
+        definition = self.manager.registry.get(capability_id)
+        if definition is None:
+            return CapabilityPreAuthorizationFailure(capability_id, "UNKNOWN")
+        if definition.status == CapabilityStatus.DISABLED:
+            return CapabilityPreAuthorizationFailure(capability_id, "DISABLED")
+
         request = CapabilityRequest(
-            capability_name=capability_name,
+            capability_name=capability_id,
             arguments=args,
             reason=f"LLM tool call: {name}",
         )
@@ -224,46 +302,15 @@ class RuntimeCapabilityBridge:
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                # In event loop: create task (simplified — returns result)
                 import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, self.manager.execute(request))
-                    result = future.result(timeout=30)
-            else:
-                result = asyncio.run(self.manager.execute(request))
+                    future = executor.submit(asyncio.run, self.manager.execute_typed(request))
+                    return future.result(timeout=30)
+            return asyncio.run(self.manager.execute_typed(request))
         except RuntimeError:
-            result = asyncio.run(self.manager.execute(request))
+            return asyncio.run(self.manager.execute_typed(request))
 
-        # Format result for LLM
-        return self._format_tool_result(result)
-
-    def _format_tool_result(self, result) -> str:
-        """Format CapabilityResult as tool_result block for LLM."""
-        data = result.data if hasattr(result, 'data') else {}
-        status = result.status if hasattr(result, 'status') else "unknown"
-
-        meta = _json.dumps({
-            "tool": result.capability_name if hasattr(result, 'capability_name') else "?",
-            "status": status,
-            "provider": result.provider if hasattr(result, 'provider') else "",
-        }, ensure_ascii=False)
-
-        content = ""
-        if isinstance(data, dict):
-            if "content" in data:
-                content = data["content"]
-            elif "items" in data:
-                content = "\n".join(data["items"])
-            elif "matches" in data:
-                content = "\n".join(data["matches"])
-            elif "error" in data:
-                content = data["error"]
-            else:
-                content = _json.dumps(data, ensure_ascii=False, indent=2)
-
-        return f"```tool_result\n{meta}\n{content}\n```"
-
-        # ── Evidence Gate (backward compat) ─────────────────────────────────
+    # ── Evidence Gate (backward compat) ─────────────────────────────────
 
     def requires_tool(self, user_text: str) -> bool:
         """Check if user question needs external evidence (file/market read).

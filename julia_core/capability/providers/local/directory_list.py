@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from julia_core.capability.models import CapabilityRequest
+from julia_core.capability.providers.local.security import authorize_path
 
 
 class DirectoryListProvider:
@@ -21,7 +22,11 @@ class DirectoryListProvider:
         if not path:
             return {"error": "path is required", "status": "invalid"}
 
-        p = Path(path)
+        authorization = authorize_path(path)
+        if not authorization.allowed:
+            return {"error": authorization.reason, "status": "denied", "path": path}
+
+        p = Path(authorization.canonical_path)
         if not p.exists():
             return {"error": "directory not found", "status": "not_found", "path": path}
         if not p.is_dir():
@@ -37,6 +42,7 @@ class DirectoryListProvider:
         return {
             "status": "success",
             "path": path,
+            "canonical_path": str(p),
             "items": items,
             "count": len(items),
         }

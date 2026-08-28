@@ -8,6 +8,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from julia_core.capability.models import CapabilityRequest
+from julia_core.capability.providers.local.security import (
+    DEFAULT_ALLOWED_ROOTS,
+    DEFAULT_DENIED_ROOTS,
+    authorize_path,
+)
 
 
 class FileReadProvider:
@@ -16,33 +21,27 @@ class FileReadProvider:
     Permission scope: file.read (path-restricted).
     """
 
-    ALLOWED_ROOTS = [
-        "/Users/admin/julia_core",
-        "/Users/admin/julia_ai_assistant",
-        "/Users/admin/Desktop",
-        "/Users/admin/.claude-dev/projects",
-    ]
-    DENIED_ROOTS = [
-        "/Users/admin/.ssh",
-        "/Users/admin/.aws",
-        "/Users/admin/Library/Keychains",
-    ]
+    ALLOWED_ROOTS = [str(path) for path in DEFAULT_ALLOWED_ROOTS]
+    DENIED_ROOTS = [str(path) for path in DEFAULT_DENIED_ROOTS]
 
     async def execute(self, request: CapabilityRequest) -> dict:
         path = request.arguments.get("path", "")
         if not path:
             return {"error": "path is required", "status": "invalid"}
 
-        # Permission check
         allowed, reason = self._check_path(path)
         if not allowed:
             return {"error": reason, "status": "denied", "path": path}
 
+        authorization = authorize_path(path, allowed_roots=self.ALLOWED_ROOTS, denied_roots=self.DENIED_ROOTS)
+        canonical_path = authorization.canonical_path or path
+
         try:
-            content = Path(path).read_text(encoding="utf-8", errors="ignore")
+            content = Path(canonical_path).read_text(encoding="utf-8", errors="ignore")
             return {
                 "status": "success",
                 "path": path,
+                "canonical_path": canonical_path,
                 "content": content[:5000],
                 "size": len(content),
             }
@@ -55,10 +54,5 @@ class FileReadProvider:
         return True, "local filesystem — available"
 
     def _check_path(self, path: str) -> tuple[bool, str]:
-        for d in self.DENIED_ROOTS:
-            if path.startswith(d):
-                return False, f"path denied: {d}"
-        for a in self.ALLOWED_ROOTS:
-            if path.startswith(a):
-                return True, "ok"
-        return False, "path not in allowed scope"
+        authorization = authorize_path(path, allowed_roots=self.ALLOWED_ROOTS, denied_roots=self.DENIED_ROOTS)
+        return authorization.allowed, authorization.reason
