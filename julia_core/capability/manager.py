@@ -25,6 +25,7 @@ from julia_core.capability.models import (
     CapabilityProvider,
     CapabilityRequest,
     CapabilityResult,
+    ProviderExecutionOutcome,
     CapabilityStatus,
     Evidence,
     EvidenceSourceType,
@@ -295,27 +296,31 @@ class CapabilityManager:
         # Execute
         executing_call = self._replace_call(call, status=CapabilityCallStatus.EXECUTING)
         try:
-            data = await provider.execute(request)
+            raw_outcome = await provider.execute(request)
             duration_ms = int((_time.time() - start) * 1000)
+            outcome = self._normalize_provider_execution_outcome(raw_outcome)
             evidence = self._record_canonical_observation_evidence(
                 definition=definition,
                 request=request,
                 call=executing_call,
-                data=data,
+                data=outcome.structured_output,
+                provider_outcome_status=outcome.status,
             )
             evidence_refs = (evidence.evidence_id,) if evidence is not None else ()
             completed_call, result = self._finish_call_with_result(
                 executing_call,
-                status=CapabilityCallStatus.COMPLETED,
-                tool_status=ToolResultStatus.SUCCESS,
+                status=self._map_tool_status_to_call_status(outcome.status),
+                tool_status=outcome.status,
                 provider=definition.provider,
                 started_at=executing_call.started_at,
-                structured_output=data,
+                structured_output=outcome.structured_output,
+                error=outcome.error,
+                side_effect_state=outcome.side_effect_state,
                 evidence_refs=evidence_refs,
                 duration_ms=duration_ms,
                 schema_version=definition.schema_version,
             )
-            self._record_legacy_evidence(definition, request, "success")
+            self._record_legacy_evidence(definition, request, self._legacy_evidence_status_for_tool(outcome.status))
             return CapabilityExecution(
                 decision,
                 completed_call,
@@ -330,6 +335,7 @@ class CapabilityManager:
                 provider=definition.provider,
                 started_at=executing_call.started_at,
                 error={"code": "provider_exception", "message": f"Provider '{definition.provider}' error: {exc}"},
+                side_effect_state=SideEffectState.UNKNOWN,
                 schema_version=definition.schema_version,
             )
             self._record_legacy_evidence(definition, request, "error")
@@ -343,6 +349,53 @@ class CapabilityManager:
         return self._legacy_from_tool_result(request, execution.tool_result)
 
     # ── Helpers ───────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _normalize_provider_execution_outcome(raw: dict[str, Any] | ProviderExecutionOutcome) -> ProviderExecutionOutcome:
+        """Normalize provider return after execute() and before Evidence/ToolResult.
+
+        Legacy dict providers remain SUCCESS + SideEffectState.NONE. Typed
+        outcomes preserve exact status/output/error/side-effect truth.
+        """
+        if isinstance(raw, ProviderExecutionOutcome):
+            # Reconstruct to runtime-validate even if a frozen fixture was mutated
+            # with object.__setattr__ after construction.
+            return ProviderExecutionOutcome(
+                status=raw.status,
+                structured_output=dict(raw.structured_output),
+                error=dict(raw.error) if raw.error is not None else None,
+                side_effect_state=raw.side_effect_state,
+            )
+        if isinstance(raw, dict):
+            return ProviderExecutionOutcome(
+                status=ToolResultStatus.SUCCESS,
+                structured_output=dict(raw),
+                error=None,
+                side_effect_state=SideEffectState.NONE,
+            )
+        raise ValueError(f"provider returned unsupported outcome type: {type(raw).__name__}")
+
+    @staticmethod
+    def _map_tool_status_to_call_status(status: ToolResultStatus | str) -> CapabilityCallStatus:
+        normalized = status if isinstance(status, ToolResultStatus) else ToolResultStatus(str(status))
+        if normalized in (ToolResultStatus.SUCCESS, ToolResultStatus.PARTIAL):
+            return CapabilityCallStatus.COMPLETED
+        if normalized == ToolResultStatus.TIMEOUT:
+            return CapabilityCallStatus.TIMED_OUT
+        if normalized == ToolResultStatus.CANCELLED:
+            return CapabilityCallStatus.CANCELLED
+        if normalized in (ToolResultStatus.UNAVAILABLE, ToolResultStatus.ERROR):
+            return CapabilityCallStatus.FAILED
+        raise ValueError(f"unmappable provider tool status: {normalized.value}")
+
+    @staticmethod
+    def _legacy_evidence_status_for_tool(status: ToolResultStatus | str) -> str:
+        normalized = status if isinstance(status, ToolResultStatus) else ToolResultStatus(str(status))
+        if normalized == ToolResultStatus.SUCCESS:
+            return "success"
+        if normalized == ToolResultStatus.UNAVAILABLE:
+            return "unavailable"
+        return "error"
 
     def _resolve_provider(self, definition: CapabilityDefinition) -> Optional[CapabilityProvider]:
         """Find the provider for this capability."""
@@ -398,6 +451,7 @@ class CapabilityManager:
         structured_output: dict[str, Any] | None = None,
         error: dict[str, Any] | None = None,
         evidence_refs: tuple[str, ...] = (),
+        side_effect_state: SideEffectState = SideEffectState.NONE,
         duration_ms: int = 0,
         schema_version: str = "1.0",
     ) -> tuple[CapabilityCall, ToolResult]:
@@ -410,7 +464,7 @@ class CapabilityManager:
             error=error,
             started_at=started_at,
             completed_at=completed_at,
-            side_effect_state=SideEffectState.NONE,
+            side_effect_state=side_effect_state,
             evidence_refs=evidence_refs,
             provider=provider,
             schema_version=schema_version,
@@ -425,6 +479,7 @@ class CapabilityManager:
         request: CapabilityRequest,
         call: CapabilityCall,
         data: dict[str, Any],
+        provider_outcome_status: ToolResultStatus | str = ToolResultStatus.SUCCESS,
     ) -> Evidence | None:
         """Create generic TOOL_OBSERVATION Evidence from actual provider data.
 
@@ -433,6 +488,13 @@ class CapabilityManager:
         source_records into Julia domain Evidence; that belongs to later
         domain-specific mapping.
         """
+        normalized_status = (
+            provider_outcome_status
+            if isinstance(provider_outcome_status, ToolResultStatus)
+            else ToolResultStatus(str(provider_outcome_status))
+        )
+        if normalized_status not in (ToolResultStatus.SUCCESS, ToolResultStatus.PARTIAL):
+            return None
         if not data:
             return None
 
@@ -449,6 +511,9 @@ class CapabilityManager:
                 "provider": definition.provider,
                 "schema_version": definition.schema_version,
                 "provider_material_keys": sorted(data.keys()),
+                "provider_outcome_status": normalized_status.value,
+                "provider_material_observed": True,
+                "incomplete": normalized_status == ToolResultStatus.PARTIAL,
             },
             integrity_metadata={"material_type": "provider_structured_output"},
             freshness="unknown",
@@ -478,13 +543,14 @@ class CapabilityManager:
             return CapabilityResult.error(request.capability_name, error_message)
         if status == ToolResultStatus.DENIED.value:
             return CapabilityResult.denied(request.capability_name, error_message)
-        return CapabilityResult(
-            capability_name=request.capability_name,
-            status=status,
-            data=dict(result.structured_output),
-            provider=result.provider,
-            error_message=error_message,
-            schema_version=result.schema_version,
+        if status in {ToolResultStatus.PARTIAL.value, ToolResultStatus.TIMEOUT.value, ToolResultStatus.CANCELLED.value}:
+            return CapabilityResult.error(
+                request.capability_name,
+                error_message or f"canonical tool result status: {status}",
+            )
+        return CapabilityResult.error(
+            request.capability_name,
+            error_message or f"canonical tool result status is unsupported by legacy API: {status}",
         )
 
     def _record_legacy_evidence(self, definition: CapabilityDefinition, request: CapabilityRequest, status: str):

@@ -238,6 +238,60 @@ class ToolResult:
     schema_version: str = "1.0"
 
 
+
+
+_ALLOWED_PROVIDER_OUTCOME_STATUSES = {
+    ToolResultStatus.SUCCESS,
+    ToolResultStatus.UNAVAILABLE,
+    ToolResultStatus.ERROR,
+    ToolResultStatus.TIMEOUT,
+    ToolResultStatus.CANCELLED,
+    ToolResultStatus.PARTIAL,
+}
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderExecutionOutcome:
+    """Typed provider execution truth carrier.
+
+    Providers may report only execution truth. Authorization outcomes such as
+    DENIED remain owned by PermissionPolicy/CapabilityManager and are rejected
+    as provider contract violations.
+    """
+
+    status: str | ToolResultStatus
+    structured_output: dict[str, Any] = field(default_factory=dict)
+    error: dict[str, Any] | None = None
+    side_effect_state: str | SideEffectState = SideEffectState.NONE
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "status", normalize_provider_status(self.status))
+        object.__setattr__(self, "side_effect_state", normalize_side_effect_state(self.side_effect_state))
+        object.__setattr__(self, "structured_output", dict(self.structured_output or {}))
+        if self.error is not None:
+            object.__setattr__(self, "error", dict(self.error))
+
+
+def normalize_provider_status(status: str | ToolResultStatus) -> ToolResultStatus:
+    try:
+        normalized = status if isinstance(status, ToolResultStatus) else ToolResultStatus(str(status))
+    except Exception as exc:
+        raise ValueError(f"provider outcome status is invalid: {status!r}") from exc
+    if normalized not in _ALLOWED_PROVIDER_OUTCOME_STATUSES:
+        raise ValueError(
+            f"provider outcome status {normalized.value!r} is not allowed; "
+            "authorization truth belongs to PermissionPolicy/CapabilityManager"
+        )
+    return normalized
+
+
+def normalize_side_effect_state(state: str | SideEffectState) -> SideEffectState:
+    try:
+        return state if isinstance(state, SideEffectState) else SideEffectState(str(state))
+    except Exception as exc:
+        raise ValueError(f"provider side_effect_state is invalid: {state!r}") from exc
+
+
 class EvidenceSourceType(str, Enum):
     CANONICAL_CONVERSATION = "CANONICAL_CONVERSATION"
     USER_REPORT = "USER_REPORT"
@@ -360,8 +414,8 @@ class CapabilityProvider(Protocol):
     They return data. They do NOT assemble prompts, own reasoning, or define identity.
     """
 
-    async def execute(self, request: CapabilityRequest) -> dict[str, Any]:
-        """Execute the capability. Returns raw data dict."""
+    async def execute(self, request: CapabilityRequest) -> dict[str, Any] | ProviderExecutionOutcome:
+        """Execute the capability. Returns legacy data dict or typed execution outcome."""
         ...
 
     async def health(self) -> tuple[bool, str]:
@@ -383,11 +437,14 @@ __all__ = [
     "CapabilityLayer",
     "CapabilityProvider",
     "CapabilityRequest",
+    "ProviderExecutionOutcome",
     "CapabilityResult",
     "CapabilityStatus",
     "Evidence",
     "EvidenceSourceType",
     "SideEffectState",
     "ToolResult",
+    "normalize_provider_status",
+    "normalize_side_effect_state",
     "ToolResultStatus",
 ]
