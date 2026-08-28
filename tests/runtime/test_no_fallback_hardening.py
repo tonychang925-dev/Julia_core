@@ -145,3 +145,35 @@ def test_ai_theme_init_failure_degrades_not_disappears(monkeypatch):
     # Provider is an explicit unavailable provider, not a mock, not an alternate.
     provider = bridge._providers["ai_theme_app"]
     assert isinstance(provider, _UnavailableAiThemeProvider)
+
+
+# ── Critical bootstrap failure blocks model execution ─────────────────────
+
+class _CountingProvider:
+    def __init__(self):
+        self.chat_calls: list[list[dict]] = []
+
+    def chat(self, messages, cognitive_mode=""):
+        self.chat_calls.append(list(messages))
+        return "reply"
+
+
+def test_critical_bootstrap_failure_blocks_model(monkeypatch):
+    """Critical identity/continuity bootstrap failure must NOT reach the model."""
+    from julia_core.runtime.context_execution_runtime import ContextNotReady
+    from julia_core.runtime.julia_session import JuliaSession, TurnContext
+
+    session = JuliaSession.__new__(JuliaSession)
+    session.provider = _CountingProvider()
+    session.context_os = ContextExecutionRuntime()
+
+    def _boom():
+        raise RuntimeError("bootstrap boom")
+
+    monkeypatch.setattr(bootstrap_mod, "load_bootstrap_frames", _boom)
+
+    ctx = TurnContext([], conversation_id="conv", turn_id="turn")
+    with pytest.raises(ContextNotReady):
+        session._prepare_turn("hi", ctx)
+    # No fallback, no empty-context continuation: provider was never called.
+    assert len(session.provider.chat_calls) == 0

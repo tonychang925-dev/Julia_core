@@ -19,6 +19,14 @@ from julia_core.capability.models import Evidence, ToolResult
 from julia_core.capability.policy import AuthorizationDecision, AuthorizationStatus
 
 
+class ContextNotReady(Exception):
+    """Raised when a CognitiveContextPackage has unsatisfied required frames.
+
+    Critical identity/continuity context failure must NOT proceed to model
+    cognition. No fallback, no empty-context continuation, no synthetic text.
+    """
+
+
 @dataclass
 class CognitiveContextPackage:
     """C-03 first-class context package. All Frames are derived, never canonical."""

@@ -266,6 +266,15 @@ class JuliaSession:
             modality=ctx.modality,
         )
 
+        # Critical identity/continuity context must be ready before model
+        # cognition. No fallback, no empty-context continuation.
+        required_failures = pkg.validate()
+        if required_failures:
+            from julia_core.runtime.context_execution_runtime import ContextNotReady
+            raise ContextNotReady(
+                f"Context OS required frames failed: {', '.join(required_failures)}"
+            )
+
         if pkg.evidence_frame:
             ev2 = create_event(
                 source="capability",
