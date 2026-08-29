@@ -310,20 +310,13 @@ class ReviewTransactionLedger:
 
     # ── outcome recording (write-once, internal only; O5, round-5 §4) ──────
 
-    def _seal_execution_outcome(
-        self,
-        *,
-        transaction: ReviewTransaction,
-        invocation,
-        authority,
-    ) -> None:
-        """WRITE-ONCE seal of retry truth derived from an EXACT trusted
-        invocation's ToolResult (round-5 §4 + round-6 §A).
+    def _seal_execution_outcome(self, *, invocation) -> None:
+        """WRITE-ONCE seal controlled by the exact registered invocation.
 
-        Requires the opaque lifecycle authority minted by submit_review bound
-        to the exact transaction + execution. Underscore naming is NOT
-        authority: a fabricated execution cannot seal retry truth because the
-        caller cannot produce the matching authority.
+        The only controlled registration path is inlined in ``submit_review``.
+        It creates opaque registry state keyed to the exact invocation object
+        and its full execution/transaction fingerprint. There is no reusable
+        module-level authority mint or registration helper.
 
         - never accepts caller-selected outcome_status / side_effect_state as
           authority
@@ -331,23 +324,17 @@ class ReviewTransactionLedger:
         - UNKNOWN can never be rewritten into FAILED/NONE
         - missing outcome remains retry-forbidden (mint() enforces this)
         """
-        from julia_core.review.lifecycle import (
-            _execution_fingerprint_of,
-            authorize_outcome_seal,
-        )
+        from julia_core.review.invocation import is_trusted_invocation
 
+        transaction = invocation.transaction
+        if not is_trusted_invocation(invocation):
+            raise ReviewUntrustedTransactionError(
+                "outcome seal requires the exact invocation registered by the "
+                "controlled submit_review lifecycle; handcrafted invocations rejected"
+            )
         if not self.owns_transaction(transaction):
             raise ReviewUntrustedTransactionError(
                 "cannot record outcome for a non-owned transaction"
-            )
-        if not authorize_outcome_seal(
-            authority,
-            transaction_id=transaction.transaction_id,
-            execution_fingerprint=_execution_fingerprint_of(invocation.execution),
-        ):
-            raise ReviewUntrustedTransactionError(
-                "outcome seal requires the opaque lifecycle authority minted by "
-                "submit_review for the exact transaction+execution; forged seal rejected"
             )
         result = invocation.execution.tool_result
         outcome_status = (

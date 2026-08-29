@@ -36,6 +36,8 @@ from typing import Any
 
 from julia_core.review.candidate_artifact import (
     SealedCandidate,
+    _candidate_authority,
+    candidate_fingerprint,
     is_trusted_candidate,
 )
 from julia_core.review.contracts import ReviewDecisionCandidate, ReviewTransportTrace
@@ -45,7 +47,6 @@ from julia_core.review.source_binding import (
     CandidateCreatorBinding,
     CandidateShaSourceBinding,
     _resolve_adapter,
-    _resolve_creator,
     is_trusted_candidate_creator,
     is_trusted_source_binding,
 )
@@ -200,6 +201,11 @@ class ReviewGovernanceService:
         return self._candidate_creator_binding
 
     @property
+    def bound_creator_binding_id(self) -> str | None:
+        binding = self._candidate_creator_binding
+        return binding.binding_id if binding is not None else None
+
+    @property
     def has_trusted_candidate_creator(self) -> bool:
         binding = self._candidate_creator_binding
         return binding is not None and is_trusted_candidate_creator(binding)
@@ -245,17 +251,38 @@ class ReviewGovernanceService:
 
         reasons: list[str] = []
 
-        # §C (round-6): candidate admission requires a TRUSTED candidate creator
-        # binding (unbound -> NO CANDIDATE_ADMITTED) AND the exact trusted
-        # sealed candidate artifact. A subset of matching fields (ids + digest)
-        # is NOT proof; mutation/copy/reconstruction invalidates trust.
-        if self._candidate_creator_binding is None or not is_trusted_candidate_creator(self._candidate_creator_binding):
+        # Exact creator/artifact/raw-observation association. Existence of some
+        # creator binding plus some independently sealed artifact is not enough.
+        service_creator_binding = self._candidate_creator_binding
+        if service_creator_binding is None or not is_trusted_candidate_creator(service_creator_binding):
             reasons.append(
                 "candidate_creator_unavailable:no trusted candidate parser/creator bound; "
                 "candidate admission fails closed (§6)"
             )
-        if not is_trusted_candidate(candidate):
+
+        candidate_authority = _candidate_authority(candidate)
+        if candidate_authority is None:
             reasons.append("candidate_not_trusted:not the exact trusted candidate artifact")
+        else:
+            if (
+                service_creator_binding is None
+                or candidate_authority.creator_binding is not service_creator_binding
+            ):
+                reasons.append(
+                    "candidate_creator_binding_mismatch:artifact was not produced "
+                    "by the exact creator bound to this governance service"
+                )
+            elif candidate.creator_binding_id != service_creator_binding.binding_id:
+                reasons.append("candidate_creator_binding_id_mismatch")
+            if (
+                candidate_authority.invocation is not invocation
+                or candidate_authority.invocation_id != invocation.invocation_id
+            ):
+                reasons.append(
+                    "raw_observation_invocation_mismatch:artifact raw observation "
+                    "belongs to a different invocation"
+                )
+
         candidate_obj = candidate.candidate if isinstance(candidate, SealedCandidate) else candidate
 
         correlation_errors = validate_review_correlation(transaction.snapshot, candidate_obj)
@@ -265,19 +292,18 @@ class ReviewGovernanceService:
         reasons.extend(transport_errors)
 
         # Stale check: TRUSTED binding adapter only (E6-E9). Unbound -> closed.
-        if not reasons:
-            binding = self._source_binding
-            if binding is None or not is_trusted_source_binding(binding):
-                reasons.append("stale_validation_unavailable:no trusted candidate SHA source binding")
-            else:
-                try:
-                    adapter = _resolve_adapter(binding)
-                    assert_not_stale(
-                        transaction.snapshot,
-                        _AdapterWrapper(adapter),
-                    )
-                except Exception as exc:
-                    reasons.append(str(exc))
+        binding = self._source_binding
+        if binding is None or not is_trusted_source_binding(binding):
+            reasons.append("stale_validation_unavailable:no trusted candidate SHA source binding")
+        else:
+            try:
+                adapter = _resolve_adapter(binding)
+                assert_not_stale(
+                    transaction.snapshot,
+                    _AdapterWrapper(adapter),
+                )
+            except Exception as exc:
+                reasons.append(str(exc))
 
         # §6/§C: raw-response truth must bind to the exact trusted candidate
         # judgment. Core computes the digest from the exact raw response and
@@ -318,7 +344,11 @@ class ReviewGovernanceService:
             transaction_id=transaction.transaction_id,
             invocation_id=invocation.invocation_id,
             candidate_artifact_id=candidate.candidate_artifact_id,
-            candidate_fingerprint=candidate.fingerprint,
+            candidate_fingerprint=(
+                candidate_authority.fingerprint
+                if candidate_authority is not None
+                else candidate_fingerprint(candidate_obj)
+            ),
             outcome_status=outcome_status,
             side_effect_state=side_effect_state,
             admission="CANDIDATE_ADMITTED" if admitted else "REJECTED",

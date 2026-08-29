@@ -242,38 +242,6 @@ def _transaction_fingerprint_of(transaction: ReviewTransaction) -> str:
     return _transaction_fingerprint(transaction)
 
 
-def _register_trusted_invocation(
-    invocation: ReviewInvocationResult,
-    authority: Any,
-) -> ReviewInvocationResult:
-    """INTERNAL trusted registration — requires the opaque lifecycle authority
-    minted by the controlled submit_review path (round-6 §A).
-
-    Underscore naming is NOT authority: a fake caller calling this helper with a
-    genuine transaction + fabricated execution is rejected because it cannot
-    produce a valid un-consumed lifecycle authority for that exact
-    transaction+execution pair.
-    """
-    from julia_core.review.lifecycle import authorize_registration
-    from julia_core.review.transaction import _transaction_fingerprint
-    from julia_core.review.lifecycle import _execution_fingerprint_of
-
-    if not authorize_registration(
-        authority,
-        transaction_id=invocation.transaction.transaction_id,
-        execution_fingerprint=_execution_fingerprint_of(invocation.execution),
-    ):
-        raise ReviewIngressRequiredError(
-            "invocation registration requires the opaque lifecycle authority "
-            "minted by submit_review; handcrafted registration rejected"
-        )
-    _TRUSTED_INVOCATIONS[invocation.invocation_id] = (
-        invocation,
-        _invocation_fingerprint(invocation),
-    )
-    return invocation
-
-
 def is_trusted_invocation(invocation: ReviewInvocationResult) -> bool:
     """True only for the exact registered invocation with an unchanged
     full execution/transaction binding fingerprint."""
@@ -326,28 +294,27 @@ async def submit_review(
         # bearer token must never remain reusable.
         ledger.burn_token(transaction.token)
 
-    # Build the trusted invocation (binds execution + transaction), mint the
-    # opaque lifecycle authority (round-6 §A), then seal retry truth write-once
-    # and register the invocation — both gates require the same authority.
+    # Build the exact invocation. Trusted registration state is created only by
+    # this controlled lifecycle. It is deliberately not delegated to a reusable
+    # module-level registration/mint helper: arbitrary caller code cannot supply
+    # transaction + execution facts and obtain registration authority.
     invocation = ReviewInvocationResult(
         invocation_id=f"rvw_inv_{_time_ns()}",
         execution=execution,
         transaction=transaction,
     )
-    from julia_core.review.lifecycle import (
-        _execution_fingerprint_of,
-        mint_lifecycle_authority,
+    invocation_id = invocation.invocation_id
+    _TRUSTED_INVOCATIONS[invocation_id] = (
+        invocation,
+        _invocation_fingerprint(invocation),
     )
-    authority = mint_lifecycle_authority(
-        transaction_id=transaction.transaction_id,
-        execution_fingerprint=_execution_fingerprint_of(execution),
-    )
-    ledger._seal_execution_outcome(
-        transaction=transaction,
-        invocation=invocation,
-        authority=authority,
-    )
-    return _register_trusted_invocation(invocation, authority)
+    try:
+        ledger._seal_execution_outcome(invocation=invocation)
+    except BaseException:
+        # Do not leave controlled registration state if outcome sealing failed.
+        _TRUSTED_INVOCATIONS.pop(invocation_id, None)
+        raise
+    return invocation
 
 
 import time as _time_ns_mod

@@ -64,7 +64,6 @@ from julia_core.review.snapshot import (
 from julia_core.review.candidate_artifact import (
     SealedCandidate,
     is_trusted_candidate,
-    seal_candidate,
 )
 from julia_core.review.source_binding import (
     CandidateShaSourceBinding,
@@ -141,7 +140,6 @@ __all__ = [
     "make_external_review_definition",
     "raw_response_digest_matches",
     "register_external_review_capability",
-    "seal_candidate",
     "seal_review_bundle",
     "snapshot_digest",
     "submit_review",
