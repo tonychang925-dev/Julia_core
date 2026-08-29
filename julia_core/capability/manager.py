@@ -14,7 +14,9 @@ runtime/provider callers; they are not the canonical execution truth.
 from __future__ import annotations
 
 import time as _time
+import copy as _copy
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Any, Optional
 
 from julia_core.capability.models import (
@@ -113,6 +115,10 @@ class _PreAuthorizationResolutionError(Exception):
     """
 
 
+class ProviderAlreadyBoundError(RuntimeError):
+    """A different provider object is already bound to the same namespace."""
+
+
 # ── Evidence Ledger (legacy compatibility view) ─────────────────────────────
 
 class EvidenceLedger:
@@ -169,7 +175,9 @@ class CapabilityManager:
     ):
         self.registry = registry
         self.policy = policy
-        self.providers = providers
+        self._providers: dict[str, CapabilityProvider] = {}
+        for provider_name, provider in providers.items():
+            self.bind_provider(provider_name, provider)
         self.evidence = EvidenceLedger()
         self._authorization_decisions: list[AuthorizationDecision] = []
         self._capability_calls: list[CapabilityCall] = []
@@ -177,6 +185,33 @@ class CapabilityManager:
         self._canonical_evidence: list[Evidence] = []
 
     # ── Canonical artifact inspection ────────────────────────────────────
+
+    @property
+    def providers(self) -> MappingProxyType[str, CapabilityProvider]:
+        """Read-only inspection view of exact bound provider objects."""
+        return MappingProxyType(self._providers)
+
+    def bind_provider(self, provider_name: str, provider: CapabilityProvider) -> None:
+        """Bind one implementation to one namespace, write-once.
+
+        Rebinding the exact same object is idempotent. Binding a different
+        object to an occupied namespace is rejected. This grants no scope and
+        performs no provider selection; CapabilityDefinition.provider remains
+        the sole selector.
+        """
+        if not isinstance(provider_name, str) or not provider_name:
+            raise ValueError("provider_name must be a non-empty string")
+        if not callable(getattr(provider, "execute", None)):
+            raise TypeError("provider must implement execute(request)")
+        if not callable(getattr(provider, "health", None)):
+            raise TypeError("provider must implement health()")
+
+        existing = self._providers.get(provider_name)
+        if existing is not None and existing is not provider:
+            raise ProviderAlreadyBoundError(
+                f"provider namespace '{provider_name}' is already bound"
+            )
+        self._providers[provider_name] = provider
 
     @property
     def authorization_decisions(self) -> list[AuthorizationDecision]:
@@ -451,7 +486,7 @@ class CapabilityManager:
 
     def _resolve_provider(self, definition: CapabilityDefinition) -> Optional[CapabilityProvider]:
         """Find the provider for this capability."""
-        return self.providers.get(definition.provider)
+        return self._providers.get(definition.provider)
 
     @staticmethod
     def _is_authorized(decision: AuthorizationDecision) -> bool:
@@ -512,8 +547,8 @@ class CapabilityManager:
         result = ToolResult(
             capability_call_id=completed_call.capability_call_id,
             status=tool_status,
-            structured_output=dict(structured_output or {}),
-            error=error,
+            structured_output=_copy.deepcopy(dict(structured_output or {})),
+            error=_copy.deepcopy(dict(error)) if error is not None else None,
             started_at=started_at,
             completed_at=completed_at,
             side_effect_state=side_effect_state,
@@ -638,4 +673,9 @@ def _iso_timestamp() -> str:
     return _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime())
 
 
-__all__ = ["CapabilityManager", "CapabilityExecution", "EvidenceLedger"]
+__all__ = [
+    "CapabilityManager",
+    "CapabilityExecution",
+    "EvidenceLedger",
+    "ProviderAlreadyBoundError",
+]

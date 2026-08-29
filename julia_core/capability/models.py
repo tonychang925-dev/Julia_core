@@ -14,9 +14,10 @@ Compatibility objects:
 
 from __future__ import annotations
 
-import time as _time
+import copy as _copy
 from dataclasses import dataclass, field
 from enum import Enum
+import time as _time
 from typing import Any, Callable, Protocol
 
 
@@ -127,11 +128,11 @@ class CapabilityRequest:
         object.__setattr__(self, "generation_id", generation_id)
         object.__setattr__(self, "correlation_id", correlation_id)
         object.__setattr__(self, "capability_id", canonical_capability_id)
-        object.__setattr__(self, "arguments", dict(arguments or {}))
+        object.__setattr__(self, "arguments", _copy.deepcopy(dict(arguments or {})))
         object.__setattr__(self, "requested_scope", requested_scope)
         object.__setattr__(self, "idempotency_key", idempotency_key or canonical_request_id)
         object.__setattr__(self, "requested_at", canonical_requested_at)
-        object.__setattr__(self, "provenance", legacy_provenance)
+        object.__setattr__(self, "provenance", _copy.deepcopy(legacy_provenance))
 
     @property
     def capability_name(self) -> str:
@@ -239,39 +240,18 @@ def validate_capability_request_authority(request: CapabilityRequest) -> None:
         )
 
 
-def _without_recursive_browser_authority(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {
-            key: _without_recursive_browser_authority(child)
-            for key, child in value.items()
-            if str(key) not in _FORBIDDEN_RECURSIVE_AUTHORITY_KEYS
-        }
-    if isinstance(value, list):
-        return [_without_recursive_browser_authority(child) for child in value]
-    if isinstance(value, tuple):
-        return tuple(_without_recursive_browser_authority(child) for child in value)
-    return value
-
-
 def sanitize_capability_request_authority(request: CapabilityRequest) -> CapabilityRequest:
-    """Return the provider-visible semantic request without browser authority.
+    """Return a defensively copied provider-visible semantic request.
 
-    Provider/transport-selection fields are rejected rather than silently
-    rewritten. Browser authority is removed recursively so product transport
-    adapters receive only Core-owned semantic inputs. The original caller-owned
-    request is not mutated and is not shared with the provider.
+    Provider/transport-selection and browser authority are rejected before this
+    returned view is created. The original caller-owned request is not mutated;
+    nested request material is deep-copied and not shared with the provider.
     """
-    top_level = set(request.arguments) | set(request.provenance)
-    forbidden_top_level = top_level & _FORBIDDEN_TOP_LEVEL_AUTHORITY_KEYS
-    if forbidden_top_level:
-        raise CapabilityRequestAuthorityError(
-            "caller-supplied provider/transport authority is forbidden: "
-            + ", ".join(sorted(forbidden_top_level))
-        )
+    validate_capability_request_authority(request)
 
     return CapabilityRequest(
         capability_id=request.capability_id,
-        arguments=_without_recursive_browser_authority(request.arguments),
+        arguments=request.arguments,
         capability_request_id=request.capability_request_id,
         turn_id=request.turn_id,
         generation_id=request.generation_id,
@@ -279,7 +259,7 @@ def sanitize_capability_request_authority(request: CapabilityRequest) -> Capabil
         requested_scope=request.requested_scope,
         idempotency_key=request.idempotency_key,
         requested_at=request.requested_at,
-        provenance=_without_recursive_browser_authority(request.provenance),
+        provenance=request.provenance,
     )
 
 
@@ -379,9 +359,13 @@ class ProviderExecutionOutcome:
     def __post_init__(self) -> None:
         object.__setattr__(self, "status", normalize_provider_status(self.status))
         object.__setattr__(self, "side_effect_state", normalize_side_effect_state(self.side_effect_state))
-        object.__setattr__(self, "structured_output", dict(self.structured_output or {}))
+        object.__setattr__(
+            self,
+            "structured_output",
+            _copy.deepcopy(dict(self.structured_output or {})),
+        )
         if self.error is not None:
-            object.__setattr__(self, "error", dict(self.error))
+            object.__setattr__(self, "error", _copy.deepcopy(dict(self.error)))
 
 
 def normalize_provider_status(status: str | ToolResultStatus) -> ToolResultStatus:

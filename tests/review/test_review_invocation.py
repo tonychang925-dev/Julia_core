@@ -258,12 +258,13 @@ def test_mutating_request_arguments_cannot_change_snapshot_payload():
     request = build_review_request(transaction)
     request.arguments["candidate_sha"] = "FORGED"
     request.arguments["tab_id"] = 999
-    execution = asyncio.run(manager.execute_typed(request))
-    # Provider executed exactly once (token was claimed) and the payload it
-    # received came from the snapshot, not the mutated request.
-    assert real.execute_calls == 1
-    assert real.last_request.arguments["candidate_sha"] == "abc123"
-    assert "tab_id" not in real.last_request.arguments
+    from julia_core.capability.models import CapabilityRequestAuthorityError
+
+    # Generic Manager hardening now fails closed before token claim/provider
+    # execution when browser authority is injected into a request.
+    with pytest.raises(CapabilityRequestAuthorityError, match="browser authority"):
+        asyncio.run(manager.execute_typed(request))
+    assert real.execute_calls == 0
 
 
 # ── Governed submission through Manager ──────────────────────────────────────

@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from julia_core.capability.manager import CapabilityExecution, CapabilityManager
+from julia_core.capability.manager import ProviderAlreadyBoundError
 from julia_core.capability.models import (
     CapabilityDefinition,
     CapabilityLayer,
@@ -138,16 +139,15 @@ class RuntimeCapabilityBridge:
             raise ProviderAlreadyRegisteredError(
                 f"provider namespace '{provider_name}' is already bound"
             )
+
         if self._initialized and self._manager is not None:
-            existing_managed = self._manager.providers.get(provider_name)
-            if existing_managed is not None and existing_managed is not provider:
+            try:
+                self._manager.bind_provider(provider_name, provider)
+            except ProviderAlreadyBoundError as exc:
                 raise ProviderAlreadyRegisteredError(
                     f"manager provider namespace '{provider_name}' is already bound"
-                )
-
+                ) from exc
         self._providers[provider_name] = provider
-        if self._initialized and self._manager is not None:
-            self._manager.providers[provider_name] = provider
 
     # ── Initialization ──────────────────────────────────────────────────
 

@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 
-from julia_core.capability.manager import CapabilityManager
+from julia_core.capability.manager import CapabilityManager, ProviderAlreadyBoundError
 from julia_core.capability.models import (
     CapabilityCallStatus,
     CapabilityDefinition,
@@ -56,12 +56,14 @@ class FixtureProvider:
         self.healthy = healthy
         self.health_detail = health_detail
         self.execute_calls = 0
+        self.last_request = None
 
     async def health(self) -> tuple[bool, str]:
         return self.healthy, self.health_detail
 
     async def execute(self, request: CapabilityRequest):
         self.execute_calls += 1
+        self.last_request = request
         if isinstance(self.outcome, Exception):
             raise self.outcome
         if self.outcome is None:
@@ -413,3 +415,169 @@ def test_request_authority_validator_rejects_nested_browser_authority():
     request = CapabilityRequest("crossrepo.observe", {"semantic": {"tab_id": 1}})
     with pytest.raises(CapabilityRequestAuthorityError, match="browser authority"):
         validate_capability_request_authority(request)
+
+
+@pytest.mark.asyncio
+async def test_h1_browser_only_malicious_request_fails_closed_before_provider():
+    provider = FixtureProvider()
+    manager = _manager(provider)
+    with pytest.raises(CapabilityRequestAuthorityError, match="browser authority"):
+        await manager.execute_typed(CapabilityRequest(
+            "crossrepo.observe",
+            {"semantic": "input", "tab_id": 999},
+        ))
+    assert provider.execute_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_h2_nested_browser_authority_in_dict_or_list_fails_closed():
+    provider = FixtureProvider()
+    manager = _manager(provider)
+    requests = (
+        CapabilityRequest("crossrepo.observe", {
+            "semantic": {"nested": {"dom_selector": "#composer"}}
+        }),
+        CapabilityRequest("crossrepo.observe", {
+            "semantic": [{"browser_session_id": "bs_forged"}]
+        }),
+    )
+    for request in requests:
+        with pytest.raises(CapabilityRequestAuthorityError, match="browser authority"):
+            await manager.execute_typed(request)
+    assert provider.execute_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_h3_provider_endpoint_protocol_authority_rejection_preserved():
+    provider = FixtureProvider()
+    manager = _manager(provider)
+    with pytest.raises(CapabilityRequestAuthorityError, match="provider/transport"):
+        await manager.execute_typed(CapabilityRequest(
+            "crossrepo.observe",
+            {"semantic": "input", "endpoint": "https://product-internal"},
+        ))
+    assert provider.execute_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_p13_direct_manager_provider_map_replacement_cannot_replace_binding():
+    first = FixtureProvider()
+    second = FixtureProvider()
+    manager = _manager(first)
+
+    with pytest.raises(TypeError):
+        manager.providers["product_adapter"] = second
+
+    execution = await manager.execute_typed(CapabilityRequest("crossrepo.observe"))
+    assert first.execute_calls == 1
+    assert second.execute_calls == 0
+    assert execution.tool_result is not None
+    assert execution.tool_result.provider == "product_adapter"
+
+
+def test_p14_p15_p16_manager_binding_is_late_safe_idempotent_and_write_once():
+    manager = _manager(None)
+    first = FixtureProvider()
+    second = FixtureProvider()
+
+    manager.bind_provider("late_product_adapter", first)
+    assert manager.providers["late_product_adapter"] is first
+
+    manager.bind_provider("late_product_adapter", first)
+    assert manager.providers["late_product_adapter"] is first
+
+    with pytest.raises(ProviderAlreadyBoundError):
+        manager.bind_provider("late_product_adapter", second)
+    assert manager.providers["late_product_adapter"] is first
+
+
+def test_p14_late_bridge_registration_is_accepted_exactly_once():
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+    provider = FixtureProvider()
+    bridge.register_provider("late_product_adapter", provider)
+    bridge.register_provider("late_product_adapter", provider)
+    assert bridge.manager.providers["late_product_adapter"] is provider
+    with pytest.raises(ProviderAlreadyRegisteredError):
+        bridge.register_provider("late_product_adapter", FixtureProvider())
+
+
+@pytest.mark.asyncio
+async def test_m1_mutating_caller_nested_arguments_does_not_change_provider_request():
+    provider = FixtureProvider()
+    manager = _manager(provider)
+    arguments = {"semantic": {"values": [1, 2, {"keep": True}]}}
+    provenance = {"source": {"chain": ["caller"]}}
+    request = CapabilityRequest(
+        "crossrepo.observe",
+        arguments,
+        provenance=provenance,
+    )
+
+    arguments["semantic"]["values"].append("MUTATED")
+    arguments["semantic"]["keep"] = {"injected": True}
+    provenance["source"]["chain"].append("MUTATED")
+
+    await manager.execute_typed(request)
+    assert provider.last_request is not None
+    assert provider.last_request.arguments["semantic"]["values"] == [1, 2, {"keep": True}]
+    assert "keep" not in provider.last_request.arguments["semantic"]
+    assert provider.last_request.provenance["source"]["chain"] == ["caller"]
+
+
+@pytest.mark.asyncio
+async def test_m2_mutating_provider_structured_output_original_does_not_change_tool_result():
+    original = {"nested": {"values": [1, 2]}}
+    outcome = ProviderExecutionOutcome(
+        status=ToolResultStatus.SUCCESS,
+        structured_output=original,
+    )
+    provider = FixtureProvider(outcome)
+    manager = _manager(provider)
+    execution = await manager.execute_typed(CapabilityRequest("crossrepo.observe"))
+
+    original["nested"]["values"].append("MUTATED")
+    original["injected"] = True
+    outcome.structured_output["nested"]["injected"] = True
+
+    assert execution.tool_result is not None
+    assert execution.tool_result.structured_output == {"nested": {"values": [1, 2]}}
+
+
+@pytest.mark.asyncio
+async def test_m3_mutating_provider_error_original_does_not_change_tool_result():
+    original_error = {"details": {"attempt": 1}}
+    outcome = ProviderExecutionOutcome(
+        status=ToolResultStatus.ERROR,
+        error=original_error,
+    )
+    provider = FixtureProvider(outcome)
+    manager = _manager(provider)
+    execution = await manager.execute_typed(CapabilityRequest("crossrepo.observe"))
+
+    original_error["details"]["attempt"] = 999
+    original_error["injected"] = True
+    outcome.error["details"]["injected"] = True
+
+    assert execution.tool_result is not None
+    assert execution.tool_result.error == {"details": {"attempt": 1}}
+
+
+@pytest.mark.asyncio
+async def test_m4_normal_immutable_and_set_semantics_do_not_regress():
+    original = {"tuple": (1, 2), "members": {"a", "b"}, "flag": True}
+    outcome = ProviderExecutionOutcome(
+        status=ToolResultStatus.SUCCESS,
+        structured_output=original,
+    )
+    provider = FixtureProvider(outcome)
+    manager = _manager(provider)
+    execution = await manager.execute_typed(CapabilityRequest("crossrepo.observe"))
+
+    original["members"].add("MUTATED")
+    original["tuple"] = (9,)
+
+    assert execution.tool_result is not None
+    assert execution.tool_result.structured_output["tuple"] == (1, 2)
+    assert execution.tool_result.structured_output["members"] == {"a", "b"}
+    assert execution.tool_result.structured_output["flag"] is True

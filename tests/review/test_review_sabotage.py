@@ -980,10 +980,11 @@ async def test_q3_browser_field_inserted_after_build_never_reaches_provider():
     request.arguments["tab_id"] = 999
     request.arguments["browser_session_id"] = "bs_1"
     request.arguments["dom_selector"] = "#send"
-    execution = await manager.execute_typed(request)
-    assert real.execute_calls == 1
-    for key in ("tab_id", "browser_session_id", "dom_selector"):
-        assert key not in real.last_request.arguments
+    from julia_core.capability.models import CapabilityRequestAuthorityError
+
+    with pytest.raises(CapabilityRequestAuthorityError, match="browser authority"):
+        await manager.execute_typed(request)
+    assert real.execute_calls == 0
 
 
 @pytest.mark.asyncio
