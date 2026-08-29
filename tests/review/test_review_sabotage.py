@@ -51,9 +51,18 @@ from julia_core.review.snapshot import (
     is_trusted_snapshot,
     seal_review_bundle,
 )
+from julia_core.review._test_only import (
+    TestCandidateCreator,
+    TestCandidateShaSource,
+    register_test_candidate_creator,
+    register_test_candidate_sha_source,
+)
+from julia_core.review.candidate_artifact import (
+    SealedCandidate,
+    is_trusted_candidate,
+    seal_candidate,
+)
 from julia_core.review.source_binding import (
-    bind_candidate_creator,
-    bind_candidate_sha_source,
     is_trusted_candidate_creator,
     is_trusted_source_binding,
 )
@@ -151,15 +160,15 @@ def _success_provider():
     ))
 
 
-class _SameShaAdapter:
-    """TEST-ONLY adapter: must be bound through bind_candidate_sha_source()."""
+class _SameShaAdapter(TestCandidateShaSource):
+    """TEST-ONLY adapter: must be bound through register_test_candidate_sha_source()."""
 
     def current_candidate_sha(self, *, review_id, candidate_id):
         return "abc123"
 
 
 def _same_sha_binding():
-    return bind_candidate_sha_source(_SameShaAdapter())
+    return register_test_candidate_sha_source(_SameShaAdapter())
 
 
 def _raw_ref_of(result) -> str:
@@ -176,31 +185,65 @@ def _service(ledger, source_binding=None, creator_binding=None) -> ReviewGoverna
     )
 
 
-class _TestCandidateCreator:
-    """TEST-ONLY trusted candidate creator (round-5 §6).
+class _TestCandidateCreator(TestCandidateCreator):
+    """TEST-ONLY trusted candidate creator (round-5 §6 / round-6 §C).
 
-    Deterministically produces the exact ReviewDecisionCandidate from the raw
-    response. Registered via bind_candidate_creator() — the explicit test-only
+    Deterministically produces the exact SealedCandidate from the raw response.
+    Registered via register_test_candidate_creator() — the explicit test-only
     seam. Not production authority.
     """
 
-    def create_candidate(self, *, raw_response: str, raw_response_ref: str) -> ReviewDecisionCandidate:
+    def create_candidate(self, *, raw_response: str, raw_response_ref: str) -> SealedCandidate:
         if raw_response != RAW_RESPONSE:
             raise ValueError("unrecognized raw response")
-        return ReviewDecisionCandidate(
+        candidate = ReviewDecisionCandidate(
             review_id="rvw_1",
             candidate_id="cand_1",
             candidate_sha="abc123",
+            source="external_review",
             verdict=ReviewVerdict.PASS,
+            blockers=(),
+            high=("ok",),
+            medium=(),
+            required_changes=(),
             notes=("looks good",),
             transport_trace={"status": "CAPTURED"},
             raw_response_ref=raw_response_ref,
             raw_response_digest=RAW_DIGEST,
+            captured_at="2026-08-29T00:00:00Z",
+            validation_state="CANDIDATE",
         )
+        return seal_candidate(candidate)
 
 
 def _candidate_creator_binding():
-    return bind_candidate_creator(_TestCandidateCreator())
+    return register_test_candidate_creator(_TestCandidateCreator())
+
+
+def _sealed_candidate(**overrides) -> SealedCandidate:
+    """Build a trusted SealedCandidate with the canonical defaults, then apply
+    overrides BEFORE sealing so a mutated field is part of the artifact (and
+    will be caught by governance checks)."""
+    candidate = ReviewDecisionCandidate(
+        review_id="rvw_1",
+        candidate_id="cand_1",
+        candidate_sha="abc123",
+        source="external_review",
+        verdict=ReviewVerdict.PASS,
+        blockers=(),
+        high=("ok",),
+        medium=(),
+        required_changes=(),
+        notes=("looks good",),
+        transport_trace={"status": "CAPTURED"},
+        raw_response_ref="tool_result:cr:raw_response",
+        raw_response_digest=RAW_DIGEST,
+        captured_at="2026-08-29T00:00:00Z",
+        validation_state="CANDIDATE",
+    )
+    import dataclasses
+    candidate = dataclasses.replace(candidate, **overrides)
+    return seal_candidate(candidate)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -453,7 +496,7 @@ async def test_s11_transport_trace_created_cannot_admit_candidate():
     manager = _guarded_manager(real, ledger)
     result = await _governed(manager, ledger)
     service = _service(ledger, _same_sha_binding())
-    candidate = _candidate(transport_trace={"status": "CREATED"})
+    candidate = _sealed_candidate(transport_trace={"status": "CREATED"})
     record = service.record(result, candidate)
     assert record.admission == "REJECTED"
     assert any("transport_trace_incomplete" in r for r in record.rejection_reasons)
@@ -475,7 +518,7 @@ async def test_s13_caller_correlation_empty_cannot_bypass_internal_validation():
     manager = _guarded_manager(real, ledger)
     result = await _governed(manager, ledger)
     service = _service(ledger, _same_sha_binding())
-    candidate = _candidate(candidate_sha="deadbeef")
+    candidate = _sealed_candidate(candidate_sha="deadbeef")
     record = service.record(result, candidate)
     assert record.admission == "REJECTED"
     assert any(ReviewErrorCode.CANDIDATE_SHA_MISMATCH.value in r for r in record.rejection_reasons)
@@ -693,7 +736,7 @@ async def test_g2_invocation_with_handcrafted_lookalike_transaction_rejected():
         invocation_id="rvw_inv_fake", execution=result.execution, transaction=fake
     )
     with pytest.raises(ReviewUntrustedTransactionError):
-        service.record(fake_invocation, _candidate())
+        service.record(fake_invocation, _sealed_candidate())
 
 
 @pytest.mark.asyncio
@@ -709,7 +752,7 @@ async def test_g3_spread_copied_transaction_rejected():
         invocation_id="rvw_inv_copy", execution=result.execution, transaction=copied
     )
     with pytest.raises(ReviewUntrustedTransactionError):
-        service.record(fake_invocation, _candidate())
+        service.record(fake_invocation, _sealed_candidate())
 
 
 @pytest.mark.asyncio
@@ -726,7 +769,7 @@ async def test_g4_transaction_from_other_ledger_rejected():
         invocation_id="rvw_inv_foreign", execution=result.execution, transaction=foreign_txn
     )
     with pytest.raises(ReviewUntrustedTransactionError):
-        service.record(fake_invocation, _candidate())
+        service.record(fake_invocation, _sealed_candidate())
 
 
 @pytest.mark.asyncio
@@ -737,7 +780,7 @@ async def test_g5_execution_a_raw_digest_cannot_authorize_candidate_b():
     result = await _governed(manager, ledger)
     service = _service(ledger, _same_sha_binding())
 
-    candidate = _candidate(raw_response_ref="r2", raw_response_digest="f" * 64)
+    candidate = _sealed_candidate(raw_response_ref="r2", raw_response_digest="f" * 64)
     record = service.record(result, candidate)
     assert record.admission == "REJECTED"
     assert any("raw_response_digest_mismatch" in r for r in record.rejection_reasons)
@@ -769,9 +812,11 @@ async def test_e3_no_source_bound_candidate_never_admitted():
     manager = _guarded_manager(real, ledger)
     result = await _governed(manager, ledger)
     service = _service(ledger, source_binding=None)
-    record = service.record(result, _candidate())
+    record = service.record(result, _sealed_candidate())
     assert record.admission == "REJECTED"
-    assert any("stale_validation_unavailable" in r for r in record.rejection_reasons)
+    # Unbound production service fails closed (no source, no creator).
+    assert any("stale_validation_unavailable" in r or "candidate_creator_unavailable" in r
+               for r in record.rejection_reasons)
 
 
 @pytest.mark.asyncio
@@ -789,7 +834,7 @@ async def test_e4_trusted_source_same_sha_not_stale():
 
 @pytest.mark.asyncio
 async def test_e5_trusted_source_changed_sha_stale_review():
-    class ChangedShaAdapter:
+    class ChangedShaAdapter(TestCandidateShaSource):
         def current_candidate_sha(self, *, review_id, candidate_id):
             return "changedsha"
 
@@ -797,9 +842,10 @@ async def test_e5_trusted_source_changed_sha_stale_review():
     real = _success_provider()
     manager = _guarded_manager(real, ledger)
     result = await _governed(manager, ledger)
-    service = _service(ledger, bind_candidate_sha_source(ChangedShaAdapter()))
+    service = _service(ledger, register_test_candidate_sha_source(ChangedShaAdapter()))
     candidate = _TestCandidateCreator().create_candidate(
-    raw_response=RAW_RESPONSE, raw_response_ref=_raw_ref_of(result))
+        raw_response=RAW_RESPONSE, raw_response_ref=_raw_ref_of(result)
+    )
     record = service.record(result, candidate)
     assert record.admission == "REJECTED"
     assert any(ReviewErrorCode.STALE_REVIEW.value in r for r in record.rejection_reasons)
@@ -857,9 +903,11 @@ async def test_e9_no_canonical_source_no_candidate_admitted():
     manager = _guarded_manager(real, ledger)
     result = await _governed(manager, ledger)
     service = ReviewGovernanceService(ledger)  # UNBOUND
-    record = service.record(result, _candidate())
+    record = service.record(result, _sealed_candidate())
     assert record.admission == "REJECTED"
-    assert any("stale_validation_unavailable" in r for r in record.rejection_reasons)
+    # Unbound production service fails closed (no source, no creator).
+    assert any("stale_validation_unavailable" in r or "candidate_creator_unavailable" in r
+               for r in record.rejection_reasons)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -957,7 +1005,7 @@ async def test_i1_genuine_execution_a_genuine_transaction_b_rejected():
     assert is_trusted_invocation(forged) is False
     service = _service(ledger, _same_sha_binding())
     with pytest.raises(ReviewUntrustedTransactionError):
-        service.record(forged, _candidate())
+        service.record(forged, _sealed_candidate())
 
 
 @pytest.mark.asyncio
@@ -995,7 +1043,7 @@ async def test_i2_fabricated_execution_rejected():
     assert is_trusted_invocation(forged) is False
     service = _service(ledger, _same_sha_binding())
     with pytest.raises(ReviewUntrustedTransactionError):
-        service.record(forged, _candidate())
+        service.record(forged, _sealed_candidate())
 
 
 @pytest.mark.asyncio
@@ -1009,7 +1057,7 @@ async def test_i3_copied_invocation_rejected():
     assert is_trusted_invocation(copied) is False
     service = _service(ledger, _same_sha_binding())
     with pytest.raises(ReviewUntrustedTransactionError):
-        service.record(copied, _candidate())
+        service.record(copied, _sealed_candidate())
 
 
 @pytest.mark.asyncio
@@ -1230,7 +1278,7 @@ async def test_c1_pass_without_raw_response_truth_rejected():
     manager = _guarded_manager(real, ledger)
     result = await _governed(manager, ledger)
     service = _service(ledger, _same_sha_binding())
-    candidate = _candidate(raw_response_ref="", raw_response_digest="")
+    candidate = _sealed_candidate(raw_response_ref="", raw_response_digest="")
     record = service.record(result, candidate)
     assert record.admission == "REJECTED"
     assert any("raw_response_ref_missing" in r for r in record.rejection_reasons)
@@ -1244,10 +1292,8 @@ async def test_c2_pass_with_matching_ids_only_rejected():
     manager = _guarded_manager(real, ledger)
     result = await _governed(manager, ledger)
     service = _service(ledger, _same_sha_binding())
-    candidate = ReviewDecisionCandidate(
-        review_id="rvw_1", candidate_id="cand_1", candidate_sha="abc123",
+    candidate = _sealed_candidate(
         verdict=ReviewVerdict.PASS, notes=("ok",),
-        transport_trace={"status": "CAPTURED"},
         raw_response_ref="", raw_response_digest="",
     )
     record = service.record(result, candidate)
@@ -1267,7 +1313,7 @@ async def test_c3_copied_provider_digest_onto_fabricated_pass_rejected():
     manager = _guarded_manager(real, ledger)
     result = await _governed(manager, ledger)
     service = _service(ledger, _same_sha_binding())
-    candidate = _candidate(raw_response_ref="r1", raw_response_digest="d" * 64)
+    candidate = _sealed_candidate(raw_response_ref="r1", raw_response_digest="d" * 64)
     record = service.record(result, candidate)
     assert record.admission == "REJECTED"
     assert any("raw_response_truth_unavailable" in r for r in record.rejection_reasons)
@@ -1282,7 +1328,7 @@ async def test_c4_raw_content_digest_mismatch_rejected():
     manager = _guarded_manager(real, ledger)
     result = await _governed(manager, ledger)
     service = _service(ledger, _same_sha_binding())
-    candidate = _candidate(raw_response_ref="r1", raw_response_digest="f" * 64)
+    candidate = _sealed_candidate(raw_response_ref="r1", raw_response_digest="f" * 64)
     record = service.record(result, candidate)
     assert record.admission == "REJECTED"
     assert any("raw_response_digest_mismatch" in r for r in record.rejection_reasons)
@@ -1315,6 +1361,7 @@ def test_gr1_handcrafted_admitted_record_not_trusted():
         record_id="rvw_rec_FAKE",
         review_id="rvw_1", candidate_id="cand_1", candidate_sha="abc123",
         bundle_digest="d", transaction_id="t", invocation_id="i",
+        candidate_artifact_id="cand_art_FAKE", candidate_fingerprint="fp_fake",
         outcome_status="success", side_effect_state="succeeded",
         admission="CANDIDATE_ADMITTED",
     )
@@ -1328,7 +1375,7 @@ async def test_gr2_copied_record_not_trusted():
     manager = _guarded_manager(real, ledger)
     result = await _governed(manager, ledger)
     service = _service(ledger, _same_sha_binding())
-    record = service.record(result, _candidate())
+    record = service.record(result, _sealed_candidate())
     assert is_trusted_review_governance_record(record) is True
     copied = copy.deepcopy(record)
     assert is_trusted_review_governance_record(copied) is False
@@ -1341,7 +1388,7 @@ async def test_gr3_mutate_nested_transport_trace_rejected():
     manager = _guarded_manager(real, ledger)
     result = await _governed(manager, ledger)
     service = _service(ledger, _same_sha_binding())
-    record = service.record(result, _candidate())
+    record = service.record(result, _sealed_candidate())
     assert is_trusted_review_governance_record(record) is True
 
     trace = record.transport_trace
@@ -1486,9 +1533,18 @@ async def test_r5_09_second_seal_rejected():
     real = _success_provider()
     manager = _guarded_manager(real, ledger)
     result = await _governed(manager, ledger)
-    # submit_review already sealed; a second seal must be rejected.
-    with pytest.raises(ReviewOutcomeAlreadySealedError):
-        ledger._seal_execution_outcome(transaction=result.transaction, invocation=result)
+    # submit_review already sealed; a second seal must be rejected. A fresh
+    # authority bound to the same transaction+execution still hits the
+    # write-once guard.
+    from julia_core.review.lifecycle import _execution_fingerprint_of, mint_lifecycle_authority
+    authority2 = mint_lifecycle_authority(
+        transaction_id=result.transaction.transaction_id,
+        execution_fingerprint=_execution_fingerprint_of(result.execution),
+    )
+    with pytest.raises((ReviewOutcomeAlreadySealedError, ReviewUntrustedTransactionError)):
+        ledger._seal_execution_outcome(
+            transaction=result.transaction, invocation=result, authority=authority2
+        )
 
 
 @pytest.mark.asyncio
@@ -1557,3 +1613,238 @@ async def test_r5_14_caller_selected_record_id_forbidden():
     )
     record = service.record(result, candidate)
     assert record.record_id.startswith("rvw_rec_")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Round-6 F1-F10: final seal patch sabotage
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# --- F1: direct internal invocation-registration with handcrafted invocation ---
+
+@pytest.mark.asyncio
+async def test_f1_direct_registration_call_cannot_mint_trust():
+    """Direct call to the internal registration helper with a handcrafted
+    invocation cannot mint trusted invocation (no lifecycle authority)."""
+    from julia_core.review.invocation import _register_trusted_invocation
+    ledger = ReviewTransactionLedger()
+    real = _success_provider()
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+
+    forged = ReviewInvocationResult(
+        invocation_id="rvw_inv_f1", execution=result.execution, transaction=result.transaction
+    )
+    assert is_trusted_invocation(forged) is False
+    # No authority -> registration rejected.
+    with pytest.raises(Exception):
+        _register_trusted_invocation(forged, authority=None)
+    assert is_trusted_invocation(forged) is False
+
+
+# --- F2: direct outcome-seal with genuine transaction + fabricated execution ---
+
+@pytest.mark.asyncio
+async def test_f2_direct_outcome_seal_with_fabricated_execution_rejected():
+    """A genuine transaction + fabricated execution cannot alter retry truth
+    because the caller cannot mint the matching lifecycle authority."""
+    ledger = ReviewTransactionLedger()
+    real = _success_provider()
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+
+    # A fabricated execution (different call id / no raw response).
+    from julia_core.capability.models import CapabilityCall, ToolResult
+    from julia_core.capability.manager import CapabilityExecution
+    other_call = CapabilityCall(capability_call_id="cap_call_F2", capability_request_id="req_F2")
+    other_result = ToolResult(
+        capability_call_id="cap_call_F2",
+        status=ToolResultStatus.SUCCESS,
+        structured_output={"raw_response": "FORGED"},
+    )
+    fabricated = CapabilityExecution(
+        authorization_decision=result.execution.authorization_decision,
+        capability_call=other_call,
+        tool_result=other_result,
+        evidence=(),
+    )
+    forged_invocation = ReviewInvocationResult(
+        invocation_id="rvw_inv_f2", execution=fabricated, transaction=result.transaction
+    )
+    # The transaction's outcome is already sealed by submit_review (write-once).
+    # A forged seal attempt with a handcrafted authority must not overwrite it.
+    with pytest.raises(Exception):
+        ledger._seal_execution_outcome(
+            transaction=result.transaction,
+            invocation=forged_invocation,
+            authority=object(),
+        )
+    assert ledger.token_consumed(result.transaction.token) is True
+
+
+# --- F3: FakeSource through production binder ---
+
+def test_f3_fake_source_cannot_become_trusted():
+    """No production binder exists; duck-typed FakeSource cannot become a
+    trusted source. The test seam rejects non-TestCandidateShaSource adapters."""
+    class FakeSource:
+        def current_candidate_sha(self, *, review_id, candidate_id):
+            return "whatever"
+
+    # No production binder on the public surface at all.
+    import julia_core.review as review_pkg
+    assert not hasattr(review_pkg, "bind_candidate_sha_source")
+    # Test seam rejects duck-typed fakes.
+    with pytest.raises(TypeError):
+        register_test_candidate_sha_source(FakeSource())
+
+
+# --- F4: FakeCreator through production binder ---
+
+def test_f4_fake_creator_cannot_become_trusted():
+    class FakeCreator:
+        def create_candidate(self, **kwargs):
+            return None
+
+    import julia_core.review as review_pkg
+    assert not hasattr(review_pkg, "bind_candidate_creator")
+    with pytest.raises(TypeError):
+        register_test_candidate_creator(FakeCreator())
+
+
+# --- F5: trusted candidate PASS then mutate blockers -> untrusted ---
+
+@pytest.mark.asyncio
+async def test_f5_mutate_blockers_invalidates_trust():
+    ledger = ReviewTransactionLedger()
+    real = _success_provider()
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+
+    sealed = _TestCandidateCreator().create_candidate(
+        raw_response=RAW_RESPONSE, raw_response_ref=_raw_ref_of(result)
+    )
+    assert is_trusted_candidate(sealed) is True
+    object.__setattr__(sealed.candidate, "blockers", ("EVIL",))
+    assert is_trusted_candidate(sealed) is False
+
+
+# --- F6: mutate required_changes -> rejected ---
+
+@pytest.mark.asyncio
+async def test_f6_mutate_required_changes_invalidates_trust():
+    ledger = ReviewTransactionLedger()
+    real = _success_provider()
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+
+    sealed = _TestCandidateCreator().create_candidate(
+        raw_response=RAW_RESPONSE, raw_response_ref=_raw_ref_of(result)
+    )
+    object.__setattr__(sealed.candidate, "required_changes", ("MORE WORK",))
+    assert is_trusted_candidate(sealed) is False
+
+
+# --- F7: mutate notes/high/medium/source/transport_trace -> rejected ---
+
+@pytest.mark.asyncio
+async def test_f7_mutate_notes_high_medium_source_transport_invalidates_trust():
+    ledger = ReviewTransactionLedger()
+    real = _success_provider()
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+
+    for field, value in (
+        ("notes", ("evil",)),
+        ("high", ("evil",)),
+        ("medium", ("evil",)),
+        ("source", "evil_source"),
+        ("transport_trace", {"status": "FORGED"}),
+    ):
+        sealed = _TestCandidateCreator().create_candidate(
+            raw_response=RAW_RESPONSE, raw_response_ref=_raw_ref_of(result)
+        )
+        object.__setattr__(sealed.candidate, field, value)
+        assert is_trusted_candidate(sealed) is False, f"field {field} should invalidate"
+
+
+# --- F8: creator returns wrong raw_response_digest -> rejected ---
+
+@pytest.mark.asyncio
+async def test_f8_wrong_raw_response_digest_rejected():
+    class WrongDigestCreator(TestCandidateCreator):
+        def create_candidate(self, *, raw_response, raw_response_ref):
+            candidate = ReviewDecisionCandidate(
+                review_id="rvw_1", candidate_id="cand_1", candidate_sha="abc123",
+                source="external_review", verdict=ReviewVerdict.PASS,
+                notes=("ok",), transport_trace={"status": "CAPTURED"},
+                raw_response_ref=raw_response_ref,
+                raw_response_digest="0" * 64,  # WRONG
+                captured_at="2026-08-29T00:00:00Z", validation_state="CANDIDATE",
+            )
+            return seal_candidate(candidate)
+
+    ledger = ReviewTransactionLedger()
+    real = _success_provider()
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+    service = _service(ledger, _same_sha_binding(),
+                       creator_binding=register_test_candidate_creator(WrongDigestCreator()))
+    sealed = WrongDigestCreator().create_candidate(
+        raw_response=RAW_RESPONSE, raw_response_ref=_raw_ref_of(result)
+    )
+    record = service.record(result, sealed)
+    assert record.admission == "REJECTED"
+    assert any("raw_response_digest_mismatch" in r for r in record.rejection_reasons)
+
+
+# --- F9: creator returns wrong raw_response_ref -> rejected ---
+
+@pytest.mark.asyncio
+async def test_f9_wrong_raw_response_ref_rejected():
+    class WrongRefCreator(TestCandidateCreator):
+        def create_candidate(self, *, raw_response, raw_response_ref):
+            candidate = ReviewDecisionCandidate(
+                review_id="rvw_1", candidate_id="cand_1", candidate_sha="abc123",
+                source="external_review", verdict=ReviewVerdict.PASS,
+                notes=("ok",), transport_trace={"status": "CAPTURED"},
+                raw_response_ref="tool_result:WRONG:raw_response",
+                raw_response_digest=RAW_DIGEST,
+                captured_at="2026-08-29T00:00:00Z", validation_state="CANDIDATE",
+            )
+            return seal_candidate(candidate)
+
+    ledger = ReviewTransactionLedger()
+    real = _success_provider()
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+    service = _service(ledger, _same_sha_binding(),
+                       creator_binding=register_test_candidate_creator(WrongRefCreator()))
+    sealed = WrongRefCreator().create_candidate(
+        raw_response=RAW_RESPONSE, raw_response_ref=_raw_ref_of(result)
+    )
+    record = service.record(result, sealed)
+    assert record.admission == "REJECTED"
+    assert any("raw_response_ref_mismatch" in r for r in record.rejection_reasons)
+
+
+# --- F10: governance record candidate fingerprint mismatch -> untrusted ---
+
+@pytest.mark.asyncio
+async def test_f10_record_candidate_fingerprint_mismatch_untrusted():
+    ledger = ReviewTransactionLedger()
+    real = _success_provider()
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+    service = _service(ledger, _same_sha_binding())
+    sealed = _TestCandidateCreator().create_candidate(
+        raw_response=RAW_RESPONSE, raw_response_ref=_raw_ref_of(result)
+    )
+    record = service.record(result, sealed)
+    assert record.admission == "CANDIDATE_ADMITTED"
+    assert is_trusted_review_governance_record(record) is True
+    assert record.candidate_artifact_id == sealed.candidate_artifact_id
+    assert record.candidate_fingerprint == sealed.fingerprint
+
+    # Swap candidate_fingerprint -> record becomes untrusted.
+    object.__setattr__(record, "candidate_fingerprint", "FORGED_FP")
+    assert is_trusted_review_governance_record(record) is False

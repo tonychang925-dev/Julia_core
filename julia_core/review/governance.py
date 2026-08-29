@@ -34,6 +34,10 @@ import time as _time
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from julia_core.review.candidate_artifact import (
+    SealedCandidate,
+    is_trusted_candidate,
+)
 from julia_core.review.contracts import ReviewDecisionCandidate, ReviewTransportTrace
 from julia_core.review.digest import compute_text_digest
 from julia_core.review.invocation import ReviewInvocationResult, is_trusted_invocation
@@ -72,6 +76,8 @@ class ReviewGovernanceRecord:
     bundle_digest: str
     transaction_id: str
     invocation_id: str
+    candidate_artifact_id: str          # exact trusted candidate artifact (round-6 §D)
+    candidate_fingerprint: str          # full candidate fingerprint (round-6 §D)
     outcome_status: str
     side_effect_state: str
     admission: str          # "CANDIDATE_ADMITTED" | "REJECTED"
@@ -101,6 +107,8 @@ def _record_fingerprint(record: ReviewGovernanceRecord) -> str:
         "bundle_digest": record.bundle_digest,
         "transaction_id": record.transaction_id,
         "invocation_id": record.invocation_id,
+        "candidate_artifact_id": record.candidate_artifact_id,
+        "candidate_fingerprint": record.candidate_fingerprint,
         "outcome_status": record.outcome_status,
         "side_effect_state": record.side_effect_state,
         "admission": record.admission,
@@ -199,7 +207,7 @@ class ReviewGovernanceService:
     def record(
         self,
         invocation: ReviewInvocationResult,
-        candidate: ReviewDecisionCandidate,
+        candidate: SealedCandidate,
         *,
         provenance: dict[str, Any] | None = None,
     ) -> ReviewGovernanceRecord:
@@ -237,10 +245,23 @@ class ReviewGovernanceService:
 
         reasons: list[str] = []
 
-        correlation_errors = validate_review_correlation(transaction.snapshot, candidate)
+        # §C (round-6): candidate admission requires a TRUSTED candidate creator
+        # binding (unbound -> NO CANDIDATE_ADMITTED) AND the exact trusted
+        # sealed candidate artifact. A subset of matching fields (ids + digest)
+        # is NOT proof; mutation/copy/reconstruction invalidates trust.
+        if self._candidate_creator_binding is None or not is_trusted_candidate_creator(self._candidate_creator_binding):
+            reasons.append(
+                "candidate_creator_unavailable:no trusted candidate parser/creator bound; "
+                "candidate admission fails closed (§6)"
+            )
+        if not is_trusted_candidate(candidate):
+            reasons.append("candidate_not_trusted:not the exact trusted candidate artifact")
+        candidate_obj = candidate.candidate if isinstance(candidate, SealedCandidate) else candidate
+
+        correlation_errors = validate_review_correlation(transaction.snapshot, candidate_obj)
         reasons.extend(correlation_errors)
 
-        transport_errors = validate_transport_completion(candidate, outcome_status)
+        transport_errors = validate_transport_completion(candidate_obj, outcome_status)
         reasons.extend(transport_errors)
 
         # Stale check: TRUSTED binding adapter only (E6-E9). Unbound -> closed.
@@ -258,48 +279,25 @@ class ReviewGovernanceService:
                 except Exception as exc:
                     reasons.append(str(exc))
 
-        # §6 (C1-C5 + candidate-provenance): raw-response truth must bind to an
-        # EXACT candidate judgment produced by a TRUSTED candidate creator.
+        # §6/§C: raw-response truth must bind to the exact trusted candidate
+        # judgment. Core computes the digest from the exact raw response and
+        # requires exact raw_response_ref + digest equality. The trusted
+        # creator produced the artifact over the same raw observation.
         expected_digest, raw_ref = _expected_raw_digest_from_execution(invocation)
-        creator_binding = self._candidate_creator_binding
         if expected_digest is None:
             reasons.append(
                 "raw_response_truth_unavailable:no trusted raw-response observation "
                 "in the exact execution"
             )
-        elif creator_binding is None or not is_trusted_candidate_creator(creator_binding):
-            reasons.append(
-                "candidate_creator_unavailable:no trusted candidate parser/creator bound; "
-                "candidate admission fails closed (§6)"
-            )
         else:
-            # The candidate must be the exact output of the trusted creator over
-            # the exact raw response — matching IDs + digest alone is NOT proof.
-            try:
-                creator = _resolve_creator(creator_binding)
-                expected = creator.create_candidate(
-                    raw_response=_raw_content_of(invocation),
-                    raw_response_ref=raw_ref,
-                )
-            except Exception as exc:
-                reasons.append(f"candidate_creator_error:{exc}")
-                expected = None
-
-            if expected is not None:
-                if candidate.raw_response_ref != expected.raw_response_ref:
-                    reasons.append("raw_response_ref_mismatch")
-                if candidate.raw_response_digest != expected.raw_response_digest:
-                    reasons.append("raw_response_digest_mismatch")
-                if candidate.verdict != expected.verdict:
-                    reasons.append("candidate_verdict_mismatch")
-                if (
-                    candidate.review_id != expected.review_id
-                    or candidate.candidate_id != expected.candidate_id
-                    or candidate.candidate_sha != expected.candidate_sha
-                ):
-                    reasons.append("candidate_binding_mismatch")
-                if not candidate.raw_response_ref:
-                    reasons.append("raw_response_ref_missing")
+            if not candidate_obj.raw_response_ref:
+                reasons.append("raw_response_ref_missing")
+            elif candidate_obj.raw_response_ref != raw_ref:
+                reasons.append("raw_response_ref_mismatch")
+            if not candidate_obj.raw_response_digest:
+                reasons.append("raw_response_digest_missing")
+            elif candidate_obj.raw_response_digest != expected_digest:
+                reasons.append("raw_response_digest_mismatch")
 
         admitted = not reasons
 
@@ -319,13 +317,15 @@ class ReviewGovernanceService:
             bundle_digest=transaction.bundle_digest,
             transaction_id=transaction.transaction_id,
             invocation_id=invocation.invocation_id,
+            candidate_artifact_id=candidate.candidate_artifact_id,
+            candidate_fingerprint=candidate.fingerprint,
             outcome_status=outcome_status,
             side_effect_state=side_effect_state,
             admission="CANDIDATE_ADMITTED" if admitted else "REJECTED",
             rejection_reasons=tuple(reasons),
-            raw_response_ref=candidate.raw_response_ref or "",
-            raw_response_digest=candidate.raw_response_digest or "",
-            transport_trace=_deep_seal(candidate.transport_trace),
+            raw_response_ref=candidate_obj.raw_response_ref or "",
+            raw_response_digest=candidate_obj.raw_response_digest or "",
+            transport_trace=_deep_seal(candidate_obj.transport_trace),
             provenance=_deep_seal(dict(provenance or {})),
         )
         _TRUSTED_RECORDS[record.record_id] = (record, _record_fingerprint(record))

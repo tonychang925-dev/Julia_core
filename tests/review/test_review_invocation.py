@@ -43,7 +43,6 @@ from julia_core.review.registration import (
     register_external_review_capability,
 )
 from julia_core.review.snapshot import seal_review_bundle
-from julia_core.review.source_binding import bind_candidate_sha_source
 from julia_core.review.transaction import ReviewTransactionLedger
 
 RAW_RESPONSE = "VERDICT: PASS\nBLOCKERS:\n- none\n"

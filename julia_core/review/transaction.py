@@ -315,9 +315,15 @@ class ReviewTransactionLedger:
         *,
         transaction: ReviewTransaction,
         invocation,
+        authority,
     ) -> None:
         """WRITE-ONCE seal of retry truth derived from an EXACT trusted
-        invocation's ToolResult (round-5 §4).
+        invocation's ToolResult (round-5 §4 + round-6 §A).
+
+        Requires the opaque lifecycle authority minted by submit_review bound
+        to the exact transaction + execution. Underscore naming is NOT
+        authority: a fabricated execution cannot seal retry truth because the
+        caller cannot produce the matching authority.
 
         - never accepts caller-selected outcome_status / side_effect_state as
           authority
@@ -325,9 +331,23 @@ class ReviewTransactionLedger:
         - UNKNOWN can never be rewritten into FAILED/NONE
         - missing outcome remains retry-forbidden (mint() enforces this)
         """
+        from julia_core.review.lifecycle import (
+            _execution_fingerprint_of,
+            authorize_outcome_seal,
+        )
+
         if not self.owns_transaction(transaction):
             raise ReviewUntrustedTransactionError(
                 "cannot record outcome for a non-owned transaction"
+            )
+        if not authorize_outcome_seal(
+            authority,
+            transaction_id=transaction.transaction_id,
+            execution_fingerprint=_execution_fingerprint_of(invocation.execution),
+        ):
+            raise ReviewUntrustedTransactionError(
+                "outcome seal requires the opaque lifecycle authority minted by "
+                "submit_review for the exact transaction+execution; forged seal rejected"
             )
         result = invocation.execution.tool_result
         outcome_status = (
