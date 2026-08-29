@@ -27,6 +27,7 @@ from julia_core.capability.models import (
     CapabilityResult,
     ProviderExecutionOutcome,
     CapabilityStatus,
+    sanitize_capability_request_authority,
     Evidence,
     EvidenceSourceType,
     SideEffectState,
@@ -246,6 +247,11 @@ class CapabilityManager:
         """
         start = _time.time()
 
+        # Generic authority boundary: request arguments and provenance are
+        # semantic inputs only. They cannot select a provider/transport or carry
+        # browser session authority into a product-owned provider adapter.
+        request = sanitize_capability_request_authority(request)
+
         if definition.status == CapabilityStatus.DEGRADED:
             # DEGRADED means we attempt but record the risk.
             pass
@@ -354,8 +360,10 @@ class CapabilityManager:
     def _normalize_provider_execution_outcome(raw: dict[str, Any] | ProviderExecutionOutcome) -> ProviderExecutionOutcome:
         """Normalize provider return after execute() and before Evidence/ToolResult.
 
-        Legacy dict providers remain SUCCESS + SideEffectState.NONE. Typed
-        outcomes preserve exact status/output/error/side-effect truth.
+        Legacy dict providers without a failure declaration remain SUCCESS +
+        SideEffectState.NONE. Explicit legacy failure statuses are preserved,
+        and a legacy DENIED declaration is rejected as provider authority.
+        Typed outcomes preserve exact status/output/error/side-effect truth.
         """
         if isinstance(raw, ProviderExecutionOutcome):
             # Reconstruct to runtime-validate even if a frozen fixture was mutated
@@ -367,6 +375,41 @@ class CapabilityManager:
                 side_effect_state=raw.side_effect_state,
             )
         if isinstance(raw, dict):
+            declared_status = raw.get("status")
+            if isinstance(declared_status, str):
+                status_text = declared_status.strip().lower()
+                if status_text == ToolResultStatus.DENIED.value:
+                    raise ValueError(
+                        "legacy dict provider cannot mint DENIED; authorization "
+                        "truth belongs to PermissionPolicy/CapabilityManager"
+                    )
+                if status_text in {
+                    ToolResultStatus.UNAVAILABLE.value,
+                    ToolResultStatus.ERROR.value,
+                    ToolResultStatus.TIMEOUT.value,
+                    ToolResultStatus.CANCELLED.value,
+                    ToolResultStatus.PARTIAL.value,
+                }:
+                    return ProviderExecutionOutcome(
+                        status=ToolResultStatus(status_text),
+                        structured_output=dict(raw),
+                        error=self._legacy_dict_error(raw, status_text),
+                        side_effect_state=SideEffectState.NONE,
+                    )
+                if status_text not in {"", "success", "ok", "empty"}:
+                    return ProviderExecutionOutcome(
+                        status=ToolResultStatus.ERROR,
+                        structured_output=dict(raw),
+                        error=self._legacy_dict_error(raw, status_text),
+                        side_effect_state=SideEffectState.NONE,
+                    )
+            elif raw.get("error") is not None:
+                return ProviderExecutionOutcome(
+                    status=ToolResultStatus.ERROR,
+                    structured_output=dict(raw),
+                    error=self._legacy_dict_error(raw, "provider_error"),
+                    side_effect_state=SideEffectState.NONE,
+                )
             return ProviderExecutionOutcome(
                 status=ToolResultStatus.SUCCESS,
                 structured_output=dict(raw),
@@ -374,6 +417,15 @@ class CapabilityManager:
                 side_effect_state=SideEffectState.NONE,
             )
         raise ValueError(f"provider returned unsupported outcome type: {type(raw).__name__}")
+
+    @staticmethod
+    def _legacy_dict_error(raw: dict[str, Any], status_code: str) -> dict[str, Any]:
+        error = raw.get("error")
+        if isinstance(error, dict):
+            return dict(error)
+        if error is None or error == "":
+            return {"code": status_code, "message": status_code}
+        return {"code": status_code, "message": str(error)}
 
     @staticmethod
     def _map_tool_status_to_call_status(status: ToolResultStatus | str) -> CapabilityCallStatus:

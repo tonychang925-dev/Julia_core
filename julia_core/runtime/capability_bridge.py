@@ -45,6 +45,10 @@ class CapabilityPreAuthorizationFailure:
     reason: str  # "UNKNOWN" | "DISABLED"
 
 
+class ProviderAlreadyRegisteredError(RuntimeError):
+    """A different provider is already bound to a provider namespace."""
+
+
 class _UnavailableAiThemeProvider:
     """Explicitly-unavailable provider for failed ai_theme initialization.
 
@@ -114,6 +118,37 @@ class RuntimeCapabilityBridge:
         self._manager: Optional[CapabilityManager] = None
         self._initialized = False
 
+    def register_provider(self, provider_name: str, provider: object) -> None:
+        """Bind one product-owned implementation to a Core provider namespace.
+
+        This is only an implementation binding. It registers no capability,
+        grants no scope, changes no provider selection, and imports no product
+        transport type. ``CapabilityDefinition.provider`` remains the sole
+        selector and ``PermissionPolicy`` remains the sole authorization owner.
+        """
+        if not isinstance(provider_name, str) or not provider_name:
+            raise ValueError("provider_name must be a non-empty string")
+        if not callable(getattr(provider, "execute", None)):
+            raise TypeError("provider must implement execute(request)")
+        if not callable(getattr(provider, "health", None)):
+            raise TypeError("provider must implement health()")
+
+        existing = self._providers.get(provider_name)
+        if existing is not None and existing is not provider:
+            raise ProviderAlreadyRegisteredError(
+                f"provider namespace '{provider_name}' is already bound"
+            )
+        if self._initialized and self._manager is not None:
+            existing_managed = self._manager.providers.get(provider_name)
+            if existing_managed is not None and existing_managed is not provider:
+                raise ProviderAlreadyRegisteredError(
+                    f"manager provider namespace '{provider_name}' is already bound"
+                )
+
+        self._providers[provider_name] = provider
+        if self._initialized and self._manager is not None:
+            self._manager.providers[provider_name] = provider
+
     # ── Initialization ──────────────────────────────────────────────────
 
     def initialize(self):
@@ -126,11 +161,12 @@ class RuntimeCapabilityBridge:
         from julia_core.capability.providers.local.file_search import FileSearchProvider
         from julia_core.capability.providers.local.directory_list import DirectoryListProvider
 
-        self._providers["local"] = LocalProviderRouter({
-            "file.read": FileReadProvider(),
-            "file.search": FileSearchProvider(),
-            "file.list": DirectoryListProvider(),
-        })
+        if "local" not in self._providers:
+            self._providers["local"] = LocalProviderRouter({
+                "file.read": FileReadProvider(),
+                "file.search": FileSearchProvider(),
+                "file.list": DirectoryListProvider(),
+            })
 
         # Register local capabilities
         self.registry.register_definition(CapabilityDefinition(

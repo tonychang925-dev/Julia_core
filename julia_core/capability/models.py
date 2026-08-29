@@ -33,6 +33,10 @@ class CapabilityStatus(str, Enum):
     DISABLED    = "disabled"     # Explicitly turned off
 
 
+class CapabilityRequestAuthorityError(ValueError):
+    """A caller attempted to embed non-semantic transport/provider authority."""
+
+
 # ── Capability Layer ────────────────────────────────────────────────────────
 
 class CapabilityLayer(str, Enum):
@@ -169,6 +173,114 @@ class CapabilityRequest:
             "requested_at": self.requested_at,
             "provenance": dict(self.provenance),
         }
+
+
+_FORBIDDEN_TOP_LEVEL_AUTHORITY_KEYS = frozenset({
+    "adapter",
+    "base_url",
+    "endpoint",
+    "network_policy",
+    "protocol",
+    "provider",
+    "provider_id",
+    "provider_name",
+    "proxy",
+    "selected_provider",
+    "transport",
+})
+
+_FORBIDDEN_RECURSIVE_AUTHORITY_KEYS = frozenset({
+    "browser_command",
+    "browser_session_id",
+    "browser_session_ref",
+    "chatgpt_url",
+    "conversation_url",
+    "dom_selector",
+    "extension_nonce",
+    "tab_id",
+    "tab_ref",
+})
+
+
+def _find_recursive_authority_keys(value: Any) -> set[str]:
+    found: set[str] = set()
+    stack: list[Any] = [value]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, dict):
+            for key, child in current.items():
+                name = str(key)
+                if name in _FORBIDDEN_RECURSIVE_AUTHORITY_KEYS:
+                    found.add(name)
+                stack.append(child)
+        elif isinstance(current, (list, tuple)):
+            stack.extend(current)
+    return found
+
+
+def validate_capability_request_authority(request: CapabilityRequest) -> None:
+    """Reject caller-supplied provider, transport, or browser authority."""
+    top_level = set(request.arguments) | set(request.provenance)
+    forbidden_top_level = top_level & _FORBIDDEN_TOP_LEVEL_AUTHORITY_KEYS
+    if forbidden_top_level:
+        raise CapabilityRequestAuthorityError(
+            "caller-supplied provider/transport authority is forbidden: "
+            + ", ".join(sorted(forbidden_top_level))
+        )
+
+    forbidden_browser = (
+        _find_recursive_authority_keys(request.arguments)
+        | _find_recursive_authority_keys(request.provenance)
+    )
+    if forbidden_browser:
+        raise CapabilityRequestAuthorityError(
+            "caller-supplied browser authority is forbidden: "
+            + ", ".join(sorted(forbidden_browser))
+        )
+
+
+def _without_recursive_browser_authority(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _without_recursive_browser_authority(child)
+            for key, child in value.items()
+            if str(key) not in _FORBIDDEN_RECURSIVE_AUTHORITY_KEYS
+        }
+    if isinstance(value, list):
+        return [_without_recursive_browser_authority(child) for child in value]
+    if isinstance(value, tuple):
+        return tuple(_without_recursive_browser_authority(child) for child in value)
+    return value
+
+
+def sanitize_capability_request_authority(request: CapabilityRequest) -> CapabilityRequest:
+    """Return the provider-visible semantic request without browser authority.
+
+    Provider/transport-selection fields are rejected rather than silently
+    rewritten. Browser authority is removed recursively so product transport
+    adapters receive only Core-owned semantic inputs. The original caller-owned
+    request is not mutated and is not shared with the provider.
+    """
+    top_level = set(request.arguments) | set(request.provenance)
+    forbidden_top_level = top_level & _FORBIDDEN_TOP_LEVEL_AUTHORITY_KEYS
+    if forbidden_top_level:
+        raise CapabilityRequestAuthorityError(
+            "caller-supplied provider/transport authority is forbidden: "
+            + ", ".join(sorted(forbidden_top_level))
+        )
+
+    return CapabilityRequest(
+        capability_id=request.capability_id,
+        arguments=_without_recursive_browser_authority(request.arguments),
+        capability_request_id=request.capability_request_id,
+        turn_id=request.turn_id,
+        generation_id=request.generation_id,
+        correlation_id=request.correlation_id,
+        requested_scope=request.requested_scope,
+        idempotency_key=request.idempotency_key,
+        requested_at=request.requested_at,
+        provenance=_without_recursive_browser_authority(request.provenance),
+    )
 
 
 class CapabilityCallStatus(str, Enum):
@@ -437,6 +549,7 @@ __all__ = [
     "CapabilityLayer",
     "CapabilityProvider",
     "CapabilityRequest",
+    "CapabilityRequestAuthorityError",
     "ProviderExecutionOutcome",
     "CapabilityResult",
     "CapabilityStatus",
@@ -446,5 +559,7 @@ __all__ = [
     "ToolResult",
     "normalize_provider_status",
     "normalize_side_effect_state",
+    "sanitize_capability_request_authority",
+    "validate_capability_request_authority",
     "ToolResultStatus",
 ]
