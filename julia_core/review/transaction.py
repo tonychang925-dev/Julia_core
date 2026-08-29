@@ -33,7 +33,11 @@ import time as _time
 from dataclasses import dataclass, field
 from typing import Any
 
-from julia_core.review.snapshot import SealedReviewBundle, is_trusted_snapshot
+from julia_core.review.snapshot import (
+    SealedReviewBundle,
+    _snapshot_fingerprint,
+    is_trusted_snapshot,
+)
 
 
 class ReviewDuplicateError(ValueError):
@@ -54,6 +58,10 @@ class ReviewUntrustedTransactionError(ValueError):
 
 class ReviewTokenConsumedError(ValueError):
     """Raised when an already-consumed bearer token is replayed."""
+
+
+class ReviewOutcomeAlreadySealedError(ValueError):
+    """Raised when a transaction outcome is sealed a second time (write-once)."""
 
 
 def _binding_tuple(
@@ -232,14 +240,22 @@ class ReviewTransactionLedger:
     def claim_for_execution(self, token: str) -> ReviewTransaction | None:
         """Atomically claim/consume a token for provider execution.
 
-        First claim returns the transaction. Any later claim of the same token
-        returns None (rejected BEFORE the real provider). Thread-safe.
+        First claim returns the transaction ONLY when the exact ledger-owned
+        transaction with an unchanged fingerprint AND its live trusted snapshot
+        (is_trusted_snapshot == True) are all intact (round-5 §3). A lookalike
+        snapshot with the same id/digest, or a genuine snapshot mutated after
+        mint, makes the transaction unusable before provider delegation.
+
+        Any later claim of the same token returns None (rejected BEFORE the
+        real provider). Thread-safe.
         """
         with self._lock:
             if token in self._consumed_tokens:
                 return None
             transaction = self._by_token.get(token)
             if transaction is None:
+                return None
+            if not self._integrity_ok(transaction):
                 return None
             self._consumed_tokens.add(token)
             return transaction
@@ -255,16 +271,29 @@ class ReviewTransactionLedger:
 
     # ── ownership / verification (P1-E, T1-T4) ─────────────────────────────
 
-    def owns_transaction(self, transaction: ReviewTransaction) -> bool:
-        """True only for the EXACT ledger-minted transaction object whose full
-        authority fingerprint is unchanged."""
+    def _integrity_ok(self, transaction: ReviewTransaction) -> bool:
+        """Full integrity: exact ledger-owned object + unchanged transaction
+        fingerprint + exact original snapshot object + live trusted snapshot
+        (round-5 §3). A handcrafted lookalike snapshot with the same id/digest
+        cannot substitute; a genuine snapshot mutated after mint makes the
+        transaction unusable."""
         entry = self._by_id.get(transaction.transaction_id)
         if entry is None:
             return False
         ref, fingerprint = entry
         if ref is not transaction:
             return False
-        return _transaction_fingerprint(transaction) == fingerprint
+        if _transaction_fingerprint(transaction) != fingerprint:
+            return False
+        if not is_trusted_snapshot(transaction.snapshot):
+            return False
+        return True
+
+    def owns_transaction(self, transaction: ReviewTransaction) -> bool:
+        """True only for the EXACT ledger-minted transaction object whose full
+        authority fingerprint is unchanged AND whose snapshot is the live
+        trusted snapshot object."""
+        return self._integrity_ok(transaction)
 
     def verify_token(self, token: str) -> ReviewTransaction | None:
         """Return the transaction for a token WITHOUT consuming it.
@@ -279,26 +308,41 @@ class ReviewTransactionLedger:
     def get_by_binding(self, binding: tuple[str, str, str, str]) -> list[ReviewTransaction]:
         return list(self._by_binding.get(binding, ()))
 
-    # ── outcome recording (internal only; O5) ──────────────────────────────
+    # ── outcome recording (write-once, internal only; O5, round-5 §4) ──────
 
-    def _record_execution_outcome(
+    def _seal_execution_outcome(
         self,
-        transaction: ReviewTransaction,
         *,
-        outcome_status: str,
-        side_effect_state: str,
+        transaction: ReviewTransaction,
+        invocation,
     ) -> None:
-        """Record execution truth INTERNALLY from the exact typed execution.
+        """WRITE-ONCE seal of retry truth derived from an EXACT trusted
+        invocation's ToolResult (round-5 §4).
 
-        Not a public authority surface: callers cannot overwrite retry state.
-        The invocation path derives status/side-effect from the exact
-        ToolResult; governance never self-reports these.
+        - never accepts caller-selected outcome_status / side_effect_state as
+          authority
+        - a second write / overwrite is rejected
+        - UNKNOWN can never be rewritten into FAILED/NONE
+        - missing outcome remains retry-forbidden (mint() enforces this)
         """
         if not self.owns_transaction(transaction):
             raise ReviewUntrustedTransactionError(
                 "cannot record outcome for a non-owned transaction"
             )
+        result = invocation.execution.tool_result
+        outcome_status = (
+            result.status.value if result is not None and hasattr(result.status, "value")
+            else ("denied" if result is None else str(result.status))
+        )
+        side_effect_state = (
+            result.side_effect_state.value if result is not None and hasattr(result.side_effect_state, "value")
+            else ("none" if result is None else str(result.side_effect_state))
+        )
         with self._lock:
+            if transaction.transaction_id in self._outcomes:
+                raise ReviewOutcomeAlreadySealedError(
+                    "transaction outcome is write-once; a second seal/overwrite is rejected"
+                )
             self._outcomes[transaction.transaction_id] = _ExecutionOutcomeRecord(
                 outcome_status=outcome_status,
                 side_effect_state=side_effect_state,
@@ -317,6 +361,7 @@ class ReviewTransactionLedger:
 
 __all__ = [
     "ReviewDuplicateError",
+    "ReviewOutcomeAlreadySealedError",
     "ReviewRetryUnsafeError",
     "ReviewTokenConsumedError",
     "ReviewTransaction",

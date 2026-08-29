@@ -159,35 +159,93 @@ class ReviewInvocationResult:
         return result.side_effect_state.value if hasattr(result.side_effect_state, "value") else str(result.side_effect_state)
 
 
+def _seal_plain(value: Any) -> Any:
+    """Normalize a value for canonical fingerprinting (no aliases)."""
+    if isinstance(value, dict):
+        return {k: _seal_plain(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_seal_plain(v) for v in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if hasattr(value, "value"):  # enum
+        return value.value
+    return str(value)
+
+
 def _invocation_fingerprint(invocation: ReviewInvocationResult) -> str:
-    """Bind exact transaction + exact execution identities."""
-    call = invocation.execution.capability_call
-    tool = invocation.execution.tool_result
-    call_id = call.capability_call_id if call is not None else None
-    tool_call_id = tool.capability_call_id if tool is not None else None
-    evidence_ids = tuple(e.evidence_id for e in invocation.execution.evidence)
+    """Bind the FULL authority-bearing execution truth (round-5 §2).
+
+    Covers: authorization decision state, CapabilityCall identity/status/
+    provider/correlation, ToolResult call id + status + side_effect_state +
+    canonical structured_output + error, evidence ids + content/provenance, and
+    the exact transaction full integrity. Nested-dict mutation or
+    object.__setattr__ after creation invalidates the fingerprint.
+    """
+    execution = invocation.execution
+    decision = execution.authorization_decision
+    call = execution.capability_call
+    tool = execution.tool_result
+
     authority = {
         "invocation_id": invocation.invocation_id,
         "transaction_id": invocation.transaction.transaction_id,
-        "transaction_fingerprint_ok": True,
-        "capability_request_id": call.capability_request_id if call is not None else None,
-        "capability_call_id": call_id,
-        "tool_result_call_id": tool_call_id,
-        "evidence_ids": evidence_ids,
-        "authorization_decision": (
-            invocation.execution.authorization_decision.decision.value
-            if invocation.execution.authorization_decision is not None
-            and hasattr(invocation.execution.authorization_decision.decision, "value")
-            else (invocation.execution.authorization_decision.decision
-                  if invocation.execution.authorization_decision is not None
-                  else None)
+        "transaction_fingerprint": _transaction_fingerprint_of(invocation.transaction),
+        "authorization_decision": _seal_plain(
+            {
+                "decision": getattr(decision.decision, "value", decision.decision) if decision is not None else None,
+                "scope": decision.scope if decision is not None else None,
+                "reason": decision.reason if decision is not None else None,
+                "policy_ref": decision.policy_ref if decision is not None else None,
+            }
         ),
+        "capability_call": _seal_plain(
+            {
+                "capability_call_id": call.capability_call_id if call is not None else None,
+                "capability_request_id": call.capability_request_id if call is not None else None,
+                "status": getattr(call.status, "value", call.status) if call is not None else None,
+                "provider": call.provider if call is not None else None,
+                "correlation_id": call.correlation_id if call is not None else None,
+            }
+        ),
+        "tool_result": _seal_plain(
+            {
+                "capability_call_id": tool.capability_call_id if tool is not None else None,
+                "status": getattr(tool.status, "value", tool.status) if tool is not None else None,
+                "side_effect_state": getattr(tool.side_effect_state, "value", tool.side_effect_state) if tool is not None else None,
+                "structured_output": tool.structured_output if tool is not None else None,
+                "error": tool.error if tool is not None else None,
+                "provider": tool.provider if tool is not None else None,
+                "schema_version": tool.schema_version if tool is not None else None,
+            }
+        ),
+        "evidence": [
+            _seal_plain({
+                "evidence_id": e.evidence_id,
+                "source_type": getattr(e.source_type, "value", e.source_type),
+                "source_ref": e.source_ref,
+                "observed_at": e.observed_at,
+                "content_ref": e.content_ref,
+                "provenance": e.provenance,
+                "integrity_metadata": e.integrity_metadata,
+                "freshness": e.freshness,
+                "confidence": e.confidence,
+                "correlation_id": e.correlation_id,
+            })
+            for e in execution.evidence
+        ],
     }
     return _json.dumps(authority, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
-def register_trusted_invocation(invocation: ReviewInvocationResult) -> ReviewInvocationResult:
-    """Register a trusted invocation (submit_review only)."""
+def _transaction_fingerprint_of(transaction: ReviewTransaction) -> str:
+    from julia_core.review.transaction import _transaction_fingerprint
+    return _transaction_fingerprint(transaction)
+
+
+def _register_trusted_invocation(invocation: ReviewInvocationResult) -> ReviewInvocationResult:
+    """INTERNAL trusted registration — only the submit_review controlled path
+    may call this. Not exported; arbitrary code cannot upgrade a handcrafted
+    invocation into trusted authority (round-5 §1)."""
     _TRUSTED_INVOCATIONS[invocation.invocation_id] = (
         invocation,
         _invocation_fingerprint(invocation),
@@ -197,7 +255,7 @@ def register_trusted_invocation(invocation: ReviewInvocationResult) -> ReviewInv
 
 def is_trusted_invocation(invocation: ReviewInvocationResult) -> bool:
     """True only for the exact registered invocation with an unchanged
-    execution/transaction binding fingerprint."""
+    full execution/transaction binding fingerprint."""
     entry = _TRUSTED_INVOCATIONS.get(invocation.invocation_id)
     if entry is None:
         return False
@@ -247,29 +305,16 @@ async def submit_review(
         # bearer token must never remain reusable.
         ledger.burn_token(transaction.token)
 
-    # Record the real execution truth internally (derived from the exact
-    # ToolResult, not a caller string).
-    result = execution.tool_result
-    outcome_status = (
-        result.status.value if result is not None and hasattr(result.status, "value")
-        else ("denied" if result is None else str(result.status))
-    )
-    side_effect_state = (
-        result.side_effect_state.value if result is not None and hasattr(result.side_effect_state, "value")
-        else ("none" if result is None else str(result.side_effect_state))
-    )
-    ledger._record_execution_outcome(
-        transaction,
-        outcome_status=outcome_status,
-        side_effect_state=side_effect_state,
-    )
-
+    # Build the trusted invocation first (binds execution + transaction), then
+    # seal the retry outcome write-once from the EXACT trusted execution truth
+    # (round-5 §4) — never caller-selected strings.
     invocation = ReviewInvocationResult(
         invocation_id=f"rvw_inv_{_time_ns()}",
         execution=execution,
         transaction=transaction,
     )
-    return register_trusted_invocation(invocation)
+    ledger._seal_execution_outcome(transaction=transaction, invocation=invocation)
+    return _register_trusted_invocation(invocation)
 
 
 import time as _time_ns_mod
@@ -287,6 +332,5 @@ __all__ = [
     "ReviewInvocationResult",
     "build_review_request",
     "is_trusted_invocation",
-    "register_trusted_invocation",
     "submit_review",
 ]

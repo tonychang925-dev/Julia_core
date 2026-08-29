@@ -47,7 +47,6 @@ from julia_core.review.invocation import (
     ReviewInvocationResult,
     build_review_request,
     is_trusted_invocation,
-    register_trusted_invocation,
     submit_review,
 )
 from julia_core.review.registration import (
@@ -64,7 +63,6 @@ from julia_core.review.snapshot import (
 )
 from julia_core.review.source_binding import (
     CandidateShaSourceBinding,
-    bind_candidate_sha_source,
     is_trusted_source_binding,
 )
 from julia_core.review.transaction import (
@@ -124,7 +122,6 @@ __all__ = [
     "assert_not_stale",
     "assert_review_correlation",
     "assert_transport_completed",
-    "bind_candidate_sha_source",
     "build_review_request",
     "compute_bundle_digest",
     "compute_text_digest",
@@ -138,7 +135,6 @@ __all__ = [
     "make_external_review_definition",
     "raw_response_digest_matches",
     "register_external_review_capability",
-    "register_trusted_invocation",
     "seal_review_bundle",
     "snapshot_digest",
     "submit_review",

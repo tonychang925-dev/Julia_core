@@ -46,17 +46,69 @@ _TRUSTED_BINDINGS: dict[str, tuple[CandidateShaSourceBinding, Any]] = {}
 
 
 def bind_candidate_sha_source(adapter: CandidateShaSource) -> CandidateShaSourceBinding:
-    """Core-owned trusted creator: bind a source adapter once.
+    """TEST/INTEGRATION trusted creator: bind a source adapter once.
 
-    The adapter object itself is stored in the registry; the returned binding
-    carries only an opaque binding_id. Governance resolves the adapter from the
-    registry, so a caller can never substitute an arbitrary object.
+    NOT exported on the public production surface (round-5 §5). Production
+    source authority stays UNBOUND -> stale validation fails closed. A later
+    canonical repository adapter may add the trusted production binding without
+    altering the semantic contract. The adapter object itself is stored in the
+    registry; the returned binding carries only an opaque binding_id.
     """
     if not callable(getattr(adapter, "current_candidate_sha", None)):
         raise TypeError("candidate SHA source must provide current_candidate_sha()")
     binding = CandidateShaSourceBinding(binding_id=f"sha_src_{secrets.token_urlsafe(16)}")
     _TRUSTED_BINDINGS[binding.binding_id] = (binding, adapter)
     return binding
+
+
+# ── Trusted candidate creator binding (§6) ───────────────────────────────────
+
+@dataclass(frozen=True, slots=True)
+class CandidateCreatorBinding:
+    """Trusted binding of a raw-response -> ReviewDecisionCandidate creator.
+
+    Created ONLY by bind_candidate_creator(). Without a trusted creator/parser,
+    candidate admission FAILS CLOSED.
+    """
+
+    binding_id: str
+    created_at: str = field(default_factory=lambda: _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime()))
+    provenance: dict[str, Any] = field(default_factory=dict)
+
+
+_CREATOR_BINDINGS: dict[str, tuple[CandidateCreatorBinding, Any]] = {}
+
+
+def bind_candidate_creator(creator: Any) -> CandidateCreatorBinding:
+    """TEST/INTEGRATION trusted creator binding (round-5 §6).
+
+    NOT exported on the public production surface. A future provider/parser
+    integration supplies the implementation through this explicit trusted seam.
+    """
+    if not callable(getattr(creator, "create_candidate", None)):
+        raise TypeError("candidate creator must provide create_candidate()")
+    binding = CandidateCreatorBinding(binding_id=f"cand_creator_{secrets.token_urlsafe(16)}")
+    _CREATOR_BINDINGS[binding.binding_id] = (binding, creator)
+    return binding
+
+
+def _resolve_creator(binding: CandidateCreatorBinding):
+    entry = _CREATOR_BINDINGS.get(binding.binding_id)
+    if entry is None:
+        raise ValueError("candidate creator binding is not trusted")
+    ref, creator = entry
+    if ref is not binding:
+        raise ValueError("candidate creator binding object is not the trusted one")
+    return creator
+
+
+def is_trusted_candidate_creator(binding: Any) -> bool:
+    if not isinstance(binding, CandidateCreatorBinding):
+        return False
+    entry = _CREATOR_BINDINGS.get(binding.binding_id)
+    if entry is None:
+        return False
+    return entry[0] is binding
 
 
 def _resolve_adapter(binding: CandidateShaSourceBinding):
@@ -80,7 +132,10 @@ def is_trusted_source_binding(binding: Any) -> bool:
 
 
 __all__ = [
+    "CandidateCreatorBinding",
     "CandidateShaSourceBinding",
+    "bind_candidate_creator",
     "bind_candidate_sha_source",
+    "is_trusted_candidate_creator",
     "is_trusted_source_binding",
 ]

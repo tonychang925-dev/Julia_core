@@ -38,8 +38,11 @@ from julia_core.review.contracts import ReviewDecisionCandidate, ReviewTransport
 from julia_core.review.digest import compute_text_digest
 from julia_core.review.invocation import ReviewInvocationResult, is_trusted_invocation
 from julia_core.review.source_binding import (
+    CandidateCreatorBinding,
     CandidateShaSourceBinding,
     _resolve_adapter,
+    _resolve_creator,
+    is_trusted_candidate_creator,
     is_trusted_source_binding,
 )
 from julia_core.review.transaction import (
@@ -132,18 +135,23 @@ def is_trusted_review_governance_record(record: ReviewGovernanceRecord) -> bool:
 class ReviewGovernanceService:
     """Core-owned governance boundary with trusted composition.
 
-    Binds the ledger and (optionally) a TRUSTED CandidateShaSourceBinding ONCE
-    at construction. An arbitrary adapter object is rejected; only
-    bind_candidate_sha_source() output is accepted. ``record()`` requires a
-    trusted invocation and derives the transaction internally.
+    Binds the ledger, (optionally) a TRUSTED CandidateShaSourceBinding, and
+    (optionally) a TRUSTED candidate-creator binding ONCE at construction
+    (round-5 §5/§6/§7). Arbitrary adapter objects are rejected.
+
+    Candidate admission FAILS CLOSED when no trusted candidate creator is bound
+    (§6): a caller-constructed candidate cannot become admitted merely by
+    supplying matching IDs and digest. The candidate must be the exact output
+    of the bound trusted creator over the exact trusted raw response.
     """
 
-    __slots__ = ("_ledger", "_source_binding", "_frozen")
+    __slots__ = ("_ledger", "_source_binding", "_candidate_creator_binding", "_frozen")
 
     def __init__(
         self,
         ledger: ReviewTransactionLedger,
         source_binding: CandidateShaSourceBinding | None = None,
+        candidate_creator_binding: CandidateCreatorBinding | None = None,
     ):
         if not isinstance(ledger, ReviewTransactionLedger):
             raise TypeError("ReviewGovernanceService requires a ReviewTransactionLedger")
@@ -152,8 +160,14 @@ class ReviewGovernanceService:
                 "ReviewGovernanceService requires a TRUSTED CandidateShaSourceBinding; "
                 "arbitrary adapter objects are not source authority (E6)"
             )
+        if candidate_creator_binding is not None and not is_trusted_candidate_creator(candidate_creator_binding):
+            raise TypeError(
+                "ReviewGovernanceService requires a TRUSTED candidate creator binding; "
+                "arbitrary parser objects are not candidate authority (§6)"
+            )
         object.__setattr__(self, "_ledger", ledger)
         object.__setattr__(self, "_source_binding", source_binding)
+        object.__setattr__(self, "_candidate_creator_binding", candidate_creator_binding)
         object.__setattr__(self, "_frozen", True)
 
     def __setattr__(self, name, value):
@@ -173,12 +187,20 @@ class ReviewGovernanceService:
         binding = self._source_binding
         return binding is not None and is_trusted_source_binding(binding)
 
+    @property
+    def candidate_creator_binding(self) -> CandidateCreatorBinding | None:
+        return self._candidate_creator_binding
+
+    @property
+    def has_trusted_candidate_creator(self) -> bool:
+        binding = self._candidate_creator_binding
+        return binding is not None and is_trusted_candidate_creator(binding)
+
     def record(
         self,
         invocation: ReviewInvocationResult,
         candidate: ReviewDecisionCandidate,
         *,
-        record_id: str | None = None,
         provenance: dict[str, Any] | None = None,
     ) -> ReviewGovernanceRecord:
         """Build the governance record from the EXACT trusted invocation.
@@ -192,8 +214,11 @@ class ReviewGovernanceService:
           - transport completion from real execution status
           - stale validation uses the TRUSTED binding adapter (E6-E9); unbound
             source -> fail closed
-          - raw-response provenance: Core computes the digest from the exact
-            execution observation and requires auditable candidate truth (C1-C5)
+          - §6: a TRUSTED candidate creator MUST be bound and the supplied
+            candidate must be the exact output of that creator over the exact
+            trusted raw response (no invented parsing; unbound creator -> FAILS
+            CLOSED)
+          - §7: record_id is internally minted (caller-selected is forbidden)
         """
         if not is_trusted_invocation(invocation):
             raise ReviewUntrustedTransactionError(
@@ -233,31 +258,61 @@ class ReviewGovernanceService:
                 except Exception as exc:
                     reasons.append(str(exc))
 
-        # §8 (C1-C5): raw-response provenance.
+        # §6 (C1-C5 + candidate-provenance): raw-response truth must bind to an
+        # EXACT candidate judgment produced by a TRUSTED candidate creator.
         expected_digest, raw_ref = _expected_raw_digest_from_execution(invocation)
+        creator_binding = self._candidate_creator_binding
         if expected_digest is None:
             reasons.append(
                 "raw_response_truth_unavailable:no trusted raw-response observation "
                 "in the exact execution"
             )
+        elif creator_binding is None or not is_trusted_candidate_creator(creator_binding):
+            reasons.append(
+                "candidate_creator_unavailable:no trusted candidate parser/creator bound; "
+                "candidate admission fails closed (§6)"
+            )
         else:
-            if not candidate.raw_response_ref:
-                reasons.append("raw_response_ref_missing")
-            if not candidate.raw_response_digest:
-                reasons.append("raw_response_digest_missing")
-            elif candidate.raw_response_digest != expected_digest:
-                reasons.append("raw_response_digest_mismatch")
+            # The candidate must be the exact output of the trusted creator over
+            # the exact raw response — matching IDs + digest alone is NOT proof.
+            try:
+                creator = _resolve_creator(creator_binding)
+                expected = creator.create_candidate(
+                    raw_response=_raw_content_of(invocation),
+                    raw_response_ref=raw_ref,
+                )
+            except Exception as exc:
+                reasons.append(f"candidate_creator_error:{exc}")
+                expected = None
+
+            if expected is not None:
+                if candidate.raw_response_ref != expected.raw_response_ref:
+                    reasons.append("raw_response_ref_mismatch")
+                if candidate.raw_response_digest != expected.raw_response_digest:
+                    reasons.append("raw_response_digest_mismatch")
+                if candidate.verdict != expected.verdict:
+                    reasons.append("candidate_verdict_mismatch")
+                if (
+                    candidate.review_id != expected.review_id
+                    or candidate.candidate_id != expected.candidate_id
+                    or candidate.candidate_sha != expected.candidate_sha
+                ):
+                    reasons.append("candidate_binding_mismatch")
+                if not candidate.raw_response_ref:
+                    reasons.append("raw_response_ref_missing")
 
         admitted = not reasons
 
-        self._ledger._record_execution_outcome(
-            transaction,
-            outcome_status=outcome_status,
-            side_effect_state=side_effect_state,
-        )
+        # Retry truth was sealed write-once by submit_review from the exact
+        # execution; governance must NOT re-seal or overwrite it (round-5 §4).
+        if self._ledger._latest_outcome(transaction) is None:
+            raise ReviewUntrustedTransactionError(
+                "invocation transaction has no sealed execution outcome; "
+                "not a governed submit_review path"
+            )
 
         record = ReviewGovernanceRecord(
-            record_id=record_id or f"rvw_rec_{_time.time_ns()}",
+            record_id=f"rvw_rec_{_time.time_ns()}",
             review_id=transaction.review_id,
             candidate_id=transaction.candidate_id,
             candidate_sha=transaction.candidate_sha,
@@ -307,6 +362,16 @@ def _side_effect_of(invocation: ReviewInvocationResult) -> str:
     if result is None:
         return "none"
     return result.side_effect_state.value if hasattr(result.side_effect_state, "value") else str(result.side_effect_state)
+
+
+def _raw_content_of(invocation: ReviewInvocationResult) -> str:
+    """Extract the trusted raw response text from the exact execution."""
+    result = invocation.execution.tool_result
+    if result is None:
+        return ""
+    structured = result.structured_output or {}
+    raw_text = structured.get("raw_response")
+    return raw_text if isinstance(raw_text, str) else ""
 
 
 def _expected_raw_digest_from_execution(invocation: ReviewInvocationResult) -> tuple[str | None, str | None]:
