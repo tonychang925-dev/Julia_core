@@ -181,6 +181,14 @@ class RuntimeCapabilityBridge:
                     "ai_theme provider unavailable; market capability DEGRADED: %s", exc
                 )
 
+        # External Code Review capability (Core semantic contract).
+        # The provider (external_review) is implemented cross-repo in
+        # Julia-AI-Assistant; Core registers only the CapabilityDefinition and
+        # permission scope. Until that provider is bound, invocation returns a
+        # typed UNAVAILABLE outcome (fail-closed, no fallback).
+        from julia_core.review.registration import register_external_review_capability
+        register_external_review_capability(self.registry, policy=self.policy)
+
         # Build the manager
         self._manager = CapabilityManager(
             self.registry,
