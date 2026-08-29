@@ -175,6 +175,10 @@ async def submit_review(
         generation_id=generation_id,
     )
     execution = await manager.execute_typed(request)
+    # One-shot token (P0-A): after this governed submission, the token is never
+    # reusable — even if the guard was never reached (auth/health failure before
+    # a real send), burn it so the token cannot be replayed later.
+    ledger.burn_token(transaction.token)
     # Record the real execution truth into the ledger BEFORE returning, so
     # duplicate/exact-retry control (F) sees the prior outcome.
     result = execution.tool_result

@@ -92,14 +92,26 @@ def _deep_unfreeze(value: Any) -> Any:
     return value
 
 
+# Trusted-creator registry: only seal_review_bundle() may register a snapshot.
+# Identity-based (object reference) so handcrafted / reconstructed snapshots are
+# NOT trusted even when field-for-field identical. Digest is captured separately
+# so an integrity mutation of snapshot.digest is detectable.
+_TRUSTED_SNAPSHOTS: dict[str, tuple[Any, str]] = {}
+
+
 @dataclass(frozen=True, slots=True)
 class SealedReviewBundle:
     """Canonical immutable review payload snapshot.
 
     Owns its digest. ``to_payload()`` returns a FRESH deep copy every time so
     no caller can hold a mutable alias into the snapshot.
+
+    Trusted-creator semantics: a snapshot is TRUSTED only if it was produced by
+    seal_review_bundle() and is identity-registered in the module registry.
+    Handcrafted / copied / reconstructed snapshots are NOT trusted (P1-D).
     """
 
+    snapshot_id: str
     review_id: str
     task_id: str
     candidate_id: str
@@ -117,12 +129,27 @@ class SealedReviewBundle:
         return _deep_unfreeze(self.payload)
 
 
+def is_trusted_snapshot(snapshot: SealedReviewBundle) -> bool:
+    """Return True only for an identity-registered, digest-consistent snapshot."""
+    entry = _TRUSTED_SNAPSHOTS.get(snapshot.snapshot_id)
+    if entry is None:
+        return False
+    ref, sealed_digest = entry
+    if ref is not snapshot:
+        return False
+    return snapshot.digest == sealed_digest
+
+
 def seal_review_bundle(bundle: ReviewBundle) -> SealedReviewBundle:
     """Deep-copy a ReviewBundle into an immutable snapshot and compute digest.
 
     Raises ValueError on schema/identity-isolation failure (fail closed BEFORE
-    any digest / request authority is created).
+    any digest / request authority is created). Registers the snapshot in the
+    trusted-creator registry (identity-based) so handcrafted snapshots are NOT
+    trusted (P1-D).
     """
+    import secrets
+
     errors = bundle.validate()
     if errors:
         from julia_core.review.contracts import ReviewErrorCode
@@ -134,7 +161,8 @@ def seal_review_bundle(bundle: ReviewBundle) -> SealedReviewBundle:
 
     digest = compute_text_digest(_canonical_snapshot_serialization(payload.to_plain()))
 
-    return SealedReviewBundle(
+    snapshot = SealedReviewBundle(
+        snapshot_id=f"sealed_{secrets.token_urlsafe(16)}",
         review_id=bundle.review_id,
         task_id=bundle.task_id,
         candidate_id=bundle.candidate_id,
@@ -147,6 +175,8 @@ def seal_review_bundle(bundle: ReviewBundle) -> SealedReviewBundle:
         digest=digest,
         contract_version=bundle.contract_version,
     )
+    _TRUSTED_SNAPSHOTS[snapshot.snapshot_id] = (snapshot, digest)
+    return snapshot
 
 
 def _canonical_snapshot_serialization(payload: dict[str, Any]) -> str:
@@ -159,4 +189,4 @@ def snapshot_digest(snapshot: SealedReviewBundle) -> str:
     return snapshot.digest
 
 
-__all__ = ["SealedReviewBundle", "seal_review_bundle", "snapshot_digest"]
+__all__ = ["SealedReviewBundle", "is_trusted_snapshot", "seal_review_bundle", "snapshot_digest"]

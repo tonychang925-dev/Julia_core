@@ -61,7 +61,13 @@ class GuardedReviewProvider:
 
     async def execute(self, request: CapabilityRequest) -> dict[str, Any] | ProviderExecutionOutcome:
         token = request.arguments.get(REVIEW_TOKEN_ARG)
-        transaction = self._ledger.verify_token(token) if isinstance(token, str) else None
+        # ATOMIC one-shot claim at the delegation boundary (P0-A): the token is
+        # consumed here. A replayed/consumed/copied token yields None and the
+        # real provider is never reached.
+        if isinstance(token, str):
+            transaction = self._ledger.claim_for_execution(token)
+        else:
+            transaction = None
         if transaction is None:
             return ProviderExecutionOutcome(
                 status=ToolResultStatus.UNAVAILABLE,
@@ -69,7 +75,7 @@ class GuardedReviewProvider:
                     "code": "governed_review_ingress_required",
                     "message": (
                         "engineering.code_review requires a governed review "
-                        "transaction token; arbitrary CapabilityRequest ingress denied"
+                        "transaction token; arbitrary or replayed ingress denied"
                     ),
                 },
                 side_effect_state=SideEffectState.NONE,

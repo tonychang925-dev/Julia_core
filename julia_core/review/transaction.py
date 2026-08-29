@@ -1,32 +1,39 @@
-"""Review transaction binding, ledger, and duplicate / exact-retry control.
+"""Review transaction binding, ledger, one-shot token, duplicate/retry control.
 
 Canonical end-to-end binding:
 
     trusted outbound ReviewBundle snapshot (SealedReviewBundle)
-        -> ReviewTransaction (immutable)
-        -> provider execution
+        -> ReviewTransaction (immutable, ledger-owned)
+        -> provider execution (one-shot token claim)
         -> captured raw response
         -> ReviewDecisionCandidate
         -> Julia validation
         -> ReviewGovernanceRecord
 
-Duplicate / exact-retry control:
+One-shot token (P0-A):
 
-    - a second ORDINARY submission of the same review binding must NOT execute
-      the provider again silently
-    - exact retry is allowed only when explicitly requested AND the prior
-      submission's side_effect_state was provably NOT UNKNOWN
-    - SideEffectState.UNKNOWN must NEVER auto retry
+    mint -> atomic claim/consume at the guarded provider boundary
+    -> first execution allowed
+    -> same token second execution rejected BEFORE real provider
+    -> an already-consumed bearer token is never reused
+
+Exact retry MUST mint a NEW transaction/token (never reuse an executed token).
+
+Ledger ownership (P1-E):
+
+    transactions are ledger-minted only; handcrafted/copied transaction objects
+    are NOT trusted. Governance verifies ledger ownership + exact execution.
 """
 
 from __future__ import annotations
 
 import secrets
+import threading
 import time as _time
 from dataclasses import dataclass, field
 from typing import Any
 
-from julia_core.review.snapshot import SealedReviewBundle
+from julia_core.review.snapshot import SealedReviewBundle, is_trusted_snapshot
 
 
 class ReviewDuplicateError(ValueError):
@@ -35,6 +42,18 @@ class ReviewDuplicateError(ValueError):
 
 class ReviewRetryUnsafeError(ValueError):
     """Raised when an exact retry is requested while prior side effect is UNKNOWN."""
+
+
+class ReviewUntrustedSnapshotError(ValueError):
+    """Raised when a snapshot was not created through the trusted sealing path."""
+
+
+class ReviewUntrustedTransactionError(ValueError):
+    """Raised when a transaction object is not owned by the exact ledger."""
+
+
+class ReviewTokenConsumedError(ValueError):
+    """Raised when an already-consumed bearer token is replayed."""
 
 
 def _binding_tuple(
@@ -51,9 +70,9 @@ def _binding_tuple(
 class ReviewTransaction:
     """One immutable governed review transaction.
 
-    Created ONLY through ReviewTransactionLedger.mint() from a
-    SealedReviewBundle snapshot. Carries an opaque token that the guarded
-    provider requires — callers cannot mint a transaction by hand.
+    Created ONLY through ReviewTransactionLedger.mint() from a TRUSTED
+    SealedReviewBundle snapshot. Carries an opaque one-shot token. Handcrafted
+    transaction objects are NOT trusted by the ledger.
     """
 
     transaction_id: str
@@ -86,13 +105,17 @@ class _ExecutionOutcomeRecord:
 class ReviewTransactionLedger:
     """Core-owned trusted-creator ledger for review transactions.
 
-    Only ``mint()`` creates transactions. ``token`` is opaque and generated
-    with ``secrets``; callers cannot forge authority through provenance
-    strings. The ledger owns duplicate detection and exact-retry policy.
+    Only ``mint()`` creates transactions, and only from TRUSTED sealed
+    snapshots. Tokens are one-shot: ``claim_for_execution()`` atomically
+    consumes a token; a second claim returns None. Governance verifies
+    transaction ownership through ``owns_transaction()``.
     """
 
     def __init__(self):
+        self._lock = threading.Lock()
         self._by_token: dict[str, ReviewTransaction] = {}
+        self._by_id: dict[str, ReviewTransaction] = {}
+        self._consumed_tokens: set[str] = set()
         self._by_binding: dict[tuple[str, str, str, str], list[ReviewTransaction]] = {}
         self._outcomes: dict[str, _ExecutionOutcomeRecord] = {}
 
@@ -105,12 +128,18 @@ class ReviewTransactionLedger:
         allow_exact_retry: bool = False,
         provenance: dict[str, Any] | None = None,
     ) -> ReviewTransaction:
-        """Create ONE trusted transaction from a sealed snapshot.
+        """Create ONE trusted transaction from a TRUSTED sealed snapshot.
 
-        Duplicate control: an ordinary re-submission of the same binding is
-        rejected. Exact retry is allowed only if explicitly requested AND no
-        prior outcome has side_effect_state == UNKNOWN.
+        Rejects any snapshot not created through the trusted sealing path
+        (P1-D). Duplicate control rejects an ordinary re-submission of the same
+        binding; exact retry requires explicit request AND prior side effect
+        known-safe (not UNKNOWN).
         """
+        if not is_trusted_snapshot(snapshot):
+            raise ReviewUntrustedSnapshotError(
+                "snapshot was not created through the trusted seal_review_bundle() path"
+            )
+
         binding = _binding_tuple(
             review_id=snapshot.review_id,
             candidate_id=snapshot.candidate_id,
@@ -118,38 +147,75 @@ class ReviewTransactionLedger:
             bundle_digest=snapshot.digest,
         )
 
-        prior = self._by_binding.get(binding, ())
-        if prior:
-            latest_outcome = self._outcomes.get(prior[-1].transaction_id)
-            if latest_outcome is not None and latest_outcome.side_effect_state == "unknown":
-                raise ReviewRetryUnsafeError(
-                    "prior submission side_effect_state is UNKNOWN; automatic or "
-                    "ordinary retry is forbidden"
-                )
-            if not allow_exact_retry:
-                raise ReviewDuplicateError(
-                    f"review binding already submitted: review_id={binding[0]}, "
-                    f"candidate_sha={binding[2]}, digest={binding[3]}"
-                )
+        with self._lock:
+            prior = self._by_binding.get(binding, ())
+            if prior:
+                latest_outcome = self._outcomes.get(prior[-1].transaction_id)
+                if latest_outcome is not None and latest_outcome.side_effect_state == "unknown":
+                    raise ReviewRetryUnsafeError(
+                        "prior submission side_effect_state is UNKNOWN; automatic or "
+                        "ordinary retry is forbidden"
+                    )
+                if not allow_exact_retry:
+                    raise ReviewDuplicateError(
+                        f"review binding already submitted: review_id={binding[0]}, "
+                        f"candidate_sha={binding[2]}, digest={binding[3]}"
+                    )
 
-        transaction = ReviewTransaction(
-            transaction_id=f"rvw_txn_{_time.time_ns()}",
-            snapshot=snapshot,
-            token=secrets.token_urlsafe(24),
-            review_id=snapshot.review_id,
-            candidate_id=snapshot.candidate_id,
-            candidate_sha=snapshot.candidate_sha,
-            bundle_digest=snapshot.digest,
-            provenance=dict(provenance or {}),
-        )
-        self._by_token[transaction.token] = transaction
-        self._by_binding.setdefault(binding, []).append(transaction)
-        return transaction
+            transaction = ReviewTransaction(
+                transaction_id=f"rvw_txn_{_time.time_ns()}",
+                snapshot=snapshot,
+                token=secrets.token_urlsafe(24),
+                review_id=snapshot.review_id,
+                candidate_id=snapshot.candidate_id,
+                candidate_sha=snapshot.candidate_sha,
+                bundle_digest=snapshot.digest,
+                provenance=dict(provenance or {}),
+            )
+            self._by_token[transaction.token] = transaction
+            self._by_id[transaction.transaction_id] = transaction
+            self._by_binding.setdefault(binding, []).append(transaction)
+            return transaction
 
-    # ── verification (guarded provider uses this) ──────────────────────────
+    # ── one-shot token claim (P0-A) ────────────────────────────────────────
+
+    def claim_for_execution(self, token: str) -> ReviewTransaction | None:
+        """Atomically claim/consume a token for provider execution.
+
+        First claim returns the transaction. Any later claim of the same token
+        returns None (rejected BEFORE the real provider). Thread-safe.
+        """
+        with self._lock:
+            if token in self._consumed_tokens:
+                return None
+            transaction = self._by_token.get(token)
+            if transaction is None:
+                return None
+            self._consumed_tokens.add(token)
+            return transaction
+
+    def burn_token(self, token: str) -> None:
+        """Consume a token even if execution never reached the guard (e.g.
+        authorization/health failure before a real send). Idempotent."""
+        with self._lock:
+            self._consumed_tokens.add(token)
+
+    def token_consumed(self, token: str) -> bool:
+        return token in self._consumed_tokens
+
+    # ── ownership / verification (P1-E) ────────────────────────────────────
+
+    def owns_transaction(self, transaction: ReviewTransaction) -> bool:
+        """True only for the EXACT ledger-minted transaction object (identity)."""
+        owned = self._by_id.get(transaction.transaction_id)
+        return owned is transaction
 
     def verify_token(self, token: str) -> ReviewTransaction | None:
-        """Return the transaction for an opaque token, or None."""
+        """Return the transaction for a token WITHOUT consuming it.
+
+        Used only for diagnostics; the guarded provider MUST use
+        claim_for_execution() so a token is never replayable.
+        """
         if not isinstance(token, str) or not token:
             return None
         return self._by_token.get(token)
@@ -166,10 +232,11 @@ class ReviewTransactionLedger:
         outcome_status: str,
         side_effect_state: str,
     ) -> None:
-        self._outcomes[transaction.transaction_id] = _ExecutionOutcomeRecord(
-            outcome_status=outcome_status,
-            side_effect_state=side_effect_state,
-        )
+        with self._lock:
+            self._outcomes[transaction.transaction_id] = _ExecutionOutcomeRecord(
+                outcome_status=outcome_status,
+                side_effect_state=side_effect_state,
+            )
 
     def latest_outcome(self, transaction: ReviewTransaction) -> dict[str, str] | None:
         record = self._outcomes.get(transaction.transaction_id)
@@ -185,6 +252,9 @@ class ReviewTransactionLedger:
 __all__ = [
     "ReviewDuplicateError",
     "ReviewRetryUnsafeError",
+    "ReviewTokenConsumedError",
     "ReviewTransaction",
     "ReviewTransactionLedger",
+    "ReviewUntrustedSnapshotError",
+    "ReviewUntrustedTransactionError",
 ]
