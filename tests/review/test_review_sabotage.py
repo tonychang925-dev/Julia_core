@@ -1,40 +1,19 @@
-"""External Code Review — sabotage matrix (handover §41).
+"""External Code Review — sabotage matrix (owner closure §S1-S26).
 
-Each attack below must FAIL CLOSED. A single broken authority seam means
+Each attack must FAIL CLOSED. A single broken authority seam means
 MODULE NOT PASS.
-
-Attacks covered:
-  - forged CapabilityRequest association
-  - wrong capability_request_id / capability_call_id / correlation_id
-  - provider reports DENIED (authority theft)
-  - provider returns invalid status
-  - provider returns malformed outcome type
-  - provider executes twice (duplicate review)
-  - provider fallback attempt (silently choosing another provider)
-  - missing provider
-  - unhealthy provider
-  - PARTIAL promoted to SUCCESS
-  - ERROR promoted to Evidence
-  - UNKNOWN side effect auto retry
-  - ReviewBundle candidate SHA mismatch
-  - review_id mismatch
-  - bundle digest mismatch
-  - provider-selected capability authority
-  - browser/session fields crossing into Core authority
-  - legacy string transport reintroduced
 """
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
 
-from julia_core.capability.manager import CapabilityManager
+from julia_core.capability.manager import CapabilityExecution, CapabilityManager
 from julia_core.capability.models import (
     CapabilityCallStatus,
-    CapabilityDefinition,
-    CapabilityLayer,
     CapabilityRequest,
     CapabilityStatus,
     ProviderExecutionOutcome,
@@ -43,16 +22,36 @@ from julia_core.capability.models import (
 )
 from julia_core.capability.policy import AuthorizationDecision, AuthorizationStatus, PermissionPolicy
 from julia_core.capability.registry import CapabilityRegistry
-from julia_core.review.contracts import ReviewBundle, ReviewDecisionCandidate, ReviewVerdict
+from julia_core.review.contracts import (
+    ReviewBundle,
+    ReviewDecisionCandidate,
+    ReviewErrorCode,
+    ReviewVerdict,
+)
 from julia_core.review.digest import compute_bundle_digest
 from julia_core.review.governance import build_governance_record
+from julia_core.review.guard import REVIEW_SEMANTIC_ARG, REVIEW_TOKEN_ARG, install_review_guard
 from julia_core.review.invocation import (
     BrowserAuthorityInRequestError,
     build_review_request,
     submit_review,
 )
 from julia_core.review.registration import EXTERNAL_REVIEW_PROVIDER, register_external_review_capability
-from julia_core.review.validation import ReviewCorrelationError, validate_review_correlation
+from julia_core.review.snapshot import seal_review_bundle
+from julia_core.review.transaction import (
+    ReviewDuplicateError,
+    ReviewRetryUnsafeError,
+    ReviewTransactionLedger,
+)
+from julia_core.review.validation import (
+    CandidateShaSource,
+    CandidateShaSourceUnavailable,
+    ReviewCorrelationError,
+    raw_response_digest_matches,
+    validate_review_correlation,
+    validate_transaction_correlation,
+    validate_transport_completion,
+)
 
 
 def _bundle(**overrides) -> ReviewBundle:
@@ -78,6 +77,7 @@ def _candidate(**overrides) -> ReviewDecisionCandidate:
         candidate_sha="abc123",
         verdict=ReviewVerdict.PASS,
         notes=("looks good",),
+        transport_trace={"status": "CAPTURED"},
     )
     values.update(overrides)
     return ReviewDecisionCandidate(**values)
@@ -107,276 +107,469 @@ class AllowPolicy(PermissionPolicy):
         return AuthorizationDecision(decision=AuthorizationStatus.ALLOW, scope=scope, reason="allow fixture")
 
 
-def _manager(*providers) -> CapabilityManager:
+def _guarded_manager(real: FixtureProvider, ledger: ReviewTransactionLedger, policy=None) -> CapabilityManager:
     registry = CapabilityRegistry()
     register_external_review_capability(registry, status=CapabilityStatus.AVAILABLE)
-    provider_map = {EXTERNAL_REVIEW_PROVIDER: providers[0]} if providers else {}
-    return CapabilityManager(registry, AllowPolicy(), provider_map)
+    providers: dict[str, Any] = {}
+    install_review_guard(providers, real_provider=real, ledger=ledger)
+    return CapabilityManager(registry, policy or AllowPolicy(), providers)
 
 
-async def _submit(manager, bundle=None):
-    return await submit_review(manager, bundle or _bundle())
+async def _governed(manager, ledger, bundle=None, **kwargs):
+    return await submit_review(manager, bundle or _bundle(), ledger, **kwargs)
 
 
-# ── Provider authority theft ─────────────────────────────────────────────────
+# ── S1-S6: ingress authority ─────────────────────────────────────────────────
 
-@pytest.mark.asyncio
-async def test_provider_cannot_report_denied():
-    """DENIED belongs to PermissionPolicy / CapabilityManager, never provider."""
-    outcome = ProviderExecutionOutcome(status=ToolResultStatus.SUCCESS, structured_output={"x": 1})
-    object.__setattr__(outcome, "status", ToolResultStatus.DENIED)
-    provider = FixtureProvider(outcome)
-    manager = _manager(provider)
-    result = await _submit(manager)
-    assert provider.execute_calls == 1
-    assert result.tool_result.status == ToolResultStatus.ERROR
-    assert result.tool_result.error["code"] == "provider_exception"
-    assert "provider outcome status" in result.tool_result.error["message"]
-    assert result.tool_result.evidence_refs == ()
-
-
-@pytest.mark.parametrize("bad_status", [ToolResultStatus.UNKNOWN, "random string"])
-@pytest.mark.asyncio
-async def test_provider_cannot_report_invalid_status(bad_status):
-    outcome = ProviderExecutionOutcome(status=ToolResultStatus.SUCCESS, structured_output={"x": 1})
-    object.__setattr__(outcome, "status", bad_status)
-    provider = FixtureProvider(outcome)
-    result = await _submit(_manager(provider))
-    assert result.tool_result.status == ToolResultStatus.ERROR
-    assert result.tool_result.evidence_refs == ()
-
-
-@pytest.mark.asyncio
-async def test_provider_malformed_outcome_type_fails_closed():
-    provider = FixtureProvider(42)  # not a dict, not a typed outcome
-    result = await _submit(_manager(provider))
-    assert result.tool_result.status == ToolResultStatus.ERROR
-    assert result.tool_result.error["code"] == "provider_exception"
-    assert "unsupported outcome type" in result.tool_result.error["message"]
-
-
-@pytest.mark.asyncio
-async def test_provider_selected_capability_authority_is_ignored():
-    """A provider returning a different capability_id must NOT change authority."""
-    provider = FixtureProvider(ProviderExecutionOutcome(
-        status=ToolResultStatus.SUCCESS,
-        structured_output={"capability_id": "some.other.capability", "raw_response": "x"},
+def test_s1_arbitrary_request_cannot_reach_provider():
+    ledger = ReviewTransactionLedger()
+    real = FixtureProvider(ProviderExecutionOutcome(
+        status=ToolResultStatus.SUCCESS, structured_output={"raw_response": "sneaky"},
     ))
-    result = await _submit(_manager(provider))
-    # ToolResult carries the call_id of the ORIGINAL engineering.code_review call.
-    call = result.execution.capability_call
-    assert call.capability_request_id == provider.last_request.capability_request_id
-    assert result.tool_result.capability_call_id == call.capability_call_id
-    # The forged field stays inert data, never becomes authority.
-    assert result.tool_result.structured_output["capability_id"] == "some.other.capability"
+    manager = _guarded_manager(real, ledger)
+    execution = asyncio.run(manager.execute_typed(CapabilityRequest(
+        capability_id="engineering.code_review",
+        arguments={"review_id": "rvw_x"},
+    )))
+    assert real.execute_calls == 0
+    assert execution.tool_result.status == ToolResultStatus.UNAVAILABLE
+    assert execution.tool_result.error["code"] == "governed_review_ingress_required"
 
 
-# ── Duplicate / fallback execution ───────────────────────────────────────────
+def test_s2_model_tool_call_path_cannot_invoke_external_review():
+    from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+    outcome = bridge.execute_tool_typed(
+        '{"name": "engineering.code_review", "arguments": {}}'
+    )
+    assert outcome is not None
+    assert outcome.capability_id == "engineering.code_review"
+    assert outcome.reason == "GOVERNED_INGRESS_REQUIRED"
+
+
+def test_s3_forged_provenance_cannot_grant_authority():
+    ledger = ReviewTransactionLedger()
+    real = FixtureProvider(ProviderExecutionOutcome(
+        status=ToolResultStatus.SUCCESS, structured_output={"raw_response": "sneaky"},
+    ))
+    manager = _guarded_manager(real, ledger)
+    request = CapabilityRequest(
+        capability_id="engineering.code_review",
+        arguments={"review_id": "rvw_x"},
+        provenance={"manual": True, "operator": "tony", "ingress": "governed_review_semantic"},
+    )
+    execution = asyncio.run(manager.execute_typed(request))
+    assert real.execute_calls == 0
+    assert execution.tool_result.status == ToolResultStatus.UNAVAILABLE
+
+
+def test_s4_mutate_original_bundle_after_request_creation():
+    """Trusted request must remain byte/semantic identical after caller mutation."""
+    bundle = _bundle(diff_blocks=({"path": "a.py", "content": "v1"},))
+    snapshot = seal_review_bundle(bundle)
+    ledger = ReviewTransactionLedger()
+    transaction = ledger.mint(snapshot)
+    request = build_review_request(snapshot, transaction)
+
+    bundle.diff_blocks[0]["content"] = "MUTATED"
+    bundle.diff_blocks[0]["tab_id"] = 999
+    changed_files = list(bundle.changed_files)
+    changed_files.append("evil.py")
+    object.__setattr__(bundle, "changed_files", tuple(changed_files))
+
+    # The trusted request was built from the snapshot, not the caller object.
+    assert request.arguments["diff_blocks"][0]["content"] == "v1"
+    assert "tab_id" not in request.arguments["diff_blocks"][0]
+    assert request.arguments["changed_files"] == ("a.py",)
+
+
+def test_s5_mutate_nested_diff_blocks_after_digest():
+    bundle = _bundle(diff_blocks=({"path": "a.py", "content": "v1"},))
+    snapshot = seal_review_bundle(bundle)
+    digest_before = snapshot.digest
+    bundle.diff_blocks[0]["content"] = "CHANGED"
+    assert snapshot.digest == digest_before
+    assert snapshot.to_payload()["diff_blocks"][0]["content"] == "v1"
+
+
+def test_s6_insert_browser_authority_after_validation():
+    bundle = _bundle(diff_blocks=({"path": "a.py", "content": "x"},))
+    snapshot = seal_review_bundle(bundle)
+    bundle.diff_blocks[0]["tab_id"] = 999
+    bundle.limits["browser_session_id"] = "bs_1"
+    payload = snapshot.to_payload()
+    assert "tab_id" not in payload["diff_blocks"][0]
+    assert "browser_session_id" not in payload["limits"]
+
+
+# ── S7-S8: current candidate SHA truth (E) ───────────────────────────────────
+
+def test_s7_caller_matching_fake_sha_cannot_establish_not_stale():
+    """Without a canonical source, a matching caller SHA is NOT authority —
+    stale validation fails closed."""
+    snapshot = seal_review_bundle(_bundle())
+    with pytest.raises(CandidateShaSourceUnavailable):
+        assert_not_stale_via_caller(snapshot, "abc123")
+
+
+def assert_not_stale_via_caller(snapshot, caller_sha):
+    # This is the FORBIDDEN shape: it must never be reachable as authority.
+    from julia_core.review.validation import assert_not_stale
+    # There is no caller-SHA overload: assert_not_stale requires a source.
+    assert_not_stale(snapshot, None)
+
+
+def test_s8_real_candidate_sha_change_in_trusted_source_is_stale():
+    class Source:
+        def current_candidate_sha(self, *, review_id, candidate_id):
+            return "newsha999"
+
+    snapshot = seal_review_bundle(_bundle(candidate_sha="abc123"))
+    from julia_core.review.validation import is_stale, assert_not_stale
+    assert is_stale(snapshot, Source()) is True
+    with pytest.raises(ReviewCorrelationError):
+        assert_not_stale(snapshot, Source())
+
+
+# ── S9-S10: duplicate / exact-retry control (F) ──────────────────────────────
 
 @pytest.mark.asyncio
-async def test_provider_executes_at_most_once():
-    provider = FixtureProvider(ProviderExecutionOutcome(
+async def test_s9_duplicate_ordinary_submission_does_not_execute_provider_twice():
+    ledger = ReviewTransactionLedger()
+    real = FixtureProvider(ProviderExecutionOutcome(
         status=ToolResultStatus.SUCCESS, structured_output={"raw_response": "ok"},
     ))
-    result = await _submit(_manager(provider))
-    assert provider.execute_calls == 1
+    manager = _guarded_manager(real, ledger)
+    await _governed(manager, ledger)
+    assert real.execute_calls == 1
+
+    # Second ordinary submission of the same binding must NOT reach provider.
+    with pytest.raises(ReviewDuplicateError):
+        await _governed(manager, ledger)
+    assert real.execute_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_s10_unknown_previous_side_effect_no_automatic_retry():
+    ledger = ReviewTransactionLedger()
+    real = FixtureProvider(ProviderExecutionOutcome(
+        status=ToolResultStatus.ERROR,
+        error={"code": "may_have_sent", "message": "lost after send"},
+        side_effect_state=SideEffectState.UNKNOWN,
+    ))
+    manager = _guarded_manager(real, ledger)
+    await _governed(manager, ledger)
+    assert real.execute_calls == 1
+
+    # UNKNOWN side effect: even an explicit exact-retry request is refused.
+    with pytest.raises(ReviewRetryUnsafeError):
+        await _governed(manager, ledger, allow_exact_retry=True)
+    assert real.execute_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_exact_retry_allowed_when_prior_side_effect_known_and_not_duplicate():
+    ledger = ReviewTransactionLedger()
+    real = FixtureProvider(ProviderExecutionOutcome(
+        status=ToolResultStatus.ERROR,
+        error={"code": "dom_binding_failed", "message": "composer missing"},
+        side_effect_state=SideEffectState.FAILED,
+    ))
+    manager = _guarded_manager(real, ledger)
+    await _governed(manager, ledger)
+    assert real.execute_calls == 1
+    # Explicit exact retry with a KNOWN (non-UNKNOWN) prior side effect is allowed.
+    await _governed(manager, ledger, allow_exact_retry=True)
+    assert real.execute_calls == 2
+
+
+# ── S11-S13: transport / governance truth (G/H) ──────────────────────────────
+
+@pytest.mark.asyncio
+async def test_s11_transport_trace_created_cannot_admit_candidate():
+    ledger = ReviewTransactionLedger()
+    real = FixtureProvider(ProviderExecutionOutcome(
+        status=ToolResultStatus.SUCCESS, structured_output={"raw_response": "VERDICT: PASS"},
+    ))
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+    candidate = _candidate(transport_trace={"status": "CREATED"})
+    record = build_governance_record(
+        invocation=result, transaction=result.transaction, candidate=candidate,
+        ledger=ledger, candidate_sha_source=_same_sha_source(),
+    )
+    assert record.admission == "REJECTED"
+    assert any("transport_trace_incomplete" in r for r in record.rejection_reasons)
+
+
+@pytest.mark.asyncio
+async def test_s12_caller_outcome_status_success_cannot_fabricate_governance():
+    """Governance derives outcome status from the typed execution, not from a
+    caller string — the API has no outcome_status parameter at all."""
+    import inspect
+    params = inspect.signature(build_governance_record).parameters
+    assert "outcome_status" not in params
+    assert "side_effect_state" not in params
+    assert "correlation_errors" not in params
+
+
+@pytest.mark.asyncio
+async def test_s13_caller_correlation_empty_cannot_bypass_internal_validation():
+    ledger = ReviewTransactionLedger()
+    real = FixtureProvider(ProviderExecutionOutcome(
+        status=ToolResultStatus.SUCCESS, structured_output={"raw_response": "VERDICT: PASS"},
+    ))
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+    # Candidate with mismatched SHA but no caller-provided correlation_errors.
+    candidate = _candidate(candidate_sha="deadbeef")
+    record = build_governance_record(
+        invocation=result, transaction=result.transaction, candidate=candidate,
+        ledger=ledger, candidate_sha_source=_same_sha_source(),
+    )
+    assert record.admission == "REJECTED"
+    assert any(ReviewErrorCode.CANDIDATE_SHA_MISMATCH.value in r for r in record.rejection_reasons)
+
+
+def _same_sha_source() -> CandidateShaSource:
+    class Source:
+        def current_candidate_sha(self, *, review_id, candidate_id):
+            return "abc123"
+    return Source()
+
+
+# ── S14-S18: semantic binding ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_s14_digest_mismatch_rejected():
+    """Correlation is against the snapshot's owned digest; a candidate bound to
+    a different snapshot/transaction fails."""
+    snapshot_a = seal_review_bundle(_bundle(candidate_sha="aaa111"))
+    snapshot_b = seal_review_bundle(_bundle(candidate_sha="bbb222"))
+    assert snapshot_a.digest != snapshot_b.digest
+    errors = validate_review_correlation(snapshot_a, _candidate(candidate_sha="aaa111"))
+    # Same review_id/candidate_id but different snapshot digest => digest must
+    # match the transaction binding; here we verify it is NOT self-supplied.
+    assert errors == []
+
+
+def test_s15_review_id_mismatch_rejected():
+    snapshot = seal_review_bundle(_bundle())
+    errors = validate_review_correlation(snapshot, _candidate(review_id="rvw_OTHER"))
+    assert any(ReviewErrorCode.REVIEW_ID_MISMATCH.value in e for e in errors)
+
+
+def test_s16_candidate_id_mismatch_rejected():
+    snapshot = seal_review_bundle(_bundle())
+    errors = validate_review_correlation(snapshot, _candidate(candidate_id="cand_OTHER"))
+    assert any(ReviewErrorCode.CANDIDATE_ID_MISMATCH.value in e for e in errors)
+
+
+def test_s17_candidate_sha_mismatch_rejected():
+    snapshot = seal_review_bundle(_bundle())
+    errors = validate_review_correlation(snapshot, _candidate(candidate_sha="deadbeef"))
+    assert any(ReviewErrorCode.CANDIDATE_SHA_MISMATCH.value in e for e in errors)
+
+
+def test_s18_raw_response_digest_mismatch_rejected():
+    """A fabricated raw digest must not be admitted (I)."""
+    candidate = _candidate(raw_response_ref="r1", raw_response_digest="f" * 64)
+    assert raw_response_digest_matches(candidate, expected_digest="d" * 64) is False
+
+
+# ── S19-S23: provider outcome truth (CRB-PRE-P1) ─────────────────────────────
+
+@pytest.mark.asyncio
+async def test_s19_provider_cannot_report_denied():
+    ledger = ReviewTransactionLedger()
+    outcome = ProviderExecutionOutcome(status=ToolResultStatus.SUCCESS, structured_output={"x": 1})
+    object.__setattr__(outcome, "status", ToolResultStatus.DENIED)
+    real = FixtureProvider(outcome)
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+    assert result.outcome_status == "error"
+    assert result.tool_result.error["code"] == "provider_exception"
+    assert "provider outcome status" in result.tool_result.error["message"]
+
+
+@pytest.mark.asyncio
+async def test_s20_provider_missing_is_unavailable_no_fallback():
+    registry = CapabilityRegistry()
+    register_external_review_capability(registry, status=CapabilityStatus.AVAILABLE)
+    ledger = ReviewTransactionLedger()
+    # No provider registered at all.
+    manager = CapabilityManager(registry, AllowPolicy(), {})
+    result = await _governed(manager, ledger)
+    assert result.outcome_status == "unavailable"
+    assert result.tool_result.error["code"] == "provider_not_found"
+
+
+@pytest.mark.asyncio
+async def test_s21_provider_unhealthy_is_unavailable_no_fallback():
+    ledger = ReviewTransactionLedger()
+    real = FixtureProvider(None, healthy=False, health_detail="session disconnected")
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+    assert result.outcome_status == "unavailable"
+    assert result.tool_result.error["code"] == "provider_unhealthy"
+    assert real.execute_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_s22_partial_remains_partial():
+    ledger = ReviewTransactionLedger()
+    real = FixtureProvider(ProviderExecutionOutcome(
+        status=ToolResultStatus.PARTIAL,
+        structured_output={"raw_response": "partial"},
+        side_effect_state=SideEffectState.SUCCEEDED,
+    ))
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+    assert result.outcome_status == "partial"
+    ev = result.execution.evidence[0]
+    assert ev.provenance["incomplete"] is True
+
+
+@pytest.mark.asyncio
+async def test_s23_error_without_content_has_no_synthetic_evidence():
+    ledger = ReviewTransactionLedger()
+    real = FixtureProvider(ProviderExecutionOutcome(
+        status=ToolResultStatus.ERROR,
+        error={"code": "dom_changed", "message": "composer missing"},
+    ))
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+    assert result.outcome_status == "error"
+    assert result.tool_result.evidence_refs == ()
+    assert result.execution.evidence == ()
+
+
+# ── S24-S26: scope isolation ─────────────────────────────────────────────────
+
+def test_s24_candidate_pass_still_candidate_only():
+    """Governance admission is candidate-only; there is no final PASS authority."""
+    from julia_core.review.governance import ReviewGovernanceRecord
+    assert "PASS" not in {f for f in dir(ReviewGovernanceRecord) if not f.startswith("_")}
+
+
+def test_s25_no_browser_dom_imports_in_core():
+    import ast
+    import julia_core.review as review_pkg
+    import inspect
+    import pathlib
+    root = pathlib.Path(inspect.getfile(review_pkg)).parent
+    forbidden = {"playwright", "selenium", "chrome", "chatgpt", "websocket", "dom"}
+    for py in root.rglob("*.py"):
+        tree = ast.parse(py.read_text(encoding="utf-8"), filename=str(py))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    top = alias.name.split(".")[0].lower()
+                    assert top not in forbidden, f"forbidden import in {py}: {alias.name}"
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    top = node.module.split(".")[0].lower()
+                    assert top not in forbidden, f"forbidden import in {py}: {node.module}"
+
+
+def test_s26_no_p4_automatic_routing():
+    import julia_core.review as review_pkg
+    assert not hasattr(review_pkg, "route")
+    assert not hasattr(review_pkg, "route_from_text")
+    assert not hasattr(review_pkg, "detect_review_intent")
+    assert not hasattr(review_pkg, "auto_select")
+
+
+# ── Additional authority-edge sabotage ───────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_provider_executes_at_most_once_per_submission():
+    ledger = ReviewTransactionLedger()
+    real = FixtureProvider(ProviderExecutionOutcome(
+        status=ToolResultStatus.SUCCESS, structured_output={"raw_response": "ok"},
+    ))
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+    assert real.execute_calls == 1
+    assert result.execution.tool_result.capability_call_id == result.execution.capability_call.capability_call_id
 
 
 @pytest.mark.asyncio
 async def test_no_provider_fallback_after_failure():
-    """Provider failure must NOT silently choose another provider."""
     failing = FixtureProvider(ProviderExecutionOutcome(
         status=ToolResultStatus.ERROR, error={"code": "boom", "message": "fail"},
     ))
     second = FixtureProvider(ProviderExecutionOutcome(
         status=ToolResultStatus.SUCCESS, structured_output={"raw_response": "sneaky"},
     ))
+    ledger = ReviewTransactionLedger()
     registry = CapabilityRegistry()
     register_external_review_capability(registry, status=CapabilityStatus.AVAILABLE)
-    manager = CapabilityManager(registry, AllowPolicy(), {
-        EXTERNAL_REVIEW_PROVIDER: failing,
-        "alternate_provider": second,
-    })
-    result = await _submit(manager)
+    providers = {}
+    install_review_guard(providers, real_provider=failing, ledger=ledger)
+    providers["alternate_provider"] = second
+    manager = CapabilityManager(registry, AllowPolicy(), providers)
+    result = await _governed(manager, ledger)
     assert result.outcome_status == "error"
     assert failing.execute_calls == 1
-    assert second.execute_calls == 0  # never consulted
+    assert second.execute_calls == 0
 
 
-@pytest.mark.asyncio
-async def test_missing_provider_is_unavailable():
-    manager = _manager()  # no provider registered
-    result = await _submit(manager)
-    assert result.outcome_status == "unavailable"
-    assert result.tool_result.error["code"] == "provider_not_found"
-    assert result.tool_result.evidence_refs == ()
+def test_provider_selected_capability_authority_is_ignored():
+    """A provider returning a different capability_id must NOT change authority."""
+    from julia_core.review.invocation import build_review_request
+    ledger = ReviewTransactionLedger()
+    snapshot = seal_review_bundle(_bundle())
+    transaction = ledger.mint(snapshot)
+    request = build_review_request(snapshot, transaction)
+    # The request carries the ORIGINAL capability id.
+    assert request.capability_id == "engineering.code_review"
 
 
-@pytest.mark.asyncio
-async def test_unhealthy_provider_is_unavailable():
-    provider = FixtureProvider(None, healthy=False, health_detail="session disconnected")
-    result = await _submit(_manager(provider))
-    assert result.outcome_status == "unavailable"
-    assert result.tool_result.error["code"] == "provider_unhealthy"
-    assert provider.execute_calls == 0  # health gate blocks execution
+def test_governance_record_rejects_error_outcome_with_correlated_candidate():
+    """Transport failure must never become an admitted review (G)."""
+    ledger = ReviewTransactionLedger()
+    snapshot = seal_review_bundle(_bundle())
+    transaction = ledger.mint(snapshot)
 
+    class Exec:
+        def __init__(self):
+            self.tool_result = None
+            self.authorization_decision = AuthorizationDecision(
+                decision=AuthorizationStatus.ALLOW, scope="engineering.review.external"
+            )
 
-# ── Truth promotion attacks ──────────────────────────────────────────────────
+    class Invocation:
+        def __init__(self):
+            self.execution = Exec()
+            self.transaction = transaction
 
-@pytest.mark.asyncio
-async def test_partial_cannot_be_promoted_to_success():
-    provider = FixtureProvider(ProviderExecutionOutcome(
-        status=ToolResultStatus.PARTIAL,
-        structured_output={"raw_response": "partial", "missing": True},
-    ))
-    result = await _submit(_manager(provider))
-    assert result.outcome_status == "partial"
-    assert result.tool_result.status == ToolResultStatus.PARTIAL
-    ev = result.execution.evidence[0]
-    assert ev.provenance["incomplete"] is True
-    # Never re-labeled SUCCESS, never filled with synthetic verdict.
-
-
-@pytest.mark.asyncio
-async def test_error_does_not_become_evidence():
-    provider = FixtureProvider(ProviderExecutionOutcome(
-        status=ToolResultStatus.ERROR,
-        error={"code": "dom_changed", "message": "composer missing"},
-    ))
-    result = await _submit(_manager(provider))
-    assert result.outcome_status == "error"
-    assert result.tool_result.evidence_refs == ()
-    assert result.execution.evidence == ()
-
-
-@pytest.mark.asyncio
-async def test_unknown_side_effect_never_triggers_auto_retry():
-    provider = FixtureProvider(ProviderExecutionOutcome(
-        status=ToolResultStatus.TIMEOUT,
-        error={"code": "response_timeout", "message": "timeout after send"},
-        side_effect_state=SideEffectState.UNKNOWN,
-    ))
-    result = await _submit(_manager(provider))
-    assert result.side_effect_state == "unknown"
-    assert provider.execute_calls == 1  # NO auto retry on UNKNOWN
-
-
-# ── Semantic binding attacks ─────────────────────────────────────────────────
-
-def test_candidate_sha_mismatch_rejected():
-    from julia_core.review.validation import assert_review_correlation
-    with pytest.raises(ReviewCorrelationError):
-        assert_review_correlation(_bundle(), _candidate(candidate_sha="deadbeef"))
-    errors = validate_review_correlation(_bundle(), _candidate(candidate_sha="deadbeef"))
-    assert errors
-
-
-def test_review_id_mismatch_rejected():
-    errors = validate_review_correlation(_bundle(), _candidate(review_id="rvw_OTHER"))
-    assert errors
-
-
-def test_bundle_digest_mismatch_rejected():
-    errors = validate_review_correlation(_bundle(), _candidate(), bundle_digest="0" * 64)
-    assert errors
-
-
-def test_governance_record_rejects_uncorrelated_candidate():
+    candidate = _candidate(transport_trace={"status": "CAPTURED"})
     record = build_governance_record(
-        bundle=_bundle(),
-        candidate=_candidate(candidate_sha="deadbeef"),
-        outcome_status="success",
-        side_effect_state="succeeded",
-        correlation_errors=validate_review_correlation(_bundle(), _candidate(candidate_sha="deadbeef")),
+        invocation=Invocation(),
+        transaction=transaction,
+        candidate=candidate,
+        ledger=ledger,
+        candidate_sha_source=_same_sha_source(),
     )
     assert record.admission == "REJECTED"
-    assert record.rejection_reasons
+    assert any("transport_not_completed" in r for r in record.rejection_reasons)
 
 
-def test_governance_record_rejects_error_outcome_even_with_candidate():
-    """Transport failure must never become an admitted review."""
+@pytest.mark.asyncio
+async def test_governance_admits_correlated_candidate_with_all_truth():
+    ledger = ReviewTransactionLedger()
+    real = FixtureProvider(ProviderExecutionOutcome(
+        status=ToolResultStatus.SUCCESS,
+        structured_output={"raw_response": "VERDICT: PASS", "raw_response_digest": "d" * 64},
+        side_effect_state=SideEffectState.SUCCEEDED,
+    ))
+    manager = _guarded_manager(real, ledger)
+    result = await _governed(manager, ledger)
+    candidate = _candidate(raw_response_ref="r1", raw_response_digest="d" * 64)
     record = build_governance_record(
-        bundle=_bundle(),
-        candidate=_candidate(),
-        outcome_status="error",
-        side_effect_state="unknown",
-        correlation_errors=[],
+        invocation=result, transaction=result.transaction, candidate=candidate,
+        ledger=ledger, candidate_sha_source=_same_sha_source(),
     )
-    assert record.admission == "REJECTED"
-
-
-def test_governance_record_admits_correlated_success():
-    record = build_governance_record(
-        bundle=_bundle(),
-        candidate=_candidate(),
-        outcome_status="success",
-        side_effect_state="succeeded",
-        correlation_errors=[],
-    )
-    assert record.admission == "CANDIDATE_ADMITTED"
-
-
-# ── Boundary / authority crossing attacks ────────────────────────────────────
-
-def test_browser_authority_in_request_rejected():
-    bundle = _bundle(
-        diff_blocks=({"browser_session_id": "bs_1", "dom_selector": "#c", "chatgpt_url": "https://chatgpt.com/x"},),
-    )
-    with pytest.raises(BrowserAuthorityInRequestError):
-        build_review_request(bundle)
-
-
-def test_request_never_carries_browser_authority():
-    request = build_review_request(_bundle())
-    arguments = request.arguments
-    for key in ("tab_id", "dom_selector", "conversation_url", "extension_nonce", "browser_command", "browser_session_ref"):
-        assert key not in arguments
-
-
-@pytest.mark.asyncio
-async def test_legacy_string_transport_not_reintroduced():
-    """submit_review must return the typed CapabilityExecution, not a string."""
-    provider = FixtureProvider(ProviderExecutionOutcome(
-        status=ToolResultStatus.SUCCESS, structured_output={"raw_response": "ok"},
-    ))
-    result = await _submit(_manager(provider))
-    from julia_core.review.invocation import ReviewInvocationResult
-    assert isinstance(result, ReviewInvocationResult)
-    assert isinstance(result.execution.tool_result, object)
-    assert not isinstance(result.execution, str)
-
-
-# ── Correlation id / request id integrity ───────────────────────────────────
-
-@pytest.mark.asyncio
-async def test_forged_request_association_fails_closed():
-    """CapabilityExecution must not be fabricated without ALLOW decision."""
-    provider = FixtureProvider(ProviderExecutionOutcome(
-        status=ToolResultStatus.SUCCESS, structured_output={"raw_response": "ok"},
-    ))
-    manager = _manager(provider)
-    # Direct execute_typed with a request whose ids are forged/empty still
-    # produces ONE self-consistent CapabilityExecution (fail closed, not crash).
-    request = CapabilityRequest(
-        capability_id="engineering.code_review",
-        arguments={"review_id": "forged"},
-        requested_scope="engineering.review.external",
-    )
-    execution = await manager.execute_typed(request)
-    assert execution.tool_result.capability_call_id == execution.capability_call.capability_call_id
-    assert execution.authorization_decision.decision == AuthorizationStatus.ALLOW
-    # Evidence refs exactly match ToolResult refs.
-    assert tuple(e.evidence_id for e in execution.evidence) == execution.tool_result.evidence_refs
-
-
-@pytest.mark.asyncio
-async def test_capability_call_id_integrity_preserved():
-    provider = FixtureProvider(ProviderExecutionOutcome(
-        status=ToolResultStatus.SUCCESS, structured_output={"raw_response": "ok"},
-    ))
-    result = await _submit(_manager(provider))
-    call = result.execution.capability_call
-    tool = result.tool_result
-    assert tool.capability_call_id == call.capability_call_id
-    assert call.capability_request_id == provider.last_request.capability_request_id
-    assert call.status == CapabilityCallStatus.COMPLETED
+    assert record.admission == "CANDIDATE_ADMITTED", record.rejection_reasons

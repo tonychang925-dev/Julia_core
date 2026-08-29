@@ -66,8 +66,13 @@ def register_external_review_capability(
 ) -> CapabilityDefinition:
     """Register the engineering.code_review definition (and scope rule).
 
-    The permission rule is allow=True for the explicit operator-triggered
-    review submission path. No browser authority is registered.
+    Registration alone does NOT equal external-send authorization. The
+    permission rule below grants ONLY the scope-level authorization owned by
+    PermissionPolicy/CapabilityManager. Reaching the real provider additionally
+    requires the guarded semantic ingress (a valid ReviewTransaction token from
+    the Core ledger) — capability existence never implies send authority (B).
+
+    No browser authority is registered.
     """
     definition = make_external_review_definition(status=status)
     registry.register_definition(definition)
@@ -75,7 +80,8 @@ def register_external_review_capability(
         policy.add_rule(PermissionRule(
             scope=EXTERNAL_REVIEW_SCOPE,
             allow=True,
-            reason="Operator-triggered external code review submission (manual/explicit)",
+            reason="Operator-triggered external code review submission (manual/explicit); "
+                   "provider reach additionally requires governed review ingress token",
         ))
     return definition
 

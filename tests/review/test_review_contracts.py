@@ -1,13 +1,11 @@
-"""External Code Review — Core-side contract tests.
+"""External Code Review — Core-side contract & snapshot tests.
 
 Covers:
-  - ReviewBundle required fields / schema validation
-  - ReviewDecisionCandidate minimum fields / verdict recognition
-  - identity isolation (no persona/continuity/self-model material)
-  - deterministic digest stability
-  - review correlation rules (review_id / candidate_id / candidate_sha /
-    bundle_digest)
-  - stale review rejection
+  - ReviewBundle / ReviewDecisionCandidate schema
+  - identity isolation
+  - digest stability
+  - deep-sealed snapshot (C): immutable, owned digest, mutation-proof
+  - correlation rules (D): review_id / candidate_id / candidate_sha / digest
 """
 
 from __future__ import annotations
@@ -23,7 +21,9 @@ from julia_core.review.contracts import (
     validate_identity_isolation,
 )
 from julia_core.review.digest import compute_bundle_digest, compute_text_digest, digests_equal
+from julia_core.review.snapshot import SealedReviewBundle, seal_review_bundle, snapshot_digest
 from julia_core.review.validation import (
+    CandidateShaSourceUnavailable,
     ReviewCorrelationError,
     assert_not_stale,
     assert_review_correlation,
@@ -76,16 +76,9 @@ def test_bundle_required_fields_are_reported():
 
 
 def test_bundle_identity_isolation_rejects_persona_material():
-    bundle = _bundle()
-    # persona material inside identity_projection must be rejected
     bad = ReviewBundle(
-        review_id=bundle.review_id,
-        candidate_id=bundle.candidate_id,
-        candidate_sha=bundle.candidate_sha,
-        repository=bundle.repository,
-        objective=bundle.objective,
-        changed_files=bundle.changed_files,
-        questions=bundle.questions,
+        review_id="rvw_1", candidate_id="cand_1", candidate_sha="abc123",
+        repository="Julia_core", objective="x", changed_files=("a.py",), questions=("q",),
         identity_projection={"persona_projection": "Julia persona text"},
     )
     errors = bad.validate()
@@ -100,7 +93,7 @@ def test_bundle_identity_isolation_allows_disabled_flags():
         "private_identity_memory": "DISABLED",
         "self_model_projection": "DISABLED",
     }
-    validate_identity_isolation(payload)  # must not raise
+    validate_identity_isolation(payload)
 
 
 @pytest.mark.parametrize("key", [
@@ -138,9 +131,8 @@ def test_candidate_all_verdicts_recognized():
 # ── Digest ───────────────────────────────────────────────────────────────────
 
 def test_text_digest_is_sha256_hex():
-    digest = compute_text_digest("hello")
-    assert len(digest) == 64
-    assert digest == compute_text_digest("hello")
+    assert len(compute_text_digest("hello")) == 64
+    assert compute_text_digest("hello") == compute_text_digest("hello")
 
 
 def test_bundle_digest_is_stable():
@@ -148,9 +140,7 @@ def test_bundle_digest_is_stable():
 
 
 def test_bundle_digest_changes_when_payload_changes():
-    assert compute_bundle_digest(_bundle()) != compute_bundle_digest(
-        _bundle(candidate_sha="def456")
-    )
+    assert compute_bundle_digest(_bundle()) != compute_bundle_digest(_bundle(candidate_sha="def456"))
 
 
 def test_digests_equal():
@@ -159,59 +149,142 @@ def test_digests_equal():
     assert not digests_equal("abc", 123)
 
 
-# ── Correlation rules ────────────────────────────────────────────────────────
+# ── Deep-sealed snapshot (C) ─────────────────────────────────────────────────
+
+def test_seal_produces_immutable_snapshot_with_digest():
+    snapshot = seal_review_bundle(_bundle())
+    assert isinstance(snapshot, SealedReviewBundle)
+    assert snapshot.review_id == "rvw_1"
+    assert len(snapshot.digest) == 64
+    assert snapshot_digest(snapshot) == snapshot.digest
+
+
+def test_seal_rejects_invalid_bundle_before_digest():
+    with pytest.raises(ValueError):
+        seal_review_bundle(ReviewBundle())
+
+
+def test_seal_deep_copies_nested_payload():
+    """S4/S5: mutating the original caller object must NOT change the snapshot."""
+    bundle = _bundle(
+        diff_blocks=({"path": "a.py", "content": "v1"},),
+        limits={"max_response_chars": 12000, "allow_scope_expansion": False},
+    )
+    snapshot = seal_review_bundle(bundle)
+    before = snapshot.to_payload()
+    digest_before = snapshot.digest
+
+    # Mutate the original bundle's nested structures aggressively.
+    # (ReviewBundle is frozen; mutate the nested mutable dicts/tuples.)
+    nested_blocks = bundle.diff_blocks
+    nested_blocks[0]["content"] = "MUTATED"
+    nested_blocks[0]["tab_id"] = 999  # inserted after validation
+    bundle.limits["max_response_chars"] = 1
+    bundle.limits["browser_command"] = "goto"
+    changed_files = list(bundle.changed_files)
+    changed_files.append("evil.py")
+    object.__setattr__(bundle, "changed_files", tuple(changed_files))
+
+    after = snapshot.to_payload()
+    assert before == after  # byte/semantic identical
+    assert snapshot.digest == digest_before  # owned digest stable
+    assert after["diff_blocks"][0]["content"] == "v1"
+    assert "tab_id" not in after["diff_blocks"][0]
+    assert after["limits"]["max_response_chars"] == 12000
+    assert "evil.py" not in after["changed_files"]
+
+
+def test_snapshot_payload_returns_fresh_copy_each_call():
+    snapshot = seal_review_bundle(_bundle(diff_blocks=({"path": "a.py"},)))
+    p1 = snapshot.to_payload()
+    p2 = snapshot.to_payload()
+    assert p1 == p2
+    # Mutating one returned copy must not affect the snapshot or the next copy.
+    p1["diff_blocks"][0]["path"] = "MUTATED"
+    assert snapshot.to_payload()["diff_blocks"][0]["path"] == "a.py"
+
+
+# ── Correlation rules (D) ────────────────────────────────────────────────────
 
 def test_correlation_passes_when_all_bound():
-    assert validate_review_correlation(_bundle(), _candidate()) == []
+    snapshot = seal_review_bundle(_bundle())
+    assert validate_review_correlation(snapshot, _candidate()) == []
 
 
 def test_correlation_rejects_review_id_mismatch():
-    errors = validate_review_correlation(_bundle(), _candidate(review_id="rvw_OTHER"))
+    snapshot = seal_review_bundle(_bundle())
+    errors = validate_review_correlation(snapshot, _candidate(review_id="rvw_OTHER"))
     assert any(ReviewErrorCode.REVIEW_ID_MISMATCH.value in e for e in errors)
 
 
 def test_correlation_rejects_candidate_id_mismatch():
-    errors = validate_review_correlation(_bundle(), _candidate(candidate_id="cand_OTHER"))
+    snapshot = seal_review_bundle(_bundle())
+    errors = validate_review_correlation(snapshot, _candidate(candidate_id="cand_OTHER"))
     assert any(ReviewErrorCode.CANDIDATE_ID_MISMATCH.value in e for e in errors)
 
 
 def test_correlation_rejects_candidate_sha_mismatch():
-    errors = validate_review_correlation(_bundle(), _candidate(candidate_sha="deadbeef"))
+    snapshot = seal_review_bundle(_bundle())
+    errors = validate_review_correlation(snapshot, _candidate(candidate_sha="deadbeef"))
     assert any(ReviewErrorCode.CANDIDATE_SHA_MISMATCH.value in e for e in errors)
 
 
-def test_correlation_rejects_bundle_digest_mismatch():
-    errors = validate_review_correlation(
-        _bundle(), _candidate(), bundle_digest="0" * 64
-    )
-    assert any(ReviewErrorCode.BUNDLE_DIGEST_MISMATCH.value in e for e in errors)
+def test_correlation_uses_snapshot_digest_not_caller_digest():
+    """The digest is compared against the snapshot's OWNED digest, never a
+    caller-supplied digest string (no self-supplied authority)."""
+    snapshot = seal_review_bundle(_bundle())
+    # Even if the caller knew the digest, there is no digest argument to pass —
+    # correlation is always against the trusted snapshot.
+    errors = validate_review_correlation(snapshot, _candidate())
+    assert errors == []
 
 
 def test_correlation_rejects_empty_response():
+    snapshot = seal_review_bundle(_bundle())
     candidate = _candidate(verdict=ReviewVerdict.UNPARSEABLE, notes=())
-    errors = validate_review_correlation(_bundle(), candidate)
+    errors = validate_review_correlation(snapshot, candidate)
     assert any(ReviewErrorCode.REVIEW_EMPTY_RESPONSE.value in e for e in errors)
 
 
 def test_correlation_rejects_response_over_size_limit():
+    snapshot = seal_review_bundle(_bundle())
     candidate = _candidate(notes=("x" * 200,))
-    errors = validate_review_correlation(_bundle(), candidate, max_response_chars=50)
+    errors = validate_review_correlation(snapshot, candidate, max_response_chars=50)
     assert any("response_size_exceeded" in e for e in errors)
 
 
 def test_assert_correlation_raises_on_failure():
+    snapshot = seal_review_bundle(_bundle())
     with pytest.raises(ReviewCorrelationError):
-        assert_review_correlation(_bundle(), _candidate(candidate_sha="deadbeef"))
+        assert_review_correlation(snapshot, _candidate(candidate_sha="deadbeef"))
 
 
-# ── Stale review ─────────────────────────────────────────────────────────────
+# ── Stale (E) ────────────────────────────────────────────────────────────────
 
-def test_stale_review_detected():
-    assert is_stale(_bundle(), current_candidate_sha="newsha")
-    assert not is_stale(_bundle(), current_candidate_sha="abc123")
+def test_stale_without_source_fails_closed():
+    """Without a canonical CandidateShaSource, stale validation MUST NOT trust a
+    caller-supplied current SHA — it fails closed (E)."""
+    snapshot = seal_review_bundle(_bundle())
+    with pytest.raises(CandidateShaSourceUnavailable):
+        is_stale(snapshot, None)
 
 
-def test_assert_not_stale_raises():
-    with pytest.raises(ReviewCorrelationError) as exc_info:
-        assert_not_stale(_bundle(), current_candidate_sha="newsha")
-    assert ReviewErrorCode.STALE_REVIEW.value in str(exc_info.value)
+def test_stale_detected_via_canonical_source():
+    class Source:
+        def current_candidate_sha(self, *, review_id, candidate_id):
+            return "newsha"
+
+    snapshot = seal_review_bundle(_bundle())
+    assert is_stale(snapshot, Source()) is True
+    with pytest.raises(ReviewCorrelationError):
+        assert_not_stale(snapshot, Source())
+
+
+def test_not_stale_when_canonical_source_matches():
+    class Source:
+        def current_candidate_sha(self, *, review_id, candidate_id):
+            return "abc123"
+
+    snapshot = seal_review_bundle(_bundle())
+    assert is_stale(snapshot, Source()) is False
+    assert_not_stale(snapshot, Source())  # no raise

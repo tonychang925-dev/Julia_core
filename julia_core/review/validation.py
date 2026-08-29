@@ -1,107 +1,52 @@
-"""Core-side review correlation / identity rules.
+"""Core-side review correlation / transport-completion / stale rules.
 
-These rules enforce the end-to-end binding:
-  review_id + candidate_id + candidate_sha + bundle_digest
+Correlation binds the returned candidate to the TRUSTED outbound transaction:
 
-A returned review result must correlate to the exact outbound bundle. If the
-candidate changes while review is in flight, the result is STALE_REVIEW and
-must be rejected — no silent carry-over.
+    review_id + candidate_id + candidate_sha + bundle_digest
+
+Transport completion must derive from the REAL typed provider execution truth,
+not from caller-supplied strings. A candidate with an incomplete/failed
+transport (e.g. transport_trace.status = CREATED) must never be admitted merely
+because a caller passes outcome_status="success".
+
+STALE_REVIEW (E): the current candidate SHA must come from a canonical
+candidate/repository truth source owned by Julia Core. This module does NOT
+invent one: stale validation requires a CandidateShaSource; without a source,
+stale validation FAILS CLOSED and the candidate cannot be admitted.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from abc import ABC, abstractmethod
+from typing import Any, Protocol
 
 from julia_core.review.contracts import (
-    ReviewBundle,
     ReviewDecisionCandidate,
     ReviewErrorCode,
     ReviewVerdict,
 )
-from julia_core.review.digest import compute_bundle_digest
+from julia_core.review.snapshot import SealedReviewBundle
+from julia_core.review.transaction import ReviewTransaction
 
 
-class ReviewCorrelationError(ValueError):
-    """Raised when a review result fails Core-side correlation/binding rules."""
+class CandidateShaSource(Protocol):
+    """Core-owned canonical source for the CURRENT candidate SHA.
 
-
-def validate_review_correlation(
-    bundle: ReviewBundle,
-    candidate: ReviewDecisionCandidate,
-    *,
-    bundle_digest: str | None = None,
-    max_response_chars: int = 12000,
-) -> list[str]:
-    """Return a list of correlation errors (empty = PASS).
-
-    Checks:
-      - candidate minimum fields (review_id / candidate_id / candidate_sha)
-      - bundle schema validity
-      - review_id match
-      - candidate_id match
-      - candidate_sha match
-      - bundle_digest recompute match (when digest supplied)
-      - response non-empty
-      - verdict recognized
-      - response within size limit
+    Must be a trusted repository/candidate truth source owned by Julia Core.
+    This module does NOT ship a default implementation: if Core has no such
+    source, stale validation fails closed (candidate cannot be admitted).
     """
-    errors: list[str] = list(bundle.validate())
-    errors.extend(candidate.validate_minimum())
 
-    if not errors:
-        if candidate.review_id != bundle.review_id:
-            errors.append(f"{ReviewErrorCode.REVIEW_ID_MISMATCH.value}:candidate review_id != bundle review_id")
-        if candidate.candidate_id != bundle.candidate_id:
-            errors.append(f"{ReviewErrorCode.CANDIDATE_ID_MISMATCH.value}:candidate candidate_id != bundle candidate_id")
-        if candidate.candidate_sha != bundle.candidate_sha:
-            errors.append(f"{ReviewErrorCode.CANDIDATE_SHA_MISMATCH.value}:candidate candidate_sha != bundle candidate_sha")
-
-        if bundle_digest is not None:
-            recomputed = compute_bundle_digest(bundle)
-            if recomputed != bundle_digest:
-                errors.append(f"{ReviewErrorCode.BUNDLE_DIGEST_MISMATCH.value}:recomputed != supplied")
-
-        if not _has_observable_content(candidate):
-            errors.append(f"{ReviewErrorCode.REVIEW_EMPTY_RESPONSE.value}:no observable review content")
-
-        if _response_size(candidate) > max_response_chars:
-            errors.append(
-                f"response_size_exceeded:> {max_response_chars} chars"
-            )
-
-    return errors
+    def current_candidate_sha(self, *, review_id: str, candidate_id: str) -> str:
+        """Return the canonical current SHA for the candidate identity."""
+        ...
 
 
-def assert_review_correlation(
-    bundle: ReviewBundle,
-    candidate: ReviewDecisionCandidate,
-    *,
-    bundle_digest: str | None = None,
-    max_response_chars: int = 12000,
-) -> None:
-    """Raise ReviewCorrelationError on first failed correlation rule."""
-    errors = validate_review_correlation(
-        bundle, candidate,
-        bundle_digest=bundle_digest,
-        max_response_chars=max_response_chars,
-    )
-    if errors:
-        raise ReviewCorrelationError("; ".join(errors))
+class CandidateShaSourceUnavailable(Exception):
+    """Raised when stale validation requires a canonical source that is absent."""
 
 
-def is_stale(bundle: ReviewBundle, current_candidate_sha: str) -> bool:
-    """True when the bound candidate SHA no longer matches current truth."""
-    return bundle.candidate_sha != current_candidate_sha
-
-
-def assert_not_stale(bundle: ReviewBundle, current_candidate_sha: str) -> None:
-    if is_stale(bundle, current_candidate_sha):
-        raise ReviewCorrelationError(
-            f"{ReviewErrorCode.STALE_REVIEW.value}:bound {bundle.candidate_sha} != current {current_candidate_sha}"
-        )
-
-
-def _has_observable_content(candidate: ReviewDecisionCandidate) -> bool:
+def _observable_content(candidate: ReviewDecisionCandidate) -> bool:
     if candidate.verdict not in (ReviewVerdict.UNPARSEABLE, ReviewVerdict.UNPARSEABLE.value):
         return True
     return bool(
@@ -122,10 +67,173 @@ def _response_size(candidate: ReviewDecisionCandidate) -> int:
     return sum(len(p) for p in parts)
 
 
+def validate_review_correlation(
+    snapshot: SealedReviewBundle,
+    candidate: ReviewDecisionCandidate,
+    *,
+    max_response_chars: int = 12000,
+) -> list[str]:
+    """Return correlation errors between the trusted snapshot and candidate.
+
+    The bundle digest is compared against the SNAPSHOT's owned digest, not a
+    caller-supplied digest (no self-supplied authority).
+    """
+    errors: list[str] = list(candidate.validate_minimum())
+
+    if not errors:
+        if candidate.review_id != snapshot.review_id:
+            errors.append(f"{ReviewErrorCode.REVIEW_ID_MISMATCH.value}:candidate review_id != transaction review_id")
+        if candidate.candidate_id != snapshot.candidate_id:
+            errors.append(f"{ReviewErrorCode.CANDIDATE_ID_MISMATCH.value}:candidate candidate_id != transaction candidate_id")
+        if candidate.candidate_sha != snapshot.candidate_sha:
+            errors.append(f"{ReviewErrorCode.CANDIDATE_SHA_MISMATCH.value}:candidate candidate_sha != transaction candidate_sha")
+
+        if not _observable_content(candidate):
+            errors.append(f"{ReviewErrorCode.REVIEW_EMPTY_RESPONSE.value}:no observable review content")
+
+        if _response_size(candidate) > max_response_chars:
+            errors.append(f"response_size_exceeded:> {max_response_chars} chars")
+
+    return errors
+
+
+def validate_transaction_correlation(
+    transaction: ReviewTransaction,
+    candidate: ReviewDecisionCandidate,
+) -> list[str]:
+    """Correlate the candidate against the trusted transaction binding."""
+    return validate_review_correlation(transaction.snapshot, candidate)
+
+
+class ReviewCorrelationError(ValueError):
+    """Raised when a review result fails Core-side correlation/binding rules."""
+
+
+def assert_review_correlation(
+    snapshot: SealedReviewBundle,
+    candidate: ReviewDecisionCandidate,
+    *,
+    max_response_chars: int = 12000,
+) -> None:
+    errors = validate_review_correlation(
+        snapshot, candidate, max_response_chars=max_response_chars
+    )
+    if errors:
+        raise ReviewCorrelationError("; ".join(errors))
+
+
+# ── Transport completion truth (G) ───────────────────────────────────────────
+
+# Real provider-execution statuses that imply transport completed.
+_TRANSPORT_COMPLETE_STATUSES = {"success", "partial"}
+
+
+def transport_completed(outcome_status: str) -> bool:
+    """Transport completion derives from real typed execution truth.
+
+    Only SUCCESS/PARTIAL execution outcomes represent completed transport.
+    ERROR / TIMEOUT / UNAVAILABLE / CANCELLED are NOT transport completion.
+    """
+    return outcome_status in _TRANSPORT_COMPLETE_STATUSES
+
+
+def validate_transport_completion(
+    candidate: ReviewDecisionCandidate,
+    outcome_status: str,
+) -> list[str]:
+    """Return transport-completion errors.
+
+    A candidate must never be admitted merely because a caller supplies
+    outcome_status="success" — outcome_status here must come from the exact
+    typed provider execution (CapabilityExecution / ToolResult), not from a
+    caller string. Additionally the candidate's own transport_trace must not be
+    CREATED/incomplete when a full raw response is claimed.
+    """
+    errors: list[str] = []
+    if not transport_completed(outcome_status):
+        errors.append(f"transport_not_completed:outcome_status={outcome_status!r}")
+
+    trace = candidate.transport_trace
+    trace_status = ""
+    if isinstance(trace, dict):
+        trace_status = str(trace.get("status", ""))
+    elif hasattr(trace, "status"):
+        trace_status = str(trace.status)
+
+    if trace_status in ("CREATED", "", "FAILED", "CANCELLED"):
+        errors.append(f"transport_trace_incomplete:status={trace_status!r}")
+    return errors
+
+
+def assert_transport_completed(candidate: ReviewDecisionCandidate, outcome_status: str) -> None:
+    errors = validate_transport_completion(candidate, outcome_status)
+    if errors:
+        raise ReviewCorrelationError("; ".join(errors))
+
+
+# ── Stale / current-SHA truth (E) ────────────────────────────────────────────
+
+def is_stale(
+    snapshot: SealedReviewBundle,
+    source: CandidateShaSource | None,
+) -> bool:
+    """Return True when the bound candidate SHA no longer matches canonical truth.
+
+    If no canonical CandidateShaSource is available, raise
+    CandidateShaSourceUnavailable — stale validation FAILS CLOSED rather than
+    trusting a caller-supplied current SHA.
+    """
+    if source is None:
+        raise CandidateShaSourceUnavailable(
+            "no canonical candidate-SHA source; stale validation fails closed"
+        )
+    current_sha = source.current_candidate_sha(
+        review_id=snapshot.review_id,
+        candidate_id=snapshot.candidate_id,
+    )
+    return snapshot.candidate_sha != current_sha
+
+
+def assert_not_stale(
+    snapshot: SealedReviewBundle,
+    source: CandidateShaSource | None,
+) -> None:
+    if is_stale(snapshot, source):
+        raise ReviewCorrelationError(
+            f"{ReviewErrorCode.STALE_REVIEW.value}:bound {snapshot.candidate_sha} != canonical current"
+        )
+
+
+# ── Raw response auditability (I) ────────────────────────────────────────────
+
+def raw_response_digest_matches(
+    candidate: ReviewDecisionCandidate,
+    expected_digest: str | None,
+) -> bool:
+    """A parsed candidate must carry auditable raw response truth.
+
+    If a raw response digest is claimed, it must match the expected digest from
+    the trusted execution observation. If none is expected, an empty claim is
+    accepted but a fabricated digest is not (caller cannot invent truth).
+    """
+    if not candidate.raw_response_ref and not candidate.raw_response_digest:
+        return True  # no raw claim at all — admissible only as non-PASS candidate
+    if not expected_digest:
+        return False  # claimed raw digest but no trusted execution digest to bind
+    return candidate.raw_response_digest == expected_digest
+
+
 __all__ = [
+    "CandidateShaSource",
+    "CandidateShaSourceUnavailable",
     "ReviewCorrelationError",
     "assert_not_stale",
     "assert_review_correlation",
+    "assert_transport_completed",
     "is_stale",
+    "raw_response_digest_matches",
+    "transport_completed",
     "validate_review_correlation",
+    "validate_transaction_correlation",
+    "validate_transport_completion",
 ]

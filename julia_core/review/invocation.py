@@ -1,25 +1,33 @@
 """Manual / explicit external code review invocation path.
 
-Invocation is OPERATOR-TRIGGERED ONLY. There is zero automatic cognitive
-routing here: nothing scans user text, nothing selects this capability on
-behalf of cognition. Callers explicitly build a ReviewBundle and submit it.
+Invocation is OPERATOR-TRIGGERED ONLY and REQUIRES the governed semantic
+ingress:
 
-The CapabilityRequest projected here carries ONLY semantic review data. It must
-never carry browser session authority (tab_id, DOM selector, conversation URL,
-extension nonce, browser command). Browser binding belongs to the provider /
-transport layer.
+    ReviewBundle
+    -> validation
+    -> immutable semantic snapshot (deep-sealed, owned digest)
+    -> trusted transaction (token minted by Core ledger)
+    -> CapabilityRequest (carries token)
+    -> CapabilityManager
+    -> guarded provider
+
+A caller must NOT bypass this path by constructing a normal CapabilityRequest:
+the guarded provider rejects any request without a valid transaction token.
+Forgeable provenance strings ("manual": true) are NOT authority — only the
+opaque ledger token is.
 """
 
 from __future__ import annotations
 
-import time as _time
 from dataclasses import dataclass
 from typing import Any
 
 from julia_core.capability.manager import CapabilityExecution, CapabilityManager
 from julia_core.capability.models import CapabilityRequest
-from julia_core.review.contracts import ReviewBundle, ReviewErrorCode
-from julia_core.review.digest import compute_bundle_digest
+from julia_core.review.contracts import ReviewBundle
+from julia_core.review.guard import REVIEW_SEMANTIC_ARG, REVIEW_TOKEN_ARG
+from julia_core.review.snapshot import SealedReviewBundle, seal_review_bundle
+from julia_core.review.transaction import ReviewTransaction, ReviewTransactionLedger
 
 EXTERNAL_REVIEW_CAPABILITY = "engineering.code_review"
 EXTERNAL_REVIEW_SCOPE = "engineering.review.external"
@@ -42,78 +50,12 @@ class BrowserAuthorityInRequestError(ValueError):
     """Raised when review request arguments attempt to carry browser authority."""
 
 
-def build_review_request(
-    bundle: ReviewBundle,
-    *,
-    correlation_id: str = "",
-    idempotency_key: str = "",
-    turn_id: str = "",
-    generation_id: str = "",
-    requested_at: str | None = None,
-) -> CapabilityRequest:
-    """Project a ReviewBundle into a canonical CapabilityRequest.
-
-    Only semantic review data crosses the boundary. Browser/session authority
-    fields are rejected before projection (fail closed).
-    """
-    errors = bundle.validate()
-    if errors:
-        raise ValueError(f"{ReviewErrorCode.BUNDLE_SCHEMA_INVALID.value}: {'; '.join(errors)}")
-
-    arguments: dict[str, Any] = {
-        "review_id": bundle.review_id,
-        "task_id": bundle.task_id,
-        "candidate_id": bundle.candidate_id,
-        "candidate_sha": bundle.candidate_sha,
-        "repository": bundle.repository,
-        "branch": bundle.branch,
-        "review_mode": bundle.review_mode,
-        "objective": bundle.objective,
-        "acceptance_criteria": list(bundle.acceptance_criteria),
-        "changed_files": list(bundle.changed_files),
-        "diff_summary": bundle.diff_summary,
-        "diff_blocks": [dict(b) for b in bundle.diff_blocks],
-        "tests": list(bundle.tests),
-        "known_risks": list(bundle.known_risks),
-        "architecture_constraints": list(bundle.architecture_constraints),
-        "questions": list(bundle.questions),
-        "evidence_refs": list(bundle.evidence_refs),
-        "limits": dict(bundle.limits),
-        "identity_projection": dict(bundle.identity_projection),
-        "bundle_digest": compute_bundle_digest(bundle),
-    }
-
-    forbidden = sorted(_find_forbidden_authority_keys(arguments))
-    if forbidden:
-        raise BrowserAuthorityInRequestError(
-            f"browser authority fields are not allowed in Core review request: {forbidden}"
-        )
-
-    request = CapabilityRequest(
-        capability_id=EXTERNAL_REVIEW_CAPABILITY,
-        arguments=arguments,
-        requested_scope=EXTERNAL_REVIEW_SCOPE,
-        idempotency_key=idempotency_key or f"review:{bundle.review_id}",
-        turn_id=turn_id,
-        generation_id=generation_id,
-        correlation_id=correlation_id,
-        requested_at=requested_at,
-        provenance={
-            "invocation": "manual",
-            "review_semantic": True,
-            "browser_authority": "NONE",
-            "source": "julia_core.review.invocation",
-        },
-    )
-    return request
+class ReviewIngressRequiredError(ValueError):
+    """Raised when submit_review is called without a trusted ledger/token path."""
 
 
 def _find_forbidden_authority_keys(value: Any) -> set[str]:
-    """Recursively find browser/session authority keys anywhere in the payload.
-
-    Browser authority must never cross the Core semantic boundary, including
-    nested structures (diff_blocks, notes, limits). Fail closed on any hit.
-    """
+    """Recursively find browser/session authority keys anywhere in the payload."""
     found: set[str] = set()
     stack = [value]
     while stack:
@@ -128,16 +70,61 @@ def _find_forbidden_authority_keys(value: Any) -> set[str]:
     return found
 
 
+def build_review_request(
+    snapshot: SealedReviewBundle,
+    transaction: ReviewTransaction,
+    *,
+    correlation_id: str = "",
+    turn_id: str = "",
+    generation_id: str = "",
+) -> CapabilityRequest:
+    """Project a SEALED snapshot into a canonical CapabilityRequest.
+
+    Uses ONLY the immutable snapshot payload (deep-copied, owned digest) and the
+    trusted transaction token. The caller's original ReviewBundle object is
+    never referenced, so later mutation of the caller object cannot change the
+    trusted request. Browser authority fields fail closed (recursive).
+    """
+    payload = snapshot.to_payload()
+
+    forbidden = sorted(_find_forbidden_authority_keys(payload))
+    if forbidden:
+        raise BrowserAuthorityInRequestError(
+            f"browser authority fields are not allowed in Core review request: {forbidden}"
+        )
+
+    arguments: dict[str, Any] = dict(payload)
+    arguments[REVIEW_TOKEN_ARG] = transaction.token
+    arguments[REVIEW_SEMANTIC_ARG] = True
+
+    request = CapabilityRequest(
+        capability_id=EXTERNAL_REVIEW_CAPABILITY,
+        arguments=arguments,
+        requested_scope=EXTERNAL_REVIEW_SCOPE,
+        idempotency_key=f"review:{transaction.transaction_id}",
+        turn_id=turn_id,
+        generation_id=generation_id,
+        correlation_id=correlation_id,
+        provenance={
+            "ingress": "governed_review_semantic",
+            "transaction_id": transaction.transaction_id,
+            "source": "julia_core.review.invocation",
+            # NOTE: provenance is descriptive only; it is NOT authority.
+        },
+    )
+    return request
+
+
 @dataclass(frozen=True, slots=True)
 class ReviewInvocationResult:
-    """Typed result of one manual external review submission.
+    """Typed result of one governed external review submission.
 
-    Carries the exact CapabilityExecution from the Manager plus the semantic
-    correlation digest for audit. Never flattens to a legacy string.
+    Carries the exact CapabilityExecution plus the trusted transaction.
+    Never flattens to a legacy string.
     """
 
     execution: CapabilityExecution
-    bundle_digest: str
+    transaction: ReviewTransaction
 
     @property
     def tool_result(self):
@@ -161,31 +148,57 @@ class ReviewInvocationResult:
 async def submit_review(
     manager: CapabilityManager,
     bundle: ReviewBundle,
+    ledger: ReviewTransactionLedger,
     *,
+    allow_exact_retry: bool = False,
     correlation_id: str = "",
     turn_id: str = "",
     generation_id: str = "",
+    provenance: dict[str, Any] | None = None,
 ) -> ReviewInvocationResult:
-    """Execute one review through the canonical CapabilityManager (typed path).
+    """Execute one governed review through the canonical CapabilityManager.
 
-    Explicit manual invocation. The Manager enforces provider resolution,
-    health, single execution, and typed outcome truth. Returns the immutable
-    CapabilityExecution — no legacy string transport, no fallback.
+    The guarded provider must be installed under ``external_review``; otherwise
+    the manager resolves no provider and returns typed UNAVAILABLE (fail-closed).
     """
+    snapshot = seal_review_bundle(bundle)
+    transaction = ledger.mint(
+        snapshot,
+        allow_exact_retry=allow_exact_retry,
+        provenance=provenance,
+    )
     request = build_review_request(
-        bundle,
+        snapshot,
+        transaction,
         correlation_id=correlation_id,
         turn_id=turn_id,
         generation_id=generation_id,
     )
     execution = await manager.execute_typed(request)
-    return ReviewInvocationResult(execution=execution, bundle_digest=compute_bundle_digest(bundle))
+    # Record the real execution truth into the ledger BEFORE returning, so
+    # duplicate/exact-retry control (F) sees the prior outcome.
+    result = execution.tool_result
+    outcome_status = (
+        result.status.value if result is not None and hasattr(result.status, "value")
+        else ("denied" if result is None else str(result.status))
+    )
+    side_effect_state = (
+        result.side_effect_state.value if result is not None and hasattr(result.side_effect_state, "value")
+        else ("none" if result is None else str(result.side_effect_state))
+    )
+    ledger.record_outcome(
+        transaction,
+        outcome_status=outcome_status,
+        side_effect_state=side_effect_state,
+    )
+    return ReviewInvocationResult(execution=execution, transaction=transaction)
 
 
 __all__ = [
     "BrowserAuthorityInRequestError",
     "EXTERNAL_REVIEW_CAPABILITY",
     "EXTERNAL_REVIEW_SCOPE",
+    "ReviewIngressRequiredError",
     "ReviewInvocationResult",
     "build_review_request",
     "submit_review",

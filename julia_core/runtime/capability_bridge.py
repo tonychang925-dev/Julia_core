@@ -292,6 +292,16 @@ class RuntimeCapabilityBridge:
         }
         capability_id = legacy_to_new.get(name, name)
 
+        # PRE-P4 + External Review gate: the generic model tool-call path must
+        # NEVER invoke engineering.code_review. External review is manual /
+        # explicit operator-triggered ONLY; a model/generated tool-call cannot
+        # grant itself that authority (A).
+        if capability_id == "engineering.code_review":
+            return CapabilityPreAuthorizationFailure(
+                capability_id,
+                "GOVERNED_INGRESS_REQUIRED",
+            )
+
         # Deterministic pre-check against the audited immutable registry.
         definition = self.manager.registry.get(capability_id)
         if definition is None:

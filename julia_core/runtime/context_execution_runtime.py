@@ -523,15 +523,19 @@ class ContextExecutionRuntime:
         generation_id: str,
     ) -> CognitiveContextPackage:
         """P3.2.3A: structured projection of a pre-authorization capability
-        resolution failure (UNKNOWN / DISABLED).
+        resolution failure (UNKNOWN / DISABLED / GOVERNED_INGRESS_REQUIRED).
 
         This is a NON-CANONICAL runtime control fact, NOT Evidence. It is
         projected into the dedicated control_frame (never evidence_frame),
         turn/generation scoped, and mutates no identity/memory/relationship/
         continuity authority. A concrete parent_package and non-empty
         generation_id are required (fail closed otherwise).
+
+        GOVERNED_INGRESS_REQUIRED is an additive control reason introduced by
+        the External Code Review module: the generic model tool-call path may
+        not invoke engineering.code_review (manual/explicit ingress only).
         """
-        if reason not in ("UNKNOWN", "DISABLED"):
+        if reason not in ("UNKNOWN", "DISABLED", "GOVERNED_INGRESS_REQUIRED"):
             raise ValueError(f"invalid capability resolution reason: {reason!r}")
         if not capability_id or not str(capability_id).strip():
             raise ValueError("capability resolution failure requires a non-empty capability_id")
