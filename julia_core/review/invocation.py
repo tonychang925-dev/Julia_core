@@ -7,18 +7,26 @@ ingress:
     -> validation
     -> immutable semantic snapshot (deep-sealed, owned digest)
     -> trusted transaction (token minted by Core ledger)
-    -> CapabilityRequest (carries token)
+    -> CapabilityRequest (bound to the EXACT transaction snapshot)
     -> CapabilityManager
     -> guarded provider
 
-A caller must NOT bypass this path by constructing a normal CapabilityRequest:
-the guarded provider rejects any request without a valid transaction token.
-Forgeable provenance strings ("manual": true) are NOT authority — only the
-opaque ledger token is.
+§1 (Q1-Q4): the request payload derives ONLY from transaction.snapshot. The
+GuardedReviewProvider re-derives the provider-facing payload from the trusted
+snapshot after claiming the token, so caller-mutated request.arguments can never
+become provider semantic truth.
+
+§2 (I1-I4): submit_review registers a trusted ReviewInvocationResult binding
+the exact transaction + exact CapabilityExecution identities. Governance rejects
+handcrafted / copied / mismatched invocations.
+
+§4 (X1-X2): the bearer token is burned under ALL exit paths (exception-safe
+finally), so a failed delegation can never leave a reusable token.
 """
 
 from __future__ import annotations
 
+import json as _json
 from dataclasses import dataclass
 from typing import Any
 
@@ -55,7 +63,6 @@ class ReviewIngressRequiredError(ValueError):
 
 
 def _find_forbidden_authority_keys(value: Any) -> set[str]:
-    """Recursively find browser/session authority keys anywhere in the payload."""
     found: set[str] = set()
     stack = [value]
     while stack:
@@ -71,21 +78,19 @@ def _find_forbidden_authority_keys(value: Any) -> set[str]:
 
 
 def build_review_request(
-    snapshot: SealedReviewBundle,
     transaction: ReviewTransaction,
     *,
     correlation_id: str = "",
     turn_id: str = "",
     generation_id: str = "",
 ) -> CapabilityRequest:
-    """Project a SEALED snapshot into a canonical CapabilityRequest.
+    """Project the EXACT transaction snapshot into a CapabilityRequest.
 
-    Uses ONLY the immutable snapshot payload (deep-copied, owned digest) and the
-    trusted transaction token. The caller's original ReviewBundle object is
-    never referenced, so later mutation of the caller object cannot change the
-    trusted request. Browser authority fields fail closed (recursive).
+    §1 (Q1-Q4): the semantic payload derives ONLY from transaction.snapshot.
+    There is NO separate snapshot parameter — a caller cannot bind Snapshot B to
+    Transaction A. Browser authority fields fail closed (recursive).
     """
-    payload = snapshot.to_payload()
+    payload = transaction.snapshot.to_payload()
 
     forbidden = sorted(_find_forbidden_authority_keys(payload))
     if forbidden:
@@ -108,6 +113,7 @@ def build_review_request(
         provenance={
             "ingress": "governed_review_semantic",
             "transaction_id": transaction.transaction_id,
+            "snapshot_id": transaction.snapshot.snapshot_id,
             "source": "julia_core.review.invocation",
             # NOTE: provenance is descriptive only; it is NOT authority.
         },
@@ -115,14 +121,22 @@ def build_review_request(
     return request
 
 
+# ── Trusted invocation registry (§2, I1-I4) ──────────────────────────────────
+
+_TRUSTED_INVOCATIONS: dict[str, tuple[Any, str]] = {}
+
+
 @dataclass(frozen=True, slots=True)
 class ReviewInvocationResult:
     """Typed result of one governed external review submission.
 
-    Carries the exact CapabilityExecution plus the trusted transaction.
-    Never flattens to a legacy string.
+    Trusted-creator semantics: only submit_review() may produce and register an
+    invocation. Governance verifies is_trusted_invocation() before admission, so
+    a handcrafted / copied / mismatched (execution=A, transaction=B) invocation
+    is rejected even when A and B are individually genuine.
     """
 
+    invocation_id: str
     execution: CapabilityExecution
     transaction: ReviewTransaction
 
@@ -145,6 +159,54 @@ class ReviewInvocationResult:
         return result.side_effect_state.value if hasattr(result.side_effect_state, "value") else str(result.side_effect_state)
 
 
+def _invocation_fingerprint(invocation: ReviewInvocationResult) -> str:
+    """Bind exact transaction + exact execution identities."""
+    call = invocation.execution.capability_call
+    tool = invocation.execution.tool_result
+    call_id = call.capability_call_id if call is not None else None
+    tool_call_id = tool.capability_call_id if tool is not None else None
+    evidence_ids = tuple(e.evidence_id for e in invocation.execution.evidence)
+    authority = {
+        "invocation_id": invocation.invocation_id,
+        "transaction_id": invocation.transaction.transaction_id,
+        "transaction_fingerprint_ok": True,
+        "capability_request_id": call.capability_request_id if call is not None else None,
+        "capability_call_id": call_id,
+        "tool_result_call_id": tool_call_id,
+        "evidence_ids": evidence_ids,
+        "authorization_decision": (
+            invocation.execution.authorization_decision.decision.value
+            if invocation.execution.authorization_decision is not None
+            and hasattr(invocation.execution.authorization_decision.decision, "value")
+            else (invocation.execution.authorization_decision.decision
+                  if invocation.execution.authorization_decision is not None
+                  else None)
+        ),
+    }
+    return _json.dumps(authority, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def register_trusted_invocation(invocation: ReviewInvocationResult) -> ReviewInvocationResult:
+    """Register a trusted invocation (submit_review only)."""
+    _TRUSTED_INVOCATIONS[invocation.invocation_id] = (
+        invocation,
+        _invocation_fingerprint(invocation),
+    )
+    return invocation
+
+
+def is_trusted_invocation(invocation: ReviewInvocationResult) -> bool:
+    """True only for the exact registered invocation with an unchanged
+    execution/transaction binding fingerprint."""
+    entry = _TRUSTED_INVOCATIONS.get(invocation.invocation_id)
+    if entry is None:
+        return False
+    ref, fingerprint = entry
+    if ref is not invocation:
+        return False
+    return _invocation_fingerprint(invocation) == fingerprint
+
+
 async def submit_review(
     manager: CapabilityManager,
     bundle: ReviewBundle,
@@ -160,6 +222,10 @@ async def submit_review(
 
     The guarded provider must be installed under ``external_review``; otherwise
     the manager resolves no provider and returns typed UNAVAILABLE (fail-closed).
+
+    Token lifecycle (X1-X2): the token is burned in a finally-equivalent path so
+    it is unusable after this call no matter what happens (including unexpected
+    manager/provider exceptions).
     """
     snapshot = seal_review_bundle(bundle)
     transaction = ledger.mint(
@@ -168,19 +234,21 @@ async def submit_review(
         provenance=provenance,
     )
     request = build_review_request(
-        snapshot,
         transaction,
         correlation_id=correlation_id,
         turn_id=turn_id,
         generation_id=generation_id,
     )
-    execution = await manager.execute_typed(request)
-    # One-shot token (P0-A): after this governed submission, the token is never
-    # reusable — even if the guard was never reached (auth/health failure before
-    # a real send), burn it so the token cannot be replayed later.
-    ledger.burn_token(transaction.token)
-    # Record the real execution truth into the ledger BEFORE returning, so
-    # duplicate/exact-retry control (F) sees the prior outcome.
+
+    try:
+        execution = await manager.execute_typed(request)
+    finally:
+        # Exception-safe burn: even if the manager/provider raised mid-way, the
+        # bearer token must never remain reusable.
+        ledger.burn_token(transaction.token)
+
+    # Record the real execution truth internally (derived from the exact
+    # ToolResult, not a caller string).
     result = execution.tool_result
     outcome_status = (
         result.status.value if result is not None and hasattr(result.status, "value")
@@ -190,12 +258,25 @@ async def submit_review(
         result.side_effect_state.value if result is not None and hasattr(result.side_effect_state, "value")
         else ("none" if result is None else str(result.side_effect_state))
     )
-    ledger.record_outcome(
+    ledger._record_execution_outcome(
         transaction,
         outcome_status=outcome_status,
         side_effect_state=side_effect_state,
     )
-    return ReviewInvocationResult(execution=execution, transaction=transaction)
+
+    invocation = ReviewInvocationResult(
+        invocation_id=f"rvw_inv_{_time_ns()}",
+        execution=execution,
+        transaction=transaction,
+    )
+    return register_trusted_invocation(invocation)
+
+
+import time as _time_ns_mod
+
+
+def _time_ns() -> str:
+    return str(_time_ns_mod.time_ns())
 
 
 __all__ = [
@@ -205,5 +286,7 @@ __all__ = [
     "ReviewIngressRequiredError",
     "ReviewInvocationResult",
     "build_review_request",
+    "is_trusted_invocation",
+    "register_trusted_invocation",
     "submit_review",
 ]

@@ -91,7 +91,28 @@ class GuardedReviewProvider:
                 },
                 side_effect_state=SideEffectState.NONE,
             )
-        return await self._real.execute(request)
+
+        # §1 (Q2/Q3): NEVER delegate caller-mutated request.arguments as
+        # semantic truth. Reconstruct a FRESH provider-facing request from the
+        # exact trusted transaction snapshot after claim. Caller mutations
+        # (including browser/tab/session fields injected after build) cannot
+        # reach the provider.
+        from julia_core.capability.models import CapabilityRequest as _CapabilityRequest
+        trusted_payload = transaction.snapshot.to_payload()
+        fresh = _CapabilityRequest(
+            capability_id="engineering.code_review",
+            arguments=trusted_payload,
+            requested_scope="engineering.review.external",
+            idempotency_key=f"review:{transaction.transaction_id}",
+            correlation_id=request.correlation_id,
+            provenance={
+                "ingress": "governed_review_semantic",
+                "transaction_id": transaction.transaction_id,
+                "snapshot_id": transaction.snapshot.snapshot_id,
+                "source": "julia_core.review.guard",
+            },
+        )
+        return await self._real.execute(fresh)
 
 
 def install_review_guard(

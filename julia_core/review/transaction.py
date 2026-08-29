@@ -66,6 +66,40 @@ def _binding_tuple(
     return (review_id, candidate_id, candidate_sha, bundle_digest)
 
 
+_TRANSACTION_AUTHORITY_FIELDS = (
+    "transaction_id",
+    "review_id",
+    "candidate_id",
+    "candidate_sha",
+    "bundle_digest",
+    "token",
+)
+
+
+def _transaction_fingerprint(transaction: "ReviewTransaction") -> str:
+    """Canonical fingerprint of the transaction's full authority state.
+
+    Binds transaction_id + token identity + review binding + the exact trusted
+    snapshot identity (snapshot_id + snapshot digest), so swapping the snapshot
+    or mutating any authority field invalidates the fingerprint (T1-T3).
+    """
+    import json
+    authority = {
+        name: getattr(transaction, name)
+        for name in _TRANSACTION_AUTHORITY_FIELDS
+    }
+    authority["snapshot_id"] = transaction.snapshot.snapshot_id
+    authority["snapshot_digest"] = transaction.snapshot.digest
+    return compute_digest(
+        json.dumps(authority, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    )
+
+
+def compute_digest(text: str) -> str:
+    from julia_core.review.digest import compute_text_digest
+    return compute_text_digest(text)
+
+
 @dataclass(frozen=True, slots=True)
 class ReviewTransaction:
     """One immutable governed review transaction.
@@ -108,13 +142,23 @@ class ReviewTransactionLedger:
     Only ``mint()`` creates transactions, and only from TRUSTED sealed
     snapshots. Tokens are one-shot: ``claim_for_execution()`` atomically
     consumes a token; a second claim returns None. Governance verifies
-    transaction ownership through ``owns_transaction()``.
+    transaction ownership through ``owns_transaction()`` which checks the full
+    immutable authority fingerprint (T1-T4).
+
+    Retry truth (O1-O5) is recorded internally from the exact execution by the
+    invocation path; there is NO public caller-writable outcome API. Only the
+    explicitly frozen safe set (NONE / FAILED) may permit an exact retry, and
+    exact retry always mints a NEW token.
     """
+
+    # Conservative set of prior side-effect states that PROVABLY did not leave
+    # an ambiguous external send. UNKNOWN / SUCCEEDED / missing are not here.
+    _RETRY_SAFE_SIDE_EFFECTS = frozenset({"none", "failed"})
 
     def __init__(self):
         self._lock = threading.Lock()
         self._by_token: dict[str, ReviewTransaction] = {}
-        self._by_id: dict[str, ReviewTransaction] = {}
+        self._by_id: dict[str, tuple[ReviewTransaction, str]] = {}  # id -> (ref, fingerprint)
         self._consumed_tokens: set[str] = set()
         self._by_binding: dict[tuple[str, str, str, str], list[ReviewTransaction]] = {}
         self._outcomes: dict[str, _ExecutionOutcomeRecord] = {}
@@ -150,11 +194,17 @@ class ReviewTransactionLedger:
         with self._lock:
             prior = self._by_binding.get(binding, ())
             if prior:
+                # Retry authority derives from the IMMUTABLE recorded outcome
+                # (O1-O5). Missing / UNKNOWN / SUCCEEDED / non-safe all forbid.
                 latest_outcome = self._outcomes.get(prior[-1].transaction_id)
-                if latest_outcome is not None and latest_outcome.side_effect_state == "unknown":
+                if latest_outcome is None:
                     raise ReviewRetryUnsafeError(
-                        "prior submission side_effect_state is UNKNOWN; automatic or "
-                        "ordinary retry is forbidden"
+                        "prior submission outcome missing; retry forbidden"
+                    )
+                if latest_outcome.side_effect_state not in self._RETRY_SAFE_SIDE_EFFECTS:
+                    raise ReviewRetryUnsafeError(
+                        f"prior submission side_effect_state={latest_outcome.side_effect_state!r} "
+                        "is not provably retry-safe; retry forbidden"
                     )
                 if not allow_exact_retry:
                     raise ReviewDuplicateError(
@@ -173,7 +223,7 @@ class ReviewTransactionLedger:
                 provenance=dict(provenance or {}),
             )
             self._by_token[transaction.token] = transaction
-            self._by_id[transaction.transaction_id] = transaction
+            self._by_id[transaction.transaction_id] = (transaction, _transaction_fingerprint(transaction))
             self._by_binding.setdefault(binding, []).append(transaction)
             return transaction
 
@@ -203,12 +253,18 @@ class ReviewTransactionLedger:
     def token_consumed(self, token: str) -> bool:
         return token in self._consumed_tokens
 
-    # ── ownership / verification (P1-E) ────────────────────────────────────
+    # ── ownership / verification (P1-E, T1-T4) ─────────────────────────────
 
     def owns_transaction(self, transaction: ReviewTransaction) -> bool:
-        """True only for the EXACT ledger-minted transaction object (identity)."""
-        owned = self._by_id.get(transaction.transaction_id)
-        return owned is transaction
+        """True only for the EXACT ledger-minted transaction object whose full
+        authority fingerprint is unchanged."""
+        entry = self._by_id.get(transaction.transaction_id)
+        if entry is None:
+            return False
+        ref, fingerprint = entry
+        if ref is not transaction:
+            return False
+        return _transaction_fingerprint(transaction) == fingerprint
 
     def verify_token(self, token: str) -> ReviewTransaction | None:
         """Return the transaction for a token WITHOUT consuming it.
@@ -223,22 +279,32 @@ class ReviewTransactionLedger:
     def get_by_binding(self, binding: tuple[str, str, str, str]) -> list[ReviewTransaction]:
         return list(self._by_binding.get(binding, ()))
 
-    # ── outcome recording (governance uses this) ───────────────────────────
+    # ── outcome recording (internal only; O5) ──────────────────────────────
 
-    def record_outcome(
+    def _record_execution_outcome(
         self,
         transaction: ReviewTransaction,
         *,
         outcome_status: str,
         side_effect_state: str,
     ) -> None:
+        """Record execution truth INTERNALLY from the exact typed execution.
+
+        Not a public authority surface: callers cannot overwrite retry state.
+        The invocation path derives status/side-effect from the exact
+        ToolResult; governance never self-reports these.
+        """
+        if not self.owns_transaction(transaction):
+            raise ReviewUntrustedTransactionError(
+                "cannot record outcome for a non-owned transaction"
+            )
         with self._lock:
             self._outcomes[transaction.transaction_id] = _ExecutionOutcomeRecord(
                 outcome_status=outcome_status,
                 side_effect_state=side_effect_state,
             )
 
-    def latest_outcome(self, transaction: ReviewTransaction) -> dict[str, str] | None:
+    def _latest_outcome(self, transaction: ReviewTransaction) -> dict[str, str] | None:
         record = self._outcomes.get(transaction.transaction_id)
         if record is None:
             return None

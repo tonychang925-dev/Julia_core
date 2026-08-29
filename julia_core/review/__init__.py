@@ -29,7 +29,11 @@ from julia_core.review.digest import (
     compute_text_digest,
     digests_equal,
 )
-from julia_core.review.governance import ReviewGovernanceRecord, ReviewGovernanceService
+from julia_core.review.governance import (
+    ReviewGovernanceRecord,
+    ReviewGovernanceService,
+    is_trusted_review_governance_record,
+)
 from julia_core.review.guard import (
     GuardedReviewProvider,
     REVIEW_SEMANTIC_ARG,
@@ -42,6 +46,8 @@ from julia_core.review.invocation import (
     EXTERNAL_REVIEW_SCOPE,
     ReviewInvocationResult,
     build_review_request,
+    is_trusted_invocation,
+    register_trusted_invocation,
     submit_review,
 )
 from julia_core.review.registration import (
@@ -55,6 +61,11 @@ from julia_core.review.snapshot import (
     is_trusted_snapshot,
     seal_review_bundle,
     snapshot_digest,
+)
+from julia_core.review.source_binding import (
+    CandidateShaSourceBinding,
+    bind_candidate_sha_source,
+    is_trusted_source_binding,
 )
 from julia_core.review.transaction import (
     ReviewDuplicateError,
@@ -83,6 +94,7 @@ from julia_core.review.validation import (
 __all__ = [
     "BrowserAuthorityInRequestError",
     "CandidateShaSource",
+    "CandidateShaSourceBinding",
     "CandidateShaSourceUnavailable",
     "EXTERNAL_REVIEW_CAPABILITY",
     "EXTERNAL_REVIEW_PROVIDER",
@@ -112,16 +124,21 @@ __all__ = [
     "assert_not_stale",
     "assert_review_correlation",
     "assert_transport_completed",
+    "bind_candidate_sha_source",
     "build_review_request",
     "compute_bundle_digest",
     "compute_text_digest",
     "digests_equal",
     "install_review_guard",
     "is_stale",
+    "is_trusted_invocation",
+    "is_trusted_review_governance_record",
     "is_trusted_snapshot",
+    "is_trusted_source_binding",
     "make_external_review_definition",
     "raw_response_digest_matches",
     "register_external_review_capability",
+    "register_trusted_invocation",
     "seal_review_bundle",
     "snapshot_digest",
     "submit_review",

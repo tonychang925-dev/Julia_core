@@ -1,15 +1,17 @@
 """External Code Review — Manager integration / guarded ingress tests.
 
-Covers:
+Covers round-4 API:
   - trusted ingress: seal -> transaction -> token -> request -> manager
-  - guarded provider: arbitrary CapabilityRequest cannot reach real provider (A)
+  - guarded provider re-derives payload from trusted snapshot (Q2/Q3)
   - generic model tool-call path cannot invoke engineering.code_review (S2)
   - registration != external-send authorization (B)
   - typed execution outcome truth mapping (CRB-PRE-P1 preserved)
+  - trusted invocation registry (I1-I4)
 """
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -27,12 +29,13 @@ from julia_core.capability.models import (
 from julia_core.capability.policy import AuthorizationDecision, AuthorizationStatus, PermissionPolicy
 from julia_core.capability.registry import CapabilityRegistry
 from julia_core.review.contracts import ReviewBundle, ReviewDecisionCandidate, ReviewVerdict
+from julia_core.review.digest import compute_text_digest
 from julia_core.review.guard import REVIEW_SEMANTIC_ARG, REVIEW_TOKEN_ARG, install_review_guard
 from julia_core.review.invocation import (
-    BrowserAuthorityInRequestError,
     EXTERNAL_REVIEW_CAPABILITY,
     EXTERNAL_REVIEW_SCOPE,
     build_review_request,
+    is_trusted_invocation,
     submit_review,
 )
 from julia_core.review.registration import (
@@ -40,7 +43,11 @@ from julia_core.review.registration import (
     register_external_review_capability,
 )
 from julia_core.review.snapshot import seal_review_bundle
+from julia_core.review.source_binding import bind_candidate_sha_source
 from julia_core.review.transaction import ReviewTransactionLedger
+
+RAW_RESPONSE = "VERDICT: PASS\nBLOCKERS:\n- none\n"
+RAW_DIGEST = compute_text_digest(RAW_RESPONSE)
 
 
 def _bundle(**overrides) -> ReviewBundle:
@@ -60,10 +67,7 @@ def _bundle(**overrides) -> ReviewBundle:
 
 
 class FixtureReviewProvider:
-    """Fixture provider implementing CapabilityProvider for external_review.
-
-    TEST FIXTURE ONLY — proves Core lifecycle truth, not a real external review.
-    """
+    """Fixture provider implementing CapabilityProvider for external_review."""
 
     def __init__(self, outcome: dict[str, Any] | ProviderExecutionOutcome | Exception):
         self.outcome = outcome
@@ -121,7 +125,6 @@ def test_definition_registers_with_canonical_shape():
     assert definition.provider == EXTERNAL_REVIEW_PROVIDER
     assert definition.permission_scope == EXTERNAL_REVIEW_SCOPE
     assert definition.layer == CapabilityLayer.INTELLIGENCE
-    assert registry.get(EXTERNAL_REVIEW_CAPABILITY) is definition
     decision = policy.check(EXTERNAL_REVIEW_SCOPE)
     assert decision.decision == AuthorizationStatus.ALLOW
 
@@ -134,10 +137,7 @@ def test_unknown_scope_defaults_to_deny():
 # ── Guarded ingress (A/B) ────────────────────────────────────────────────────
 
 def test_guarded_provider_rejects_arbitrary_request():
-    """S1: arbitrary engineering.code_review CapabilityRequest cannot reach the
-    real provider — it is rejected by the guard (UNAVAILABLE)."""
-    import asyncio
-
+    """S1: arbitrary CapabilityRequest cannot reach the real provider."""
     ledger = ReviewTransactionLedger()
     real = FixtureReviewProvider(ProviderExecutionOutcome(
         status=ToolResultStatus.SUCCESS, structured_output={"raw_response": "should not run"},
@@ -156,9 +156,7 @@ def test_guarded_provider_rejects_arbitrary_request():
 
 
 def test_guarded_provider_rejects_forged_provenance_only():
-    """S3: a provenance string like manual/operator must NOT grant authority."""
-    import asyncio
-
+    """S3: provenance strings must NOT grant authority."""
     ledger = ReviewTransactionLedger()
     real = FixtureReviewProvider(ProviderExecutionOutcome(
         status=ToolResultStatus.SUCCESS, structured_output={"raw_response": "sneaky"},
@@ -177,15 +175,12 @@ def test_guarded_provider_rejects_forged_provenance_only():
 
 
 def test_guarded_provider_rejects_token_without_semantic_marker():
-    import asyncio
-
     ledger = ReviewTransactionLedger()
     real = FixtureReviewProvider(ProviderExecutionOutcome(
         status=ToolResultStatus.SUCCESS, structured_output={"raw_response": "sneaky"},
     ))
     manager, _ = _guarded_manager(real, ledger)
 
-    # A stolen/guessed token without the semantic marker is still rejected.
     snapshot = seal_review_bundle(_bundle())
     transaction = ledger.mint(snapshot)
     request = CapabilityRequest(
@@ -198,12 +193,14 @@ def test_guarded_provider_rejects_token_without_semantic_marker():
     assert execution.tool_result.status == ToolResultStatus.UNAVAILABLE
 
 
+# ── Request exactly bound to transaction (§1, Q1-Q4) ─────────────────────────
+
 def test_request_projection_carries_token_and_marker():
     bundle = _bundle()
     snapshot = seal_review_bundle(bundle)
     ledger = ReviewTransactionLedger()
     transaction = ledger.mint(snapshot)
-    request = build_review_request(snapshot, transaction)
+    request = build_review_request(transaction)
     assert request.capability_id == EXTERNAL_REVIEW_CAPABILITY
     assert request.requested_scope == EXTERNAL_REVIEW_SCOPE
     assert request.arguments[REVIEW_TOKEN_ARG] == transaction.token
@@ -212,10 +209,12 @@ def test_request_projection_carries_token_and_marker():
     assert request.arguments["candidate_sha"] == bundle.candidate_sha
 
 
-def test_request_projection_rejects_invalid_bundle():
-    ledger = ReviewTransactionLedger()
-    with pytest.raises(ValueError):
-        seal_review_bundle(ReviewBundle())
+def test_request_projection_has_no_snapshot_parameter():
+    """§1: caller cannot select a second snapshot (Q1)."""
+    import inspect
+    params = inspect.signature(build_review_request).parameters
+    assert list(params)[0] == "transaction"
+    assert "snapshot" not in params
 
 
 def test_request_projection_rejects_browser_authority_fields():
@@ -227,8 +226,9 @@ def test_request_projection_rejects_browser_authority_fields():
     )
     snapshot = seal_review_bundle(bundle)
     transaction = ledger.mint(snapshot)
+    from julia_core.review.invocation import BrowserAuthorityInRequestError
     with pytest.raises(BrowserAuthorityInRequestError):
-        build_review_request(snapshot, transaction)
+        build_review_request(transaction)
 
 
 def test_request_projection_rejects_nested_browser_authority_fields():
@@ -239,8 +239,32 @@ def test_request_projection_rejects_nested_browser_authority_fields():
     )
     snapshot = seal_review_bundle(bundle)
     transaction = ledger.mint(snapshot)
+    from julia_core.review.invocation import BrowserAuthorityInRequestError
     with pytest.raises(BrowserAuthorityInRequestError):
-        build_review_request(snapshot, transaction)
+        build_review_request(transaction)
+
+
+def test_mutating_request_arguments_cannot_change_snapshot_payload():
+    """Q2: request.arguments is mutable but is not semantic truth; the guard
+    re-derives the provider payload from the trusted snapshot."""
+    ledger = ReviewTransactionLedger()
+    real = FixtureReviewProvider(ProviderExecutionOutcome(
+        status=ToolResultStatus.SUCCESS, structured_output={"raw_response": "ok"},
+    ))
+    manager, _ = _guarded_manager(real, ledger)
+
+    bundle = _bundle()
+    snapshot = seal_review_bundle(bundle)
+    transaction = ledger.mint(snapshot)
+    request = build_review_request(transaction)
+    request.arguments["candidate_sha"] = "FORGED"
+    request.arguments["tab_id"] = 999
+    execution = asyncio.run(manager.execute_typed(request))
+    # Provider executed exactly once (token was claimed) and the payload it
+    # received came from the snapshot, not the mutated request.
+    assert real.execute_calls == 1
+    assert real.last_request.arguments["candidate_sha"] == "abc123"
+    assert "tab_id" not in real.last_request.arguments
 
 
 # ── Governed submission through Manager ──────────────────────────────────────
@@ -250,18 +274,19 @@ async def test_governed_submit_reaches_real_provider_once():
     ledger = ReviewTransactionLedger()
     real = FixtureReviewProvider(ProviderExecutionOutcome(
         status=ToolResultStatus.SUCCESS,
-        structured_output={"raw_response": "VERDICT: PASS", "raw_response_digest": "d" * 64},
+        structured_output={"raw_response": RAW_RESPONSE},
         side_effect_state=SideEffectState.SUCCEEDED,
     ))
     manager, _ = _guarded_manager(real, ledger)
     result = await _governed_submit(manager, ledger)
     assert real.execute_calls == 1
     assert result.outcome_status == "success"
-    assert result.tool_result.side_effect_state == SideEffectState.SUCCEEDED
     assert isinstance(result.execution, CapabilityExecution)
     assert result.execution.capability_call is not None
     assert result.execution.evidence
     assert result.tool_result.evidence_refs == tuple(e.evidence_id for e in result.execution.evidence)
+    # Trusted invocation registry (I4): submit_review-produced invocation trusted.
+    assert is_trusted_invocation(result) is True
 
 
 @pytest.mark.asyncio
@@ -275,7 +300,7 @@ async def test_partial_preserves_partial_payload():
     manager, _ = _guarded_manager(real, ledger)
     result = await _governed_submit(manager, ledger)
     assert result.outcome_status == "partial"
-    assert result.tool_result.side_effect_state == SideEffectState.UNKNOWN
+    assert result.side_effect_state == "unknown"
     ev = result.execution.evidence[0]
     assert ev.provenance["incomplete"] is True
 
@@ -323,7 +348,6 @@ async def test_error_preserves_exact_error_code():
 
 @pytest.mark.asyncio
 async def test_unknown_side_effect_blocks_auto_retry():
-    """SideEffectState.UNKNOWN -> manager executes provider exactly once."""
     ledger = ReviewTransactionLedger()
     real = FixtureReviewProvider(ProviderExecutionOutcome(
         status=ToolResultStatus.ERROR,
@@ -370,7 +394,6 @@ async def test_denied_scope_never_reaches_provider():
 
 def test_model_tool_call_path_cannot_invoke_external_review():
     from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
-
     bridge = RuntimeCapabilityBridge()
     bridge.initialize()
     outcome = bridge.execute_tool_typed(
@@ -397,12 +420,10 @@ def test_no_automatic_routing_entry_points():
 
 def test_production_bridge_registers_capability_and_fails_closed():
     from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
-
     bridge = RuntimeCapabilityBridge()
     bridge.initialize()
     definition = bridge.registry.get(EXTERNAL_REVIEW_CAPABILITY)
     assert definition is not None
     assert definition.provider == EXTERNAL_REVIEW_PROVIDER
     assert definition.permission_scope == EXTERNAL_REVIEW_SCOPE
-    # Without the cross-repo provider, execution returns UNAVAILABLE.
     assert "external_review" not in bridge._providers

@@ -94,9 +94,10 @@ def _deep_unfreeze(value: Any) -> Any:
 
 # Trusted-creator registry: only seal_review_bundle() may register a snapshot.
 # Identity-based (object reference) so handcrafted / reconstructed snapshots are
-# NOT trusted even when field-for-field identical. Digest is captured separately
-# so an integrity mutation of snapshot.digest is detectable.
-_TRUSTED_SNAPSHOTS: dict[str, tuple[Any, str]] = {}
+# NOT trusted even when field-for-field identical. The full sealed authority
+# state is fingerprinted at creation and re-verified on every trust check, so
+# object.__setattr__ mutations of ANY authority field invalidate trust.
+_TRUSTED_SNAPSHOTS: dict[str, tuple[Any, str]] = {}  # snapshot_id -> (ref, full_fingerprint)
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,15 +130,48 @@ class SealedReviewBundle:
         return _deep_unfreeze(self.payload)
 
 
+_SNAPSHOT_AUTHORITY_FIELDS = (
+    "snapshot_id",
+    "contract_version",
+    "review_id",
+    "task_id",
+    "candidate_id",
+    "candidate_sha",
+    "repository",
+    "branch",
+    "review_mode",
+    "objective",
+    "digest",
+)
+
+
+def _snapshot_fingerprint(snapshot: SealedReviewBundle) -> str:
+    """Canonical fingerprint of the full sealed authority state.
+
+    Binds every top-level authority field + the canonical immutable payload, so
+    mutation through object.__setattr__ of any authority field invalidates the
+    fingerprint.
+    """
+    authority: dict[str, Any] = {}
+    for name in _SNAPSHOT_AUTHORITY_FIELDS:
+        authority[name] = getattr(snapshot, name)
+    authority["payload"] = _deep_unfreeze(snapshot.payload)
+    import json
+    return compute_text_digest(
+        json.dumps(authority, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    )
+
+
 def is_trusted_snapshot(snapshot: SealedReviewBundle) -> bool:
-    """Return True only for an identity-registered, digest-consistent snapshot."""
+    """Return True only for the identity-registered snapshot with an
+    unmodified full authority fingerprint."""
     entry = _TRUSTED_SNAPSHOTS.get(snapshot.snapshot_id)
     if entry is None:
         return False
-    ref, sealed_digest = entry
+    ref, sealed_fingerprint = entry
     if ref is not snapshot:
         return False
-    return snapshot.digest == sealed_digest
+    return _snapshot_fingerprint(snapshot) == sealed_fingerprint
 
 
 def seal_review_bundle(bundle: ReviewBundle) -> SealedReviewBundle:
@@ -175,7 +209,7 @@ def seal_review_bundle(bundle: ReviewBundle) -> SealedReviewBundle:
         digest=digest,
         contract_version=bundle.contract_version,
     )
-    _TRUSTED_SNAPSHOTS[snapshot.snapshot_id] = (snapshot, digest)
+    _TRUSTED_SNAPSHOTS[snapshot.snapshot_id] = (snapshot, _snapshot_fingerprint(snapshot))
     return snapshot
 
 
