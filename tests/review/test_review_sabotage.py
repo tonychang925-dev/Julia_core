@@ -58,6 +58,7 @@ from tests.review._testonly import (
     register_test_candidate_creator,
     register_test_candidate_sha_source,
     seal_test_candidate,
+    candidate_admission_binding_for,
 )
 from julia_core.review.candidate_artifact import (
     SealedCandidate,
@@ -151,7 +152,12 @@ def _guarded_manager(real: FixtureProvider, ledger: ReviewTransactionLedger, pol
 
 
 async def _governed(manager, ledger, bundle=None, **kwargs):
-    return await submit_review(manager, bundle or _bundle(), ledger, **kwargs)
+    resolved_bundle = bundle or _bundle()
+    kwargs.setdefault(
+        "admission_source",
+        candidate_admission_binding_for(resolved_bundle),
+    )
+    return await submit_review(manager, resolved_bundle, ledger, **kwargs)
 
 
 def _success_provider():

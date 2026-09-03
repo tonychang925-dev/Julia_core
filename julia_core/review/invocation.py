@@ -3,6 +3,7 @@
 Invocation is OPERATOR-TRIGGERED ONLY and REQUIRES the governed semantic
 ingress:
 
+    trusted CandidateAdmissionSource
     ReviewBundle
     -> validation
     -> immutable semantic snapshot (deep-sealed, owned digest)
@@ -32,6 +33,10 @@ from typing import Any
 
 from julia_core.capability.manager import CapabilityExecution, CapabilityManager
 from julia_core.capability.models import CapabilityRequest
+from julia_core.review.admission import (
+    CandidateAdmissionSourceBinding,
+    assert_candidate_admission,
+)
 from julia_core.review.contracts import ReviewBundle
 from julia_core.review.guard import REVIEW_SEMANTIC_ARG, REVIEW_TOKEN_ARG
 from julia_core.review.snapshot import SealedReviewBundle, seal_review_bundle
@@ -259,6 +264,7 @@ async def submit_review(
     bundle: ReviewBundle,
     ledger: ReviewTransactionLedger,
     *,
+    admission_source: CandidateAdmissionSourceBinding,
     allow_exact_retry: bool = False,
     correlation_id: str = "",
     turn_id: str = "",
@@ -267,13 +273,25 @@ async def submit_review(
 ) -> ReviewInvocationResult:
     """Execute one governed review through the canonical CapabilityManager.
 
-    The guarded provider must be installed under ``external_review``; otherwise
+Candidate admission is resolved before sealing. The guarded provider must be
+installed under ``external_review``; otherwise
     the manager resolves no provider and returns typed UNAVAILABLE (fail-closed).
+
+    Candidate admission authority must resolve and exactly match the semantic
+    bundle BEFORE snapshot sealing, token minting, provider dispatch, or any
+    other external transmission.
 
     Token lifecycle (X1-X2): the token is burned in a finally-equivalent path so
     it is unusable after this call no matter what happens (including unexpected
     manager/provider exceptions).
     """
+    assert_candidate_admission(
+        admission_source,
+        review_id=bundle.review_id,
+        candidate_id=bundle.candidate_id,
+        repository=bundle.repository,
+        candidate_sha=bundle.candidate_sha,
+    )
     snapshot = seal_review_bundle(bundle)
     transaction = ledger.mint(
         snapshot,

@@ -11,6 +11,10 @@ import secrets
 from typing import Any
 
 from julia_core.review import source_binding as _source_binding
+from julia_core.review.admission import (
+    CandidateAdmissionComposition,
+    CandidateAdmissionRecord,
+)
 from julia_core.review.candidate_artifact import (
     _seal_candidate_with_trusted_authorities,
 )
@@ -25,6 +29,27 @@ class TestCandidateShaSource:
 class TestCandidateCreator:
     def create_candidate(self, *, raw_observation: Any):
         raise NotImplementedError
+
+
+class TestCandidateAdmissionSource:
+    def __init__(self):
+        self.records = {}
+
+    def admit(self, bundle):
+        record = CandidateAdmissionRecord(
+            review_id=bundle.review_id,
+            candidate_id=bundle.candidate_id,
+            repository=bundle.repository,
+            candidate_sha=bundle.candidate_sha,
+        )
+        self.records[(record.review_id, record.candidate_id)] = record
+        return record
+
+    def candidate_admission(self, *, review_id: str, candidate_id: str):
+        try:
+            return self.records[(review_id, candidate_id)]
+        except KeyError as exc:
+            raise ValueError("admission not found") from exc
 
 
 def register_test_candidate_sha_source(adapter: TestCandidateShaSource):
@@ -58,6 +83,15 @@ def register_test_candidate_creator(creator: TestCandidateCreator):
     return binding
 
 
+def candidate_admission_binding_for(bundle):
+    source = TestCandidateAdmissionSource()
+    source.admit(bundle)
+    return CandidateAdmissionComposition(
+        source,
+        provenance={"owner": "tests.review._testonly"},
+    ).binding
+
+
 def _creator_binding_for(creator: TestCandidateCreator):
     for binding, registered_creator, _ in _source_binding._CREATOR_BINDINGS.values():
         if registered_creator is creator:
@@ -86,5 +120,6 @@ __all__ = [
     "TestCandidateShaSource",
     "register_test_candidate_creator",
     "register_test_candidate_sha_source",
+    "candidate_admission_binding_for",
     "seal_test_candidate",
 ]

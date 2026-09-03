@@ -44,6 +44,7 @@ from julia_core.review.registration import (
 )
 from julia_core.review.snapshot import seal_review_bundle
 from julia_core.review.transaction import ReviewTransactionLedger
+from tests.review._testonly import candidate_admission_binding_for
 
 RAW_RESPONSE = "VERDICT: PASS\nBLOCKERS:\n- none\n"
 RAW_DIGEST = compute_text_digest(RAW_RESPONSE)
@@ -111,7 +112,12 @@ async def _governed_submit(
     bundle: ReviewBundle | None = None,
     **kwargs,
 ):
-    return await submit_review(manager, bundle or _bundle(), ledger, **kwargs)
+    resolved_bundle = bundle or _bundle()
+    kwargs.setdefault(
+        "admission_source",
+        candidate_admission_binding_for(resolved_bundle),
+    )
+    return await submit_review(manager, resolved_bundle, ledger, **kwargs)
 
 
 # ── Registration / definition ────────────────────────────────────────────────

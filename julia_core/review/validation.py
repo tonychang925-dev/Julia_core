@@ -9,10 +9,10 @@ not from caller-supplied strings. A candidate with an incomplete/failed
 transport (e.g. transport_trace.status = CREATED) must never be admitted merely
 because a caller passes outcome_status="success".
 
-STALE_REVIEW (E): the current candidate SHA must come from a canonical
-candidate/repository truth source owned by Julia Core. This module does NOT
-invent one: stale validation requires a CandidateShaSource; without a source,
-stale validation FAILS CLOSED and the candidate cannot be admitted.
+STALE_REVIEW (E): the current candidate SHA must come from a trusted
+CandidateShaSource composed by the product runtime. Core owns the contract,
+binding trust, and admission policy; it does not implement repository
+resolution. Without a trusted source, stale validation FAILS CLOSED.
 """
 
 from __future__ import annotations

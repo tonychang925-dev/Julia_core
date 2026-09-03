@@ -33,7 +33,11 @@ from julia_core.review.parser import (
 from julia_core.review.registration import register_external_review_capability
 from julia_core.review.source_binding import is_trusted_candidate_creator
 from julia_core.review.transaction import ReviewTransactionLedger
-from tests.review._testonly import TestCandidateShaSource, register_test_candidate_sha_source
+from tests.review._testonly import (
+    TestCandidateShaSource,
+    register_test_candidate_sha_source,
+    candidate_admission_binding_for,
+)
 
 
 class FixtureProvider:
@@ -99,7 +103,14 @@ def _governed_invocation(raw_response: str):
         ledger=ledger,
     )
     manager = CapabilityManager(registry, AllowPolicy(), providers)
-    invocation = asyncio.run(submit_review(manager, _bundle(), ledger))
+    invocation = asyncio.run(
+        submit_review(
+            manager,
+            _bundle(),
+            ledger,
+            admission_source=candidate_admission_binding_for(_bundle()),
+        )
+    )
     return invocation, ledger
 
 
