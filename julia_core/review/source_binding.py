@@ -1,8 +1,10 @@
 """Trusted CandidateShaSource / CandidateCreator binding registries (round-6 §B).
 
-PRODUCTION state: no canonical Git CandidateShaSource exists, and the only
-canonical review creator binding is the narrowly registered Core machine-review
-parser. Therefore:
+PRODUCTION state: Core ships no Git CandidateShaSource implementation. The
+one process-lifetime product composition is installed through the private
+authority in ``source_composition``; until that trusted boot composition runs,
+production remains UNBOUND. The only canonical review creator binding is the
+narrowly registered Core machine-review parser. Therefore:
 
     production CandidateShaSource   = UNBOUND
     production CandidateCreator     = Core review parser binding only

@@ -90,6 +90,11 @@ from julia_core.review.source_binding import (
     CandidateShaSourceBinding,
     is_trusted_source_binding,
 )
+from julia_core.review.source_composition import (
+    CandidateShaSourceCompositionError,
+    current_candidate_sha_source_binding,
+    has_current_candidate_sha_source,
+)
 from julia_core.review.transaction import (
     ReviewDuplicateError,
     ReviewRetryUnsafeError,
@@ -122,6 +127,7 @@ __all__ = [
     "CandidateAdmissionSourceBinding",
     "CandidateShaSource",
     "CandidateShaSourceBinding",
+    "CandidateShaSourceCompositionError",
     "CandidateShaSourceUnavailable",
     "EXTERNAL_REVIEW_CAPABILITY",
     "EXTERNAL_REVIEW_PROVIDER",
@@ -164,8 +170,10 @@ __all__ = [
     "candidate_admission_binding",
     "compute_bundle_digest",
     "compute_text_digest",
+    "current_candidate_sha_source_binding",
     "digests_equal",
     "install_review_guard",
+    "has_current_candidate_sha_source",
     "is_stale",
     "is_trusted_invocation",
     "is_trusted_review_governance_record",
