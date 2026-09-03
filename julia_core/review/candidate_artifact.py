@@ -37,6 +37,7 @@ _CANDIDATE_AUTHORITY_FIELDS = (
     "candidate_sha",
     "source",
     "verdict",
+    "findings",
     "blockers",
     "high",
     "medium",

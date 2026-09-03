@@ -123,6 +123,8 @@ def _record_fingerprint(record: ReviewGovernanceRecord) -> str:
 
 
 def _deep_plain(value: Any) -> Any:
+    if hasattr(value, "__dataclass_fields__") and hasattr(value, "to_dict"):
+        return _deep_plain(value.to_dict())
     if isinstance(value, dict):
         return {k: _deep_plain(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):

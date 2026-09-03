@@ -1,17 +1,19 @@
 """Trusted CandidateShaSource / CandidateCreator binding registries (round-6 §B).
 
-PRODUCTION state: no canonical Git CandidateShaSource and no canonical review
-parser/creator exist. Therefore:
+PRODUCTION state: no canonical Git CandidateShaSource exists, and the only
+canonical review creator binding is the narrowly registered Core machine-review
+parser. Therefore:
 
     production CandidateShaSource   = UNBOUND
-    production CandidateCreator     = UNBOUND
+    production CandidateCreator     = Core review parser binding only
 
 and governance FAILS CLOSED when unbound. There is NO production binder,
 factory, or arbitrary-adapter registrar here. Test-only bindings live outside
 the installed production package under ``tests/``.
 
-Future canonical repository/parser adapters may add their own trusted
-composition without changing the Core semantic contract.
+Future canonical repository adapters may add their own trusted composition
+without changing the Core semantic contract. Additional parser/creator
+adapters still have no generic public registrar.
 """
 
 from __future__ import annotations

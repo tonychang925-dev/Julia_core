@@ -22,6 +22,7 @@ from typing import Any, Protocol
 
 from julia_core.review.contracts import (
     ReviewDecisionCandidate,
+    ReviewEvidenceBindingKind,
     ReviewErrorCode,
     ReviewVerdict,
 )
@@ -50,7 +51,8 @@ def _observable_content(candidate: ReviewDecisionCandidate) -> bool:
     if candidate.verdict not in (ReviewVerdict.UNPARSEABLE, ReviewVerdict.UNPARSEABLE.value):
         return True
     return bool(
-        candidate.blockers
+        candidate.findings
+        or candidate.blockers
         or candidate.high
         or candidate.medium
         or candidate.required_changes
@@ -63,6 +65,21 @@ def _response_size(candidate: ReviewDecisionCandidate) -> int:
     parts = [str(candidate.verdict.value if isinstance(candidate.verdict, ReviewVerdict) else candidate.verdict)]
     for name in ("blockers", "high", "medium", "required_changes", "notes"):
         parts.extend(str(x) for x in getattr(candidate, name, ()))
+    for finding in candidate.findings:
+        parts.extend(
+            (
+                finding.severity.value,
+                finding.observation,
+                finding.inference,
+                finding.causal_impact,
+                finding.required_change,
+                finding.provider_finding_label,
+                str(finding.confidence),
+            )
+        )
+        parts.extend(
+            f"{binding.kind.value}:{binding.ref}" for binding in finding.evidence_bindings
+        )
     parts.append(candidate.raw_response_ref or "")
     return sum(len(p) for p in parts)
 
@@ -103,6 +120,35 @@ def validate_transaction_correlation(
 ) -> list[str]:
     """Correlate the candidate against the trusted transaction binding."""
     return validate_review_correlation(transaction.snapshot, candidate)
+
+
+def validate_structured_finding_bindings(
+    snapshot: SealedReviewBundle,
+    candidate: ReviewDecisionCandidate,
+    *,
+    raw_response_ref: str,
+) -> list[str]:
+    """Validate finding evidence against snapshot and Core observation truth."""
+    errors: list[str] = []
+    allowed_review_inputs = set(snapshot.to_payload().get("evidence_refs", ()))
+    for finding in candidate.findings:
+        for binding in finding.evidence_bindings:
+            if binding.kind is ReviewEvidenceBindingKind.REVIEW_INPUT:
+                if binding.ref not in allowed_review_inputs:
+                    errors.append(
+                        f"invalid_evidence_binding:foreign REVIEW_INPUT {binding.ref!r}"
+                    )
+            elif binding.kind is ReviewEvidenceBindingKind.RAW_RESPONSE:
+                if binding.ref != raw_response_ref:
+                    errors.append(
+                        f"invalid_evidence_binding:foreign RAW_RESPONSE {binding.ref!r}"
+                    )
+            else:
+                errors.append(
+                    "invalid_evidence_binding:"
+                    f"{binding.kind.value} is not admissible without a trusted validator"
+                )
+    return errors
 
 
 class ReviewCorrelationError(ValueError):
@@ -234,6 +280,7 @@ __all__ = [
     "raw_response_digest_matches",
     "transport_completed",
     "validate_review_correlation",
+    "validate_structured_finding_bindings",
     "validate_transaction_correlation",
     "validate_transport_completion",
 ]
