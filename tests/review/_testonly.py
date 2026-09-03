@@ -12,8 +12,11 @@ from typing import Any
 
 from julia_core.review import source_binding as _source_binding
 from julia_core.review.admission import (
-    CandidateAdmissionComposition,
     CandidateAdmissionRecord,
+    _ADMISSION_COMPOSITION_AUTHORITY,
+    _install_candidate_admission_source,
+    _reset_candidate_admission_composition_for_tests,
+    candidate_admission_binding,
 )
 from julia_core.review.candidate_artifact import (
     _seal_candidate_with_trusted_authorities,
@@ -83,13 +86,21 @@ def register_test_candidate_creator(creator: TestCandidateCreator):
     return binding
 
 
+_TEST_ADMISSION_SOURCE = None
+
+
 def candidate_admission_binding_for(bundle):
-    source = TestCandidateAdmissionSource()
-    source.admit(bundle)
-    return CandidateAdmissionComposition(
-        source,
-        provenance={"owner": "tests.review._testonly"},
-    ).binding
+    global _TEST_ADMISSION_SOURCE
+    if _TEST_ADMISSION_SOURCE is None:
+        _reset_candidate_admission_composition_for_tests()
+        _TEST_ADMISSION_SOURCE = TestCandidateAdmissionSource()
+        _install_candidate_admission_source(
+            _TEST_ADMISSION_SOURCE,
+            composition_authority=_ADMISSION_COMPOSITION_AUTHORITY,
+            provenance={"owner": "tests.review._testonly"},
+        )
+    _TEST_ADMISSION_SOURCE.admit(bundle)
+    return candidate_admission_binding()
 
 
 def _creator_binding_for(creator: TestCandidateCreator):

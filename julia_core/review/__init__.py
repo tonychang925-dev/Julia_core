@@ -29,12 +29,13 @@ from julia_core.review.contracts import (
     validate_identity_isolation,
 )
 from julia_core.review.admission import (
-    CandidateAdmissionComposition,
     CandidateAdmissionError,
     CandidateAdmissionRecord,
     CandidateAdmissionSource,
     CandidateAdmissionSourceBinding,
     assert_candidate_admission,
+    candidate_admission_audit,
+    candidate_admission_binding,
     is_trusted_candidate_admission_binding,
     resolve_candidate_admission,
 )
@@ -115,7 +116,6 @@ from julia_core.review.validation import (
 
 __all__ = [
     "BrowserAuthorityInRequestError",
-    "CandidateAdmissionComposition",
     "CandidateAdmissionError",
     "CandidateAdmissionRecord",
     "CandidateAdmissionSource",
@@ -160,6 +160,8 @@ __all__ = [
     "assert_review_correlation",
     "assert_transport_completed",
     "build_review_request",
+    "candidate_admission_audit",
+    "candidate_admission_binding",
     "compute_bundle_digest",
     "compute_text_digest",
     "digests_equal",

@@ -113,10 +113,7 @@ async def _governed_submit(
     **kwargs,
 ):
     resolved_bundle = bundle or _bundle()
-    kwargs.setdefault(
-        "admission_source",
-        candidate_admission_binding_for(resolved_bundle),
-    )
+    candidate_admission_binding_for(resolved_bundle)
     return await submit_review(manager, resolved_bundle, ledger, **kwargs)
 
 

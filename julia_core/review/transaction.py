@@ -98,6 +98,11 @@ def _transaction_fingerprint(transaction: "ReviewTransaction") -> str:
     }
     authority["snapshot_id"] = transaction.snapshot.snapshot_id
     authority["snapshot_digest"] = transaction.snapshot.digest
+    authority["candidate_admission"] = getattr(
+        transaction,
+        "candidate_admission",
+        transaction.provenance.get("candidate_admission"),
+    )
     return compute_digest(
         json.dumps(authority, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     )

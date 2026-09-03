@@ -103,12 +103,12 @@ def _governed_invocation(raw_response: str):
         ledger=ledger,
     )
     manager = CapabilityManager(registry, AllowPolicy(), providers)
+    candidate_admission_binding_for(_bundle())
     invocation = asyncio.run(
         submit_review(
             manager,
             _bundle(),
             ledger,
-            admission_source=candidate_admission_binding_for(_bundle()),
         )
     )
     return invocation, ledger

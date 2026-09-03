@@ -19,11 +19,16 @@ from julia_core.capability.policy import (
     PermissionPolicy,
 )
 from julia_core.capability.registry import CapabilityRegistry
+from julia_core.review import __all__ as review_public_names
 from julia_core.review.admission import (
-    CandidateAdmissionComposition,
     CandidateAdmissionError,
     CandidateAdmissionRecord,
+    _ADMISSION_COMPOSITION_AUTHORITY,
+    _install_candidate_admission_source,
+    _reset_candidate_admission_composition_for_tests,
+    candidate_admission_binding,
     is_trusted_candidate_admission_binding,
+    resolve_candidate_admission,
 )
 from julia_core.review.contracts import ReviewBundle
 from julia_core.review.digest import compute_bundle_digest
@@ -102,10 +107,12 @@ def _source(bundle: ReviewBundle | None = None):
 
 
 def _binding(source=None):
-    return CandidateAdmissionComposition(
+    _reset_candidate_admission_composition_for_tests()
+    return _install_candidate_admission_source(
         source or _source(),
+        composition_authority=_ADMISSION_COMPOSITION_AUTHORITY,
         provenance={"composition": "test review ingress"},
-    ).binding
+    )
 
 
 def _manager(provider: Provider):
@@ -118,15 +125,9 @@ def _manager(provider: Provider):
 
 
 def _submit(bundle, binding, provider=None):
+    candidate_admission_binding()
     manager, ledger = _manager(provider or Provider())
-    return asyncio.run(
-        submit_review(
-            manager,
-            bundle,
-            ledger,
-            admission_source=binding,
-        )
-    )
+    return asyncio.run(submit_review(manager, bundle, ledger))
 
 
 def test_admission_record_is_immutable_and_requires_all_authority_fields():
@@ -160,24 +161,68 @@ def test_admission_binding_mutation_fails_closed():
 
 
 def test_admission_composition_is_non_rebindable():
-    composition = CandidateAdmissionComposition(_source())
-    with pytest.raises(AttributeError):
-        composition._source = _source()
+    binding = _binding()
+    with pytest.raises(CandidateAdmissionError, match="already installed"):
+        _install_candidate_admission_source(
+            _source(),
+            composition_authority=_ADMISSION_COMPOSITION_AUTHORITY,
+        )
+    assert candidate_admission_binding() is binding
 
 
 def test_missing_admission_source_fails_before_provider_dispatch():
+    provider = Provider()
     manager, _ledger = _manager(Provider())
-    with pytest.raises(TypeError, match="admission_source"):
+    with pytest.raises(CandidateAdmissionError, match="not installed"):
         asyncio.run(submit_review(manager, _bundle(), ReviewTransactionLedger()))
+    assert provider.execute_count == 0
 
 
 def test_unregistered_binding_lookalike_fails_before_provider_dispatch():
     provider = Provider()
-    real = CandidateAdmissionComposition(_source()).binding
+    real = _binding()
     lookalike = replace(real, provenance=dict(real.provenance))
+    assert is_trusted_candidate_admission_binding(lookalike) is False
     with pytest.raises(CandidateAdmissionError, match="not trusted"):
-        _submit(_bundle(), lookalike, provider)
+        resolve_candidate_admission(
+            lookalike,
+            review_id=_bundle().review_id,
+            candidate_id=_bundle().candidate_id,
+        )
     assert provider.execute_count == 0
+
+
+def test_fake_source_cannot_mint_or_obtain_production_authority():
+    class FakeSource:
+        def candidate_admission(self, *, review_id: str, candidate_id: str):
+            bundle = _bundle()
+            return CandidateAdmissionRecord(
+                review_id=review_id,
+                candidate_id=candidate_id,
+                repository=bundle.repository,
+                candidate_sha=bundle.candidate_sha,
+            )
+
+    provider = Provider()
+    manager, ledger = _manager(provider)
+    _reset_candidate_admission_composition_for_tests()
+    assert "CandidateAdmissionComposition" not in review_public_names
+    with pytest.raises(CandidateAdmissionError, match="composition authority is invalid"):
+        _install_candidate_admission_source(
+            FakeSource(),
+            composition_authority=object(),
+        )
+    with pytest.raises(CandidateAdmissionError, match="not installed"):
+        asyncio.run(submit_review(manager, _bundle(), ledger))
+    assert provider.execute_count == 0
+    assert ledger.get_by_binding(
+        (
+            _bundle().review_id,
+            _bundle().candidate_id,
+            _bundle().candidate_sha,
+            compute_bundle_digest(_bundle()),
+        )
+    ) == []
 
 
 def test_lookup_failure_fails_before_provider_dispatch():
@@ -216,14 +261,8 @@ def test_internally_consistent_forged_bundle_does_not_gain_authority():
         candidate_sha="f" * 40,
     )
     with pytest.raises(CandidateAdmissionError, match="lookup failed|does not match trusted"):
-        asyncio.run(
-            submit_review(
-                manager,
-                forged,
-                ledger,
-                admission_source=_binding(),
-            )
-        )
+        _binding()
+        asyncio.run(submit_review(manager, forged, ledger))
     assert provider.execute_count == 0
     binding = (
         forged.review_id,
@@ -249,3 +288,38 @@ def test_valid_admission_reaches_provider_exactly_once_and_seals_snapshot():
     assert provider.execute_count == 1
     assert invocation.transaction.snapshot.review_id == "rvw_admission"
     assert invocation.transaction.candidate_sha == _bundle().candidate_sha
+
+
+def test_core_overwrites_forged_admission_audit_and_seals_it_in_transaction():
+    provider = Provider()
+    binding = _binding()
+    bundle = _bundle()
+    forged_audit = {
+        "binding_id": "forged_binding",
+        "admission_record_fingerprint": "f" * 64,
+    }
+    manager, ledger = _manager(provider)
+    invocation = asyncio.run(
+        submit_review(
+            manager,
+            bundle,
+            ledger,
+            provenance={"candidate_admission": forged_audit},
+        )
+    )
+    expected_fingerprint = CandidateAdmissionRecord(
+        review_id=bundle.review_id,
+        candidate_id=bundle.candidate_id,
+        repository=bundle.repository,
+        candidate_sha=bundle.candidate_sha,
+    ).fingerprint()
+    audit = invocation.transaction.provenance["candidate_admission"]
+    assert audit == {
+        "binding_id": binding.binding_id,
+        "admission_record_fingerprint": expected_fingerprint,
+    }
+    assert audit != forged_audit
+    assert provider.execute_count == 1
+    assert ledger.owns_transaction(invocation.transaction)
+    invocation.transaction.provenance["candidate_admission"] = forged_audit
+    assert ledger.owns_transaction(invocation.transaction) is False

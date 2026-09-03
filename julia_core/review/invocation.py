@@ -34,8 +34,8 @@ from typing import Any
 from julia_core.capability.manager import CapabilityExecution, CapabilityManager
 from julia_core.capability.models import CapabilityRequest
 from julia_core.review.admission import (
-    CandidateAdmissionSourceBinding,
     assert_candidate_admission,
+    candidate_admission_audit,
 )
 from julia_core.review.contracts import ReviewBundle
 from julia_core.review.guard import REVIEW_SEMANTIC_ARG, REVIEW_TOKEN_ARG
@@ -264,7 +264,6 @@ async def submit_review(
     bundle: ReviewBundle,
     ledger: ReviewTransactionLedger,
     *,
-    admission_source: CandidateAdmissionSourceBinding,
     allow_exact_retry: bool = False,
     correlation_id: str = "",
     turn_id: str = "",
@@ -285,18 +284,19 @@ installed under ``external_review``; otherwise
     it is unusable after this call no matter what happens (including unexpected
     manager/provider exceptions).
     """
-    assert_candidate_admission(
-        admission_source,
+    admission = assert_candidate_admission(
         review_id=bundle.review_id,
         candidate_id=bundle.candidate_id,
         repository=bundle.repository,
         candidate_sha=bundle.candidate_sha,
     )
+    audit_provenance = dict(provenance or {})
+    audit_provenance["candidate_admission"] = candidate_admission_audit(admission)
     snapshot = seal_review_bundle(bundle)
     transaction = ledger.mint(
         snapshot,
         allow_exact_retry=allow_exact_retry,
-        provenance=provenance,
+        provenance=audit_provenance,
     )
     request = build_review_request(
         transaction,
