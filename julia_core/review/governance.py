@@ -10,11 +10,10 @@ P0-B: transaction derived from invocation.transaction; ledger must own the exact
 transaction (identity + full fingerprint). Handcrafted/spread/copied invocations
 are rejected by is_trusted_invocation().
 
-P0-C / E6-E9: the CandidateShaSource is bound ONLY through
-bind_candidate_sha_source() (Core-owned trusted creator). The service accepts a
-trusted binding or stays UNBOUND; an arbitrary FakeSource cannot become
-authority, and object.__setattr__ cannot replace it because the adapter lives in
-the registry keyed by binding_id.
+P0-C / E6-E9: the CandidateShaSource is bound only through a trusted Core
+composition binding. The service accepts a trusted binding or stays UNBOUND; an
+arbitrary FakeSource cannot become authority, and object.__setattr__ cannot
+replace it because the adapter lives in the registry keyed by binding_id.
 
 §8 (C1-C5): raw-response provenance. Core computes the raw-response digest from
 the trusted execution's observable content itself (never trusting a supplied

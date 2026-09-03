@@ -99,6 +99,7 @@ class GuardedReviewProvider:
         # reach the provider.
         from julia_core.capability.models import CapabilityRequest as _CapabilityRequest
         trusted_payload = transaction.snapshot.to_payload()
+        trusted_payload["bundle_digest"] = transaction.bundle_digest
         fresh = _CapabilityRequest(
             capability_id="engineering.code_review",
             arguments=trusted_payload,

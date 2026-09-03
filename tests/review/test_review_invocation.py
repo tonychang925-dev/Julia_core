@@ -195,6 +195,45 @@ def test_guarded_provider_rejects_token_without_semantic_marker():
     assert execution.tool_result.status == ToolResultStatus.UNAVAILABLE
 
 
+def test_guard_projects_core_transaction_digest_and_ignores_caller_value():
+    ledger = ReviewTransactionLedger()
+    real = FixtureReviewProvider(ProviderExecutionOutcome(
+        status=ToolResultStatus.SUCCESS,
+        structured_output={"raw_response": "ok"},
+        side_effect_state=SideEffectState.SUCCEEDED,
+    ))
+    manager, _ = _guarded_manager(real, ledger)
+    transaction = ledger.mint(seal_review_bundle(_bundle()))
+    request = build_review_request(transaction)
+    request.arguments["bundle_digest"] = "caller_forged_digest"
+
+    execution = asyncio.run(manager.execute_typed(request))
+
+    assert execution.tool_result.status == ToolResultStatus.SUCCESS
+    assert real.execute_calls == 1
+    assert real.last_request is not None
+    assert real.last_request.arguments["bundle_digest"] == transaction.bundle_digest
+    assert real.last_request.arguments["bundle_digest"] != "caller_forged_digest"
+
+
+def test_mutated_transaction_digest_cannot_reach_real_provider():
+    ledger = ReviewTransactionLedger()
+    real = FixtureReviewProvider(ProviderExecutionOutcome(
+        status=ToolResultStatus.SUCCESS,
+        structured_output={"raw_response": "must not run"},
+        side_effect_state=SideEffectState.SUCCEEDED,
+    ))
+    manager, _ = _guarded_manager(real, ledger)
+    transaction = ledger.mint(seal_review_bundle(_bundle()))
+    object.__setattr__(transaction, "bundle_digest", "mutated_digest")
+    request = build_review_request(transaction)
+
+    execution = asyncio.run(manager.execute_typed(request))
+
+    assert execution.tool_result.status == ToolResultStatus.UNAVAILABLE
+    assert real.execute_calls == 0
+
+
 # ── Request exactly bound to transaction (§1, Q1-Q4) ─────────────────────────
 
 def test_request_projection_carries_token_and_marker():
