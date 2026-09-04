@@ -228,6 +228,19 @@ class RuntimeCapabilityBridge:
         # RD1-C1 research capability. Provider binding remains explicit and
         # product-owned; without a binding the manager returns typed UNAVAILABLE.
         register_research_event_enrichment(self.registry, policy=self.policy)
+        if "research_enrichment" not in self._providers:
+            from julia_core.research.d1_provider import (
+                create_d1_research_provider_from_environment,
+            )
+            try:
+                self._providers["research_enrichment"] = (
+                    create_d1_research_provider_from_environment()
+                )
+            except Exception as exc:
+                import logging
+                logging.getLogger("julia.capability").debug(
+                    "controlled-live D1 research provider unbound: %s", exc
+                )
 
         # Build the manager
         self._manager = CapabilityManager(
