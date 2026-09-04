@@ -378,7 +378,7 @@ class ResearchEvidenceNormalizer:
         call: CapabilityCall,
         failure: SourceObservationFailure | None,
     ) -> VerificationState:
-        if not provider_success or not observation_available:
+        if not provider_success:
             return _failure_state(failure)
 
         if failure is not None:
@@ -387,6 +387,8 @@ class ResearchEvidenceNormalizer:
             return VerificationState.NOT_PROVEN
         if source_record.source_kind.lower() in _WEB_SEARCH_KINDS:
             return VerificationState.REPORT_ONLY
+        if not observation_available:
+            return VerificationState.NOT_PROVEN
         if source_record.capture_status.lower() not in {"success", "observed", "captured"}:
             return VerificationState.NOT_PROVEN
         if source_record.fetch_status.lower() not in {"success", "retained"}:

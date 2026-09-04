@@ -356,6 +356,93 @@ def test_claim_independent_websearch_source_is_report_only_not_verified():
     assert result.observation.claim_verification_states == {}
 
 
+def test_f3_01_successful_websearch_is_report_only_when_observation_unavailable():
+    result = normalize({
+        "semantic_result": no_claim_semantics(),
+        "source_observation": observation_payload(
+            available=False,
+            records=[source_record(
+                source_kind="web_search",
+                fetch_status="not_required",
+                content_ref="",
+                content_digest="",
+            )],
+            bindings=[],
+        ),
+    })
+
+    assert result.observation.evidence[0].integrity_metadata["verification_state"] == "REPORT_ONLY"
+    assert result.observation.claim_verification_states == {}
+
+
+def test_f3_02_provider_failure_takes_precedence_over_websearch_report_only():
+    result = normalize(
+        {
+            "semantic_result": no_claim_semantics(),
+            "source_observation": observation_payload(
+                available=False,
+                records=[source_record(
+                    source_kind="web_search",
+                    fetch_status="not_required",
+                    content_ref="",
+                    content_digest="",
+                )],
+                bindings=[],
+                failure={"code": "provider_failed", "message": "failed"},
+            ),
+        },
+        status=ToolResultStatus.ERROR,
+        error={"code": "provider_failed", "message": "failed"},
+    )
+
+    assert result.observation.evidence[0].integrity_metadata["verification_state"] == "NOT_PROVEN"
+    assert result.observation.claim_verification_states == {}
+
+
+def test_f3_03_failure_object_takes_precedence_over_websearch_report_only():
+    result = normalize({
+        "semantic_result": no_claim_semantics(),
+        "source_observation": observation_payload(
+            available=False,
+            records=[source_record(
+                source_kind="web_search",
+                fetch_status="not_required",
+                content_ref="",
+                content_digest="",
+            )],
+            bindings=[],
+            failure={"code": "research_source_blocked", "message": "blocked"},
+        ),
+    })
+
+    assert result.observation.evidence[0].integrity_metadata["verification_state"] == "BLOCKED"
+    assert result.observation.claim_verification_states == {}
+
+
+def test_f3_04_successful_provider_without_source_record_is_not_proven():
+    result = normalize({
+        "semantic_result": no_claim_semantics(),
+        "source_observation": observation_payload(
+            available=True,
+            source_records=[],
+            content_bindings=[],
+        ),
+    })
+
+    assert result.observation.evidence[0].integrity_metadata["verification_state"] == "NOT_PROVEN"
+    assert result.observation.claim_verification_states == {}
+
+
+def test_f3_05_non_websearch_unavailable_observation_is_not_proven():
+    result = normalize({
+        "semantic_result": no_claim_semantics(),
+        "source_observation": observation_payload(available=False),
+    })
+
+    assert result.observation.evidence[0].integrity_metadata["verification_state"] == "NOT_PROVEN"
+    assert result.observation.claim_verification_states == {}
+
+
 @pytest.mark.parametrize(
     "record_overrides,binding_overrides,raw_refs",
     [
