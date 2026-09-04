@@ -12,7 +12,7 @@ Usage:
       register_ai_theme_capabilities,
   )
 
-  provider = create_ai_theme_provider()
+  provider = create_ai_theme_provider(transport)
   register_ai_theme_capabilities(registry)
 """
 
@@ -126,7 +126,7 @@ AI_THEME_CAPABILITIES: list[dict] = [
             "time_window": "optional bounded date window",
             "limit": "optional bounded candidate limit",
         },
-        "adapter": "mcp",
+        "adapter": "direct",
         "schema_version": "1.0",
     },
     {
@@ -136,7 +136,7 @@ AI_THEME_CAPABILITIES: list[dict] = [
         "provider": "ai_theme_app",
         "permission_scope": "market.observe",
         "input_schema": {"event_id": "canonical public.news_event.id integer"},
-        "adapter": "mcp",
+        "adapter": "direct",
         "schema_version": "1.0",
     },
 ]
@@ -160,19 +160,16 @@ def register_ai_theme_capabilities(
             provider=spec["provider"],
             permission_scope=spec["permission_scope"],
             input_schema=spec.get("input_schema", {}),
-            adapter=spec.get("adapter", "mcp"),
+            adapter=spec.get("adapter", "direct"),
             status=status,
             schema_version=spec["schema_version"],
         )
         registry.register_definition(definition)
 
 
-def create_ai_theme_provider(endpoint: str | None = None) -> AiThemeProvider:
-    """Create an AiThemeProvider with the given MCP endpoint.
-
-    endpoint: optional MCP HTTP endpoint. If None, uses in-process fallback.
-    """
-    adapter = MCPToolAdapter()
+def create_ai_theme_provider(transport) -> AiThemeProvider:
+    """Create a provider bound to an explicit MCP-compatible transport."""
+    adapter = MCPToolAdapter(transport)
     return AiThemeProvider(adapter)
 
 

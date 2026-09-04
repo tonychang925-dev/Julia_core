@@ -200,14 +200,19 @@ class RuntimeCapabilityBridge:
 
         # ai_theme_app provider (M1). Product-owned provider injection must not
         # suppress capability registration; definitions remain runtime-owned.
-        from julia_core.capability.providers.ai_theme import (
-            register_ai_theme_capabilities,
-            create_ai_theme_provider,
+        from julia_core.capability.providers.ai_theme.frozen_market import (
+            register_frozen_market_capabilities,
+            create_frozen_market_provider,
         )
         market_status = CapabilityStatus.AVAILABLE
-        if "ai_theme_app" not in self._providers:
+        if "ai_theme_app" in self._providers:
+            from julia_core.capability.providers.ai_theme import (
+                register_ai_theme_capabilities,
+            )
+            register_ai_theme_capabilities(self.registry, status=market_status)
+        else:
             try:
-                self._providers["ai_theme_app"] = create_ai_theme_provider()
+                self._providers["ai_theme_app"] = create_frozen_market_provider()
             except Exception as exc:
                 market_status = CapabilityStatus.DEGRADED
                 self._providers["ai_theme_app"] = _UnavailableAiThemeProvider(str(exc))
@@ -215,7 +220,10 @@ class RuntimeCapabilityBridge:
                 logging.getLogger("julia.capability").warning(
                     "ai_theme provider unavailable; market capability DEGRADED: %s", exc
                 )
-        register_ai_theme_capabilities(self.registry, status=market_status)
+            register_frozen_market_capabilities(
+                self.registry,
+                status=market_status,
+            )
 
         # External Code Review capability (Core semantic contract).
         # The provider (external_review) is implemented cross-repo in

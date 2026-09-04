@@ -1,0 +1,319 @@
+"""Pinned composition for the frozen Market DomainIntelligenceAdapter."""
+
+from __future__ import annotations
+
+import hashlib
+import importlib
+import os
+import sys
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from julia_core.capability.models import (
+    CapabilityDefinition,
+    CapabilityLayer,
+    CapabilityRequest,
+    CapabilityStatus,
+    ProviderExecutionOutcome,
+    SideEffectState,
+    ToolResultStatus,
+)
+
+MARKET_FROZEN_SHA = "d6889f4f39fc4f8adf404ea7c51eee3ad22d7fa7"
+MARKET_ADAPTER_SCHEMA_VERSION = "1.0"
+MARKET_SOURCE_ROOT_CONFIG = "JULIA_MARKET_SOURCE_ROOT"
+MARKET_SOURCE_SHA_CONFIG = "JULIA_MARKET_SOURCE_SHA"
+MARKET_TREE_DIGEST_CONFIG = "JULIA_MARKET_TREE_DIGEST"
+_MARKET_TREE_DIGEST = "b07d454ac2c067717c7bdf70fc012c811d9d1636b427dd917134227e0df604dd"
+_MARKET_IMPORT_MODULE = "stock_processing_service.application.services.julia_domain_adapter"
+_APPROVED_MARKET_FILES = (
+    "stock_processing_service/__init__.py",
+    "stock_processing_service/application/services/__init__.py",
+    "stock_processing_service/application/services/julia_domain_adapter/__init__.py",
+    "stock_processing_service/application/services/julia_domain_adapter/adapter.py",
+    "stock_processing_service/application/services/julia_domain_adapter/contracts.py",
+    "stock_processing_service/application/services/julia_domain_adapter/provenance.py",
+    "stock_processing_service/application/services/julia_domain_adapter/operations/__init__.py",
+    "stock_processing_service/application/services/julia_domain_adapter/operations/alerts.py",
+    "stock_processing_service/application/services/julia_domain_adapter/operations/event_read.py",
+    "stock_processing_service/application/services/julia_domain_adapter/operations/event_resolve.py",
+    "stock_processing_service/application/services/julia_domain_adapter/operations/snapshot.py",
+)
+_OPERATIONS_BY_CAPABILITY = {
+    "market.event.resolve": "market.event.resolve",
+    "market.event.read": "market.event.read",
+    "market.snapshot.read": "market.snapshot",
+    "market.alert.query": "market.alerts",
+}
+_REQUIRED_OPERATIONS = frozenset({"market.event.resolve", "market.event.read"})
+_FROZEN_MARKET_CAPABILITIES = (
+    CapabilityDefinition(
+        name="market.event.resolve",
+        description="Resolve one bounded query/theme hint into canonical Market event candidates",
+        layer=CapabilityLayer.INTELLIGENCE,
+        provider="ai_theme_app",
+        permission_scope="market.observe",
+        input_schema={"query": "bounded inert user query"},
+        adapter="direct",
+        schema_version="1.0",
+    ),
+    CapabilityDefinition(
+        name="market.event.read",
+        description="Read one canonical Market event by Market-owned event_id",
+        layer=CapabilityLayer.INTELLIGENCE,
+        provider="ai_theme_app",
+        permission_scope="market.observe",
+        input_schema={"event_id": "canonical public.news_event.id integer"},
+        adapter="direct",
+        schema_version="1.0",
+    ),
+    CapabilityDefinition(
+        name="market.snapshot.read",
+        description="Read the frozen Market snapshot observation",
+        layer=CapabilityLayer.INTELLIGENCE,
+        provider="ai_theme_app",
+        permission_scope="market.observe",
+        adapter="direct",
+        schema_version="1.0",
+    ),
+    CapabilityDefinition(
+        name="market.alert.query",
+        description="Query frozen Market alert observations",
+        layer=CapabilityLayer.INTELLIGENCE,
+        provider="ai_theme_app",
+        permission_scope="market.observe",
+        adapter="direct",
+        schema_version="1.0",
+    ),
+)
+
+
+class FrozenMarketCompositionError(ValueError):
+    """The configured Market source is missing, unpinned, or modified."""
+
+
+@dataclass(frozen=True, slots=True)
+class FrozenMarketBinding:
+    source_root: Path
+    source_sha: str
+    tree_digest: str
+    adapter_class: type
+
+
+class MarketDomainAdapterProvider:
+    """Compose Core Market capabilities through the frozen Market facade."""
+
+    def __init__(self, adapter: Any, *, source_sha: str = MARKET_FROZEN_SHA):
+        self.adapter = adapter
+        self.source_sha = source_sha
+
+    async def health(self) -> tuple[bool, str]:
+        supported = getattr(self.adapter, "supported_operations", ())
+        missing = sorted(_REQUIRED_OPERATIONS - set(supported))
+        if missing:
+            return False, f"frozen Market operations unavailable: {', '.join(missing)}"
+        return True, f"frozen Market adapter sha:{self.source_sha}"
+
+    async def execute(self, request: CapabilityRequest) -> ProviderExecutionOutcome:
+        operation = _OPERATIONS_BY_CAPABILITY.get(request.capability_id)
+        if operation is None:
+            raise ValueError(f"unsupported frozen Market capability: {request.capability_id}")
+        adapter_request = {
+            "operation": operation,
+            "arguments": dict(request.arguments),
+            "correlation_id": request.correlation_id,
+            "idempotency_key": request.idempotency_key,
+            "requested_at": "",
+            "schema_version": MARKET_ADAPTER_SCHEMA_VERSION,
+            "trace_metadata": {
+                "capability_id": request.capability_id,
+                "capability_request_id": request.capability_request_id,
+                "turn_id": request.turn_id,
+                "generation_id": request.generation_id,
+                "market_source_sha": self.source_sha,
+            },
+        }
+        envelope = await self.adapter.execute(adapter_request)
+        payload = envelope.to_dict() if hasattr(envelope, "to_dict") else dict(envelope)
+        return _outcome_from_envelope(payload)
+
+
+def register_frozen_market_capabilities(
+    registry: Any,
+    *,
+    status: CapabilityStatus = CapabilityStatus.AVAILABLE,
+) -> None:
+    for definition in _FROZEN_MARKET_CAPABILITIES:
+        registry.register_definition(
+            CapabilityDefinition(
+                name=definition.name,
+                description=definition.description,
+                layer=definition.layer,
+                provider=definition.provider,
+                permission_scope=definition.permission_scope,
+                input_schema=dict(definition.input_schema),
+                adapter=definition.adapter,
+                status=status,
+                schema_version=definition.schema_version,
+            )
+        )
+
+
+def load_frozen_market_binding(
+    environment: Mapping[str, str] | None = None,
+) -> FrozenMarketBinding:
+    env = dict(environment if environment is not None else os.environ)
+    missing = [
+        name
+        for name in (
+            MARKET_SOURCE_ROOT_CONFIG,
+            MARKET_SOURCE_SHA_CONFIG,
+            MARKET_TREE_DIGEST_CONFIG,
+        )
+        if not env.get(name, "").strip()
+    ]
+    if missing:
+        raise FrozenMarketCompositionError(
+            f"frozen Market configuration is incomplete: {', '.join(missing)}"
+        )
+    if env[MARKET_SOURCE_SHA_CONFIG] != MARKET_FROZEN_SHA:
+        raise FrozenMarketCompositionError(
+            f"Market source SHA must equal {MARKET_FROZEN_SHA}"
+        )
+    if env[MARKET_TREE_DIGEST_CONFIG] != _MARKET_TREE_DIGEST:
+        raise FrozenMarketCompositionError("Market tree digest is not the frozen value")
+
+    try:
+        root = Path(env[MARKET_SOURCE_ROOT_CONFIG]).expanduser().resolve(strict=True)
+    except OSError as exc:
+        raise FrozenMarketCompositionError(
+            f"frozen Market source root unavailable: {exc}"
+        ) from exc
+    observed_digest = market_tree_digest(root)
+    if observed_digest != _MARKET_TREE_DIGEST:
+        raise FrozenMarketCompositionError(
+            f"Market source digest mismatch: expected {_MARKET_TREE_DIGEST}, got {observed_digest}"
+        )
+    module = _import_frozen_market_module(root)
+    adapter_class = getattr(module, "DomainIntelligenceAdapter", None)
+    if not isinstance(adapter_class, type):
+        raise FrozenMarketCompositionError("frozen Market adapter export is missing")
+    return FrozenMarketBinding(
+        source_root=root,
+        source_sha=env[MARKET_SOURCE_SHA_CONFIG],
+        tree_digest=observed_digest,
+        adapter_class=adapter_class,
+    )
+
+
+def create_frozen_market_provider(
+    environment: Mapping[str, str] | None = None,
+    *,
+    database_gateway: Any | None = None,
+    market_context_exporter: Any | None = None,
+    workbench_base_dir: str | None = None,
+    clock: Any | None = None,
+) -> MarketDomainAdapterProvider:
+    binding = load_frozen_market_binding(environment)
+    adapter = binding.adapter_class(
+        database_gateway=database_gateway,
+        market_context_exporter=market_context_exporter,
+        workbench_base_dir=workbench_base_dir,
+        clock=clock,
+    )
+    return MarketDomainAdapterProvider(adapter, source_sha=binding.source_sha)
+
+
+def market_tree_digest(root: Path) -> str:
+    digest = hashlib.sha256()
+    for relative in _APPROVED_MARKET_FILES:
+        path = root / relative
+        try:
+            content = path.read_bytes()
+        except OSError as exc:
+            raise FrozenMarketCompositionError(
+                f"frozen Market file unavailable: {relative}"
+            ) from exc
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(hashlib.sha256(content).digest())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _import_frozen_market_module(root: Path):
+    original_path = list(sys.path)
+    displaced_modules = {
+        name: module
+        for name, module in sys.modules.items()
+        if name == "stock_processing_service" or name.startswith("stock_processing_service.")
+    }
+    for name in displaced_modules:
+        del sys.modules[name]
+    try:
+        sys.path.insert(0, str(root))
+        module = importlib.import_module(_MARKET_IMPORT_MODULE)
+    except Exception as exc:
+        raise FrozenMarketCompositionError(
+            f"frozen Market adapter import failed: {exc}"
+        ) from exc
+    finally:
+        sys.path[:] = original_path
+
+    module_file = Path(getattr(module, "__file__", ""))
+    if not module_file.is_relative_to(root):
+        _restore_displaced_modules(displaced_modules)
+        raise FrozenMarketCompositionError("Market import escaped the pinned source root")
+    for name, module_item in sys.modules.items():
+        if not name.startswith("stock_processing_service"):
+            continue
+        module_path = getattr(module_item, "__file__", "")
+        if module_path and not Path(module_path).is_relative_to(root):
+            _restore_displaced_modules(displaced_modules)
+            raise FrozenMarketCompositionError("ambient Market module won import resolution")
+    _restore_displaced_modules(displaced_modules)
+    return module
+
+
+def _restore_displaced_modules(modules: Mapping[str, Any]) -> None:
+    for name in list(sys.modules):
+        if name == "stock_processing_service" or name.startswith("stock_processing_service."):
+            del sys.modules[name]
+    sys.modules.update(modules)
+
+
+def _outcome_from_envelope(envelope: Mapping[str, Any]) -> ProviderExecutionOutcome:
+    status = str(envelope.get("status", "error"))
+    failures = envelope.get("failures") or []
+    failure = dict(failures[0]) if isinstance(failures, list) and failures else None
+    if status == "success":
+        outcome_status = ToolResultStatus.SUCCESS
+    elif status == "partial":
+        outcome_status = ToolResultStatus.PARTIAL
+    elif status == "unavailable":
+        outcome_status = ToolResultStatus.UNAVAILABLE
+    else:
+        outcome_status = ToolResultStatus.ERROR
+    return ProviderExecutionOutcome(
+        status=outcome_status,
+        structured_output=dict(envelope),
+        error=failure,
+        side_effect_state=SideEffectState.NONE,
+    )
+
+
+__all__ = [
+    "FrozenMarketBinding",
+    "FrozenMarketCompositionError",
+    "MARKET_FROZEN_SHA",
+    "MARKET_SOURCE_ROOT_CONFIG",
+    "MARKET_SOURCE_SHA_CONFIG",
+    "MARKET_TREE_DIGEST_CONFIG",
+    "MarketDomainAdapterProvider",
+    "create_frozen_market_provider",
+    "load_frozen_market_binding",
+    "market_tree_digest",
+    "register_frozen_market_capabilities",
+]
