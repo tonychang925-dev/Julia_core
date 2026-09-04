@@ -231,6 +231,47 @@ class JuliaSession:
         ctx = TurnContext([])
         return self._chat_impl(text, ctx)
 
+    def form_preliminary_research_judgment(
+        self,
+        market_context,
+        enrichment,
+        *,
+        conversation_id: str = "",
+        turn_id: str = "",
+        allow_market_only_on_research_failure: bool = False,
+    ):
+        """Form one C2 judgment through the existing Context OS/model path.
+
+        This research-specific invocation deliberately uses the same provider
+        boundary as ``_chat_impl``. It creates no alternate transport, does not
+        mutate conversation state, and never promotes malformed free text.
+        """
+        from julia_core.research.judgment import (
+            ResearchJudgmentInputError,
+            ResearchJudgmentParser,
+        )
+
+        pkg = self.context_os.project_research_judgment(
+            market_context=market_context,
+            enrichment=enrichment,
+            conversation_id=conversation_id,
+            turn_id=turn_id,
+            allow_market_only_on_research_failure=allow_market_only_on_research_failure,
+        )
+        required_failures = pkg.validate()
+        if required_failures:
+            raise ResearchJudgmentInputError(
+                f"research judgment context failed: {', '.join(required_failures)}"
+            )
+        parser = ResearchJudgmentParser(market_context, enrichment)
+        pkg.generation_id = parser.trace.generation_id
+        messages = pkg.to_messages([], "Form Julia's preliminary research judgment in strict JSON.")
+        response = self.provider.chat(
+            messages,
+            cognitive_mode="research_preliminary_judgment",
+        )
+        return parser.parse(response)
+
     def _prepare_turn(self, text: str, ctx: TurnContext) -> list[dict]:
         """P2: Context OS production binding — single model-visible gateway.
 

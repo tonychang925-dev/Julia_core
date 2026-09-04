@@ -194,6 +194,49 @@ class ContextExecutionRuntime:
     def __init__(self, julia_session=None):
         self._js = julia_session
 
+    def project_research_judgment(
+        self,
+        *,
+        market_context,
+        enrichment,
+        conversation_id: str = "",
+        turn_id: str = "",
+        generation_id: str = "",
+        allow_market_only_on_research_failure: bool = False,
+    ) -> CognitiveContextPackage:
+        """Project one normalized research unit into the existing cognition path.
+
+        This is a C2-specific Context OS projection, not a second runtime. The
+        builder validates C1 inputs and keeps Market, provider semantics, source
+        observation, verification state, and Julia inference in distinct frames.
+        Raw external content is not injected as instruction authority.
+        """
+        from julia_core.research.judgment import ResearchJudgmentContextBuilder
+
+        material = ResearchJudgmentContextBuilder(
+            allow_market_only_on_research_failure=allow_market_only_on_research_failure,
+        ).build(market_context, enrichment)
+        pkg = CognitiveContextPackage(
+            conversation_id=conversation_id,
+            turn_id=turn_id,
+            generation_id=generation_id or material.provenance.get("generation_id", ""),
+        )
+        pkg.situation_frame = dict(material.situation_frame)
+        pkg.evidence_frame = dict(material.evidence_frame)
+        pkg.control_frame = dict(material.control_frame)
+        pkg.capability_frame = dict(material.capability_frame)
+        pkg.retrieval_handles["research_judgment"] = dict(material.provenance)
+        pkg.projection_metadata["research_judgment_version"] = "research.preliminary_judgment.v1"
+        pkg.projection_metadata["external_material_instruction_authority"] = False
+        pkg.add_provenance(
+            "research_judgment",
+            "market_event:{market_event_id}".format(**material.provenance),
+            canonical_ref=material.provenance.get("source_trace_id", ""),
+            reason="C1-normalized Market event research unit",
+            stage=2,
+        )
+        return pkg
+
     def _get_bootstrap_frames(self) -> dict[str, str]:
         """Load classified bootstrap once per session, then cache.
 

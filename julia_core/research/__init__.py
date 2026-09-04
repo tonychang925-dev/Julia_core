@@ -24,6 +24,14 @@ from julia_core.research.normalizer import (
     ResearchEvidenceNormalizer,
     ResearchNormalizationError,
 )
+from julia_core.research.judgment import (
+    PRELIMINARY_RESEARCH_JUDGMENT_VERSION,
+    PreliminaryResearchJudgment,
+    ResearchJudgmentContextBuilder,
+    ResearchJudgmentInputError,
+    ResearchJudgmentParseError,
+    ResearchJudgmentParser,
+)
 from julia_core.research.registration import (
     RESEARCH_EVENT_ENRICH_PROVIDER,
     register_research_event_enrichment,
@@ -38,11 +46,16 @@ __all__ = [
     "MarketEventRelation",
     "MarketEventResearchAdapter",
     "NormalizedResearchEnrichment",
+    "PRELIMINARY_RESEARCH_JUDGMENT_VERSION",
     "RESEARCH_EVENT_ENRICH_CAPABILITY",
     "RESEARCH_EVENT_ENRICH_PROVIDER",
     "RESEARCH_EVENT_ENRICH_SCOPE",
     "ResearchClaim",
     "ResearchEvidenceNormalizer",
+    "ResearchJudgmentContextBuilder",
+    "ResearchJudgmentInputError",
+    "ResearchJudgmentParseError",
+    "ResearchJudgmentParser",
     "ResearchNormalizationError",
     "ResearchSemanticResult",
     "SourceObservationEvidence",
