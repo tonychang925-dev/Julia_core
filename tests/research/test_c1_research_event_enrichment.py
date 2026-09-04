@@ -303,3 +303,145 @@ def test_semantic_result_with_unavailable_observation_is_not_proven():
     assert result.observation.available is False
     assert result.observation.source_records == ()
     assert result.tool_result.evidence_refs
+
+
+def no_claim_semantics():
+    return {
+        "factual_summary": "",
+        "claims": [],
+        "contradictions": [],
+        "unknowns": ["NO_MODEL_SYNTHESIS: provider returned no semantic claims"],
+        "timeline": [],
+        "related_entities": [],
+    }
+
+
+def test_claim_independent_bound_source_observation_becomes_source_verified():
+    result = normalize({
+        "semantic_result": no_claim_semantics(),
+        "source_observation": observation_payload(),
+    })
+    evidence = result.observation.evidence[0]
+
+    assert evidence.integrity_metadata["verification_state"] == "SOURCE_VERIFIED"
+    assert evidence.source_type.value == "EXTERNAL_SOURCE"
+    assert evidence.source_ref == "https://example.test/policy"
+    assert evidence.content_ref == "extract:runtime:1"
+    assert evidence.integrity_metadata["content_digest"] == DIGEST
+    assert evidence.integrity_metadata["semantic_binding"] == {
+        "semantic_material": "source_observation",
+        "claim_id": "NONE",
+        "claim_assertion": "NONE",
+        "source_record_ids": ["source-1"],
+    }
+    assert result.observation.claim_verification_states == {}
+    assert result.tool_result.structured_output["source_observation"]["claim_verification_states"] == {}
+
+
+def test_claim_independent_websearch_source_is_report_only_not_verified():
+    result = normalize({
+        "semantic_result": no_claim_semantics(),
+        "source_observation": observation_payload(
+            records=[source_record(
+                source_kind="web_search",
+                fetch_status="not_required",
+                content_ref="",
+                content_digest="",
+            )],
+            bindings=[],
+        ),
+    })
+
+    assert result.observation.evidence[0].integrity_metadata["verification_state"] == "REPORT_ONLY"
+    assert result.observation.claim_verification_states == {}
+
+
+@pytest.mark.parametrize(
+    "record_overrides,binding_overrides,raw_refs",
+    [
+        ({"capture_status": "pending"}, {}, None),
+        ({"fetch_status": "not_required"}, {}, None),
+        ({"content_digest": "b" * 64}, {}, None),
+        ({"content_digest": ""}, {}, None),
+        ({}, {"digest": "b" * 64}, None),
+        ({}, {"content_ref": "", "extract_ref": ""}, None),
+        ({"observed_at": ""}, {}, None),
+        ({}, {"provenance": {}}, None),
+        ({}, {"provenance": {
+            "capability_request_id": "wrong_request",
+            "capability_call_id": "call_research",
+            "runtime_observation_ref": "raw:provider:1",
+        }}, None),
+        ({}, {"provenance": {
+            "capability_request_id": "req_research",
+            "capability_call_id": "wrong_call",
+            "runtime_observation_ref": "raw:provider:1",
+        }}, None),
+        ({}, {"provenance": {
+            "capability_request_id": "req_research",
+            "capability_call_id": "call_research",
+            "runtime_observation_ref": "missing:runtime:ref",
+        }}, None),
+        ({}, {}, []),
+    ],
+)
+def test_claim_independent_source_verification_requires_full_runtime_binding(
+    record_overrides,
+    binding_overrides,
+    raw_refs,
+):
+    overrides = {
+        "records": [source_record(**record_overrides)],
+        "bindings": [content_binding(**binding_overrides)],
+    }
+    if raw_refs is not None:
+        overrides["raw_response_refs"] = raw_refs
+    result = normalize({
+        "semantic_result": no_claim_semantics(),
+        "source_observation": observation_payload(**overrides),
+    })
+
+    assert result.observation.evidence[0].integrity_metadata["verification_state"] == "NOT_PROVEN"
+    assert result.observation.claim_verification_states == {}
+
+
+def test_claim_independent_blocked_observation_is_blocked_without_claim_state():
+    result = normalize(
+        {
+            "semantic_result": no_claim_semantics(),
+            "source_observation": observation_payload(
+                available=False,
+                source_records=[],
+                content_bindings=[],
+                failure={"code": "research_source_blocked", "message": "blocked"},
+            ),
+        },
+        status=ToolResultStatus.UNAVAILABLE,
+        error={"code": "research_source_blocked", "message": "blocked"},
+    )
+
+    assert result.observation.evidence[0].integrity_metadata["verification_state"] == "BLOCKED"
+    assert result.observation.claim_verification_states == {}
+
+
+def test_claim_independent_mixed_observations_mint_separate_evidence_states():
+    search_record = source_record(
+        source_kind="web_search",
+        fetch_status="not_required",
+        content_ref="",
+        content_digest="",
+    )
+    result = normalize({
+        "semantic_result": no_claim_semantics(),
+        "source_observation": observation_payload(
+            records=[source_record(), search_record],
+            bindings=[content_binding()],
+        ),
+    })
+
+    states = [
+        item.integrity_metadata["verification_state"]
+        for item in result.observation.evidence
+    ]
+    assert states == ["SOURCE_VERIFIED", "REPORT_ONLY"]
+    assert result.observation.claim_verification_states == {}

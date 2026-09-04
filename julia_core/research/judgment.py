@@ -328,7 +328,12 @@ class ResearchJudgmentParser:
         evidence_refs = self._parse_refs(payload["evidence_refs"], self.evidence_index, "evidence")
         source_refs = self._parse_refs(payload["source_record_refs"], self.source_index, "source record")
         requested_confidence = self._confidence(payload["confidence"])
-        confidence, basis = self._effective_confidence(requested_confidence, supporting, contradictions)
+        confidence, basis = self._effective_confidence(
+            requested_confidence,
+            supporting,
+            drivers,
+            contradictions,
+        )
         mandatory_limits = (
             "only preliminary research judgment",
             "source observation is not objective truth",
@@ -551,11 +556,15 @@ class ResearchJudgmentParser:
         self,
         requested: float,
         supporting: tuple[SupportingClaim, ...],
+        drivers: tuple[JudgmentDriver, ...],
         contradictions: tuple[ResearchContradiction, ...],
     ) -> tuple[float, tuple[str, ...]]:
         states = [
             str(self.evidence_index[ref].integrity_metadata.get("verification_state", ""))
             for claim in supporting for ref in claim.evidence_refs
+        ] + [
+            str(self.evidence_index[ref].integrity_metadata.get("verification_state", ""))
+            for driver in drivers for ref in driver.evidence_refs
         ]
         cap = 0.2
         basis = ["Julia-owned confidence is policy-capped, never copied from provider confidence"]
@@ -568,15 +577,17 @@ class ResearchJudgmentParser:
         if contradictions:
             cap = min(cap, 0.3)
             basis.append("contradictions remain unresolved")
+        evidence_cap = 0.2
         if states and all(state == VerificationState.SOURCE_VERIFIED.value for state in states):
-            cap = max(cap, 0.8)
+            evidence_cap = 0.8
             basis.append("runtime-bound source observations provide stronger support")
         elif states and all(state == VerificationState.REPORT_ONLY.value for state in states):
-            cap = max(cap, 0.35)
+            evidence_cap = 0.35
             basis.append("report-only material is a lead, not verified foundation")
         elif states:
-            cap = max(cap, 0.3)
+            evidence_cap = 0.3
             basis.append("mixed or unproven verification states degrade support")
+        cap = min(cap, evidence_cap)
         return round(max(0.0, min(requested, cap)), 4), tuple(basis)
 
     def _parse_refs(self, value: Any, index: Mapping[str, Any], name: str) -> tuple[str, ...]:

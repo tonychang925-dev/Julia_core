@@ -333,12 +333,14 @@ def test_c2_p03_partial_research_retains_uncertainty_and_lowers_confidence():
 
 def test_c2_p04_empty_provider_semantics_with_observation_allows_cognition():
     enrichment = no_model_synthesis_enrichment()
-    judgment = parse(enrichment, judgment_payload(enrichment, support="MARKET_CONTEXT_ONLY"))
+    judgment = parse(enrichment, judgment_payload(enrichment))
 
     assert judgment.supporting_claims == ()
-    assert judgment.key_drivers[0].support_level.value == "MARKET_CONTEXT_ONLY"
+    assert judgment.key_drivers[0].support_level.value == "SOURCE_VERIFIED_SUPPORT"
+    assert judgment.evidence_refs == tuple(item.evidence_id for item in enrichment.observation.evidence)
+    assert judgment.source_record_refs == ("source-verified",)
     assert "NO_MODEL_SYNTHESIS: provider returned no semantic claims" in judgment.uncertainties
-    assert judgment.confidence <= 0.2
+    assert judgment.confidence <= 0.8
 
 
 def test_c2_p05_multiple_evidence_states_remain_labeled_in_context():

@@ -117,22 +117,58 @@ class ResearchEvidenceNormalizer:
                     observation_provenance=observation_provenance,
                 ))
         else:
-            state = self._result_state(
-                provider_success=outcome.status is ToolResultStatus.SUCCESS,
-                observation_available=available,
-                source_records=source_records,
-                failure=failure,
-            )
-            evidence_items.append(self._mint_evidence(
-                state=state,
-                source_record=None,
-                binding=None,
-                observed_at=observed_at or _now(),
-                request=request,
-                call=call,
-                observation_provenance=observation_provenance,
-                semantic_binding={"semantic_material": "result"},
-            ))
+            if source_records:
+                for source_record in source_records:
+                    state = self._observation_state(
+                        provider_success=outcome.status is ToolResultStatus.SUCCESS,
+                        observation_available=available,
+                        source_record=source_record,
+                        binding=binding_index.get(source_record.source_record_id),
+                        raw_response_refs=raw_refs,
+                        request=request,
+                        call=call,
+                        failure=failure,
+                    )
+                    evidence_items.append(self._mint_evidence(
+                        state=state,
+                        source_record=source_record,
+                        binding=binding_index.get(source_record.source_record_id),
+                        observed_at=source_record.observed_at or observed_at or _now(),
+                        request=request,
+                        call=call,
+                        observation_provenance=observation_provenance,
+                        semantic_binding={
+                            "semantic_material": "source_observation",
+                            "claim_id": "NONE",
+                            "claim_assertion": "NONE",
+                            "source_record_ids": [source_record.source_record_id],
+                        },
+                    ))
+            else:
+                state = self._observation_state(
+                    provider_success=outcome.status is ToolResultStatus.SUCCESS,
+                    observation_available=available,
+                    source_record=None,
+                    binding=None,
+                    raw_response_refs=raw_refs,
+                    request=request,
+                    call=call,
+                    failure=failure,
+                )
+                evidence_items.append(self._mint_evidence(
+                    state=state,
+                    source_record=None,
+                    binding=None,
+                    observed_at=observed_at or _now(),
+                    request=request,
+                    call=call,
+                    observation_provenance=observation_provenance,
+                    semantic_binding={
+                        "semantic_material": "source_observation",
+                        "claim_id": "NONE",
+                        "claim_assertion": "NONE",
+                    },
+                ))
 
         observation = SourceObservationEvidence(
             source_records=source_records,
@@ -330,19 +366,51 @@ class ResearchEvidenceNormalizer:
                 return VerificationState.NOT_PROVEN
         return VerificationState.SOURCE_VERIFIED
 
-    def _result_state(
+    def _observation_state(
         self,
         *,
         provider_success: bool,
         observation_available: bool,
-        source_records: tuple[SourceRecord, ...],
+        source_record: SourceRecord | None,
+        binding: ContentBinding | None,
+        raw_response_refs: tuple[str, ...],
+        request: CapabilityRequest,
+        call: CapabilityCall,
         failure: SourceObservationFailure | None,
     ) -> VerificationState:
         if not provider_success or not observation_available:
             return _failure_state(failure)
-        if any(item.source_kind.lower() in _WEB_SEARCH_KINDS for item in source_records):
+
+        if failure is not None:
+            return _failure_state(failure)
+        if source_record is None:
+            return VerificationState.NOT_PROVEN
+        if source_record.source_kind.lower() in _WEB_SEARCH_KINDS:
             return VerificationState.REPORT_ONLY
-        return VerificationState.NOT_PROVEN
+        if source_record.capture_status.lower() not in {"success", "observed", "captured"}:
+            return VerificationState.NOT_PROVEN
+        if source_record.fetch_status.lower() not in {"success", "retained"}:
+            return VerificationState.NOT_PROVEN
+        if binding is None:
+            return VerificationState.NOT_PROVEN
+        if not binding.content_ref.strip() and not binding.extract_ref.strip():
+            return VerificationState.NOT_PROVEN
+        if not _valid_digest(binding.digest):
+            return VerificationState.NOT_PROVEN
+        if not _valid_digest(source_record.content_digest):
+            return VerificationState.NOT_PROVEN
+        if source_record.content_digest.lower() != binding.digest.lower():
+            return VerificationState.NOT_PROVEN
+        if not source_record.observed_at.strip() or not binding.provenance:
+            return VerificationState.NOT_PROVEN
+        if not _runtime_bound(
+            binding,
+            request=request,
+            call=call,
+            raw_response_refs=raw_response_refs,
+        ):
+            return VerificationState.NOT_PROVEN
+        return VerificationState.SOURCE_VERIFIED
 
     def _mint_claim_evidence(
         self,
