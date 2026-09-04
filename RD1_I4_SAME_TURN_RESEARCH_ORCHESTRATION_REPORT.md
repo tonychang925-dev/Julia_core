@@ -28,7 +28,7 @@ This is the exact Core implementation commit. The report itself is appended as a
 
 ## ASSISTANT_HEAD_SHA
 
-0aabd45e93d83298db45e19b45795a44984c9d34
+0aabd45cc9191cf51423cafc4ec2786b731643da
 
 ## REMOTE_BRANCHES
 
