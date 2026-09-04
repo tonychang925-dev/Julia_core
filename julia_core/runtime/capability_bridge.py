@@ -31,6 +31,7 @@ from julia_core.capability.models import (
 )
 from julia_core.capability.policy import PermissionPolicy
 from julia_core.capability.registry import CapabilityRegistry
+from julia_core.research.registration import register_research_event_enrichment
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,6 +226,10 @@ class RuntimeCapabilityBridge:
         from julia_core.review.registration import register_external_review_capability
         register_external_review_capability(self.registry, policy=self.policy)
 
+        # RD1-C1 research capability. Provider binding remains explicit and
+        # product-owned; without a binding the manager returns typed UNAVAILABLE.
+        register_research_event_enrichment(self.registry, policy=self.policy)
+
         # Build the manager
         self._manager = CapabilityManager(
             self.registry,
@@ -286,6 +291,13 @@ class RuntimeCapabilityBridge:
                 params = ", ".join(f'"{k}": {v}' for k, v in d.input_schema.items())
                 lines.append(f'  参数: {{{params}}}')
 
+        # RD1-C1 research capability. The provider namespace remains explicit;
+        # no provider transport is selected by model-visible context.
+        research = self.registry.get("research.event.enrich")
+        if research is not None:
+            params = ", ".join(f'"{k}": {v}' for k, v in research.input_schema.items())
+            lines.append(f'- {research.name}: {research.description}。参数: {{{params}}}')
+
         lines.extend([
             "",
             "工具调用后会收到执行结果。基于结果回答，不要编造。",
@@ -302,6 +314,10 @@ class RuntimeCapabilityBridge:
     def execute_tool_typed(
         self,
         tool_json: str,
+        *,
+        turn_id: str = "",
+        generation_id: str = "",
+        correlation_id: str = "",
     ) -> CapabilityExecution | CapabilityPreAuthorizationFailure | None:
         """P3.2.2B typed delivery seam.
 
@@ -313,14 +329,60 @@ class RuntimeCapabilityBridge:
         """
         self.initialize()
 
+        resolved = self._resolve_tool_request(
+            tool_json,
+            turn_id=turn_id,
+            generation_id=generation_id,
+            correlation_id=correlation_id,
+        )
+        if isinstance(resolved, (CapabilityPreAuthorizationFailure, type(None))):
+            return resolved
+
+        checked = self._precheck_request(resolved)
+        if isinstance(checked, CapabilityPreAuthorizationFailure):
+            self._emit_preauthorization_failure(checked, turn_id, generation_id, correlation_id)
+            return checked
+        return self._run_manager_sync(checked)
+
+    async def execute_tool_typed_async(
+        self,
+        tool_json: str,
+        *,
+        turn_id: str = "",
+        generation_id: str = "",
+        correlation_id: str = "",
+    ) -> CapabilityExecution | CapabilityPreAuthorizationFailure | None:
+        """Await one governed model-requested capability in the caller's loop."""
+        resolved = self._resolve_tool_request(
+            tool_json,
+            turn_id=turn_id,
+            generation_id=generation_id,
+            correlation_id=correlation_id,
+        )
+        if isinstance(resolved, (CapabilityPreAuthorizationFailure, type(None))):
+            return resolved
+
+        checked = self._precheck_request(resolved)
+        if isinstance(checked, CapabilityPreAuthorizationFailure):
+            self._emit_preauthorization_failure(checked, turn_id, generation_id, correlation_id)
+            return checked
+        return await self._execute_request_with_events(checked)
+
+    def _resolve_tool_request(
+        self,
+        tool_json: str,
+        *,
+        turn_id: str,
+        generation_id: str,
+        correlation_id: str,
+    ) -> CapabilityRequest | CapabilityPreAuthorizationFailure | None:
         try:
             call = _json.loads(tool_json)
             name = call["name"]
             args = call.get("arguments", {})
-        except (_json.JSONDecodeError, KeyError):
+        except (_json.JSONDecodeError, KeyError, TypeError):
             return None
 
-        # Map legacy tool names to new capability names
         legacy_to_new = {
             "read_file": "file.read",
             "search_files": "file.search",
@@ -338,23 +400,69 @@ class RuntimeCapabilityBridge:
                 "GOVERNED_INGRESS_REQUIRED",
             )
 
-        # Deterministic pre-check against the audited immutable registry.
-        definition = self.manager.registry.get(capability_id)
+        if capability_id != "research.event.enrich":
+            request = CapabilityRequest(
+                capability_id=capability_id,
+                arguments=args,
+                reason=f"LLM tool call: {name}",
+                turn_id=turn_id,
+                generation_id=generation_id,
+                correlation_id=correlation_id,
+            )
+            return request
+
+        try:
+            from julia_core.research.adapter import MarketEventResearchAdapter
+            context = {"event": args["event"], "theme_relations": args["theme_relations"]}
+            return MarketEventResearchAdapter().build_request(
+                context,
+                turn_id=turn_id,
+                generation_id=generation_id,
+                correlation_id=correlation_id,
+            )
+        except Exception:
+            return CapabilityPreAuthorizationFailure(
+                capability_id,
+                "INVALID_MARKET_CONTEXT",
+            )
+
+    def _precheck_request(
+        self, request: CapabilityRequest
+    ) -> CapabilityRequest | CapabilityPreAuthorizationFailure:
+        definition = self.manager.registry.get(request.capability_id)
         if definition is None:
-            return CapabilityPreAuthorizationFailure(capability_id, "UNKNOWN")
+            return CapabilityPreAuthorizationFailure(request.capability_id, "UNKNOWN")
         if definition.status == CapabilityStatus.DISABLED:
-            return CapabilityPreAuthorizationFailure(capability_id, "DISABLED")
+            return CapabilityPreAuthorizationFailure(request.capability_id, "DISABLED")
+        return request
 
-        request = CapabilityRequest(
-            capability_name=capability_id,
-            arguments=args,
-            reason=f"LLM tool call: {name}",
-        )
+    @staticmethod
+    def _emit_preauthorization_failure(
+        failure: CapabilityPreAuthorizationFailure,
+        turn_id: str,
+        generation_id: str,
+        correlation_id: str,
+    ) -> None:
+        from julia_core.events.models import EventCategory, create_event
+        from julia_core.events.store import get_event_store
 
-        # Execute through manager (sync wrapper around async)
+        get_event_store().append(create_event(
+            source="runtime",
+            event_type="capability.failed",
+            category=EventCategory.CAPABILITY,
+            payload={
+                "capability_id": failure.capability_id,
+                "reason": failure.reason,
+                "turn_id": turn_id,
+                "generation_id": generation_id,
+            },
+            correlation_id=correlation_id,
+        ))
+
+    def _run_manager_sync(self, request: CapabilityRequest) -> CapabilityExecution:
         import asyncio
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             if loop.is_running():
                 import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -363,6 +471,54 @@ class RuntimeCapabilityBridge:
             return asyncio.run(self.manager.execute_typed(request))
         except RuntimeError:
             return asyncio.run(self.manager.execute_typed(request))
+
+    async def _execute_request_with_events(
+        self, request: CapabilityRequest
+    ) -> CapabilityExecution:
+        import asyncio
+        from julia_core.events.models import EventCategory, create_event
+        from julia_core.events.store import get_event_store
+
+        def emit(event_type: str, payload: dict) -> None:
+            get_event_store().append(create_event(
+                source="runtime",
+                event_type=event_type,
+                category=EventCategory.CAPABILITY,
+                payload=payload,
+                correlation_id=request.correlation_id,
+            ))
+
+        started_payload = {
+            "capability_id": request.capability_id,
+            "capability_request_id": request.capability_request_id,
+            "turn_id": request.turn_id,
+            "generation_id": request.generation_id,
+            "idempotency_key": request.idempotency_key,
+        }
+        emit("capability.started", started_payload)
+        try:
+            execution = await self.manager.execute_typed(request)
+        except asyncio.CancelledError:
+            emit("capability.cancelled", dict(started_payload))
+            raise
+        except Exception:
+            failed_payload = dict(started_payload)
+            failed_payload["reason"] = "manager_execution_exception"
+            emit("capability.failed", failed_payload)
+            raise
+
+        completed_payload = dict(started_payload)
+        if execution.capability_call is not None:
+            completed_payload["capability_call_id"] = execution.capability_call.capability_call_id
+        if execution.tool_result is not None:
+            completed_payload["status"] = execution.tool_result.status.value
+            completed_payload["evidence_refs"] = list(execution.tool_result.evidence_refs)
+        outcome_status = str(completed_payload.get("status", "failed"))
+        emit(
+            "capability.completed" if outcome_status in ("success", "partial") else "capability.failed",
+            completed_payload,
+        )
+        return execution
 
     # ── Evidence Gate (backward compat) ─────────────────────────────────
 

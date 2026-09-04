@@ -54,7 +54,10 @@ class FakeProvider:
 
     async def stream_async(self, messages):
         self.stream_calls.append(list(messages))
-        yield '```tool_call\n{"name":"read_file","arguments":{"path":"/Users/admin/julia_core/README.md"}}\n```'
+        if len(self.stream_calls) == 1:
+            yield '```tool_call\n{"name":"read_file","arguments":{"path":"/Users/admin/julia_core/README.md"}}\n```'
+        else:
+            yield "final answer after context projection"
 
 
 class FakeCapability:
@@ -98,6 +101,10 @@ class FakeCapability:
         return None
 
     def execute_tool_typed(self, tool_json: str) -> CapabilityExecution:
+        self.execute_tool_typed_calls.append(tool_json)
+        return self.outcome
+
+    async def execute_tool_typed_async(self, tool_json: str, **identity) -> CapabilityExecution:
         self.execute_tool_typed_calls.append(tool_json)
         return self.outcome
 
@@ -198,10 +205,6 @@ def test_sync_path_executes_tool_and_reenters_through_context_os(monkeypatch):
     assert dispatched["evidence"] == carrier.evidence
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A-05/C-08: process_stream currently streams provider deltas without capability authorization/execution lifecycle; pending R2-P4",
-)
 @pytest.mark.asyncio
 async def test_stream_path_executes_cognitively_requested_tool_like_sync(monkeypatch):
     """TC-ID: C1-R2.6-PARITY-003. Stream must not emit tool call text without runtime execution."""
@@ -212,14 +215,10 @@ async def test_stream_path_executes_cognitively_requested_tool_like_sync(monkeyp
         chunks.append(chunk)
 
     assert len(session.capability.detect_tool_call_inputs) >= 1
-    assert len(session.capability.execute_tool_calls) == 1
+    assert len(session.capability.execute_tool_typed_calls) == 1
     assert not any("tool_call" in chunk for chunk in chunks)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A-05/C-03+C-08: stream path has no ToolResult → Context OS re-entry after streamed tool request; pending R2-P4",
-)
 @pytest.mark.asyncio
 async def test_stream_tool_result_reenters_through_context_os_before_continuation(monkeypatch):
     """TC-ID: C1-R2.6-PARITY-004. Stream tool observations must use Context OS projection."""
@@ -229,7 +228,10 @@ async def test_stream_tool_result_reenters_through_context_os_before_continuatio
         pass
 
     assert len(session.context_os.project_tool_result_calls) == 1
-    assert session.context_os.project_tool_result_calls[0]["tool_result"] == "tool observation"
+    assert (
+        session.context_os.project_tool_result_calls[0]["tool_result"]
+        is session.capability.outcome.tool_result
+    )
 
 
 def test_parity_contract_does_not_require_identical_chunking_or_executor_class():

@@ -76,6 +76,8 @@ class TurnStreamingContext:
     lock: Any = None  # threading.Lock
     already_completed: bool = False  # True if idempotent hit
     completed_content: str = ""  # Cached content if already_completed
+    settled: bool = False  # RD1-I1: commit/cancel occurs at most once per context
+    settlement: TurnResult | None = None
 
 
 # ── Runtime ──────────────────────────────────────────────────────────────────
@@ -268,6 +270,7 @@ class ConversationRuntime:
                         modality=modality, history=[], user_msg_id="",
                         interaction=None, lock=None,
                         already_completed=existing._already_completed,
+                        settled=existing._already_completed,
                         completed_content=existing.assistant_content,
                     )
 
@@ -306,6 +309,11 @@ class ConversationRuntime:
         R1-B: user message already completed on begin_turn_streaming.
         No user status update needed. Assistant only.
         """
+        if ctx.settled:
+            raise RuntimeError(
+                f"streaming turn already settled: {ctx.conversation_id}/{ctx.turn_id}"
+            )
+        ctx.settled = True
         try:
             self._interaction_states[ctx.conversation_id] = ctx.interaction
 
@@ -316,7 +324,7 @@ class ConversationRuntime:
             assistant_msg_id = assistant_msg.messages[-1].message_id if assistant_msg else ""
 
             now = _time.strftime("%Y-%m-%dT%H:%M:%S")
-            return TurnResult(
+            result = TurnResult(
                 conversation_id=ctx.conversation_id, turn_id=ctx.turn_id,
                 user_message_id=ctx.user_msg_id,
                 assistant_message_id=assistant_msg_id,
@@ -324,6 +332,8 @@ class ConversationRuntime:
                 status="completed",
                 created_at=now, completed_at=_time.strftime("%Y-%m-%dT%H:%M:%S"),
             )
+            ctx.settlement = result
+            return result
         finally:
             if ctx.lock:
                 ctx.lock.release()
@@ -338,6 +348,8 @@ class ConversationRuntime:
             # that accepted user turn.
             pass
         finally:
+            if not ctx.settled:
+                ctx.settled = True
             if ctx.lock:
                 ctx.lock.release()
 

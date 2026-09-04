@@ -181,14 +181,14 @@ class JuliaSession:
                               conversation_id: str = "", turn_id: str = "",
                               modality: str = "text",
                               interaction=None):
-        """CORE-C1-S2: Streaming cognitive executor. Same pipeline as process().
+        """CORE-C1-S2/I1: Streaming cognitive executor with capability continuation.
 
         Uses _prepare_turn() for shared context assembly (identity, persona,
-        relationship, market, capability, events). Then streams deltas.
-        Streaming contract: single-pass conversational cognition.
-        Tool execution (two-pass detect→execute→retry), action lifecycle,
-        and memory consolidation are non-stream features.
-        Market context from B1/B2 is pre-injected via _prepare_turn().
+        relationship, market, capability, events). The first model pass is
+        buffered until tool-call intent is resolved so a structured capability
+        request is never streamed as assistant content. On a governed request,
+        execution awaits in this same turn, its typed result re-enters through
+        Context OS, and only the resumed Julia answer streams to transport.
         """
         ctx = TurnContext(history,
                          conversation_id=conversation_id,
@@ -199,8 +199,69 @@ class JuliaSession:
 
         messages = self._prepare_turn(text, ctx)
 
+        async def collect_stream(stream_messages):
+            chunks = []
+            async for delta in self.provider.stream_async(stream_messages):
+                chunks.append(delta)
+            return "".join(chunks), chunks
+
+        first_chunks = []
         async for delta in self.provider.stream_async(messages):
-            yield delta
+            first_chunks.append(delta)
+        reply = "".join(first_chunks)
+        projection_parent = ctx._last_package
+        tool_json = self.capability.detect_tool_call(reply)
+        final_chunks = first_chunks
+
+        if self.capability.requires_tool(text) and not tool_json:
+            retry_package = self.context_os.project_retry_control(
+                parent_package=projection_parent,
+                reason="required_tool_call_missing",
+                generation_id=f"gen_retry_stream_{ctx.turn_count}",
+            )
+            projection_parent = retry_package
+            retry_messages = retry_package.to_messages(
+                retry_package.active_tail_messages,
+                "",
+            )
+            retry_messages.insert(-1, {"role": "assistant", "content": reply}) if retry_messages else None
+            reply, retry_chunks = await collect_stream(retry_messages)
+            tool_json = self.capability.detect_tool_call(reply)
+            final_chunks = retry_chunks or first_chunks
+
+        if not tool_json:
+            for chunk in final_chunks:
+                yield chunk
+            return
+
+        self._execute_tool_with_action(tool_json, ctx)
+        outcome = await self.capability.execute_tool_typed_async(
+            tool_json,
+            turn_id=ctx.turn_id,
+            generation_id=f"gen_stream_tool_{ctx.turn_count}",
+            correlation_id=ctx.correlation_id,
+        )
+        if outcome is None:
+            raise ValueError("malformed capability request from cognition")
+
+        delta = self._dispatch_typed_outcome(
+            outcome,
+            ctx,
+            parent_package=projection_parent,
+        )
+        if delta is not None:
+            continuation_messages = delta.to_messages(delta.active_tail_messages, "")
+            continuation_messages.insert(
+                -1,
+                {"role": "assistant", "content": reply},
+            ) if continuation_messages else None
+            async for streamed_delta in self.provider.stream_async(continuation_messages):
+                yield streamed_delta
+
+        self.action.finish(
+            self._outcome_action_status(outcome),
+            correlation_id=ctx.correlation_id,
+        )
 
     def process(self, text: str, history: list[dict],
                 conversation_id: str = "", turn_id: str = "",
