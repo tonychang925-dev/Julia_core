@@ -742,16 +742,48 @@ class ConversationBusyError(Exception):
         super().__init__(f"Conversation {conversation_id} is busy with another turn")
 
 
+class ConversationCutoverRequired(RuntimeError):
+    """A live canonical runtime cannot be silently rebound to another repository."""
+
+
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
 _runtime: ConversationRuntime | None = None
+_runtime_lock = threading.Lock()
+
+
+def configure_conversation_runtime(repository: ConversationRepository) -> ConversationRuntime:
+    """Bind the process-local canonical runtime to one explicit repository.
+
+    The repository must already be constructed by the product composition root.
+    Calling again with the exact bound repository object is idempotent; any
+    different repository requires an explicit cutover and fails closed here.
+    """
+    if repository is None:
+        raise ValueError("conversation repository is required")
+    if not all(
+        callable(getattr(repository, name, None))
+        for name in ("get", "add_message", "find_turn")
+    ):
+        raise TypeError("repository does not implement ConversationRepository")
+
+    global _runtime
+    with _runtime_lock:
+        if _runtime is None:
+            _runtime = ConversationRuntime(repository=repository)
+        elif _runtime._repository is not repository:
+            raise ConversationCutoverRequired(
+                "a canonical conversation runtime is already bound to another repository"
+            )
+        return _runtime
 
 
 def get_conversation_runtime() -> ConversationRuntime:
     global _runtime
-    if _runtime is None:
-        _runtime = ConversationRuntime()
-    return _runtime
+    with _runtime_lock:
+        if _runtime is None:
+            _runtime = ConversationRuntime()
+        return _runtime
 
 
 __all__ = [
@@ -759,5 +791,7 @@ __all__ = [
     "ConversationHandle",
     "TurnResult",
     "ConversationBusyError",
+    "ConversationCutoverRequired",
+    "configure_conversation_runtime",
     "get_conversation_runtime",
 ]
