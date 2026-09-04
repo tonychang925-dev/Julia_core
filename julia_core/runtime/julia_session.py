@@ -180,7 +180,9 @@ class JuliaSession:
     async def process_stream(self, text: str, history: list[dict],
                               conversation_id: str = "", turn_id: str = "",
                               modality: str = "text",
-                              interaction=None):
+                              interaction=None,
+                              research_product_hook=None,
+                              product_sink=None):
         """CORE-C1-S2/I1: Streaming cognitive executor with capability continuation.
 
         Uses _prepare_turn() for shared context assembly (identity, persona,
@@ -232,6 +234,31 @@ class JuliaSession:
         if not tool_json:
             for chunk in final_chunks:
                 yield chunk
+            return
+
+        try:
+            requested_capability = _json.loads(tool_json).get("name", "")
+        except _json.JSONDecodeError:
+            requested_capability = ""
+
+        if requested_capability == "market.event.resolve":
+            from julia_core.runtime.research_continuation import (
+                SameTurnResearchContinuation,
+            )
+
+            material = await SameTurnResearchContinuation(self).run(
+                resolver_tool_json=tool_json,
+                turn_context=ctx,
+                parent_package=projection_parent,
+                research_product_hook=research_product_hook,
+                product_sink=product_sink,
+            )
+            material.messages.insert(
+                -1,
+                {"role": "assistant", "content": reply},
+            ) if material.messages else None
+            async for streamed_delta in self.provider.stream_async(material.messages):
+                yield streamed_delta
             return
 
         self._execute_tool_with_action(tool_json, ctx)

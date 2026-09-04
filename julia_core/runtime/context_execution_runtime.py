@@ -13,7 +13,7 @@ from __future__ import annotations
 import copy
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from julia_core.capability.models import Evidence, ToolResult
 from julia_core.capability.policy import AuthorizationDecision, AuthorizationStatus
@@ -555,6 +555,60 @@ class ContextExecutionRuntime:
         pkg.situation_frame = {"mode": "authorization_outcome"}
         pkg.add_provenance("evidence", "capability:authorization_outcome",
                           reason="authorization-only outcome", stage=2)
+        return pkg
+
+    def project_research_product_continuation(
+        self,
+        *,
+        parent_package: CognitiveContextPackage | None = None,
+        judgment: Any,
+        research_brief: Mapping[str, Any],
+        conversation_id: str = "",
+        turn_id: str = "",
+        generation_id: str = "",
+    ) -> CognitiveContextPackage:
+        """Project exact C2/B1 research material for final same-turn cognition.
+
+        This is a derived research-specific Context OS projection. It changes no
+        verification state, confidence, contradiction, uncertainty, evidence
+        reference, or source reference, and is not conversation transcript truth.
+        """
+        brief = copy.deepcopy(dict(research_brief))
+        if not isinstance(brief, Mapping) or brief.get("contract_version") != "research.brief.v1":
+            raise ValueError("research brief must use research.brief.v1")
+        trace = brief.get("trace")
+        if not isinstance(trace, Mapping) or trace.get("judgment_id") != judgment.judgment_id:
+            raise ValueError("research brief trace does not match the C2 judgment")
+
+        pkg = CognitiveContextPackage(
+            conversation_id=conversation_id or (
+                parent_package.conversation_id if parent_package else ""
+            ),
+            turn_id=turn_id or (parent_package.turn_id if parent_package else ""),
+            generation_id=generation_id,
+        )
+        pkg.evidence_frame = {
+            "source": "c2_preliminary_judgment+b1_research_brief",
+            "judgment_contract_version": judgment.contract_version,
+            "judgment_id": judgment.judgment_id,
+            "market_event_id": judgment.trace.market_event_id,
+            "verification_material": "read-only upstream research truth",
+            "research_brief": brief,
+        }
+        pkg.situation_frame = {
+            "mode": "research_product_continuation",
+            "instruction": (
+                "Form Julia's final conversational explanation from the exact "
+                "C2 judgment and B1 brief. Do not upgrade evidence states, omit "
+                "contradictions or unknowns, or produce trading instructions."
+            ),
+        }
+        pkg.add_provenance(
+            "evidence",
+            f"research:{judgment.judgment_id}:{brief.get('brief_id', '')}",
+            reason="same-turn C2/B1 product continuation",
+            stage=3,
+        )
         return pkg
 
     def project_capability_resolution_failure(

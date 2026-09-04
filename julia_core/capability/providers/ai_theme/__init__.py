@@ -114,6 +114,31 @@ AI_THEME_CAPABILITIES: list[dict] = [
         "input_schema": {"as_of": "ISO date"},
         "schema_version": "1.0",
     },
+    {
+        "name": "market.event.resolve",
+        "description": "Resolve one natural-language query/theme hint into bounded canonical Market event candidates",
+        "layer": CapabilityLayer.INTELLIGENCE,
+        "provider": "ai_theme_app",
+        "permission_scope": "market.observe",
+        "input_schema": {
+            "query": "bounded inert user query",
+            "normalized_theme": "optional cognition-normalized theme hint",
+            "time_window": "optional bounded date window",
+            "limit": "optional bounded candidate limit",
+        },
+        "adapter": "mcp",
+        "schema_version": "1.0",
+    },
+    {
+        "name": "market.event.read",
+        "description": "Read one canonical Market event by Market-owned event_id",
+        "layer": CapabilityLayer.INTELLIGENCE,
+        "provider": "ai_theme_app",
+        "permission_scope": "market.observe",
+        "input_schema": {"event_id": "canonical public.news_event.id integer"},
+        "adapter": "mcp",
+        "schema_version": "1.0",
+    },
 ]
 
 

@@ -198,25 +198,24 @@ class RuntimeCapabilityBridge:
             status=CapabilityStatus.AVAILABLE,
         ))
 
-        # ai_theme_app provider (M1) — only if not already injected (tests)
+        # ai_theme_app provider (M1). Product-owned provider injection must not
+        # suppress capability registration; definitions remain runtime-owned.
+        from julia_core.capability.providers.ai_theme import (
+            register_ai_theme_capabilities,
+            create_ai_theme_provider,
+        )
+        market_status = CapabilityStatus.AVAILABLE
         if "ai_theme_app" not in self._providers:
-            from julia_core.capability.providers.ai_theme import (
-                register_ai_theme_capabilities,
-                create_ai_theme_provider,
-            )
             try:
                 self._providers["ai_theme_app"] = create_ai_theme_provider()
-                register_ai_theme_capabilities(self.registry, status=CapabilityStatus.AVAILABLE)
             except Exception as exc:
-                # Explicit degradation, NOT silent disappearance: capability
-                # stays known, provider state is DEGRADED/UNAVAILABLE, and
-                # invocation returns a typed unavailable outcome.
-                register_ai_theme_capabilities(self.registry, status=CapabilityStatus.DEGRADED)
+                market_status = CapabilityStatus.DEGRADED
                 self._providers["ai_theme_app"] = _UnavailableAiThemeProvider(str(exc))
                 import logging
                 logging.getLogger("julia.capability").warning(
                     "ai_theme provider unavailable; market capability DEGRADED: %s", exc
                 )
+        register_ai_theme_capabilities(self.registry, status=market_status)
 
         # External Code Review capability (Core semantic contract).
         # The provider (external_review) is implemented cross-repo in
@@ -365,6 +364,22 @@ class RuntimeCapabilityBridge:
         checked = self._precheck_request(resolved)
         if isinstance(checked, CapabilityPreAuthorizationFailure):
             self._emit_preauthorization_failure(checked, turn_id, generation_id, correlation_id)
+            return checked
+        return await self._execute_request_with_events(checked)
+
+    async def execute_capability_request_async(
+        self, request: CapabilityRequest
+    ) -> CapabilityExecution | CapabilityPreAuthorizationFailure:
+        """Await one already-built governed request without JSON re-encoding."""
+        self.initialize()
+        checked = self._precheck_request(request)
+        if isinstance(checked, CapabilityPreAuthorizationFailure):
+            self._emit_preauthorization_failure(
+                checked,
+                request.turn_id,
+                request.generation_id,
+                request.correlation_id,
+            )
             return checked
         return await self._execute_request_with_events(checked)
 
