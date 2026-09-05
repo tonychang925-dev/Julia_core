@@ -280,6 +280,7 @@ class RuntimeCapabilityBridge:
         # ai_theme_app provider (M1). Product-owned provider injection must not
         # suppress capability registration; definitions remain runtime-owned.
         from julia_core.capability.providers.ai_theme.frozen_market import (
+            frozen_market_database_gateways_bound,
             register_frozen_market_capabilities,
             create_frozen_market_provider,
         )
@@ -291,7 +292,10 @@ class RuntimeCapabilityBridge:
             register_ai_theme_capabilities(self.registry, status=market_status)
         else:
             try:
-                self._providers["ai_theme_app"] = create_frozen_market_provider()
+                fallback_provider = create_frozen_market_provider()
+                if not frozen_market_database_gateways_bound(fallback_provider.adapter):
+                    market_status = CapabilityStatus.DEGRADED
+                self._providers["ai_theme_app"] = fallback_provider
             except Exception as exc:
                 market_status = CapabilityStatus.DEGRADED
                 self._providers["ai_theme_app"] = _UnavailableAiThemeProvider(str(exc))
@@ -351,6 +355,32 @@ class RuntimeCapabilityBridge:
         if "ai_theme_app" in self._providers and not isinstance(self._providers["ai_theme_app"], dict):
             flat["ai_theme_app"] = self._providers["ai_theme_app"]
         return flat
+
+    async def register_canonical_market_provider(
+        self,
+        *,
+        environment: Mapping[str, str] | None = None,
+        database_gateway: Any | None = None,
+    ) -> tuple[Any, Any]:
+        """Compose and register the one DB-backed frozen Market provider."""
+        from julia_core.capability.providers.ai_theme.frozen_market import (
+            compose_frozen_market_provider,
+            create_frozen_market_provider,
+            frozen_market_database_gateways_bound,
+        )
+
+        if database_gateway is None:
+            provider, gateway = await compose_frozen_market_provider(environment)
+        else:
+            provider = create_frozen_market_provider(
+                environment,
+                database_gateway=database_gateway,
+            )
+            gateway = database_gateway
+        if not frozen_market_database_gateways_bound(provider.adapter):
+            raise ValueError("canonical Market provider has no initialized DatabaseGateway")
+        self.register_provider("ai_theme_app", provider)
+        return provider, gateway
 
     @property
     def manager(self) -> CapabilityManager:

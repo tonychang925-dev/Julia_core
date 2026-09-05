@@ -115,8 +115,8 @@ def test_f04_f05_market_event_capabilities_register(monkeypatch, frozen_market_r
         "market.snapshot.read",
         "market.alert.query",
     }
-    assert names["market.event.resolve"].status == CapabilityStatus.AVAILABLE
-    assert names["market.event.read"].status == CapabilityStatus.AVAILABLE
+    assert names["market.event.resolve"].status == CapabilityStatus.DEGRADED
+    assert names["market.event.read"].status == CapabilityStatus.DEGRADED
 
 
 @pytest.mark.asyncio

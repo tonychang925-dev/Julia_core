@@ -28,6 +28,7 @@ MARKET_SOURCE_SHA_CONFIG = "JULIA_MARKET_SOURCE_SHA"
 MARKET_TREE_DIGEST_CONFIG = "JULIA_MARKET_TREE_DIGEST"
 _MARKET_TREE_DIGEST = "b07d454ac2c067717c7bdf70fc012c811d9d1636b427dd917134227e0df604dd"
 _MARKET_IMPORT_MODULE = "stock_processing_service.application.services.julia_domain_adapter"
+_MARKET_DATABASE_GATEWAY_MODULE = "database_service.gateway"
 _APPROVED_MARKET_FILES = (
     "stock_processing_service/__init__.py",
     "stock_processing_service/application/services/__init__.py",
@@ -114,6 +115,8 @@ class MarketDomainAdapterProvider:
         missing = sorted(_REQUIRED_OPERATIONS - set(supported))
         if missing:
             return False, f"frozen Market operations unavailable: {', '.join(missing)}"
+        if not frozen_market_database_gateways_bound(self.adapter):
+            return False, "frozen Market database gateway is not bound"
         return True, f"frozen Market adapter sha:{self.source_sha}"
 
     async def execute(self, request: CapabilityRequest) -> ProviderExecutionOutcome:
@@ -226,6 +229,44 @@ def create_frozen_market_provider(
     return MarketDomainAdapterProvider(adapter, source_sha=binding.source_sha)
 
 
+async def compose_frozen_market_provider(
+    environment: Mapping[str, str] | None = None,
+) -> tuple[MarketDomainAdapterProvider, Any]:
+    binding = load_frozen_market_binding(environment)
+    gateway_module, restore_gateway_modules = _load_pinned_market_module(
+        binding.source_root,
+        _MARKET_DATABASE_GATEWAY_MODULE,
+        "database_service",
+        "Market database gateway",
+    )
+    try:
+        gateway_class = getattr(gateway_module, "DatabaseGateway", None)
+        if not isinstance(gateway_class, type):
+            raise FrozenMarketCompositionError("frozen Market DatabaseGateway export is missing")
+        gateway = await gateway_class.initialize()
+    finally:
+        restore_gateway_modules()
+    if not isinstance(gateway, gateway_class) or getattr(gateway, "_initialized", None) is not True:
+        raise FrozenMarketCompositionError("frozen Market DatabaseGateway initialization failed")
+    adapter = binding.adapter_class(database_gateway=gateway)
+    provider = MarketDomainAdapterProvider(adapter, source_sha=binding.source_sha)
+    if not frozen_market_database_gateways_bound(provider.adapter):
+        raise FrozenMarketCompositionError("composed frozen Market provider lost its DatabaseGateway")
+    return provider, gateway
+
+
+def frozen_market_database_gateways_bound(adapter: Any) -> bool:
+    operations = getattr(adapter, "_operations", None)
+    if not isinstance(operations, Mapping):
+        return True
+    for capability in ("market.event.resolve", "market.event.read"):
+        operation = operations.get(capability)
+        gateway = getattr(operation, "_database_gateway", None)
+        if gateway is None or getattr(gateway, "_initialized", None) is False:
+            return False
+    return True
+
+
 def market_tree_digest(root: Path) -> str:
     digest = hashlib.sha256()
     for relative in _APPROVED_MARKET_FILES:
@@ -244,42 +285,76 @@ def market_tree_digest(root: Path) -> str:
 
 
 def _import_frozen_market_module(root: Path):
+    module, restore_modules = _load_pinned_market_module(
+        root,
+        _MARKET_IMPORT_MODULE,
+        "stock_processing_service",
+        "frozen Market adapter",
+    )
+    restore_modules()
+    return module
+
+
+def _load_pinned_market_module(
+    root: Path,
+    module_name: str,
+    package_name: str,
+    description: str,
+):
     original_path = list(sys.path)
+    package_prefix = f"{package_name}."
     displaced_modules = {
         name: module
         for name, module in sys.modules.items()
-        if name == "stock_processing_service" or name.startswith("stock_processing_service.")
+        if name == package_name or name.startswith(package_prefix)
     }
     for name in displaced_modules:
         del sys.modules[name]
     try:
         sys.path.insert(0, str(root))
-        module = importlib.import_module(_MARKET_IMPORT_MODULE)
+        module = importlib.import_module(module_name)
     except Exception as exc:
         raise FrozenMarketCompositionError(
-            f"frozen Market adapter import failed: {exc}"
+            f"{description} import failed: {exc}"
         ) from exc
     finally:
         sys.path[:] = original_path
 
     module_file = Path(getattr(module, "__file__", ""))
     if not module_file.is_relative_to(root):
-        _restore_displaced_modules(displaced_modules)
-        raise FrozenMarketCompositionError("Market import escaped the pinned source root")
+        def restore_modules() -> None:
+            sys.path[:] = original_path
+            _restore_modules(displaced_modules, package_name)
+
+        restore_modules()
+        raise FrozenMarketCompositionError(f"{description} import escaped the pinned source root")
     for name, module_item in sys.modules.items():
-        if not name.startswith("stock_processing_service"):
+        if name != package_name and not name.startswith(package_prefix):
             continue
         module_path = getattr(module_item, "__file__", "")
         if module_path and not Path(module_path).is_relative_to(root):
-            _restore_displaced_modules(displaced_modules)
-            raise FrozenMarketCompositionError("ambient Market module won import resolution")
-    _restore_displaced_modules(displaced_modules)
-    return module
+            def restore_modules() -> None:
+                sys.path[:] = original_path
+                _restore_modules(displaced_modules, package_name)
+
+            restore_modules()
+            raise FrozenMarketCompositionError(f"ambient Market module won {description} import resolution")
+
+    def restore_modules() -> None:
+        sys.path[:] = original_path
+        _restore_modules(displaced_modules, package_name)
+
+    return module, restore_modules
 
 
 def _restore_displaced_modules(modules: Mapping[str, Any]) -> None:
+    _restore_modules(modules, "stock_processing_service")
+
+
+def _restore_modules(modules: Mapping[str, Any], package_name: str) -> None:
+    package_prefix = f"{package_name}."
     for name in list(sys.modules):
-        if name == "stock_processing_service" or name.startswith("stock_processing_service."):
+        if name == package_name or name.startswith(package_prefix):
             del sys.modules[name]
     sys.modules.update(modules)
 
@@ -312,7 +387,9 @@ __all__ = [
     "MARKET_SOURCE_SHA_CONFIG",
     "MARKET_TREE_DIGEST_CONFIG",
     "MarketDomainAdapterProvider",
+    "compose_frozen_market_provider",
     "create_frozen_market_provider",
+    "frozen_market_database_gateways_bound",
     "load_frozen_market_binding",
     "market_tree_digest",
     "register_frozen_market_capabilities",
