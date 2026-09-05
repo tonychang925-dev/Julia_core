@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import json as _json
 import copy as _copy
+import asyncio
+import os
 import threading
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional
@@ -361,6 +363,7 @@ class RuntimeCapabilityBridge:
         *,
         environment: Mapping[str, str] | None = None,
         database_gateway: Any | None = None,
+        retain_modules: bool = False,
     ) -> tuple[Any, Any]:
         """Compose and register the one DB-backed frozen Market provider."""
         from julia_core.capability.providers.ai_theme.frozen_market import (
@@ -370,7 +373,10 @@ class RuntimeCapabilityBridge:
         )
 
         if database_gateway is None:
-            provider, gateway = await compose_frozen_market_provider(environment)
+            provider, gateway = await compose_frozen_market_provider(
+                environment,
+                retain_modules=retain_modules,
+            )
         else:
             provider = create_frozen_market_provider(
                 environment,
@@ -381,6 +387,7 @@ class RuntimeCapabilityBridge:
             raise ValueError("canonical Market provider has no initialized DatabaseGateway")
         self.register_provider("ai_theme_app", provider)
         return provider, gateway
+
 
     @property
     def manager(self) -> CapabilityManager:
@@ -770,3 +777,140 @@ def get_capability_bridge() -> RuntimeCapabilityBridge:
             _bridge = RuntimeCapabilityBridge()
             _bridge.initialize()
         return _bridge
+
+
+async def run_controlled_brain(port: int = 18090) -> None:
+    """Run 18090 only after explicit DB-backed Market composition."""
+    import sys
+    from pathlib import Path
+
+    source_root = Path(os.environ["JULIA_MARKET_SOURCE_ROOT"]).expanduser().resolve(strict=True)
+    preloaded_market_modules = sorted(
+        name for name in sys.modules
+        if name == "stock_processing_service" or name.startswith("stock_processing_service.")
+    )
+    preloaded_db_modules = sorted(
+        name for name in sys.modules
+        if name == "database_service" or name.startswith("database_service.")
+    )
+
+    bridge = RuntimeCapabilityBridge()
+    provider, gateway = await bridge.register_canonical_market_provider(retain_modules=True)
+    bridge.initialize()
+    configured_bridge = configure_capability_bridge(bridge)
+    resolve_operation = provider.adapter._operations["market.event.resolve"]
+    read_operation = provider.adapter._operations["market.event.read"]
+    provider_health = await provider.health()
+    gateway_health = await gateway.health_check()
+
+    identity_ok = all((
+        configured_bridge is bridge,
+        bridge.manager.providers["ai_theme_app"] is provider,
+        resolve_operation._database_gateway is gateway,
+        read_operation._database_gateway is gateway,
+        provider.source_sha == os.environ["JULIA_MARKET_SOURCE_SHA"],
+        provider_health[0] is True,
+        gateway_health is True,
+        bridge.registry.get("market.event.resolve").status.value == "available",
+        bridge.registry.get("market.event.read").status.value == "available",
+    ))
+    if not identity_ok:
+        await gateway.close()
+        raise RuntimeError("controlled Market composition identity/readiness failed")
+
+    def pinned_module_path(module_name: str) -> Path:
+        parts = module_name.split(".")
+        module_path = source_root.joinpath(*parts).with_suffix(".py")
+        package_path = source_root.joinpath(*parts, "__init__.py")
+        if module_path.is_file():
+            return module_path.resolve()
+        if package_path.joinpath("__init__.py").is_file():
+            return package_path.joinpath("__init__.py").resolve()
+        raise RuntimeError(f"pinned Market module path unavailable: {module_name}")
+
+    adapter_path = pinned_module_path(type(provider.adapter).__module__)
+    event_resolve_path = pinned_module_path(type(resolve_operation).__module__)
+    event_read_path = pinned_module_path(type(read_operation).__module__)
+    db_module_paths = {
+        name: str(Path(module.__file__).resolve())
+        for name, module in sys.modules.items()
+        if (name == "database_service" or name.startswith("database_service."))
+        and getattr(module, "__file__", None)
+    }
+    module_paths_ok = all(
+        path.is_relative_to(source_root)
+        for path in (adapter_path, event_resolve_path, event_read_path, *map(Path, db_module_paths.values()))
+    )
+    if not module_paths_ok:
+        await gateway.close()
+        raise RuntimeError("controlled Market/DB module provenance escaped the pinned source root")
+
+    legacy_path = os.environ.get("JULIA_LEGACY_CONVERSATION_PATH")
+    if not legacy_path:
+        await gateway.close()
+        raise RuntimeError("JULIA_LEGACY_CONVERSATION_PATH is required for controlled Brain")
+    from private_data.wiring import wire_legacy_composition
+    wire_legacy_composition(legacy_repo_path=legacy_path)
+
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+    from voice_api.routes import router
+    from voice_api.openai_compat import router as openai_router
+    from voice_api.conversation_routes import router as conversation_router
+    from voice_api.conversation_management import router as conversation_router_management
+    import uvicorn
+
+    app = FastAPI(title="Julia Voice API", version="1.0.0")
+    app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+    app.include_router(router)
+    app.include_router(openai_router)
+    app.include_router(conversation_router)
+    app.include_router(conversation_router_management)
+
+    attestation = {
+        "composition_version": "r9-d1a",
+        "market_source_root": str(source_root),
+        "market_source_sha": provider.source_sha,
+        "adapter_tree_digest": os.environ["JULIA_MARKET_TREE_DIGEST"],
+        "db_runtime_tree_digest": os.environ["JULIA_MARKET_DB_RUNTIME_DIGEST"],
+        "preloaded_market_module_count": len(preloaded_market_modules),
+        "preloaded_db_module_count": len(preloaded_db_modules),
+        "bridge_identity": id(bridge),
+        "provider_identity": id(provider),
+        "gateway_identity": id(gateway),
+        "manager_provider_identity_pass": bridge.manager.providers["ai_theme_app"] is provider,
+        "resolver_gateway_identity_pass": resolve_operation._database_gateway is gateway,
+        "reader_gateway_identity_pass": read_operation._database_gateway is gateway,
+        "gateway_initialized": gateway._initialized is True,
+        "gateway_select_1": gateway_health is True,
+        "provider_health": list(provider_health),
+        "market_event_resolve_status": bridge.registry.get("market.event.resolve").status.value,
+        "market_event_read_status": bridge.registry.get("market.event.read").status.value,
+        "adapter_path": str(adapter_path),
+        "stock_processing_service_path": str(source_root / "stock_processing_service/__init__.py"),
+        "event_resolve_path": str(event_resolve_path),
+        "event_read_path": str(event_read_path),
+        "db_module_paths": db_module_paths,
+        "all_market_modules_from_pinned_root": True,
+        "filesystem_has_git": (source_root / ".git").exists(),
+        "user_turns": 0,
+        "real_resolver_executions": 0,
+        "d1_executions": 0,
+    }
+    attestation_path = Path(os.environ.get(
+        "JULIA_CONTROLLED_COMPOSITION_ATTESTATION",
+        f"/tmp/julia-controlled-composition-{os.getpid()}.json",
+    ))
+    attestation_path.parent.mkdir(parents=True, exist_ok=True)
+    attestation_path.write_text(_json.dumps(attestation, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    server = uvicorn.Server(uvicorn.Config(
+        app,
+        host="127.0.0.1",
+        port=port,
+        log_level="info",
+    ))
+    try:
+        await server.serve()
+    finally:
+        await gateway.close()

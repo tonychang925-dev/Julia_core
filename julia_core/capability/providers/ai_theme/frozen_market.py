@@ -26,9 +26,42 @@ MARKET_ADAPTER_SCHEMA_VERSION = "1.0"
 MARKET_SOURCE_ROOT_CONFIG = "JULIA_MARKET_SOURCE_ROOT"
 MARKET_SOURCE_SHA_CONFIG = "JULIA_MARKET_SOURCE_SHA"
 MARKET_TREE_DIGEST_CONFIG = "JULIA_MARKET_TREE_DIGEST"
+MARKET_DB_RUNTIME_DIGEST_CONFIG = "JULIA_MARKET_DB_RUNTIME_DIGEST"
 _MARKET_TREE_DIGEST = "b07d454ac2c067717c7bdf70fc012c811d9d1636b427dd917134227e0df604dd"
 _MARKET_IMPORT_MODULE = "stock_processing_service.application.services.julia_domain_adapter"
 _MARKET_DATABASE_GATEWAY_MODULE = "database_service.gateway"
+_MARKET_DB_RUNTIME_TREE_DIGEST = "19a4765e6e323bebb5b975560fce0a5a4111000844d95804a9dede1458935cff"
+_MARKET_DB_RUNTIME_FILES = (
+    "database_service/__init__.py",
+    "database_service/client.py",
+    "database_service/config.py",
+    "database_service/factory.py",
+    "database_service/gateway.py",
+    "database_service/interface.py",
+    "database_service/managers/__init__.py",
+    "database_service/managers/base_manager.py",
+    "database_service/managers/memory_manager.py",
+    "database_service/managers/postgres_manager.py",
+    "database_service/managers/redis_cached_manager.py",
+    "database_service/managers/redis_event_bus.py",
+    "database_service/managers/redis_stream_bus.py",
+    "database_service/streams/__init__.py",
+    "database_service/streams/database_interface_ext.py",
+    "database_service/streams/producers/__init__.py",
+    "database_service/streams/producers/event_producer.py",
+    "database_service/streams/producers/news_producer.py",
+    "database_service/streams/producers/theme_producer.py",
+    "database_service/streams/stream_config.py",
+    "database_service/streams/stream_factory.py",
+    "database_service/streams/stream_gateway.py",
+    "database_service/streams/stream_interface.py",
+    "database_service/streams/stream_manager.py",
+    "database_service/streams/utils/__init__.py",
+    "database_service/streams/utils/alert_service.py",
+    "database_service/streams/utils/consumer_group_manager.py",
+    "database_service/streams/utils/error_handler.py",
+    "database_service/streams/utils/retry_manager.py",
+)
 _APPROVED_MARKET_FILES = (
     "stock_processing_service/__init__.py",
     "stock_processing_service/application/services/__init__.py",
@@ -231,8 +264,11 @@ def create_frozen_market_provider(
 
 async def compose_frozen_market_provider(
     environment: Mapping[str, str] | None = None,
+    *,
+    retain_modules: bool = False,
 ) -> tuple[MarketDomainAdapterProvider, Any]:
     binding = load_frozen_market_binding(environment)
+    validate_frozen_market_db_runtime(environment, binding.source_root)
     gateway_module, restore_gateway_modules = _load_pinned_market_module(
         binding.source_root,
         _MARKET_DATABASE_GATEWAY_MODULE,
@@ -245,7 +281,8 @@ async def compose_frozen_market_provider(
             raise FrozenMarketCompositionError("frozen Market DatabaseGateway export is missing")
         gateway = await gateway_class.initialize()
     finally:
-        restore_gateway_modules()
+        if not retain_modules:
+            restore_gateway_modules()
     if not isinstance(gateway, gateway_class) or getattr(gateway, "_initialized", None) is not True:
         raise FrozenMarketCompositionError("frozen Market DatabaseGateway initialization failed")
     adapter = binding.adapter_class(database_gateway=gateway)
@@ -267,6 +304,28 @@ def frozen_market_database_gateways_bound(adapter: Any) -> bool:
     return True
 
 
+def validate_frozen_market_db_runtime(
+    environment: Mapping[str, str] | None,
+    root: Path,
+) -> str:
+    env = dict(environment if environment is not None else os.environ)
+    configured = env.get(MARKET_DB_RUNTIME_DIGEST_CONFIG, "").strip()
+    if not configured:
+        raise FrozenMarketCompositionError(
+            f"frozen Market configuration is incomplete: {MARKET_DB_RUNTIME_DIGEST_CONFIG}"
+        )
+    if configured != _MARKET_DB_RUNTIME_TREE_DIGEST:
+        raise FrozenMarketCompositionError(
+            f"Market DB runtime digest must equal {_MARKET_DB_RUNTIME_TREE_DIGEST}"
+        )
+    observed = market_db_runtime_tree_digest(root)
+    if observed != _MARKET_DB_RUNTIME_TREE_DIGEST:
+        raise FrozenMarketCompositionError(
+            f"Market DB runtime digest mismatch: expected {_MARKET_DB_RUNTIME_TREE_DIGEST}, got {observed}"
+        )
+    return observed
+
+
 def market_tree_digest(root: Path) -> str:
     digest = hashlib.sha256()
     for relative in _APPROVED_MARKET_FILES:
@@ -276,6 +335,23 @@ def market_tree_digest(root: Path) -> str:
         except OSError as exc:
             raise FrozenMarketCompositionError(
                 f"frozen Market file unavailable: {relative}"
+            ) from exc
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(hashlib.sha256(content).digest())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def market_db_runtime_tree_digest(root: Path) -> str:
+    digest = hashlib.sha256()
+    for relative in _MARKET_DB_RUNTIME_FILES:
+        path = root / relative
+        try:
+            content = path.read_bytes()
+        except OSError as exc:
+            raise FrozenMarketCompositionError(
+                f"frozen Market DB runtime file unavailable: {relative}"
             ) from exc
         digest.update(relative.encode("utf-8"))
         digest.update(b"\0")
@@ -386,11 +462,13 @@ __all__ = [
     "MARKET_SOURCE_ROOT_CONFIG",
     "MARKET_SOURCE_SHA_CONFIG",
     "MARKET_TREE_DIGEST_CONFIG",
+    "MARKET_DB_RUNTIME_DIGEST_CONFIG",
     "MarketDomainAdapterProvider",
     "compose_frozen_market_provider",
     "create_frozen_market_provider",
     "frozen_market_database_gateways_bound",
     "load_frozen_market_binding",
     "market_tree_digest",
+    "market_db_runtime_tree_digest",
     "register_frozen_market_capabilities",
 ]

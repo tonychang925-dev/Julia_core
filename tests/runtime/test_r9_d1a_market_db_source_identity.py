@@ -1,0 +1,157 @@
+from __future__ import annotations
+
+import io
+import inspect
+import subprocess
+import sys
+import tarfile
+import types
+from pathlib import Path
+
+import pytest
+
+from julia_core.capability.models import CapabilityRequest
+from julia_core.capability.providers.ai_theme.frozen_market import (
+    MARKET_DB_RUNTIME_DIGEST_CONFIG,
+    MARKET_FROZEN_SHA,
+    MARKET_SOURCE_ROOT_CONFIG,
+    MARKET_SOURCE_SHA_CONFIG,
+    MARKET_TREE_DIGEST_CONFIG,
+    FrozenMarketCompositionError,
+    MarketDomainAdapterProvider,
+    _MARKET_DB_RUNTIME_FILES,
+    _MARKET_DB_RUNTIME_TREE_DIGEST,
+    _load_pinned_market_module,
+    compose_frozen_market_provider,
+    market_db_runtime_tree_digest,
+    market_tree_digest,
+)
+
+
+MARKET_REPO = Path("/Users/admin/glm-workspace/ai_theme_app")
+MARKET_TREE_DIGEST = "b07d454ac2c067717c7bdf70fc012c811d9d1636b427dd917134227e0df604dd"
+DB_RUNTIME_TREE_DIGEST = "19a4765e6e323bebb5b975560fce0a5a4111000844d95804a9dede1458935cff"
+
+
+@pytest.fixture(scope="module")
+def frozen_market_root(tmp_path_factory) -> Path:
+    root = tmp_path_factory.mktemp("r9-d1a-market") / "ai_theme_app"
+    archive = subprocess.run(
+        ["git", "-C", str(MARKET_REPO), "archive", MARKET_FROZEN_SHA],
+        check=True,
+        stdout=subprocess.PIPE,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as archive_file:
+        archive_file.extractall(root, filter="data")
+    return root
+
+
+def pinned_environment(root: Path, **overrides: str) -> dict[str, str]:
+    values = {
+        MARKET_SOURCE_ROOT_CONFIG: str(root),
+        MARKET_SOURCE_SHA_CONFIG: MARKET_FROZEN_SHA,
+        MARKET_TREE_DIGEST_CONFIG: MARKET_TREE_DIGEST,
+        MARKET_DB_RUNTIME_DIGEST_CONFIG: DB_RUNTIME_TREE_DIGEST,
+    }
+    values.update(overrides)
+    return values
+
+
+def test_db_runtime_digest_is_deterministic_and_configured(frozen_market_root):
+    assert market_db_runtime_tree_digest(frozen_market_root) == DB_RUNTIME_TREE_DIGEST
+    assert DB_RUNTIME_TREE_DIGEST == _MARKET_DB_RUNTIME_TREE_DIGEST
+    assert len(_MARKET_DB_RUNTIME_FILES) == 29
+    assert list(_MARKET_DB_RUNTIME_FILES) == sorted(_MARKET_DB_RUNTIME_FILES)
+    assert all((frozen_market_root / relative).is_file() for relative in _MARKET_DB_RUNTIME_FILES)
+
+
+def test_controlled_startup_registers_market_before_bridge_initialization():
+    from julia_core.runtime.capability_bridge import run_controlled_brain
+
+    source = inspect.getsource(run_controlled_brain)
+    registration = source.index("register_canonical_market_provider")
+    initialization = source.index("bridge.initialize()")
+    configuration = source.index("configure_capability_bridge(bridge)")
+    assert registration < initialization < configuration
+
+
+@pytest.mark.asyncio
+async def test_db_runtime_mutation_fails_closed_while_adapter_digest_matches(
+    frozen_market_root,
+    tmp_path: Path,
+):
+    mutated_root = tmp_path / "mutated-market"
+    subprocess.run(["cp", "-R", str(frozen_market_root), str(mutated_root)], check=True)
+    (mutated_root / "database_service/config.py").write_text(
+        (mutated_root / "database_service/config.py").read_text(encoding="utf-8") + "\n# r9-d1a mutation\n",
+        encoding="utf-8",
+    )
+
+    assert market_tree_digest(mutated_root) == MARKET_TREE_DIGEST
+    assert market_db_runtime_tree_digest(mutated_root) != DB_RUNTIME_TREE_DIGEST
+    with pytest.raises(FrozenMarketCompositionError, match="Market DB runtime digest mismatch"):
+        await compose_frozen_market_provider(pinned_environment(mutated_root))
+
+
+@pytest.mark.asyncio
+async def test_invalid_configured_db_runtime_digest_fails_closed(frozen_market_root):
+    with pytest.raises(FrozenMarketCompositionError, match="Market DB runtime digest must equal"):
+        await compose_frozen_market_provider(pinned_environment(
+            frozen_market_root,
+            **{MARKET_DB_RUNTIME_DIGEST_CONFIG: "0" * 64},
+        ))
+
+
+def test_adapter_and_db_runtime_digests_are_separate(frozen_market_root, tmp_path: Path):
+    adapter_mutated = tmp_path / "adapter-mutated"
+    subprocess.run(["cp", "-R", str(frozen_market_root), str(adapter_mutated)], check=True)
+    event_resolve = adapter_mutated / (
+        "stock_processing_service/application/services/julia_domain_adapter/operations/event_resolve.py"
+    )
+    event_resolve.write_text(event_resolve.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+
+    assert market_tree_digest(adapter_mutated) != MARKET_TREE_DIGEST
+    assert market_db_runtime_tree_digest(adapter_mutated) == DB_RUNTIME_TREE_DIGEST
+
+
+def test_ambient_db_module_is_displaced_by_pinned_modules(frozen_market_root, monkeypatch):
+    ambient = types.ModuleType("database_service")
+    ambient.__file__ = "/outside/pinned/database_service/__init__.py"
+    monkeypatch.setitem(sys.modules, "database_service", ambient)
+
+    module, restore_modules = _load_pinned_market_module(
+        frozen_market_root,
+        "database_service.gateway",
+        "database_service",
+        "Market database gateway",
+    )
+    try:
+        assert Path(module.__file__).resolve().is_relative_to(frozen_market_root)
+        for name, item in sys.modules.items():
+            if name != "database_service" and not name.startswith("database_service."):
+                continue
+            module_path = getattr(item, "__file__", "")
+            if module_path:
+                assert Path(module_path).resolve().is_relative_to(frozen_market_root)
+    finally:
+        restore_modules()
+    assert sys.modules["database_service"] is ambient
+
+
+@pytest.mark.asyncio
+async def test_provider_trace_reports_configured_source_identity():
+    class RecordingAdapter:
+        supported_operations = ("market.event.resolve", "market.event.read")
+
+        def __init__(self):
+            self.request = None
+
+        async def execute(self, request):
+            self.request = request
+            return {"status": "success", "payload": {}}
+
+    adapter = RecordingAdapter()
+    provider = MarketDomainAdapterProvider(adapter, source_sha=MARKET_FROZEN_SHA)
+    await provider.execute(CapabilityRequest("market.event.resolve", {"query": "static"}))
+
+    assert adapter.request["trace_metadata"]["market_source_sha"] == MARKET_FROZEN_SHA
