@@ -18,6 +18,7 @@ ADR-026 P4: Provider supplies capability, not cognition.
 from __future__ import annotations
 
 import json as _json
+import threading
 from dataclasses import dataclass
 from typing import Optional
 
@@ -49,6 +50,10 @@ class CapabilityPreAuthorizationFailure:
 
 class ProviderAlreadyRegisteredError(RuntimeError):
     """A different provider is already bound to a provider namespace."""
+
+
+class CapabilityBridgeAlreadyConfiguredError(RuntimeError):
+    """A different canonical capability bridge is already installed."""
 
 
 class _UnavailableAiThemeProvider:
@@ -626,11 +631,35 @@ class RuntimeCapabilityBridge:
 # ── Singleton ───────────────────────────────────────────────────────────────
 
 _bridge: Optional[RuntimeCapabilityBridge] = None
+_bridge_lock = threading.Lock()
+
+
+def configure_capability_bridge(bridge: RuntimeCapabilityBridge) -> RuntimeCapabilityBridge:
+    """Install one explicitly composed bridge as the process canonical bridge.
+
+    The caller constructs the bridge and registers product-owned providers before
+    calling this function. Exact-object reconfiguration is idempotent; replacing
+    a live bridge with a different object fails closed.
+    """
+    if not isinstance(bridge, RuntimeCapabilityBridge):
+        raise TypeError("bridge must be a RuntimeCapabilityBridge")
+
+    global _bridge
+    with _bridge_lock:
+        if _bridge is not None and _bridge is not bridge:
+            raise CapabilityBridgeAlreadyConfiguredError(
+                "a canonical capability bridge is already configured"
+            )
+        if not bridge._initialized:
+            bridge.initialize()
+        _bridge = bridge
+        return _bridge
 
 
 def get_capability_bridge() -> RuntimeCapabilityBridge:
     global _bridge
-    if _bridge is None:
-        _bridge = RuntimeCapabilityBridge()
-        _bridge.initialize()
-    return _bridge
+    with _bridge_lock:
+        if _bridge is None:
+            _bridge = RuntimeCapabilityBridge()
+            _bridge.initialize()
+        return _bridge
