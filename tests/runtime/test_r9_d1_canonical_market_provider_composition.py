@@ -20,7 +20,7 @@ from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
 
 
 MARKET_REPO = Path("/Users/admin/glm-workspace/ai_theme_app")
-MARKET_TREE_DIGEST = "a389f92a0026291bbb2820bfce03fb9ff2545553859022dea3a413b8f1d52ad1"
+MARKET_TREE_DIGEST = "34f72e3ac3d025c05e18814f76d75999ed385baa865b5263dbfb64eab20805f4"
 
 
 @pytest.fixture(scope="module")

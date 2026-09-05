@@ -31,12 +31,16 @@ from julia_core.capability.providers.ai_theme.frozen_market import (
 
 
 MARKET_REPO = Path("/Users/admin/glm-workspace/ai_theme_app")
-MARKET_TREE_DIGEST = "a389f92a0026291bbb2820bfce03fb9ff2545553859022dea3a413b8f1d52ad1"
-DB_RUNTIME_TREE_DIGEST = "19a4765e6e323bebb5b975560fce0a5a4111000844d95804a9dede1458935cff"
+MARKET_TREE_DIGEST = "34f72e3ac3d025c05e18814f76d75999ed385baa865b5263dbfb64eab20805f4"
+DB_RUNTIME_TREE_DIGEST = "23bc6dcf76650700353150f2eb95773169d14a3708293ac8b7826cde4f6b7454"
 OLD_MARKET_SHA = "d6889f4f39fc4f8adf404ea7c51eee3ad22d7fa7"
 OLD_MARKET_RELEASE = Path(
     "/Users/admin/julia_rd1_controlled/releases/"
     "market-d6889f4f39fc4f8adf404ea7c51eee3ad22d7fa7"
+)
+OLD_D2_MARKET_RELEASE = Path(
+    "/Users/admin/julia_rd1_controlled/releases/"
+    "market-0bb026889f5c51e72aff9561b5eb542db7adf088"
 )
 
 
@@ -152,12 +156,17 @@ def test_adapter_and_db_runtime_digests_are_separate(frozen_market_root, tmp_pat
 
 
 def test_target_identity_rejects_old_market_release():
-    assert MARKET_FROZEN_SHA == "0bb026889f5c51e72aff9561b5eb542db7adf088"
+    assert MARKET_FROZEN_SHA == "f0aae447654bc50100bc6a26a3e204fbdac6a707"
     with pytest.raises(FrozenMarketCompositionError, match="Market source SHA must equal"):
         load_frozen_market_binding(pinned_environment(
             OLD_MARKET_RELEASE,
             **{MARKET_SOURCE_SHA_CONFIG: OLD_MARKET_SHA},
         ))
+
+
+def test_target_identity_rejects_old_d2_market_release():
+    with pytest.raises(FrozenMarketCompositionError, match="Market source digest mismatch"):
+        load_frozen_market_binding(pinned_environment(OLD_D2_MARKET_RELEASE))
 
 
 def test_target_event_resolve_has_r9_f1_and_f1a_fingerprints(frozen_market_root):
@@ -186,6 +195,22 @@ def test_target_event_resolve_has_r9_f1_and_f1a_fingerprints(frozen_market_root)
     ):
         assert fingerprint in source
     assert "traceback" not in source.lower()
+
+
+def test_target_has_d2b_conversion_and_post_resolve_observability_fingerprints(frozen_market_root):
+    postgres_source = (frozen_market_root / "database_service/managers/postgres_manager.py").read_text(encoding="utf-8")
+    event_resolve_source = (
+        frozen_market_root
+        / "stock_processing_service/application/services/julia_domain_adapter/operations/event_resolve.py"
+    ).read_text(encoding="utf-8")
+    assert "def _decode_json_array" in postgres_source
+    assert "json.loads(value)" in postgres_source
+    assert 'candidate["matched_subjects"] = _decode_json_array' in postgres_source
+    assert "CANDIDATE_FAILURE_LAYER" in event_resolve_source
+    assert "candidate_index" in event_resolve_source
+    assert "raw_candidate_count" in event_resolve_source
+    assert "matched_subjects_type" in event_resolve_source
+    assert "pre_collapse_failure" in event_resolve_source
 
 
 def test_target_pinned_event_resolve_module_provenance(frozen_market_root):

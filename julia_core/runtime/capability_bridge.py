@@ -845,6 +845,10 @@ async def run_controlled_brain(port: int = 18090) -> None:
         await gateway.close()
         raise RuntimeError("controlled Market/DB module provenance escaped the pinned source root")
 
+    postgres_manager_path = Path(sys.modules["database_service.managers.postgres_manager"].__file__).resolve()
+    postgres_manager_source = postgres_manager_path.read_text(encoding="utf-8")
+    event_resolve_source = event_resolve_path.read_text(encoding="utf-8")
+
     legacy_path = os.environ.get("JULIA_LEGACY_CONVERSATION_PATH")
     if not legacy_path:
         await gateway.close()
@@ -868,7 +872,7 @@ async def run_controlled_brain(port: int = 18090) -> None:
     app.include_router(conversation_router_management)
 
     attestation = {
-        "composition_version": "r9-d2",
+        "composition_version": "r9-d2c",
         "market_source_root": str(source_root),
         "market_source_sha": provider.source_sha,
         "adapter_tree_digest": os.environ["JULIA_MARKET_TREE_DIGEST"],
@@ -891,11 +895,24 @@ async def run_controlled_brain(port: int = 18090) -> None:
         "event_resolve_path": str(event_resolve_path),
         "event_read_path": str(event_read_path),
         "database_gateway_path": str(Path(sys.modules["database_service.gateway"].__file__).resolve()),
-        "postgres_manager_path": str(Path(sys.modules["database_service.managers.postgres_manager"].__file__).resolve()),
+        "postgres_manager_path": str(postgres_manager_path),
         "db_module_paths": db_module_paths,
         "all_market_modules_from_pinned_root": True,
-        "r9_f1_observability_present": True,
-        "r9_f1a_closure_present": True,
+        "r9_f1_observability_present": all(token in event_resolve_source for token in (
+            "operation_symbol", "failure_layer", "exception_class", "exception_message", "sqlstate",
+            "pgcode", "process_pid", "resolver_query", "correlation_id", "idempotency_id",
+        )),
+        "r9_f1a_closure_present": all(token in event_resolve_source for token in (
+            "redact_diagnostics", "_bounded_text", "precollapse_provider_status",
+        )),
+        "d2b_data_conversion_present": all(token in postgres_manager_source for token in (
+            "def _decode_json_array", "json.loads(value)",
+            'candidate["matched_subjects"] = _decode_json_array',
+        )),
+        "d2b_post_resolve_observability_present": all(token in event_resolve_source for token in (
+            "CANDIDATE_FAILURE_LAYER", "candidate_index", "raw_candidate_count",
+            "matched_subjects_type", "pre_collapse_failure",
+        )),
         "trace_source_sha": provider.source_sha,
         "filesystem_has_git": (source_root / ".git").exists(),
         "user_turns": 0,
