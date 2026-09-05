@@ -8,6 +8,7 @@ final Julia continuation.
 from __future__ import annotations
 
 import json as _json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -17,8 +18,117 @@ from julia_core.capability.models import (
     ToolResult,
     ToolResultStatus,
 )
-from julia_core.research.adapter import MarketEventResearchAdapter
+from julia_core.research.adapter import MarketEventContractError, MarketEventResearchAdapter
 from julia_core.research.normalizer import ResearchEvidenceNormalizer
+
+_PROJECTED_EVENT_FIELDS = (
+    "event_id", "event_type", "summary", "direction", "confidence",
+    "occurred_at", "title", "source_category", "source_name", "source_url",
+    "source_trace_id", "news_id",
+)
+_PROJECTED_RELATION_FIELDS = (
+    "subject_key", "subject_name", "relation_type", "confidence",
+    "match_reason", "evidence", "source", "source_trace_id", "updated_at",
+)
+_RELATION_TRANSPORT_EXTRAS = frozenset({"created_at", "run_id"})
+
+
+def _numeric_confidence(value: Any, field_name: str) -> int | float:
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise MarketEventContractError(f"{field_name} must be numeric")
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError, OverflowError):
+        raise MarketEventContractError(f"{field_name} must be numeric") from None
+    if numeric_value in {float("inf"), float("-inf")} or numeric_value != numeric_value:
+        raise MarketEventContractError(f"{field_name} must be finite")
+    return numeric_value
+
+
+def _project_market_read_payload(
+    payload: Any, selected_event_id: int
+) -> dict[str, Any]:
+    if not isinstance(payload, Mapping):
+        raise MarketEventContractError("market.event.read payload must be an object")
+
+    payload_fields = set(payload)
+    unknown_payload_fields = payload_fields - {
+        "event", "theme_relations", "missing_fields"
+    }
+    if unknown_payload_fields:
+        raise MarketEventContractError(
+            f"unknown market.event.read payload fields: {sorted(unknown_payload_fields)}"
+        )
+
+    missing_fields = payload.get("missing_fields")
+    if missing_fields is not None and (
+        not isinstance(missing_fields, list)
+        or any(not isinstance(item, str) for item in missing_fields)
+    ):
+        raise MarketEventContractError("missing_fields must be an array of strings")
+
+    event = payload.get("event")
+    if not isinstance(event, Mapping):
+        raise MarketEventContractError("market.event.read event must be an object")
+    event_fields = set(event)
+    missing_event_fields = frozenset(_PROJECTED_EVENT_FIELDS) - event_fields
+    unknown_event_fields = event_fields - frozenset(_PROJECTED_EVENT_FIELDS)
+    if missing_event_fields:
+        raise MarketEventContractError(
+            f"market.event.read event fields missing: {sorted(missing_event_fields)}"
+        )
+    if unknown_event_fields:
+        raise MarketEventContractError(
+            "market.event.read event fields not in frozen research contract: "
+            f"{sorted(unknown_event_fields)}"
+        )
+    if event["event_id"] != selected_event_id:
+        raise MarketEventContractError("projected event_id does not match selected_event_id")
+
+    projected_event = {
+        name: event[name] for name in _PROJECTED_EVENT_FIELDS
+    }
+    projected_event["confidence"] = _numeric_confidence(
+        projected_event["confidence"], "event.confidence"
+    )
+
+    relations = payload.get("theme_relations", [])
+    if not isinstance(relations, list):
+        raise MarketEventContractError("market.event.read theme_relations must be an array")
+    projected_relations = []
+    for relation in relations:
+        if not isinstance(relation, Mapping):
+            raise MarketEventContractError(
+                "each market.event.read theme relation must be an object"
+            )
+        relation_fields = set(relation)
+        missing_relation_fields = (
+            frozenset(_PROJECTED_RELATION_FIELDS) - relation_fields
+        )
+        unknown_relation_fields = (
+            relation_fields
+            - frozenset(_PROJECTED_RELATION_FIELDS)
+            - _RELATION_TRANSPORT_EXTRAS
+        )
+        if missing_relation_fields:
+            raise MarketEventContractError(
+                "market.event.read theme relation fields missing: "
+                f"{sorted(missing_relation_fields)}"
+            )
+        if unknown_relation_fields:
+            raise MarketEventContractError(
+                "market.event.read theme relation fields not in frozen research contract: "
+                f"{sorted(unknown_relation_fields)}"
+            )
+        projected_relation = {
+            name: relation[name] for name in _PROJECTED_RELATION_FIELDS
+        }
+        projected_relation["confidence"] = _numeric_confidence(
+            projected_relation["confidence"], "theme relation confidence"
+        )
+        projected_relations.append(projected_relation)
+
+    return {"event": projected_event, "theme_relations": projected_relations}
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,11 +265,8 @@ class SameTurnResearchContinuation:
             )
 
         payload = read_envelope.get("payload") or {}
-        market_context = {
-            "event": payload.get("event"),
-            "theme_relations": payload.get("theme_relations", []),
-        }
         try:
+            market_context = _project_market_read_payload(payload, selected_event_id)
             validated_market = self.market_adapter.validate_context(market_context)
             research_request = self.market_adapter.build_request(
                 validated_market,
