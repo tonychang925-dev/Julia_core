@@ -117,6 +117,47 @@ class JuliaSession:
             + self.bootstrap
         )
 
+    @staticmethod
+    def _build_research_desk_resolver_call(user_text: str) -> str | None:
+        normalized_text = re.sub(r"\s+", " ", str(user_text).strip())
+        if not normalized_text or len(normalized_text) > 512:
+            return None
+        if any(term in normalized_text for term in (
+            "买", "卖", "做多", "做空", "仓位", "目标价", "止损", "止盈",
+        )):
+            return None
+
+        research_actions = ("研究", "调研", "查证")
+        market_objects = ("市场", "行情", "事件", "主题", "简报")
+        if not (
+            any(term in normalized_text for term in research_actions)
+            and any(term in normalized_text for term in market_objects)
+        ):
+            return None
+
+        arguments = {"query": normalized_text}
+        quoted_theme = re.search(r"[“\"]([^”\"]+)[”\"]", normalized_text)
+        if quoted_theme:
+            theme = quoted_theme.group(1).strip()
+            if theme and len(theme) <= 256:
+                arguments["normalized_theme"] = theme
+
+        explicit_date = re.search(
+            r"(?P<year>\d{4})年(?P<month>\d{1,2})月(?P<day>\d{1,2})日",
+            normalized_text,
+        )
+        if explicit_date:
+            parsed = {key: int(value) for key, value in explicit_date.groupdict().items()}
+            arguments["time_window"] = {
+                "date": "{year:04d}-{month:02d}-{day:02d}".format(**parsed)
+            }
+
+        return _json.dumps(
+            {"name": "market.event.resolve", "arguments": arguments},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+
     def _load_recent_experiences(self) -> str:
         """Build Wake State: where did we leave off?
 
@@ -200,6 +241,23 @@ class JuliaSession:
         ctx.turn_count += 1
 
         messages = self._prepare_turn(text, ctx)
+
+        deterministic_resolver_call = self._build_research_desk_resolver_call(text)
+        if deterministic_resolver_call is not None:
+            from julia_core.runtime.research_continuation import (
+                SameTurnResearchContinuation,
+            )
+
+            material = await SameTurnResearchContinuation(self).run(
+                resolver_tool_json=deterministic_resolver_call,
+                turn_context=ctx,
+                parent_package=ctx._last_package,
+                research_product_hook=research_product_hook,
+                product_sink=product_sink,
+            )
+            async for streamed_delta in self.provider.stream_async(material.messages):
+                yield streamed_delta
+            return
 
         async def collect_stream(stream_messages):
             chunks = []
