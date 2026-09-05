@@ -824,8 +824,8 @@ async def run_controlled_brain(port: int = 18090) -> None:
         package_path = source_root.joinpath(*parts, "__init__.py")
         if module_path.is_file():
             return module_path.resolve()
-        if package_path.joinpath("__init__.py").is_file():
-            return package_path.joinpath("__init__.py").resolve()
+        if package_path.is_file():
+            return package_path.resolve()
         raise RuntimeError(f"pinned Market module path unavailable: {module_name}")
 
     adapter_path = pinned_module_path(type(provider.adapter).__module__)

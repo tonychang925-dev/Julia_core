@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import io
 import inspect
 import subprocess
@@ -73,6 +74,36 @@ def test_controlled_startup_registers_market_before_bridge_initialization():
     initialization = source.index("bridge.initialize()")
     configuration = source.index("configure_capability_bridge(bridge)")
     assert registration < initialization < configuration
+
+
+def test_pinned_module_path_resolves_modules_packages_and_missing_paths(tmp_path: Path):
+    from julia_core.runtime.capability_bridge import run_controlled_brain
+
+    root = tmp_path / "pinned-root"
+    package = root / "example_pkg"
+    child = package / "child"
+    package.mkdir(parents=True)
+    child.mkdir()
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (child / "__init__.py").write_text("", encoding="utf-8")
+    (package / "module.py").write_text("", encoding="utf-8")
+
+    function_node = next(
+        node for node in ast.walk(ast.parse(inspect.getsource(run_controlled_brain)))
+        if isinstance(node, ast.FunctionDef) and node.name == "pinned_module_path"
+    )
+    namespace = {"Path": Path, "source_root": root, "RuntimeError": RuntimeError}
+    exec(compile(
+        ast.Module(body=[function_node], type_ignores=[]),
+        filename="<pinned_module_path>",
+        mode="exec",
+    ), namespace)
+    pinned_module_path = namespace["pinned_module_path"]
+
+    assert pinned_module_path("example_pkg.module") == (package / "module.py").resolve()
+    assert pinned_module_path("example_pkg.child") == (child / "__init__.py").resolve()
+    with pytest.raises(RuntimeError, match="pinned Market module path unavailable"):
+        pinned_module_path("example_pkg.missing")
 
 
 @pytest.mark.asyncio
