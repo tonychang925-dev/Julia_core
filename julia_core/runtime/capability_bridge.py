@@ -18,9 +18,10 @@ ADR-026 P4: Provider supplies capability, not cognition.
 from __future__ import annotations
 
 import json as _json
+import copy as _copy
 import threading
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Mapping, Optional
 
 from julia_core.capability.manager import CapabilityExecution, CapabilityManager
 from julia_core.capability.manager import ProviderAlreadyBoundError
@@ -73,6 +74,79 @@ class _UnavailableAiThemeProvider:
 
     async def execute(self, request) -> dict:
         return {"status": "unavailable", "error": self.reason}
+
+
+_FAILURE_DIAGNOSTIC_FIELDS = frozenset({
+    "operation_symbol",
+    "failure_layer",
+    "exception_class",
+    "exception_message",
+    "sqlstate",
+    "pgcode",
+    "errno",
+    "error_code",
+    "precollapse_provider_status",
+    "process_pid",
+    "observed_at",
+    "resolver_query",
+    "normalized_theme",
+    "time_window",
+    "correlation_id",
+    "idempotency_id",
+    "capability_request_id",
+    "capability_call_id",
+})
+_MAX_FAILURE_DIAGNOSTIC_TEXT = 2048
+_MAX_FAILURE_DIAGNOSTIC_ITEMS = 16
+
+
+def _bounded_failure_diagnostic(value: Any, *, depth: int = 0) -> Any:
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        normalized = " ".join(value.split())
+        if len(normalized) <= _MAX_FAILURE_DIAGNOSTIC_TEXT:
+            return normalized
+        return normalized[:_MAX_FAILURE_DIAGNOSTIC_TEXT - 3].rstrip() + "..."
+    if depth >= 3:
+        return str(value)[:_MAX_FAILURE_DIAGNOSTIC_TEXT]
+    if isinstance(value, Mapping):
+        return {
+            str(key)[:128]: _bounded_failure_diagnostic(item, depth=depth + 1)
+            for index, (key, item) in enumerate(value.items())
+            if index < _MAX_FAILURE_DIAGNOSTIC_ITEMS
+        }
+    if isinstance(value, (list, tuple)):
+        return [
+            _bounded_failure_diagnostic(item, depth=depth + 1)
+            for item in value[:_MAX_FAILURE_DIAGNOSTIC_ITEMS]
+        ]
+    return str(value)[:_MAX_FAILURE_DIAGNOSTIC_TEXT]
+
+
+def _provider_failure_projection(tool_result: Any) -> dict[str, Any] | None:
+    error = getattr(tool_result, "error", None)
+    if not isinstance(error, Mapping):
+        return None
+    details = error.get("details", {})
+    if not isinstance(details, Mapping):
+        details = {}
+    candidate_details = dict(details)
+    pre_collapse_failure = details.get("pre_collapse_failure")
+    if isinstance(pre_collapse_failure, Mapping):
+        candidate_details.update(pre_collapse_failure)
+    diagnostics = {
+        name: _bounded_failure_diagnostic(_copy.deepcopy(candidate_details[name]))
+        for name in sorted(_FAILURE_DIAGNOSTIC_FIELDS)
+        if name in candidate_details
+    }
+    error_code = error.get("code")
+    if not diagnostics and not isinstance(error_code, str):
+        return None
+    projection = {"diagnostics": diagnostics}
+    if isinstance(error_code, str):
+        projection["error_code"] = error_code
+    return projection
 
 
 class LocalProviderRouter:
@@ -554,6 +628,9 @@ class RuntimeCapabilityBridge:
         if execution.tool_result is not None:
             completed_payload["status"] = execution.tool_result.status.value
             completed_payload["evidence_refs"] = list(execution.tool_result.evidence_refs)
+            provider_failure = _provider_failure_projection(execution.tool_result)
+            if provider_failure is not None:
+                completed_payload["provider_failure"] = provider_failure
         outcome_status = str(completed_payload.get("status", "failed"))
         emit(
             "capability.completed" if outcome_status in ("success", "partial") else "capability.failed",
