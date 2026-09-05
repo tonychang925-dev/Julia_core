@@ -8,7 +8,8 @@ final Julia continuation.
 from __future__ import annotations
 
 import json as _json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from math import isfinite
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -33,14 +34,18 @@ _PROJECTED_RELATION_FIELDS = (
 _RELATION_TRANSPORT_EXTRAS = frozenset({"created_at", "run_id"})
 
 
-def _numeric_confidence(value: Any, field_name: str) -> int | float:
-    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+def _numeric_confidence(value: Any, field_name: str) -> float:
+    if (
+        value is None
+        or isinstance(value, (bool, Mapping))
+        or (isinstance(value, Sequence) and not isinstance(value, str))
+    ):
         raise MarketEventContractError(f"{field_name} must be numeric")
     try:
         numeric_value = float(value)
     except (TypeError, ValueError, OverflowError):
         raise MarketEventContractError(f"{field_name} must be numeric") from None
-    if numeric_value in {float("inf"), float("-inf")} or numeric_value != numeric_value:
+    if not isfinite(numeric_value):
         raise MarketEventContractError(f"{field_name} must be finite")
     return numeric_value
 
