@@ -24,14 +24,20 @@ from julia_core.capability.providers.ai_theme.frozen_market import (
     _MARKET_DB_RUNTIME_TREE_DIGEST,
     _load_pinned_market_module,
     compose_frozen_market_provider,
+    load_frozen_market_binding,
     market_db_runtime_tree_digest,
     market_tree_digest,
 )
 
 
 MARKET_REPO = Path("/Users/admin/glm-workspace/ai_theme_app")
-MARKET_TREE_DIGEST = "b07d454ac2c067717c7bdf70fc012c811d9d1636b427dd917134227e0df604dd"
+MARKET_TREE_DIGEST = "a389f92a0026291bbb2820bfce03fb9ff2545553859022dea3a413b8f1d52ad1"
 DB_RUNTIME_TREE_DIGEST = "19a4765e6e323bebb5b975560fce0a5a4111000844d95804a9dede1458935cff"
+OLD_MARKET_SHA = "d6889f4f39fc4f8adf404ea7c51eee3ad22d7fa7"
+OLD_MARKET_RELEASE = Path(
+    "/Users/admin/julia_rd1_controlled/releases/"
+    "market-d6889f4f39fc4f8adf404ea7c51eee3ad22d7fa7"
+)
 
 
 @pytest.fixture(scope="module")
@@ -143,6 +149,56 @@ def test_adapter_and_db_runtime_digests_are_separate(frozen_market_root, tmp_pat
 
     assert market_tree_digest(adapter_mutated) != MARKET_TREE_DIGEST
     assert market_db_runtime_tree_digest(adapter_mutated) == DB_RUNTIME_TREE_DIGEST
+
+
+def test_target_identity_rejects_old_market_release():
+    assert MARKET_FROZEN_SHA == "0bb026889f5c51e72aff9561b5eb542db7adf088"
+    with pytest.raises(FrozenMarketCompositionError, match="Market source SHA must equal"):
+        load_frozen_market_binding(pinned_environment(
+            OLD_MARKET_RELEASE,
+            **{MARKET_SOURCE_SHA_CONFIG: OLD_MARKET_SHA},
+        ))
+
+
+def test_target_event_resolve_has_r9_f1_and_f1a_fingerprints(frozen_market_root):
+    source = (
+        frozen_market_root
+        / "stock_processing_service/application/services/julia_domain_adapter/operations/event_resolve.py"
+    ).read_text(encoding="utf-8")
+    for fingerprint in (
+        "operation_symbol",
+        "failure_layer",
+        "exception_class",
+        "exception_message",
+        "sqlstate",
+        "pgcode",
+        "errno",
+        "error_code",
+        "process_pid",
+        "observed_at",
+        "resolver_query",
+        "normalized_theme",
+        "time_window",
+        "correlation_id",
+        "idempotency_id",
+        "precollapse_provider_status",
+        "_bounded_text",
+    ):
+        assert fingerprint in source
+    assert "traceback" not in source.lower()
+
+
+def test_target_pinned_event_resolve_module_provenance(frozen_market_root):
+    module, restore_modules = _load_pinned_market_module(
+        frozen_market_root,
+        "stock_processing_service.application.services.julia_domain_adapter.operations.event_resolve",
+        "stock_processing_service",
+        "Market event resolver",
+    )
+    try:
+        assert Path(module.__file__).resolve().is_relative_to(frozen_market_root)
+    finally:
+        restore_modules()
 
 
 def test_ambient_db_module_is_displaced_by_pinned_modules(frozen_market_root, monkeypatch):

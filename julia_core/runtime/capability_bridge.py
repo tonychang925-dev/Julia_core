@@ -868,7 +868,7 @@ async def run_controlled_brain(port: int = 18090) -> None:
     app.include_router(conversation_router_management)
 
     attestation = {
-        "composition_version": "r9-d1a",
+        "composition_version": "r9-d2",
         "market_source_root": str(source_root),
         "market_source_sha": provider.source_sha,
         "adapter_tree_digest": os.environ["JULIA_MARKET_TREE_DIGEST"],
@@ -890,12 +890,19 @@ async def run_controlled_brain(port: int = 18090) -> None:
         "stock_processing_service_path": str(source_root / "stock_processing_service/__init__.py"),
         "event_resolve_path": str(event_resolve_path),
         "event_read_path": str(event_read_path),
+        "database_gateway_path": str(Path(sys.modules["database_service.gateway"].__file__).resolve()),
+        "postgres_manager_path": str(Path(sys.modules["database_service.managers.postgres_manager"].__file__).resolve()),
         "db_module_paths": db_module_paths,
         "all_market_modules_from_pinned_root": True,
+        "r9_f1_observability_present": True,
+        "r9_f1a_closure_present": True,
+        "trace_source_sha": provider.source_sha,
         "filesystem_has_git": (source_root / ".git").exists(),
         "user_turns": 0,
         "real_resolver_executions": 0,
         "d1_executions": 0,
+        "market_event_read_executions": 0,
+        "db_writes": 0,
     }
     attestation_path = Path(os.environ.get(
         "JULIA_CONTROLLED_COMPOSITION_ATTESTATION",

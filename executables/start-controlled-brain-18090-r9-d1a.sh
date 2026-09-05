@@ -3,7 +3,7 @@ set -eu
 
 CORE_ROOT=/Users/admin/glm-workspace/Julia_core
 ASSISTANT_ROOT=/Users/admin/julia_rd1_controlled/releases/assistant-03de982a3ad60cdbe067fe68e1be1db8a4202de4
-MARKET_ROOT=/Users/admin/julia_rd1_controlled/releases/market-d6889f4f39fc4f8adf404ea7c51eee3ad22d7fa7
+MARKET_ROOT=/Users/admin/julia_rd1_controlled/releases/market-0bb026889f5c51e72aff9561b5eb542db7adf088
 RUN_ROOT=${JULIA_R9_D1A_RUN_ROOT:-/tmp/rd1-l1-r9-d1a-runtime}
 
 mkdir -p "$RUN_ROOT/state/private" "$RUN_ROOT/logs"
@@ -18,8 +18,8 @@ export NO_PROXY=127.0.0.1,localhost
 export no_proxy=127.0.0.1,localhost
 
 export JULIA_MARKET_SOURCE_ROOT="$MARKET_ROOT"
-export JULIA_MARKET_SOURCE_SHA=d6889f4f39fc4f8adf404ea7c51eee3ad22d7fa7
-export JULIA_MARKET_TREE_DIGEST=b07d454ac2c067717c7bdf70fc012c811d9d1636b427dd917134227e0df604dd
+export JULIA_MARKET_SOURCE_SHA=0bb026889f5c51e72aff9561b5eb542db7adf088
+export JULIA_MARKET_TREE_DIGEST=a389f92a0026291bbb2820bfce03fb9ff2545553859022dea3a413b8f1d52ad1
 export JULIA_MARKET_DB_RUNTIME_DIGEST=19a4765e6e323bebb5b975560fce0a5a4111000844d95804a9dede1458935cff
 
 export DB_TYPE=postgresql
