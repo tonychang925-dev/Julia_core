@@ -202,7 +202,6 @@ class ContextExecutionRuntime:
         conversation_id: str = "",
         turn_id: str = "",
         generation_id: str = "",
-        allow_market_only_on_research_failure: bool = False,
     ) -> CognitiveContextPackage:
         """Project one normalized research unit into the existing cognition path.
 
@@ -213,9 +212,7 @@ class ContextExecutionRuntime:
         """
         from julia_core.research.judgment import ResearchJudgmentContextBuilder
 
-        material = ResearchJudgmentContextBuilder(
-            allow_market_only_on_research_failure=allow_market_only_on_research_failure,
-        ).build(market_context, enrichment)
+        material = ResearchJudgmentContextBuilder().build(market_context, enrichment)
         pkg = CognitiveContextPackage(
             conversation_id=conversation_id,
             turn_id=turn_id,

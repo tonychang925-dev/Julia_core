@@ -31,6 +31,7 @@ from julia_core.research.contracts import (
 
 _SHA256 = re.compile(r"^[0-9a-fA-F]{64}$")
 _WEB_SEARCH_KINDS = {"web_search", "websearch", "search_result"}
+_CONTROLLED_HTTP_KIND = "controlled_http"
 
 
 class ResearchNormalizationError(ValueError):
@@ -364,6 +365,8 @@ class ResearchEvidenceNormalizer:
                 raw_response_refs=raw_response_refs,
             ):
                 return VerificationState.NOT_PROVEN
+            if not _controlled_acquisition_truth(record, binding):
+                return VerificationState.NOT_PROVEN
         return VerificationState.SOURCE_VERIFIED
 
     def _observation_state(
@@ -411,6 +414,8 @@ class ResearchEvidenceNormalizer:
             call=call,
             raw_response_refs=raw_response_refs,
         ):
+            return VerificationState.NOT_PROVEN
+        if not _controlled_acquisition_truth(source_record, binding):
             return VerificationState.NOT_PROVEN
         return VerificationState.SOURCE_VERIFIED
 
@@ -538,6 +543,52 @@ class ResearchEvidenceNormalizer:
 
 def _valid_digest(value: str) -> bool:
     return isinstance(value, str) and _SHA256.fullmatch(value) is not None
+
+
+def _controlled_acquisition_truth(source_record: SourceRecord, binding: ContentBinding) -> bool:
+    if source_record.source_kind.lower() != _CONTROLLED_HTTP_KIND:
+        return False
+    record_provenance = source_record.provenance
+    provenance = binding.provenance
+    if record_provenance.get("action_capability_id") != "d1.controlled_http_acquisition":
+        return False
+    if provenance.get("action_capability_id") != "d1.controlled_http_acquisition":
+        return False
+    initial_url = str(provenance.get("initial_url", "")).strip()
+    final_url = str(provenance.get("final_url", "")).strip()
+    initial_hostname = str(provenance.get("initial_hostname", "")).strip().lower()
+    final_hostname = str(provenance.get("final_hostname", "")).strip().lower()
+    if not initial_url.startswith("https://") or not final_url.startswith("https://"):
+        return False
+    if not initial_hostname or final_hostname != initial_hostname:
+        return False
+    if provenance.get("redirect_truth") != "PROVEN":
+        return False
+    if provenance.get("final_host_truth") != "PROVEN":
+        return False
+    if provenance.get("network_authority") != "VALIDATED":
+        return False
+    if provenance.get("tls_validation") != "PASSED":
+        return False
+    http_status = provenance.get("http_status")
+    if not isinstance(http_status, int) or isinstance(http_status, bool) or not 200 <= http_status < 300:
+        return False
+    if not isinstance(provenance.get("redirect_chain"), list):
+        return False
+    if not _valid_digest(str(provenance.get("raw_response_sha256", ""))):
+        return False
+    if not _valid_digest(str(provenance.get("extracted_content_sha256", ""))):
+        return False
+    retained = str(provenance.get("retained_content_reference", "")).strip()
+    if not retained or binding.content_ref.strip() != retained:
+        return False
+    if source_record.raw_response_ref.strip() != str(provenance.get("runtime_observation_ref", "")).strip():
+        return False
+    if source_record.content_ref.strip() != retained:
+        return False
+    if not provenance.get("authority_digest") or not provenance.get("source_class"):
+        return False
+    return True
 
 
 def _runtime_bound(

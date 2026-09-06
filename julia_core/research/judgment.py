@@ -118,8 +118,7 @@ class ResearchJudgmentContextMaterial:
 class ResearchJudgmentContextBuilder:
     """Builds governed, truth-plane-separated model context material."""
 
-    def __init__(self, *, allow_market_only_on_research_failure: bool = False):
-        self.allow_market_only_on_research_failure = allow_market_only_on_research_failure
+    def __init__(self):
         self.market_adapter = MarketEventResearchAdapter()
 
     def build(
@@ -130,9 +129,9 @@ class ResearchJudgmentContextBuilder:
         market = self._validate_market(market_context)
         self._validate_enrichment(enrichment)
         tool_status = _status(enrichment.tool_result.status)
-        if tool_status != "success" and not self.allow_market_only_on_research_failure:
+        if tool_status != "success":
             raise ResearchJudgmentInputError(
-                f"research provider execution failed ({tool_status}); market-only cognition not authorized"
+                f"research provider execution failed ({tool_status}); market-only cognition forbidden"
             )
 
         semantic = enrichment.semantic_result
@@ -172,12 +171,6 @@ class ResearchJudgmentContextBuilder:
             "output_requirement": "strict JSON research.preliminary_judgment.v1",
             "trading_instructions": "FORBIDDEN",
         }
-        if tool_status != "success":
-            control["research_execution_failure"] = {
-                "status": tool_status,
-                "error": enrichment.tool_result.error or {},
-                "policy": "explicit market-only degradation",
-            }
         if not observation.available:
             control["source_observation_unavailable"] = True
 

@@ -79,16 +79,20 @@ def capability_call(request):
 def source_record(**overrides):
     value = {
         "source_record_id": "source-1",
-        "source_kind": "web_fetch",
+        "source_kind": "controlled_http",
         "source_ref": "https://example.test/policy",
         "capture_status": "success",
         "fetch_status": "success",
         "observed_at": "2026-09-04T08:02:00Z",
         "source_url": "https://example.test/policy",
-        "raw_response_ref": "raw:provider:1",
-        "content_ref": "content:runtime:1",
+        "raw_response_ref": f"controlled_raw_body:{DIGEST}",
+        "content_ref": "controlled-artifact:fixture",
         "content_digest": DIGEST,
-        "provenance": {"acquisition": "runtime_web_fetch"},
+        "provenance": {
+            "action_capability_id": "d1.controlled_http_acquisition",
+            "authority_digest": DIGEST,
+            "source_class": "TRUSTED_FIXTURE",
+        },
     }
     value.update(overrides)
     return value
@@ -98,14 +102,32 @@ def content_binding(**overrides):
     request = adapter_request()
     value = {
         "source_record_id": "source-1",
-        "content_ref": "content:runtime:1",
+        "content_ref": "controlled-artifact:fixture",
         "digest": DIGEST,
         "extract_ref": "extract:runtime:1",
         "locator": "text:0-120",
         "provenance": {
             "capability_request_id": request.capability_request_id,
             "capability_call_id": "call_research",
-            "runtime_observation_ref": "raw:provider:1",
+            "runtime_observation_ref": f"controlled_raw_body:{DIGEST}",
+            "action_capability_id": "d1.controlled_http_acquisition",
+            "acquisition_request_id": "acq-fixture",
+            "authority_digest": DIGEST,
+            "source_class": "TRUSTED_FIXTURE",
+            "initial_url": "https://example.test/policy",
+            "initial_hostname": "example.test",
+            "final_url": "https://example.test/policy",
+            "final_hostname": "example.test",
+            "redirect_chain": [],
+            "redirect_truth": "PROVEN",
+            "final_host_truth": "PROVEN",
+            "network_authority": "VALIDATED",
+            "tls_validation": "PASSED",
+            "http_status": 200,
+            "raw_response_sha256": DIGEST,
+            "extracted_content_sha256": "b" * 64,
+            "retained_content_reference": "controlled-artifact:fixture",
+            "parser_identity": "fixture-parser/v1",
         },
     }
     value.update(overrides)
@@ -135,7 +157,7 @@ def observation_payload(records=None, bindings=None, **overrides):
         "available": True,
         "source_records": [source_record()] if records is None else records,
         "content_bindings": [content_binding()] if bindings is None else bindings,
-        "raw_response_refs": ["raw:provider:1"],
+        "raw_response_refs": [f"controlled_raw_body:{DIGEST}"],
         "observed_at": "2026-09-04T08:02:00Z",
         "provenance": {"provider_transport": "governed_fixture"},
         "failure": None,
@@ -162,6 +184,21 @@ def normalize(structured_output, status=ToolResultStatus.SUCCESS, error=None):
 
 def verification(result):
     return result.observation.claim_verification_states["claim-1"]
+
+
+@pytest.mark.parametrize("mutation", [
+    {"final_host_truth": "NOT_PROVEN"},
+    {"raw_response_sha256": ""},
+    {"retained_content_reference": ""},
+    {"http_status": 403},
+    {"redirect_truth": "NOT_PROVEN"},
+    {"final_hostname": "untrusted.example"},
+])
+def test_c1_requires_complete_controlled_acquisition_truth(mutation):
+    binding = content_binding()
+    binding["provenance"].update(mutation)
+    result = normalize({"semantic_result": semantic_payload(), "source_observation": observation_payload(bindings=[binding])})
+    assert verification(result) == VerificationState.NOT_PROVEN.value
 
 
 def test_market_contract_projects_exact_capability_request_and_registration():

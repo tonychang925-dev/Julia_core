@@ -94,23 +94,27 @@ def source_record(record_id="source-verified", *, search=False):
         }
     return {
         "source_record_id": record_id,
-        "source_kind": "web_fetch",
+        "source_kind": "controlled_http",
         "source_ref": "https://example.test/policy",
         "capture_status": "success",
         "fetch_status": "success",
         "observed_at": "2026-09-04T08:02:00Z",
         "source_url": "https://example.test/policy",
-        "raw_response_ref": "raw:provider:1",
-        "content_ref": "content:runtime:1",
+        "raw_response_ref": f"controlled_raw_body:{DIGEST}",
+        "content_ref": "controlled-artifact:fixture",
         "content_digest": DIGEST,
-        "provenance": {"acquisition": "runtime_web_fetch"},
+        "provenance": {
+            "action_capability_id": "d1.controlled_http_acquisition",
+            "authority_digest": DIGEST,
+            "source_class": "TRUSTED_FIXTURE",
+        },
     }
 
 
 def binding(record_id="source-verified"):
     return {
         "source_record_id": record_id,
-        "content_ref": "content:runtime:1",
+        "content_ref": "controlled-artifact:fixture",
         "digest": DIGEST,
         "extract_ref": "extract:runtime:1",
         "locator": "text:0-120",
@@ -118,7 +122,25 @@ def binding(record_id="source-verified"):
             "capability_request_id": "req-c2",
             "capability_call_id": "call-c2",
             "correlation_id": "corr-c2",
-            "runtime_observation_ref": "raw:provider:1",
+            "runtime_observation_ref": f"controlled_raw_body:{DIGEST}",
+            "action_capability_id": "d1.controlled_http_acquisition",
+            "acquisition_request_id": "acq-fixture",
+            "authority_digest": DIGEST,
+            "source_class": "TRUSTED_FIXTURE",
+            "initial_url": "https://example.test/policy",
+            "initial_hostname": "example.test",
+            "final_url": "https://example.test/policy",
+            "final_hostname": "example.test",
+            "redirect_chain": [],
+            "redirect_truth": "PROVEN",
+            "final_host_truth": "PROVEN",
+            "network_authority": "VALIDATED",
+            "tls_validation": "PASSED",
+            "http_status": 200,
+            "raw_response_sha256": DIGEST,
+            "extracted_content_sha256": "b" * 64,
+            "retained_content_reference": "controlled-artifact:fixture",
+            "parser_identity": "fixture-parser/v1",
         },
     }
 
@@ -152,7 +174,7 @@ def observation_payload(records=None, bindings=None, **overrides):
         "available": True,
         "source_records": [source_record()] if records is None else records,
         "content_bindings": [binding()] if bindings is None else bindings,
-        "raw_response_refs": ["raw:provider:1"],
+        "raw_response_refs": [f"controlled_raw_body:{DIGEST}"],
         "observed_at": "2026-09-04T08:02:00Z",
         "provenance": {
             "provider_transport": "governed_fixture",
@@ -546,15 +568,10 @@ def test_c2_absent_enrichment_stops():
         ResearchJudgmentContextBuilder().build(market, None)
 
 
-def test_c2_failed_provider_stops_unless_market_only_is_explicitly_authorized():
+def test_c2_failed_provider_always_stops_before_cognition():
     market = MarketEventResearchAdapter().validate_context(market_payload())
-    with pytest.raises(ResearchJudgmentInputError, match="market-only cognition not authorized"):
+    with pytest.raises(ResearchJudgmentInputError, match="market-only cognition forbidden"):
         ResearchJudgmentContextBuilder().build(market, blocked_enrichment())
-
-    material = ResearchJudgmentContextBuilder(
-        allow_market_only_on_research_failure=True,
-    ).build(market, blocked_enrichment())
-    assert material.control_frame["research_execution_failure"]["policy"] == "explicit market-only degradation"
 
 
 def test_c2_cognition_provider_unavailable_fails_without_fallback():

@@ -22,8 +22,8 @@ from julia_core.capability.models import (
 )
 from julia_core.research.adapter import RESEARCH_EVENT_ENRICH_CAPABILITY
 
-D1_SOURCE_SHA = "b8ae48a9972ba5bf2f0e4b1db5a1025e38e97e82"
-D1_REQUEST_CONTRACT_VERSION = "research.bridge.request.v1"
+D1_SOURCE_SHA = "0e1b5ca258b77be00b08889b8e6dc4eb40ff9e6c"
+D1_REQUEST_CONTRACT_VERSION = "research.bridge.request.v2"
 D1_RESPONSE_CONTRACT_VERSION = "research.bridge.response.v1"
 D1_PROMPT_FORMAT_VERSION = "research.event-enrichment-prompt.v1"
 D1_RETRY_COUNT = 0
@@ -38,6 +38,7 @@ _CONFIG_REQUIRED = (
     "CLAUDE_CLIENT_EXECUTION_SOURCE_PATH",
     "CLAUDE_CLIENT_EXECUTION_MAX_ROOT",
     "CLAUDE_CLIENT_WEBFETCH_NETWORK_AUTHORITY_JSON",
+    "JULIA_D1_CONTROLLED_ACQUISITION_CONFIG_JSON",
 )
 
 
@@ -115,13 +116,13 @@ class D1ResearchBridgeProvider:
         if request.capability_id != RESEARCH_EVENT_ENRICH_CAPABILITY:
             raise ValueError("D1 provider accepts only research.event.enrich")
         self._require_boundary_environment()
-        bridge_request = build_d1_research_request(request)
         capability_request_id = request.capability_request_id
         capability_call_id = call.capability_call_id if call is not None else ""
         if not capability_request_id or not capability_call_id:
             raise D1ResearchTransmissionError(
                 "capability request and runtime call identities are required"
             )
+        bridge_request = build_d1_research_request(request, capability_call_id=capability_call_id)
 
         self.execution_count += 1
         transport = self.transport or D1SubprocessTransport(
@@ -170,6 +171,24 @@ class D1ResearchBridgeProvider:
             or not isinstance(authority.get("denied_domains"), list)
         ):
             raise D1ResearchBindingConfigError("WebFetch network authority shape is invalid")
+        try:
+            acquisition = json.loads(self.environment["JULIA_D1_CONTROLLED_ACQUISITION_CONFIG_JSON"])
+        except json.JSONDecodeError as exc:
+            raise D1ResearchBindingConfigError("controlled acquisition config JSON is invalid") from exc
+        required = {
+            "contract_version", "proxy_mode", "timeout_ms", "max_redirects",
+            "max_response_bytes", "allowed_content_types", "artifact_root",
+        }
+        if (
+            not isinstance(acquisition, Mapping)
+            or set(acquisition) != required
+            or acquisition.get("contract_version") != "research.controlled-http-acquisition.v1"
+            or acquisition.get("proxy_mode") != "DIRECT"
+            or not isinstance(acquisition.get("allowed_content_types"), list)
+            or not isinstance(acquisition.get("artifact_root"), str)
+            or not acquisition.get("artifact_root", "").startswith("/")
+        ):
+            raise D1ResearchBindingConfigError("controlled acquisition config shape is invalid")
 
     def _ambiguous_outcome(
         self,
@@ -269,7 +288,11 @@ def create_d1_research_provider_from_environment(
     )
 
 
-def build_d1_research_request(request: CapabilityRequest) -> dict[str, Any]:
+def build_d1_research_request(
+    request: CapabilityRequest,
+    *,
+    capability_call_id: str,
+) -> dict[str, Any]:
     event = request.arguments.get("event")
     if not isinstance(event, Mapping):
         raise D1ResearchBindingConfigError("research request event is required")
@@ -294,6 +317,8 @@ def build_d1_research_request(request: CapabilityRequest) -> dict[str, Any]:
             "research_id": f"research_{event.get('event_id')}_{source_trace_id}",
             "event_id": str(event.get("event_id")),
             "event_digest": hashlib.sha256(source_trace_id.encode("utf-8")).hexdigest(),
+            "capability_request_id": request.capability_request_id,
+            "capability_call_id": capability_call_id,
         },
         "research_payload": payload,
         "research_payload_sha256": _payload_sha256(payload),
@@ -311,10 +336,17 @@ def project_d1_response(
             "capability request and runtime call identities are required"
         )
     _validate_d1_response_shape(response)
+    correlation = response["correlation"]
+    if (
+        correlation.get("capability_request_id") != capability_request_id
+        or correlation.get("capability_call_id") != capability_call_id
+    ):
+        raise D1ResearchTransmissionError("D1 runtime correlation mismatch")
     execution = response["execution"]
     if (
         execution.get("provider_action_retry_count") != D1_RETRY_COUNT
         or execution.get("fallback_count") != D1_FALLBACK_COUNT
+        or execution.get("attempted_acquisition_count") != execution.get("selected_acquisition_count")
     ):
         raise D1ResearchTransmissionError(
             "D1 reported nonzero retry or fallback execution state"
@@ -345,24 +377,48 @@ def project_d1_response(
         raw_sha = provenance.get("raw_response_sha256") if isinstance(provenance, Mapping) else None
         if not isinstance(reference, Mapping) or raw_sha is None:
             continue
-        digest = str(reference.get("content_digest", ""))
-        content_ref = f"inline_content:{digest}"
-        runtime_ref = _raw_response_ref(raw_sha)
+        digest = str(reference.get("raw_body_digest_sha256", ""))
+        extracted_digest = str(reference.get("extracted_content_digest_sha256", ""))
+        content_ref = str(reference.get("retained_content_reference", ""))
+        runtime_ref = f"controlled_raw_body:{raw_sha}"
+        if (
+            observation.get("capture_status") != "CONTROLLED_HTTP_ACQUIRED"
+            or provenance.get("action_capability_id") != "d1.controlled_http_acquisition"
+            or provenance.get("final_host_truth") != "PROVEN"
+            or provenance.get("redirect_truth") != "PROVEN"
+            or provenance.get("network_authority") != "VALIDATED"
+            or provenance.get("tls_validation") != "PASSED"
+            or provenance.get("http_status") == "NOT_SURFACED"
+        ):
+            continue
         bindings.append({
             "source_record_id": observation.get("source_record_id", ""),
             "content_ref": content_ref,
             "digest": digest,
-            "extract_ref": content_ref,
-            "locator": "full_provider_observed_content",
+            "extract_ref": f"controlled_extract:{extracted_digest}",
+            "locator": "full_deterministically_extracted_document",
             "provenance": {
                 "capability_request_id": capability_request_id,
                 "capability_call_id": capability_call_id,
                 "runtime_observation_ref": runtime_ref,
-                "action_capability_id": "claude.web_fetch",
-                "execution_attempt_id": provenance.get("execution_attempt_id") or "",
-                "provider_tool_authority_id": provenance.get("provider_tool_authority_id") or "",
+                "action_capability_id": "d1.controlled_http_acquisition",
+                "acquisition_request_id": provenance.get("acquisition_request_id") or "",
+                "authority_digest": provenance.get("authority_digest") or "",
+                "source_class": provenance.get("source_class") or "",
+                "initial_url": provenance.get("initial_url") or "",
+                "initial_hostname": provenance.get("initial_hostname") or "",
+                "final_url": provenance.get("final_url") or "",
+                "final_hostname": provenance.get("final_hostname") or "",
+                "redirect_chain": provenance.get("redirect_chain", []),
+                "redirect_truth": "PROVEN",
+                "final_host_truth": "PROVEN",
+                "network_authority": "VALIDATED",
+                "tls_validation": "PASSED",
+                "http_status": provenance.get("http_status"),
                 "raw_response_sha256": raw_sha,
-                "content_digest": digest,
+                "extracted_content_sha256": extracted_digest,
+                "retained_content_reference": content_ref,
+                "parser_identity": reference.get("parser_identity"),
                 "external_content_is_untrusted": True,
             },
         })
@@ -379,6 +435,10 @@ def project_d1_response(
     observed_at = _iso_utc(max(observed_times)) if observed_times else ""
     transport_ready = response.get("transport_status") == "RESPONSE_READY"
     error = response.get("error")
+    if transport_ready and (not bindings or execution.get("successful_acquisition_count", 0) < 1):
+        raise D1ResearchTransmissionError("D1 success lacked controlled acquired evidence")
+    if not transport_ready and execution.get("successful_acquisition_count", 0) != 0:
+        raise D1ResearchTransmissionError("stopped D1 response claimed successful acquisition")
     structured = {
         "semantic_result": _no_model_semantics(),
         "source_observation": {
@@ -443,20 +503,23 @@ def _fetch_record(response: Mapping[str, Any], observation: Mapping[str, Any]) -
         content_digest = str(reference["content_digest"])
     capture = observation.get("capture_status")
     status = (
-        "success" if capture == "PROVIDER_ACTION_COMPLETED"
+        "success" if capture == "CONTROLLED_HTTP_ACQUIRED"
         else "blocked" if capture == "BLOCKED_BEFORE_ACTION"
-        else "failed_or_ambiguous"
+        else "failed"
     )
     return {
         "source_record_id": observation.get("source_record_id", ""),
-        "source_kind": "web_fetch",
+        "source_kind": "controlled_http",
         "source_ref": observation.get("source_ref", ""),
         "capture_status": status,
         "fetch_status": status,
         "observed_at": _iso_utc(observation["observed_at_epoch_ms"]),
         "source_url": observation.get("url"),
-        "raw_response_ref": _raw_response_ref(raw_sha),
-        "content_ref": "" if not content_digest else f"inline_content:{content_digest}",
+        "raw_response_ref": "" if raw_sha is None else f"controlled_raw_body:{raw_sha}",
+        "content_ref": (
+            str(reference.get("retained_content_reference", ""))
+            if isinstance(reference, Mapping) else ""
+        ),
         "content_digest": content_digest,
         "provenance": {
             **(dict(provenance) if isinstance(provenance, Mapping) else {}),
@@ -486,6 +549,18 @@ def _validate_d1_response_shape(response: Mapping[str, Any]) -> None:
     execution = response["execution"]
     if not isinstance(correlation, Mapping) or not isinstance(execution, Mapping):
         raise D1ResearchTransmissionError("D1 correlation or execution truth is malformed")
+    if set(correlation) != {
+        "research_id", "event_id", "event_digest",
+        "capability_request_id", "capability_call_id",
+    }:
+        raise D1ResearchTransmissionError("D1 correlation field set mismatch")
+    if set(execution) != {
+        "action_attempts", "search_actions", "controlled_acquisition_actions",
+        "provider_action_retry_count", "fallback_count", "stopped", "stop_reason",
+        "selected_acquisition_count", "attempted_acquisition_count",
+        "successful_acquisition_count", "failed_acquisition_count",
+    }:
+        raise D1ResearchTransmissionError("D1 execution truth field set mismatch")
 
 
 def _no_model_semantics() -> dict[str, Any]:
@@ -532,7 +607,13 @@ def _iso_utc(epoch_ms: int) -> str:
 
 
 def _subprocess_environment(config: Mapping[str, str]) -> dict[str, str]:
-    env = {key: value for key, value in os.environ.items()}
+    forbidden_ambient = {
+        "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+        "http_proxy", "https_proxy", "all_proxy", "no_proxy",
+        "NODE_EXTRA_CA_CERTS", "NODE_OPTIONS",
+        "npm_config_proxy", "npm_config_https_proxy",
+    }
+    env = {key: value for key, value in os.environ.items() if key not in forbidden_ambient}
     env.update({key: value for key, value in config.items() if value is not None})
     return env
 

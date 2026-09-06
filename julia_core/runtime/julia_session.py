@@ -384,7 +384,6 @@ class JuliaSession:
         *,
         conversation_id: str = "",
         turn_id: str = "",
-        allow_market_only_on_research_failure: bool = False,
     ):
         """Form one C2 judgment through the existing Context OS/model path.
 
@@ -402,7 +401,6 @@ class JuliaSession:
             enrichment=enrichment,
             conversation_id=conversation_id,
             turn_id=turn_id,
-            allow_market_only_on_research_failure=allow_market_only_on_research_failure,
         )
         required_failures = pkg.validate()
         if required_failures:

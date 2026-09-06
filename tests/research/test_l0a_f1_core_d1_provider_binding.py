@@ -61,22 +61,28 @@ def research_request():
 def d1_response(*, retry_count=0, fallback_count=0, stopped=False) -> dict[str, Any]:
     return {
         "contract_version": "research.bridge.response.v1",
-        "request_contract_version": "research.bridge.request.v1",
+        "request_contract_version": "research.bridge.request.v2",
         "operation": "research.event.enrich",
         "correlation": {
             "research_id": "research_501_news_event:501:l0a",
             "event_id": "501",
             "event_digest": hashlib.sha256(EVENT["source_trace_id"].encode()).hexdigest(),
+            "capability_request_id": "request-l0a",
+            "capability_call_id": "call-l0a",
         },
         "transport_status": "ACTION_COLLECTION_STOPPED" if stopped else "RESPONSE_READY",
         "execution": {
             "action_attempts": 2,
             "search_actions": 1,
-            "webfetch_actions": 1,
+            "controlled_acquisition_actions": 1,
             "provider_action_retry_count": retry_count,
             "fallback_count": fallback_count,
             "stopped": stopped,
-            "stop_reason": "WEBFETCH_ACTION_FAILED_OR_AMBIGUOUS" if stopped else None,
+            "stop_reason": "ALL_SELECTED_SOURCES_FAILED" if stopped else None,
+            "selected_acquisition_count": 1,
+            "attempted_acquisition_count": 1,
+            "successful_acquisition_count": 0 if stopped else 1,
+            "failed_acquisition_count": 1 if stopped else 0,
         },
         "search_observation": {"observation_kind": "WEBSEARCH_PROVIDER_RESULT_TEXT"},
         "research_semantic_result": {
@@ -116,30 +122,44 @@ def d1_response(*, retry_count=0, fallback_count=0, stopped=False) -> dict[str, 
             "published_at": None,
             "observed_at_epoch_ms": 124,
             "content_reference": {
-                "reference_kind": "INLINE_PROVIDER_OBSERVED_CONTENT",
-                "content_base64": "b2JzZXJ2ZWQ=",
-                "content_digest": CONTENT_DIGEST,
-                "content_utf8_byte_length": 7,
+                "reference_kind": "CONTROLLED_HTTP_ACQUIRED_CONTENT",
+                "retained_content_reference": "controlled-artifact:fixture",
+                "raw_body_digest_sha256": RAW_DIGEST,
+                "extracted_content_base64": "b2JzZXJ2ZWQ=",
+                "extracted_content_digest_sha256": CONTENT_DIGEST,
+                "extracted_utf8_byte_length": 7,
+                "parser_identity": "fixture-parser/v1",
             },
-            "content_digest": CONTENT_DIGEST,
-            "capture_status": "PROVIDER_ACTION_COMPLETED",
-            "observation_kind": "WEBFETCH_PROVIDER_CONTENT",
+            "content_digest": None if stopped else RAW_DIGEST,
+            "capture_status": "CONTROLLED_HTTP_FAILED" if stopped else "CONTROLLED_HTTP_ACQUIRED",
+            "observation_kind": "CONTROLLED_HTTP_FAILURE" if stopped else "CONTROLLED_HTTP_DOCUMENT",
             "correlation_id": "corr-l0a",
             "provenance": {
-                "action_capability_id": "claude.web_fetch",
-                "provider_tool_name": "WebFetch",
-                "execution_attempt_id": "attempt-l0a",
-                "provider_tool_authority_id": "authority-l0a",
+                "action_capability_id": "d1.controlled_http_acquisition",
+                "capability_request_id": "request-l0a",
+                "capability_call_id": "call-l0a",
+                "acquisition_request_id": "acq-l0a",
+                "authority_digest": CONTENT_DIGEST,
+                "source_class": "TRUSTED_FIXTURE",
+                "initial_url": "https://trusted.example/page",
+                "initial_hostname": "trusted.example",
+                "final_url": "https://trusted.example/page",
+                "final_hostname": "trusted.example",
+                "redirect_chain": [],
+                "redirect_truth": "PROVEN" if not stopped else "NOT_PROVEN",
+                "final_host_truth": "PROVEN" if not stopped else "NOT_PROVEN",
+                "network_authority": "VALIDATED" if not stopped else "NOT_PROVEN",
+                "tls_validation": "PASSED" if not stopped else "NOT_PROVEN",
+                "http_status": 200 if not stopped else "NOT_SURFACED",
                 "raw_response_boundary": "TRANSPORT_OBSERVED_STDOUT_JSONRPC_FRAME_BYTES",
-                "raw_response_sha256": RAW_DIGEST,
-                "redirect_destination_truth": "NOT_PROVEN",
-                "source_content_truth": "NOT_PROVEN",
+                "raw_response_sha256": None if stopped else RAW_DIGEST,
+                "source_content_truth": "NOT_PROVEN" if stopped else "PUBLISHER_BYTES_RETAINED",
                 "external_content_is_untrusted": True,
                 "reason": None,
             },
         }],
         "error": None if not stopped else {
-            "code": "WEBFETCH_ACTION_FAILED_OR_AMBIGUOUS",
+            "code": "ALL_SELECTED_SOURCES_FAILED",
             "message": "ambiguous response window",
         },
     }
@@ -160,7 +180,13 @@ class FakeTransport:
             except asyncio.CancelledError:
                 self.cancelled = True
                 raise
-        return self.response
+        response = dict(self.response)
+        response["correlation"] = {
+            **response["correlation"],
+            "capability_request_id": request["correlation"]["capability_request_id"],
+            "capability_call_id": request["correlation"]["capability_call_id"],
+        }
+        return response
 
 
 def provider(transport=None) -> D1ResearchBridgeProvider:
@@ -186,6 +212,15 @@ def controlled_environment(**overrides) -> dict[str, str]:
         "CLAUDE_CLIENT_WEBFETCH_NETWORK_AUTHORITY_JSON": json.dumps({
             "allowed_https_domains": ["trusted.example"],
             "denied_domains": [],
+        }),
+        "JULIA_D1_CONTROLLED_ACQUISITION_CONFIG_JSON": json.dumps({
+            "contract_version": "research.controlled-http-acquisition.v1",
+            "proxy_mode": "DIRECT",
+            "timeout_ms": 5000,
+            "max_redirects": 2,
+            "max_response_bytes": 1048576,
+            "allowed_content_types": ["text/html", "text/plain", "application/xhtml+xml"],
+            "artifact_root": "/tmp/d1-controlled-artifacts",
         }),
     }
     values.update(overrides)
@@ -235,8 +270,10 @@ async def test_l0a_f01_f03_binding_reaches_c1_and_preserves_authority():
 
 def test_l0a_f02_exact_capability_only_and_request_shape():
     request = research_request()
-    payload = build_d1_research_request(request)
-    assert payload["contract_version"] == "research.bridge.request.v1"
+    payload = build_d1_research_request(request, capability_call_id="cap_call_l0a")
+    assert payload["contract_version"] == "research.bridge.request.v2"
+    assert payload["correlation"]["capability_request_id"] == request.capability_request_id
+    assert payload["correlation"]["capability_call_id"] == "cap_call_l0a"
     assert payload["operation"] == "research.event.enrich"
     expected_digest = hashlib.sha256(
         json.dumps(payload["research_payload"], sort_keys=True, separators=(",", ":")).encode()
@@ -334,7 +371,7 @@ def test_l0a_config_is_required_and_pinned():
 
 
 def test_l0a_scope_remains_core_d1_only():
-    assert D1_SOURCE_SHA == "b8ae48a9972ba5bf2f0e4b1db5a1025e38e97e82"
+    assert D1_SOURCE_SHA == "0e1b5ca258b77be00b08889b8e6dc4eb40ff9e6c"
     source = Path(__file__).parents[2].joinpath(
         "julia_core", "research", "d1_provider.py"
     ).read_text()
