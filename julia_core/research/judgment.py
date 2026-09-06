@@ -27,6 +27,75 @@ from julia_core.research.contracts import (
 PRELIMINARY_RESEARCH_JUDGMENT_VERSION = "research.preliminary_judgment.v1"
 
 
+def build_research_judgment_user_instruction(enrichment: NormalizedResearchEnrichment) -> str:
+    """NCF-A7 R10-A4: authoritative C2 output contract for the real provider.
+
+    The provider must produce a strict-JSON object whose top-level keys and
+    nested references EXACTLY match ResearchJudgmentParser expectations. This
+    instruction enumerates the usable claim/evidence/source record IDs so a
+    real model can emit a payload the parser accepts, instead of guessing field
+    names (the R10-FINAL-3 CONTRACT_MISMATCH root cause).
+    """
+    claims = enrichment.semantic_result.claims
+    claim_states = enrichment.observation.claim_verification_states or {}
+
+    claim_lines = []
+    for c in claims:
+        state = claim_states.get(c.claim_id, VerificationState.NOT_PROVEN.value)
+        claim_lines.append(
+            f'  {{"claim_id": "{c.claim_id}", "text": {json.dumps(c.text, ensure_ascii=False)}, '
+            f'"source_record_ids": {json.dumps(list(c.source_record_ids))}, '
+            f'"verification_state": "{state}"}}'
+        )
+    evidence_lines = []
+    for e in enrichment.observation.evidence:
+        evidence_lines.append(
+            f'  {{"evidence_id": "{e.evidence_id}", "source_ref": '
+            f"{json.dumps(getattr(e, 'source_ref', ''), ensure_ascii=False)}}}"
+        )
+
+    if not claims:
+        claim_section = (
+            "Usable claim IDs: (none)\n"
+            'supporting_claims MUST be an empty array []. '
+            "key_drivers may still be formed from market context, with evidence_refs and "
+            "source_record_refs as empty arrays."
+        )
+    else:
+        claim_section = (
+            "Usable claim IDs (use claim_id + its source_record_ids verbatim in "
+            "supporting_claims; every supporting_claims entry MUST pair a usable claim_id "
+            "with its evidence):\n" + "\n".join(claim_lines)
+            + "\n\nUsable evidence IDs (use in evidence_refs):\n"
+            + ("\n".join(evidence_lines) if evidence_lines else "  (none — then evidence_refs MUST be empty)")
+        )
+
+    return (
+        "You are forming Julia's PRELIMINARY research judgment in strict JSON.\n"
+        "Return ONLY one JSON object. No markdown fences, no prose, no commentary.\n"
+        "The object MUST have EXACTLY these 10 top-level keys, no others:\n"
+        '  "judgment_summary": string — must contain the word "preliminary" or "初步"\n'
+        '  "key_drivers": array of objects, each with EXACTLY '
+        '{"driver_id","statement","support_level","evidence_refs","source_record_refs"} — '
+        'support_level is one of "MARKET_CONTEXT_ONLY"|"SOURCE_VERIFIED_SUPPORT"\n'
+        '  "supporting_claims": array of objects, each with EXACTLY '
+        '{"claim_id","evidence_refs","source_record_refs"}\n'
+        '  "contradictions": array of {statement, evidence_refs} objects\n'
+        '  "uncertainties": array of strings\n'
+        '  "market_implications": array of {statement, evidence_refs} objects — factual only, no trading advice\n'
+        '  "confidence": number 0..1\n'
+        '  "evidence_refs": array (use the usable evidence IDs below verbatim, or empty)\n'
+        '  "source_record_refs": array (use the claim source_record_ids below verbatim, or empty)\n'
+        '  "reasoning_limits": array of strings\n'
+        "Never include keys or values for buy/sell/position/target/entry/exit/stop-loss/"
+        "take-profit/expected-return or any trading instruction (Chinese or English).\n"
+        "\n" + claim_section
+        + "\nNever invent an evidence_id or source_record_id that is not listed verbatim above."
+        + "\nReasoning limits must state that Julia's preliminary judgment is separate "
+          "from source observation and not trading advice."
+    )
+
+
 class ResearchJudgmentInputError(ValueError):
     """C2 cannot safely enter the existing cognition path."""
 

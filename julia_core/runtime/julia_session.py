@@ -427,7 +427,17 @@ class JuliaSession:
             )
         parser = ResearchJudgmentParser(market_context, enrichment)
         pkg.generation_id = parser.trace.generation_id
+        from julia_core.research.judgment import (
+            build_research_judgment_user_instruction,
+        )
         messages = pkg.to_messages([], "Form Julia's preliminary research judgment in strict JSON.")
+        # NCF-A7 R10-A4: append the authoritative output schema (exact top-level
+        # keys + usable claim/evidence/source-record IDs) so a real provider can
+        # emit a payload ResearchJudgmentParser accepts. The parser schema is the
+        # contract; the prompt is aligned to it (no parser weakening).
+        messages = list(messages) + [
+            {"role": "user", "content": build_research_judgment_user_instruction(enrichment)}
+        ]
         response = self.provider.chat(
             messages,
             cognitive_mode="research_preliminary_judgment",

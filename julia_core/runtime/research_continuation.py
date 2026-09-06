@@ -8,10 +8,13 @@ final Julia continuation.
 from __future__ import annotations
 
 import json as _json
+import logging
 from collections.abc import Mapping, Sequence
 from math import isfinite
 from dataclasses import dataclass
 from typing import Any, Callable
+
+logger = logging.getLogger("julia.research_continuation")
 
 from julia_core.capability.models import (
     ProviderExecutionOutcome,
@@ -341,6 +344,31 @@ class SameTurnResearchContinuation:
                 turn_id=turn_context.turn_id,
             )
         except Exception:
+            # NCF-A7 R10-A4 (§3): retain the underlying judgment failure. The
+            # typed failure stays fail-closed, but the cause must not be lost.
+            # Structured fields are logged without secrets so the C2 boundary is
+            # diagnosable in production composition.
+            try:
+                request_meta = research_request.get("correlation", {}) if isinstance(research_request, Mapping) else {}
+                logger.exception(
+                    "research_judgment_failed: enrichment_status=%s evidence=%s "
+                    "request_id=%s event_id=%s provider_transport=%s",
+                    getattr(research_execution.tool_result, "status", None),
+                    (
+                        len(enrichment.get("source_records", []))
+                        if isinstance(enrichment, Mapping)
+                        else "n/a"
+                    ),
+                    request_meta.get("request_id") or request_meta.get("research_id"),
+                    request_meta.get("event_id"),
+                    (
+                        str(enrichment.get("provenance", {}).get("provider_transport"))
+                        if isinstance(enrichment, Mapping)
+                        else "n/a"
+                    ),
+                )
+            except Exception:
+                logger.exception("research_judgment_failed (telemetry emission also failed)")
             return self._failure_messages(
                 research_execution,
                 turn_context,

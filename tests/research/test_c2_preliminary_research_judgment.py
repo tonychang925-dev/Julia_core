@@ -585,3 +585,39 @@ def test_c2_cognition_provider_unavailable_fails_without_fallback():
     session.context_os = ContextExecutionRuntime(session)
     with pytest.raises(RuntimeError, match="cognition provider unavailable"):
         session.form_preliminary_research_judgment(market, verified_enrichment())
+
+
+def test_c2_instruction_contract_claims_present():
+    """NCF-A7 R10-A4: instruction embeds the parser top-level schema + usable
+    claim/evidence IDs so a real provider can emit a parser-acceptable payload."""
+    from julia_core.research.judgment import build_research_judgment_user_instruction
+    enrichment = verified_enrichment()
+    instruction = build_research_judgment_user_instruction(enrichment)
+    # Schema keys must be spelled out
+    for key in ("judgment_summary", "key_drivers", "supporting_claims", "contradictions",
+                "uncertainties", "market_implications", "confidence", "evidence_refs",
+                "source_record_refs", "reasoning_limits"):
+        assert f'"{key}"' in instruction
+    # Usable claim + evidence IDs are enumerated (enrichment has claims)
+    assert "claim-1" in instruction
+    assert "Usable evidence IDs" in instruction
+    # trading semantics forbidden
+    assert "stop-loss" in instruction and "buy/sell" in instruction
+
+
+def test_c2_instruction_contract_no_claims():
+    """NCF-A7 R10-A4: when enrichment has no claims, instruction directs an empty
+    supporting_claims array (no invented references)."""
+    from julia_core.research.judgment import build_research_judgment_user_instruction
+    enrichment = verified_enrichment()
+    # strip claims to the empty branch (semantic_result is a dataclass)
+    no_claims = replace(
+        enrichment,
+        semantic_result=replace(
+            enrichment.semantic_result,
+            claims=[],
+        ),
+    )
+    instruction = build_research_judgment_user_instruction(no_claims)
+    assert "(none)" in instruction
+    assert "supporting_claims MUST be an empty array" in instruction
