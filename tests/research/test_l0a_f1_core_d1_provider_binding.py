@@ -26,6 +26,7 @@ from julia_core.research.d1_provider import (
     build_d1_research_request,
     create_d1_research_provider_from_environment,
 )
+from julia_core.research.judgment import ResearchJudgmentContextBuilder
 from julia_core.research.normalizer import ResearchEvidenceNormalizer
 from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
 
@@ -266,6 +267,29 @@ async def test_l0a_f01_f03_binding_reaches_c1_and_preserves_authority():
     assert binding.provenance["capability_request_id"] == request.capability_request_id
     assert binding.provenance["capability_call_id"] == execution.capability_call.capability_call_id
     assert binding.provenance["runtime_observation_ref"] in enrichment.observation.raw_response_refs
+
+
+@pytest.mark.asyncio
+async def test_a4_autoplug_walk_reaches_c2_input_eligibility():
+    request = research_request()
+    call = CapabilityCall(
+        capability_call_id="cap_call_l0a",
+        capability_request_id=request.capability_request_id,
+        provider="research_enrichment",
+        correlation_id="corr-l0a",
+    )
+    execution = await provider(FakeTransport()).execute_bound(request, call)
+    enrichment = ResearchEvidenceNormalizer().normalize_provider_outcome(
+        execution,
+        request=request,
+        call=call,
+    )
+    assert "SOURCE_VERIFIED" in verification_states(enrichment)
+    material = ResearchJudgmentContextBuilder().build(
+        MarketEventResearchAdapter().validate_context({"event": EVENT, "theme_relations": []}),
+        enrichment,
+    )
+    assert material.situation_frame["source_observation_available"] is True
 
 
 def test_l0a_f02_exact_capability_only_and_request_shape():
