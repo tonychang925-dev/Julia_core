@@ -91,9 +91,40 @@ def test_configure_rejects_non_bridge_object():
         configure_capability_bridge(object())
 
 
-def test_default_singleton_remains_supported_and_uses_one_bridge():
-    first = get_capability_bridge()
-    second = get_capability_bridge()
+def test_unconfigured_getter_fails_closed():
+    """NCF-A7 A1-3 (S6): an unconfigured capability-bridge getter must NOT
+    auto-construct the authority — it raises a typed NOT_CONFIGURED failure."""
+    from julia_core.runtime.capability_bridge import (
+        CapabilityBridgeNotConfigured,
+        _reset_capability_bridge,
+    )
+    _reset_capability_bridge()
+    try:
+        with pytest.raises(CapabilityBridgeNotConfigured):
+            get_capability_bridge()
+    finally:
+        _reset_capability_bridge()
 
-    assert first is second
-    assert first._initialized
+
+def test_configured_singleton_is_stable_and_initialized():
+    """An explicitly configured bridge is the process singleton (same object,
+    initialized); reconfigure with a different object fails closed."""
+    from julia_core.runtime.capability_bridge import (
+        RuntimeCapabilityBridge,
+        CapabilityBridgeAlreadyConfiguredError,
+        _reset_capability_bridge,
+    )
+    _reset_capability_bridge()
+    try:
+        first = RuntimeCapabilityBridge()
+        first.initialize()
+        configure_capability_bridge(first)
+        second = get_capability_bridge()
+        assert first is second
+        assert first._initialized
+        # A different bridge cannot replace the configured canonical one.
+        other = RuntimeCapabilityBridge()
+        with pytest.raises(CapabilityBridgeAlreadyConfiguredError):
+            configure_capability_bridge(other)
+    finally:
+        _reset_capability_bridge()

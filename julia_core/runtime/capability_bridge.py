@@ -55,8 +55,25 @@ class ProviderAlreadyRegisteredError(RuntimeError):
     """A different provider is already bound to a provider namespace."""
 
 
+class ProviderBindingRejectedError(RuntimeError):
+    """A test/mock/fake implementation cannot bind in production composition.
+
+    NCF-A7 A1-6 (S12): production composition rejects unauthorized, test, mock,
+    fake, stub, or fixture providers. Test doubles may register only under an
+    explicit test composition profile.
+    """
+
+
 class CapabilityBridgeAlreadyConfiguredError(RuntimeError):
     """A different canonical capability bridge is already installed."""
+
+
+class CapabilityBridgeNotConfigured(RuntimeError):
+    """A canonical capability bridge was requested before explicit configuration.
+
+    NCF-A7 A1-3 (S6): an unconfigured getter is a typed NOT_CONFIGURED failure.
+    The getter never auto-constructs the authority.
+    """
 
 
 class _UnavailableAiThemeProvider:
@@ -201,13 +218,25 @@ class RuntimeCapabilityBridge:
         self._manager: Optional[CapabilityManager] = None
         self._initialized = False
 
-    def register_provider(self, provider_name: str, provider: object) -> None:
+    def register_provider(
+        self,
+        provider_name: str,
+        provider: object,
+        *,
+        profile: str | None = None,
+    ) -> None:
         """Bind one product-owned implementation to a Core provider namespace.
 
         This is only an implementation binding. It registers no capability,
         grants no scope, changes no provider selection, and imports no product
         transport type. ``CapabilityDefinition.provider`` remains the sole
         selector and ``PermissionPolicy`` remains the sole authorization owner.
+
+        NCF-A7 A1-6 (S12): in the production composition profile a provider must
+        carry production identity (a real imported implementation, not an
+        inline/test/mock/fake class). Test doubles are rejected in production
+        and may register only under an explicit ``profile="test"`` composition
+        (pytest runs are auto-detected as test profile unless overridden).
         """
         if not isinstance(provider_name, str) or not provider_name:
             raise ValueError("provider_name must be a non-empty string")
@@ -215,6 +244,10 @@ class RuntimeCapabilityBridge:
             raise TypeError("provider must implement execute(request)")
         if not callable(getattr(provider, "health", None)):
             raise TypeError("provider must implement health()")
+
+        resolved_profile = self._resolve_composition_profile(profile)
+        if resolved_profile == "production":
+            self._validate_production_provider(provider)
 
         existing = self._providers.get(provider_name)
         if existing is not None and existing is not provider:
@@ -230,6 +263,71 @@ class RuntimeCapabilityBridge:
                     f"manager provider namespace '{provider_name}' is already bound"
                 ) from exc
         self._providers[provider_name] = provider
+
+    # ── Composition profile / production binding proof ───────────────────
+
+    @staticmethod
+    def _resolve_composition_profile(profile: str | None) -> str:
+        """Resolve the effective composition profile.
+
+        Order: explicit argument > JULIA_COMPOSITION_PROFILE env > auto-detect
+        (pytest => test) > production. Production is the fail-closed default.
+        """
+        if profile in ("production", "test"):
+            return profile
+        env_profile = os.environ.get("JULIA_COMPOSITION_PROFILE", "").strip().lower()
+        if env_profile in ("production", "test"):
+            return env_profile
+        try:
+            import sys as _sys
+            if any("pytest" in name for name in _sys.modules) or "PYTEST_CURRENT_TEST" in os.environ:
+                return "test"
+        except Exception:
+            pass
+        return "production"
+
+    @staticmethod
+    def _validate_production_provider(provider: object) -> None:
+        """Reject test/mock/fake/stub/fixture implementations in production.
+
+        A production provider must be a real imported class (not an inline
+        ``__main__`` class) whose name and defining module carry no test double
+        markers. Rejection is a typed ProviderBindingRejectedError.
+        """
+        provider_cls = type(provider)
+        class_name = provider_cls.__name__
+        module_name = getattr(provider_cls, "__module__", "") or ""
+        _markers = ("mock", "fake", "stub", "fixture", "dummy", "spy", "testdouble")
+
+        lowered = class_name.lower()
+        if any(marker in lowered for marker in _markers):
+            raise ProviderBindingRejectedError(
+                f"provider class '{class_name}' is a test/mock implementation; "
+                "not bindable in production composition"
+            )
+
+        if module_name in ("", "__main__"):
+            raise ProviderBindingRejectedError(
+                f"provider class '{class_name}' is not a real imported "
+                "implementation (module must not be __main__/empty) in production"
+            )
+
+        lowered_module = module_name.lower()
+        if any(marker in lowered_module for marker in _markers) or module_name.startswith("tests."):
+            raise ProviderBindingRejectedError(
+                f"provider module '{module_name}' is a test/mock module; "
+                "not bindable in production composition"
+            )
+
+        # Optional: verify the class actually imports from a real module file.
+        import sys as _sys
+        module = _sys.modules.get(module_name)
+        module_file = getattr(module, "__file__", "") or ""
+        if not module_file:
+            raise ProviderBindingRejectedError(
+                f"provider module '{module_name}' has no resolvable __file__; "
+                "not a real production implementation"
+            )
 
     # ── Initialization ──────────────────────────────────────────────────
 
@@ -281,33 +379,32 @@ class RuntimeCapabilityBridge:
 
         # ai_theme_app provider (M1). Product-owned provider injection must not
         # suppress capability registration; definitions remain runtime-owned.
+        #
+        # NCF-A7 A1-1 (S3): a missing canonical Market provider must NOT trigger
+        # automatic provider construction (no create_frozen_market_provider()
+        # fallback, no _UnavailableAiThemeProvider substitute). Registration of
+        # the capability definitions is retained so the manager yields a typed
+        # UNAVAILABLE ("No provider ... registered") on invocation; the caller
+        # that wants a real Market provider must bind it explicitly first via
+        # register_canonical_market_provider()/register_provider().
         from julia_core.capability.providers.ai_theme.frozen_market import (
-            frozen_market_database_gateways_bound,
             register_frozen_market_capabilities,
-            create_frozen_market_provider,
         )
-        market_status = CapabilityStatus.AVAILABLE
         if "ai_theme_app" in self._providers:
             from julia_core.capability.providers.ai_theme import (
                 register_ai_theme_capabilities,
             )
-            register_ai_theme_capabilities(self.registry, status=market_status)
+            register_ai_theme_capabilities(
+                self.registry,
+                status=CapabilityStatus.AVAILABLE,
+            )
         else:
-            try:
-                fallback_provider = create_frozen_market_provider()
-                if not frozen_market_database_gateways_bound(fallback_provider.adapter):
-                    market_status = CapabilityStatus.DEGRADED
-                self._providers["ai_theme_app"] = fallback_provider
-            except Exception as exc:
-                market_status = CapabilityStatus.DEGRADED
-                self._providers["ai_theme_app"] = _UnavailableAiThemeProvider(str(exc))
-                import logging
-                logging.getLogger("julia.capability").warning(
-                    "ai_theme provider unavailable; market capability DEGRADED: %s", exc
-                )
+            # Provider absent: register definitions as REGISTERED only. No
+            # alternate implementation is constructed. Invocation resolves to a
+            # typed unavailable through the manager, never synthetic truth.
             register_frozen_market_capabilities(
                 self.registry,
-                status=market_status,
+                status=CapabilityStatus.REGISTERED,
             )
 
         # External Code Review capability (Core semantic contract).
@@ -774,9 +871,25 @@ def get_capability_bridge() -> RuntimeCapabilityBridge:
     global _bridge
     with _bridge_lock:
         if _bridge is None:
-            _bridge = RuntimeCapabilityBridge()
-            _bridge.initialize()
+            # NCF-A7 A1-3 (S6): an unconfigured getter must NOT auto-construct
+            # the authority. The composition root must explicitly build and
+            # install the bridge via configure_capability_bridge().
+            raise CapabilityBridgeNotConfigured(
+                "no canonical capability bridge is configured; "
+                "compose and call configure_capability_bridge(bridge) first"
+            )
         return _bridge
+
+
+def _reset_capability_bridge() -> None:
+    """Test-support only: clear the process-local canonical bridge.
+
+    Production never calls this; it exists so tests that compose a bridge for
+    JuliaSession can restore process state between cases.
+    """
+    global _bridge
+    with _bridge_lock:
+        _bridge = None
 
 
 async def run_controlled_brain(port: int = 18090) -> None:

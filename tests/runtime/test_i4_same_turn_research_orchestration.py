@@ -446,36 +446,42 @@ async def test_i4_f01_f05_f07_f08_f11_full_chain_uses_one_turn_and_product_metad
 
 @pytest.mark.asyncio
 async def test_i4_f02_f03_unresolved_and_ambiguous_do_not_read_or_research(monkeypatch):
+    """NCF-A7 A1-5 (S11): a research-required turn that cannot resolve must stop
+    cognition with a typed failure — no ordinary model continuation, no read,
+    no research, no product."""
+    from julia_core.runtime.julia_session import ResearchTurnNotReady
     for state in ("UNRESOLVED", "AMBIGUOUS"):
         market = MarketProvider(state=state)
         research = ResearchProvider()
         cognitive = session(monkeypatch, market=market, research=research)
-        chunks, products = await stream(cognitive)
-        assert chunks
+        with pytest.raises(ResearchTurnNotReady):
+            chunks, products = await stream(cognitive)
         assert [request.capability_id for request in market.requests] == ["market.event.resolve"]
         assert research.requests == []
-        assert products == []
-        if state == "AMBIGUOUS":
-            rendered = json.dumps(cognitive.provider.stream_calls[-1], ensure_ascii=False)
-            assert "501" in rendered and "502" in rendered
+        # No second model continuation over the failure: at most the single
+        # pre-research first-pass call exists (never an ordinary answer text
+        # produced after the research chain failed).
+        assert len(cognitive.provider.stream_calls) <= 1
 
 
 @pytest.mark.asyncio
 async def test_i4_f04_f06_read_failure_and_blocked_research_fail_closed(monkeypatch):
+    """NCF-A7 A1-5 (S11): read failure and blocked research both stop cognition
+    with a typed failure instead of fabricating assistant text over the failure."""
+    from julia_core.runtime.julia_session import ResearchTurnNotReady
     market = MarketProvider(read_status=ToolResultStatus.UNAVAILABLE)
     research = ResearchProvider()
     cognitive = session(monkeypatch, market=market, research=research)
-    chunks, products = await stream(cognitive)
-    assert chunks and research.requests == [] and products == []
+    with pytest.raises(ResearchTurnNotReady):
+        chunks, products = await stream(cognitive)
+    assert research.requests == []
 
     market = MarketProvider()
     research = ResearchProvider(mode="blocked")
     cognitive = session(monkeypatch, market=market, research=research)
-    chunks, products = await stream(cognitive)
-    assert chunks and products == []
-    rendered = json.dumps(cognitive.provider.stream_calls[-1], ensure_ascii=False)
-    assert "BLOCKED" in rendered
-    assert "research source blocked" in rendered
+    with pytest.raises(ResearchTurnNotReady):
+        chunks, products = await stream(cognitive)
+    assert len(cognitive.provider.stream_calls) <= 1
 
 
 @pytest.mark.asyncio
@@ -526,11 +532,20 @@ async def test_i4_f12_ordinary_conversation_remains_unchanged(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_i4_f14_trading_semantics_fail_closed_before_brief(monkeypatch):
+    """NCF-A7 A1-5: trading-semantics refusal stops cognition with a typed
+    failure rather than streaming an ordinary continuation over the failure."""
+    from julia_core.runtime.julia_session import ResearchTurnNotReady
     cognition = ResearchCognitionProvider(mode="trading")
     research = ResearchProvider()
     cognitive = session(monkeypatch, cognition=cognition, research=research)
-    chunks, products = await stream(cognitive)
-    assert chunks
+    products = []
+    with pytest.raises(ResearchTurnNotReady):
+        async for _chunk in cognitive.process_stream(
+            "今天半导体设备为什么变化？", [],
+            conversation_id="conv", turn_id="turn-i4",
+            research_product_hook=research_hook,
+            product_sink=products.append,
+        ):
+            pass
     assert products == []
-    rendered = json.dumps(cognitive.provider.stream_calls[-1], ensure_ascii=False)
-    assert "research_judgment_failed" in rendered
+    assert len(cognitive.provider.stream_calls) <= 1

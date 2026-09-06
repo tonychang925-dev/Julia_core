@@ -100,6 +100,9 @@ def test_f03_dirty_alternate_market_cannot_win_import(monkeypatch, frozen_market
 
 
 def test_f04_f05_market_event_capabilities_register(monkeypatch, frozen_market_root):
+    """NCF-A7 A1-1 (S3): env presence alone must not auto-construct a Market
+    provider. initialize() registers frozen Market capabilities as REGISTERED;
+    the provider is only bound through an explicit canonical composition."""
     for name in (MARKET_SOURCE_ROOT_CONFIG, MARKET_SOURCE_SHA_CONFIG, MARKET_TREE_DIGEST_CONFIG):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv(MARKET_SOURCE_ROOT_CONFIG, str(frozen_market_root))
@@ -107,16 +110,14 @@ def test_f04_f05_market_event_capabilities_register(monkeypatch, frozen_market_r
     monkeypatch.setenv(MARKET_TREE_DIGEST_CONFIG, MARKET_TREE_DIGEST)
     bridge = RuntimeCapabilityBridge()
     bridge.initialize()
-    definitions = bridge.registry.by_provider("ai_theme_app")
-    names = {definition.name: definition for definition in definitions}
-    assert set(names) == {
-        "market.event.resolve",
-        "market.event.read",
-        "market.snapshot.read",
-        "market.alert.query",
-    }
-    assert names["market.event.resolve"].status == CapabilityStatus.DEGRADED
-    assert names["market.event.read"].status == CapabilityStatus.DEGRADED
+    # No provider was auto-constructed from env alone.
+    assert "ai_theme_app" not in bridge._providers
+    # Frozen Market capability definitions are registered and known.
+    for name in ("market.event.resolve", "market.event.read",
+                 "market.snapshot.read", "market.alert.query"):
+        definition = bridge.registry.get(name)
+        assert definition is not None
+        assert definition.status == CapabilityStatus.REGISTERED
 
 
 @pytest.mark.asyncio

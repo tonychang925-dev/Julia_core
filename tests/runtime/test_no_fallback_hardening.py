@@ -115,36 +115,45 @@ def test_density_load_error_propagates(monkeypatch):
 
 # ── ai_theme provider registration ─────────────────────────────────────────
 
-def test_ai_theme_init_success_registers_available():
+def test_ai_theme_unbound_no_auto_provider(monkeypatch):
+    """NCF-A7 A1-1 (S3): without an explicit canonical Market provider binding,
+    initialize() must NOT auto-construct a provider or a substitute authority.
+
+    Capabilities remain registered (REGISTERED) so invocation resolves to a
+    typed UNAVAILABLE via the manager; no alternate implementation is created.
+    """
+    for name in ("JULIA_MARKET_SOURCE_ROOT", "JULIA_MARKET_SOURCE_SHA",
+                 "JULIA_MARKET_TREE_DIGEST", "JULIA_MARKET_DB_RUNTIME_DIGEST"):
+        monkeypatch.delenv(name, raising=False)
     bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+    for name in ("market.snapshot.read", "market.alert.query", "market.event.resolve"):
+        definition = bridge.registry.get(name)
+        assert definition is not None
+        assert definition.status == CapabilityStatus.REGISTERED
+    # No provider and no substitute authority were auto-constructed.
+    assert "ai_theme_app" not in bridge._providers
+
+
+def test_ai_theme_explicit_binding_registers_available(monkeypatch):
+    """An explicitly bound provider yields AVAILABLE market capabilities."""
+    for name in ("JULIA_MARKET_SOURCE_ROOT", "JULIA_MARKET_SOURCE_SHA",
+                 "JULIA_MARKET_TREE_DIGEST", "JULIA_MARKET_DB_RUNTIME_DIGEST"):
+        monkeypatch.delenv(name, raising=False)
+    bridge = RuntimeCapabilityBridge()
+
+    class _Provider:
+        async def health(self):
+            return True, "ok"
+        async def execute(self, request):
+            return {"status": "ok"}
+
+    bridge.register_provider("ai_theme_app", _Provider(), profile="test")
     bridge.initialize()
     for name in ("market.snapshot.read", "market.alert.query"):
         definition = bridge.registry.get(name)
         assert definition is not None
         assert definition.status == CapabilityStatus.AVAILABLE
-
-
-def test_ai_theme_init_failure_degrades_not_disappears(monkeypatch):
-    """Provider init failure → explicit DEGRADED + unavailable provider, no silent drop."""
-    bridge = RuntimeCapabilityBridge()
-
-    def _boom(*args, **kwargs):
-        raise RuntimeError("init boom")
-
-    monkeypatch.setattr(
-        "julia_core.capability.providers.ai_theme.create_ai_theme_provider",
-        _boom,
-    )
-    bridge.initialize()
-
-    # Capability truth remains known, provider state is explicit DEGRADED.
-    for name in ("market.snapshot.read", "market.alert.query"):
-        definition = bridge.registry.get(name)
-        assert definition is not None
-        assert definition.status == CapabilityStatus.DEGRADED
-    # Provider is an explicit unavailable provider, not a mock, not an alternate.
-    provider = bridge._providers["ai_theme_app"]
-    assert isinstance(provider, _UnavailableAiThemeProvider)
 
 
 # ── Critical bootstrap failure blocks model execution ─────────────────────

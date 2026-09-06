@@ -124,7 +124,10 @@ async def test_canonical_capability_path_normalizes_date_and_preserves_market_ev
 
 
 @pytest.mark.asyncio
-async def test_half_composed_fallback_is_visibly_degraded(frozen_market_root, monkeypatch):
+async def test_half_composed_no_auto_fallback(frozen_market_root, monkeypatch):
+    """NCF-A7 A1-1 (S3): a DB-half-composed Market config must NOT auto-construct
+    a degraded/unavailable provider. Provider absent => no substitute authority;
+    capabilities stay REGISTERED and invocation is a typed unavailable."""
     for name in (
         MARKET_SOURCE_ROOT_CONFIG,
         MARKET_SOURCE_SHA_CONFIG,
@@ -137,9 +140,9 @@ async def test_half_composed_fallback_is_visibly_degraded(frozen_market_root, mo
 
     bridge = RuntimeCapabilityBridge()
     bridge.initialize()
-    provider = bridge._providers["ai_theme_app"]
-    healthy, detail = await provider.health()
-
-    assert healthy is False
-    assert detail == "frozen Market database gateway is not bound"
-    assert bridge.registry.get("market.event.resolve").status is CapabilityStatus.DEGRADED
+    # No auto-constructed provider / substitute.
+    assert "ai_theme_app" not in bridge._providers
+    # Capability remains known (REGISTERED), not silently DEGRADED-with-provider.
+    definition = bridge.registry.get("market.event.resolve")
+    assert definition is not None
+    assert definition.status is CapabilityStatus.REGISTERED

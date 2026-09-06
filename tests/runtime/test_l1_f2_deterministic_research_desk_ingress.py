@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from julia_core.capability.models import ProviderExecutionOutcome, ToolResultStatus
-from julia_core.runtime.julia_session import JuliaSession
+from julia_core.runtime.julia_session import JuliaSession, ResearchTurnNotReady
 
 
 _I4_PATH = Path(__file__).with_name("test_i4_same_turn_research_orchestration.py")
@@ -189,16 +189,18 @@ async def test_l1_f2_t07_t08_t09_resolver_stop_states_stop_before_d1(monkeypatch
     for market in cases:
         research = I4.ResearchProvider()
         session = I4.session(monkeypatch, market=market, research=research)
-        chunks = [
-            chunk
-            async for chunk in session.process_stream(
-                CONTROLLED_REQUEST,
-                [],
-                conversation_id="conv",
-                turn_id="turn-stop",
-            )
-        ]
-        assert chunks
+        # NCF-A7 A1-5 (S11): resolver stop states stop cognition with a typed
+        # failure before D1 — no ordinary model continuation is streamed.
+        with pytest.raises(ResearchTurnNotReady):
+            [
+                chunk
+                async for chunk in session.process_stream(
+                    CONTROLLED_REQUEST,
+                    [],
+                    conversation_id="conv",
+                    turn_id="turn-stop",
+                )
+            ]
         assert [request.capability_id for request in market.requests] == ["market.event.resolve"]
         assert research.requests == []
 

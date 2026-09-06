@@ -12,11 +12,29 @@ from julia_core.conversation_state.repository import (
 from julia_core.runtime.conversation_runtime import (
     ConversationRuntime,
     get_conversation_runtime,
+    configure_conversation_runtime,
+)
+from julia_core.conversation_state.legacy_json_repository import (
+    LegacyJsonConversationRepository,
 )
 
 
+@pytest.fixture(scope="module", autouse=True)
+def bind_repo(tmp_path_factory):
+    """NCF-A7 A1-2: ConversationRuntime requires an explicit repository binding.
+
+    The canonical runtime singleton is bound once per module to an explicit
+    LegacyJsonConversationRepository (temp-backed). No default repository is
+    auto-constructed by the runtime anymore.
+    """
+    repo_path = str(tmp_path_factory.mktemp("crt") / "conversations.json")
+    _crt_repo = LegacyJsonConversationRepository(repo_path)
+    configure_conversation_runtime(_crt_repo)
+    return _crt_repo
+
+
 @pytest.fixture(autouse=True)
-def clear_repo():
+def clear_repo(bind_repo):
     """Reset repository state before each test."""
     crt = get_conversation_runtime()
     crt._repository._repo._sessions.clear()
@@ -176,8 +194,8 @@ def test_restart_recovers_voice_history():
         [_make_turn("voice:vws:0001", "Will this survive?", "Yes")],
     )
 
-    # Simulate restart
-    crt2 = ConversationRuntime()
+    # Simulate restart: bind a fresh runtime to the same canonical repository.
+    crt2 = ConversationRuntime(repository=crt._repository)
     history = crt2.get_canonical_history(conv.conversation_id)
     texts = [m["content"] for m in history]
     assert "Will this survive?" in texts
@@ -196,8 +214,8 @@ def test_restart_rebuilds_interaction_state():
         ],
     )
 
-    # Simulate restart
-    crt2 = ConversationRuntime()
+    # Simulate restart: bind a fresh runtime to the same canonical repository.
+    crt2 = ConversationRuntime(repository=crt._repository)
     state = crt2.get_interaction_state(conv.conversation_id)
     assert state is not None
     # Identity checks should have been rebuilt from user messages

@@ -25,6 +25,16 @@ import time as _time
 from typing import Optional
 
 
+class ResearchTurnNotReady(Exception):
+    """A research-required turn failed before C1 evidence was produced.
+
+    NCF-A7 A1-5 (S11): a research-required turn whose D1/research chain failed
+    must stop the cognition path — no ordinary model continuation, no completed
+    conversation turn. Transport surfaces this as a typed error event, never as
+    fabricated assistant content inside the canonical assistant channel.
+    """
+
+
 class TurnContext:
     """CORE-C1.3a: Per-turn execution state.
 
@@ -255,6 +265,11 @@ class JuliaSession:
                 research_product_hook=research_product_hook,
                 product_sink=product_sink,
             )
+            if material.failure:
+                # NCF-A7 A1-5: research-required turn failed before C1. Stop the
+                # cognition path — no ordinary model continuation is allowed to
+                # masquerade as a completed research turn.
+                raise ResearchTurnNotReady(material.failure)
             async for streamed_delta in self.provider.stream_async(material.messages):
                 yield streamed_delta
             return
@@ -311,6 +326,9 @@ class JuliaSession:
                 research_product_hook=research_product_hook,
                 product_sink=product_sink,
             )
+            if material.failure:
+                # NCF-A7 A1-5: stop cognition on research failure (fail-closed).
+                raise ResearchTurnNotReady(material.failure)
             material.messages.insert(
                 -1,
                 {"role": "assistant", "content": reply},

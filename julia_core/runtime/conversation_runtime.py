@@ -24,7 +24,6 @@ from typing import Any, Callable
 from julia_core.conversation_state.models import ConversationMessage, ConversationSession
 from julia_core.conversation_state.repository import ConversationNotFoundError
 from julia_core.conversation_state.repository_protocol import ConversationRepository
-from julia_core.conversation_state.legacy_json_repository import LegacyJsonConversationRepository
 
 logger = logging.getLogger("julia.conversation_runtime")
 
@@ -89,7 +88,7 @@ class ConversationRuntime:
     persistence, concurrency control, and idempotency flow through it.
 
     Usage:
-        rt = ConversationRuntime()
+        rt = configure_conversation_runtime(repository)  # explicit binding required
 
         result = rt.process_turn(
             conversation_id="conv-A",
@@ -101,9 +100,16 @@ class ConversationRuntime:
     """
 
     def __init__(self, repository: ConversationRepository | None = None):
-        self._repository: ConversationRepository = (
-            repository or LegacyJsonConversationRepository("data/conversations.json")
-        )
+        # NCF-A7 A1-2 (S5): a canonical ConversationRuntime MUST be bound to an
+        # explicit repository by the composition root. There is no production
+        # default repository and no legacy fallback; absent configuration is a
+        # typed NOT_CONFIGURED failure, never a silent Legacy JSON repository.
+        if repository is None:
+            raise ConversationRepositoryNotConfigured(
+                "ConversationRuntime requires an explicit ConversationRepository; "
+                "bind one via configure_conversation_runtime(repository) before use"
+            )
+        self._repository: ConversationRepository = repository
         self._locks: dict[str, threading.Lock] = {}
         self._locks_lock = threading.Lock()
         self._interaction_states: dict[str, "ConversationInteractionState"] = {}
@@ -746,6 +752,15 @@ class ConversationCutoverRequired(RuntimeError):
     """A live canonical runtime cannot be silently rebound to another repository."""
 
 
+class ConversationRepositoryNotConfigured(RuntimeError):
+    """A canonical ConversationRuntime was requested without an explicit repository.
+
+    NCF-A7 A1-2/A1-3: unconfigured conversation runtime is a typed NOT_CONFIGURED
+    failure. No legacy repository is auto-constructed and no getter auto-builds
+    the runtime authority.
+    """
+
+
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
 _runtime: ConversationRuntime | None = None
@@ -782,7 +797,10 @@ def get_conversation_runtime() -> ConversationRuntime:
     global _runtime
     with _runtime_lock:
         if _runtime is None:
-            _runtime = ConversationRuntime()
+            raise ConversationRepositoryNotConfigured(
+                "no canonical conversation runtime is configured; "
+                "call configure_conversation_runtime(repository) first"
+            )
         return _runtime
 
 
@@ -792,6 +810,7 @@ __all__ = [
     "TurnResult",
     "ConversationBusyError",
     "ConversationCutoverRequired",
+    "ConversationRepositoryNotConfigured",
     "configure_conversation_runtime",
     "get_conversation_runtime",
 ]

@@ -311,6 +311,19 @@ def real_init_session():
     import sys
     from unittest import mock
 
+    # NCF-A7 A1-3 (S6): JuliaSession now requires an explicitly composed
+    # capability bridge (get_capability_bridge no longer auto-constructs).
+    # Compose a bridge first, exactly as the controlled production composition
+    # root does, then construct the session.
+    from julia_core.runtime.capability_bridge import (
+        RuntimeCapabilityBridge,
+        configure_capability_bridge,
+        _reset_capability_bridge,
+    )
+    _bridge = RuntimeCapabilityBridge()
+    _bridge.initialize()
+    configure_capability_bridge(_bridge)
+
     # Pre-populate sys.modules so the import inside __init__ succeeds
     fake_deepseek = mock.MagicMock()
     fake_deepseek.get_llm_provider = mock.MagicMock(return_value=MockLLMProvider())
@@ -329,6 +342,7 @@ def real_init_session():
     # Post-init: inject mock ai_theme_app into the bridge
     session.capability._providers.pop("ai_theme_app", None)
     _inject_mock_ai_theme(session.capability)
+    _reset_capability_bridge()
 
     return session
 
