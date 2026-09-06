@@ -395,7 +395,9 @@ def test_l0a_config_is_required_and_pinned():
 
 
 def test_l0a_scope_remains_core_d1_only():
-    assert D1_SOURCE_SHA == "0e1b5ca258b77be00b08889b8e6dc4eb40ff9e6c"
+    # NCF-A7 R10-A3: pin is now the content-addressed identity of the D1 bridge
+    # release tree (see manifests/d1-<sha>.file-manifest.sha256).
+    assert D1_SOURCE_SHA == "29a5478ac7e37055b1a89172104473c27cc20b310c9eda542685e5bf4561f705"
     source = Path(__file__).parents[2].joinpath(
         "julia_core", "research", "d1_provider.py"
     ).read_text()

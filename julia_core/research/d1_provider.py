@@ -22,7 +22,11 @@ from julia_core.capability.models import (
 )
 from julia_core.research.adapter import RESEARCH_EVENT_ENRICH_CAPABILITY
 
-D1_SOURCE_SHA = "0e1b5ca258b77be00b08889b8e6dc4eb40ff9e6c"
+# NCF-A7 R10-A3: D1 release identity. Content-addressed hash of the D1 bridge
+# release tree (manifests/d1-<sha>.file-manifest.sha256). Replaced the prior
+# 0e1b5ca commit-label after the reference-based response transport fix
+# (extracted content is no longer inlined on the D1→Core IPC envelope).
+D1_SOURCE_SHA = "29a5478ac7e37055b1a89172104473c27cc20b310c9eda542685e5bf4561f705"
 D1_REQUEST_CONTRACT_VERSION = "research.bridge.request.v2"
 D1_RESPONSE_CONTRACT_VERSION = "research.bridge.response.v1"
 D1_PROMPT_FORMAT_VERSION = "research.event-enrichment-prompt.v1"
