@@ -337,7 +337,11 @@ class CapabilityManager:
         # Execute
         executing_call = self._replace_call(call, status=CapabilityCallStatus.EXECUTING)
         try:
-            raw_outcome = await provider.execute(request)
+            bound_execute = getattr(provider, "execute_bound", None)
+            if callable(bound_execute):
+                raw_outcome = await bound_execute(request, executing_call)
+            else:
+                raw_outcome = await provider.execute(request)
             duration_ms = int((_time.time() - start) * 1000)
             outcome = self._normalize_provider_execution_outcome(raw_outcome)
             evidence = self._record_canonical_observation_evidence(

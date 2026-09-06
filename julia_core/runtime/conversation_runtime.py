@@ -76,6 +76,8 @@ class TurnStreamingContext:
     lock: Any = None  # threading.Lock
     already_completed: bool = False  # True if idempotent hit
     completed_content: str = ""  # Cached content if already_completed
+    settled: bool = False  # RD1-I1: commit/cancel occurs at most once per context
+    settlement: TurnResult | None = None
 
 
 # ── Runtime ──────────────────────────────────────────────────────────────────
@@ -268,6 +270,7 @@ class ConversationRuntime:
                         modality=modality, history=[], user_msg_id="",
                         interaction=None, lock=None,
                         already_completed=existing._already_completed,
+                        settled=existing._already_completed,
                         completed_content=existing.assistant_content,
                     )
 
@@ -306,6 +309,11 @@ class ConversationRuntime:
         R1-B: user message already completed on begin_turn_streaming.
         No user status update needed. Assistant only.
         """
+        if ctx.settled:
+            raise RuntimeError(
+                f"streaming turn already settled: {ctx.conversation_id}/{ctx.turn_id}"
+            )
+        ctx.settled = True
         try:
             self._interaction_states[ctx.conversation_id] = ctx.interaction
 
@@ -316,7 +324,7 @@ class ConversationRuntime:
             assistant_msg_id = assistant_msg.messages[-1].message_id if assistant_msg else ""
 
             now = _time.strftime("%Y-%m-%dT%H:%M:%S")
-            return TurnResult(
+            result = TurnResult(
                 conversation_id=ctx.conversation_id, turn_id=ctx.turn_id,
                 user_message_id=ctx.user_msg_id,
                 assistant_message_id=assistant_msg_id,
@@ -324,6 +332,8 @@ class ConversationRuntime:
                 status="completed",
                 created_at=now, completed_at=_time.strftime("%Y-%m-%dT%H:%M:%S"),
             )
+            ctx.settlement = result
+            return result
         finally:
             if ctx.lock:
                 ctx.lock.release()
@@ -338,6 +348,8 @@ class ConversationRuntime:
             # that accepted user turn.
             pass
         finally:
+            if not ctx.settled:
+                ctx.settled = True
             if ctx.lock:
                 ctx.lock.release()
 
@@ -730,16 +742,48 @@ class ConversationBusyError(Exception):
         super().__init__(f"Conversation {conversation_id} is busy with another turn")
 
 
+class ConversationCutoverRequired(RuntimeError):
+    """A live canonical runtime cannot be silently rebound to another repository."""
+
+
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
 _runtime: ConversationRuntime | None = None
+_runtime_lock = threading.Lock()
+
+
+def configure_conversation_runtime(repository: ConversationRepository) -> ConversationRuntime:
+    """Bind the process-local canonical runtime to one explicit repository.
+
+    The repository must already be constructed by the product composition root.
+    Calling again with the exact bound repository object is idempotent; any
+    different repository requires an explicit cutover and fails closed here.
+    """
+    if repository is None:
+        raise ValueError("conversation repository is required")
+    if not all(
+        callable(getattr(repository, name, None))
+        for name in ("get", "add_message", "find_turn")
+    ):
+        raise TypeError("repository does not implement ConversationRepository")
+
+    global _runtime
+    with _runtime_lock:
+        if _runtime is None:
+            _runtime = ConversationRuntime(repository=repository)
+        elif _runtime._repository is not repository:
+            raise ConversationCutoverRequired(
+                "a canonical conversation runtime is already bound to another repository"
+            )
+        return _runtime
 
 
 def get_conversation_runtime() -> ConversationRuntime:
     global _runtime
-    if _runtime is None:
-        _runtime = ConversationRuntime()
-    return _runtime
+    with _runtime_lock:
+        if _runtime is None:
+            _runtime = ConversationRuntime()
+        return _runtime
 
 
 __all__ = [
@@ -747,5 +791,7 @@ __all__ = [
     "ConversationHandle",
     "TurnResult",
     "ConversationBusyError",
+    "ConversationCutoverRequired",
+    "configure_conversation_runtime",
     "get_conversation_runtime",
 ]
