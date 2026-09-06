@@ -54,12 +54,24 @@ def build_research_judgment_user_instruction(enrichment: NormalizedResearchEnric
             f"{json.dumps(getattr(e, 'source_ref', ''), ensure_ascii=False)}}}"
         )
 
+    source_lines = []
+    for r in enrichment.observation.source_records:
+        source_lines.append(
+            f'  {{"source_record_id": "{r.source_record_id}", '
+            f'"domain": {json.dumps(getattr(r, "primary_domain", ""), ensure_ascii=False)}}}'
+        )
+
     if not claims:
         claim_section = (
             "Usable claim IDs: (none)\n"
             'supporting_claims MUST be an empty array []. '
-            "key_drivers may still be formed from market context, with evidence_refs and "
-            "source_record_refs as empty arrays."
+            "key_drivers may still be formed from market context.\n"
+            "\nUsable evidence IDs (put ALL of these verbatim into the top-level "
+            "evidence_refs array):\n"
+            + ("\n".join(evidence_lines) if evidence_lines else "  (none — then evidence_refs MUST be empty)")
+            + "\n\nUsable source record IDs (put ALL of these verbatim into the top-level "
+              "source_record_refs array):\n"
+            + ("\n".join(source_lines) if source_lines else "  (none — then source_record_refs MUST be empty)")
         )
     else:
         claim_section = (
@@ -68,6 +80,8 @@ def build_research_judgment_user_instruction(enrichment: NormalizedResearchEnric
             "with its evidence):\n" + "\n".join(claim_lines)
             + "\n\nUsable evidence IDs (use in evidence_refs):\n"
             + ("\n".join(evidence_lines) if evidence_lines else "  (none — then evidence_refs MUST be empty)")
+            + "\n\nUsable source record IDs (use in source_record_refs):\n"
+            + ("\n".join(source_lines) if source_lines else "  (none — then source_record_refs MUST be empty)")
         )
 
     return (
@@ -77,7 +91,10 @@ def build_research_judgment_user_instruction(enrichment: NormalizedResearchEnric
         '  "judgment_summary": string — must contain the word "preliminary" or "初步"\n'
         '  "key_drivers": array of objects, each with EXACTLY '
         '{"driver_id","statement","support_level","evidence_refs","source_record_refs"} — '
-        'support_level is one of "MARKET_CONTEXT_ONLY"|"SOURCE_VERIFIED_SUPPORT"\n'
+        'support_level is one of "MARKET_CONTEXT_ONLY"|"SOURCE_VERIFIED_SUPPORT"; '
+        "MARKET_CONTEXT_ONLY drivers MUST have empty evidence_refs and source_record_refs; "
+        "only SOURCE_VERIFIED_SUPPORT drivers may reference evidence (and only evidence "
+        "that is source-verified)\n"
         '  "supporting_claims": array of objects, each with EXACTLY '
         '{"claim_id","evidence_refs","source_record_refs"}\n'
         '  "contradictions": array of {statement, evidence_refs} objects\n'
@@ -89,6 +106,10 @@ def build_research_judgment_user_instruction(enrichment: NormalizedResearchEnric
         '  "reasoning_limits": array of strings\n'
         "Never include keys or values for buy/sell/position/target/entry/exit/stop-loss/"
         "take-profit/expected-return or any trading instruction (Chinese or English).\n"
+        "Trace-binding rule: the top-level evidence_refs MUST contain exactly the usable "
+        "evidence IDs listed above, and the top-level source_record_refs MUST contain "
+        "exactly the usable source record IDs listed above, so the judgment trace equals "
+        "the judgment references (no conflict). If none are listed, both MUST be empty.\n"
         "\n" + claim_section
         + "\nNever invent an evidence_id or source_record_id that is not listed verbatim above."
         + "\nReasoning limits must state that Julia's preliminary judgment is separate "

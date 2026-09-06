@@ -255,10 +255,18 @@ class ResearchCognitionProvider:
         self.chat_calls.append((list(messages), kwargs))
         assert kwargs["cognitive_mode"] == "research_preliminary_judgment"
         rendered = json.dumps(messages, ensure_ascii=False, default=str)
-        evidence_refs = re.findall(r"ev_research_\d+", rendered)
-        source_refs = ["source-report-only"] if "source-report-only" in rendered else (
-            ["source-not-proven"] if "source-not-proven" in rendered else []
-        )
+        # NCF-A7 R10-A5: mock mirrors the real provider following the schema
+        # instruction — top-level evidence_refs/source_record_refs must equal the
+        # usable IDs the instruction enumerates (trace==judgment refs contract).
+        evidence_refs = list(dict.fromkeys(re.findall(r'"evidence_id": "([^"]+)"', rendered)))
+        source_refs = list(dict.fromkeys(re.findall(r'"source_record_id": "([^"]+)"', rendered)))
+        # Fall back to legacy heuristic if the instruction list is absent.
+        if not evidence_refs:
+            evidence_refs = list(dict.fromkeys(re.findall(r"ev_research_\d+", rendered)))
+        if not source_refs:
+            source_refs = ["source-report-only"] if "source-report-only" in rendered else (
+                ["source-not-proven"] if "source-not-proven" in rendered else []
+            )
         support = (
             "REPORT_ONLY_LEAD" if "source-report-only" in rendered
             else "NOT_PROVEN_MATERIAL" if "source-not-proven" in rendered

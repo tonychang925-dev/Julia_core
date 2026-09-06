@@ -407,6 +407,33 @@ class SameTurnResearchContinuation:
                 generation_id=f"gen_research_final_{turn_context.turn_count}",
             )
         except Exception:
+            # NCF-A7 R10-A5 (§3): retain the underlying brief-composition
+            # failure. The typed failure stays fail-closed, but the cause must
+            # not be lost. Structured fields are logged without secrets so the
+            # Research Brief boundary is diagnosable in production composition.
+            try:
+                ev_id = None
+                try:
+                    if isinstance(validated_market, Mapping) and "event" in validated_market:
+                        ev_id = validated_market["event"].get("event_id")
+                    elif hasattr(validated_market, "event"):
+                        ev_id = validated_market.event.get("event_id")
+                except Exception:
+                    ev_id = None
+                logger.exception(
+                    "research_brief_composition_failed: conversation_id=%s turn_id=%s "
+                    "correlation_id=%s event_id=%s judgment_id=%s capability_requests=%s "
+                    "capability_calls=%s",
+                    turn_context.conversation_id,
+                    turn_context.turn_id,
+                    getattr(turn_context, "correlation_id", None),
+                    ev_id,
+                    getattr(judgment, "judgment_id", None),
+                    capability_requests,
+                    capability_calls,
+                )
+            except Exception:
+                logger.exception("research_brief_composition_failed (telemetry emission also failed)")
             return self._failure_messages(
                 research_execution,
                 turn_context,

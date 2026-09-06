@@ -441,6 +441,11 @@ class JuliaSession:
         response = self.provider.chat(
             messages,
             cognitive_mode="research_preliminary_judgment",
+            # NCF-A7 R10-A5: the authoritative schema instruction enumerates every
+            # usable evidence/source-record ID, so the strict-JSON judgment payload
+            # can exceed the provider's default 500-token budget. Grant a bounded
+            # budget sufficient for the full reference-bearing judgment object.
+            max_tokens=2000,
         )
         return parser.parse(response)
 
