@@ -20,6 +20,10 @@ class ConversationMessage:
     source: str = ""          # "voice" | "text" | "system" — origin channel
     status: str = "completed"  # pending | completed | interrupted | failed
     created_at: str = field(default_factory=lambda: datetime.now(CST).isoformat())
+    # NCF-A7 A2-R1: optional canonical structured product (e.g. research.brief.v1).
+    # Ordinary messages carry None; to_dict() drops it for compact storage, so
+    # historical product-less rows remain valid and unmodified.
+    product: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)

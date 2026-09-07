@@ -65,10 +65,11 @@ class LegacyJsonConversationRepository:
         turn_id: str = "",
         modality: str = "text",
         status: str = "completed",
+        product: dict[str, Any] | None = None,
     ) -> ConversationSession | None:
         return self._repo.add_message(
             session_id, role, content,
-            turn_id=turn_id, modality=modality, status=status,
+            turn_id=turn_id, modality=modality, status=status, product=product,
         )
 
     def update_message_status(self, message_id: str, status: str) -> bool:

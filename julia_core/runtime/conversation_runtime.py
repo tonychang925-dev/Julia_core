@@ -309,11 +309,17 @@ class ConversationRuntime:
 
     def commit_streaming_turn(
         self, ctx: "TurnStreamingContext", assistant_content: str,
+        *,
+        product: dict[str, Any] | None = None,
     ) -> TurnResult:
         """Commit a successfully completed streaming turn.
 
         R1-B: user message already completed on begin_turn_streaming.
         No user status update needed. Assistant only.
+
+        A2-R1: an optional canonical structured product (research.brief.v1) is
+        persisted atomically with the assistant message when the research desk
+        produced one. Ordinary turns pass product=None and are unaffected.
         """
         if ctx.settled:
             raise RuntimeError(
@@ -326,6 +332,7 @@ class ConversationRuntime:
             assistant_msg = self._add_message(
                 ctx.conversation_id, role="assistant", content=assistant_content,
                 turn_id=ctx.turn_id, modality=ctx.modality, status="completed",
+                product=product,
             )
             assistant_msg_id = assistant_msg.messages[-1].message_id if assistant_msg else ""
 
@@ -715,10 +722,11 @@ class ConversationRuntime:
     def _add_message(
         self, conversation_id: str, *, role: str, content: str,
         turn_id: str = "", modality: str = "text", status: str = "completed",
+        product: dict[str, Any] | None = None,
     ) -> ConversationSession | None:
         return self._repository.add_message(
             conversation_id, role=role, content=content,
-            turn_id=turn_id, modality=modality, status=status,
+            turn_id=turn_id, modality=modality, status=status, product=product,
         )
 
     def _update_message_status(self, message_id: str, status: str) -> None:

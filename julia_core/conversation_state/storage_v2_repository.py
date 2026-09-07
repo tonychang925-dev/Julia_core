@@ -270,6 +270,7 @@ class StorageV2ConversationRepository:
                 turn_id=m["turn_id"], role=m["role"],
                 modality=m.get("modality", "text"), content=m["content"],
                 status=m.get("status", "completed"), created_at=m.get("created_at", ""),
+                product=m.get("product"),
             ))
         return ConversationSession(
             id=row[0], title=row[1],
@@ -349,6 +350,7 @@ class StorageV2ConversationRepository:
     def add_message(
         self, session_id: str, role: str, content: str, *,
         turn_id: str = "", modality: str = "text", status: str = "completed",
+        product: dict[str, Any] | None = None,
     ) -> ConversationSession | None:
         with self._lock:
             if self._cat.execute("SELECT 1 FROM conversations WHERE id=?", (session_id,)).fetchone() is None:
@@ -366,6 +368,8 @@ class StorageV2ConversationRepository:
                 "status": status,
                 "created_at": _now_iso(),
             }
+            if product is not None:
+                msg["product"] = product
             self._write_canonical_message(session_id, msg)
             self._update_catalog_after_append(session_id, msg)
             return self.get(session_id)
@@ -388,6 +392,7 @@ class StorageV2ConversationRepository:
                     turn_id=m["turn_id"], role=m["role"],
                     modality=m.get("modality", "text"), content=m["content"],
                     status=m.get("status", "completed"), created_at=m.get("created_at", ""),
+                    product=m.get("product"),
                 ))
         return results
 
@@ -408,6 +413,7 @@ class StorageV2ConversationRepository:
                 turn_id=m["turn_id"], role=m["role"],
                 modality=m.get("modality", "text"), content=m["content"],
                 status=m.get("status", "completed"), created_at=m.get("created_at", ""),
+                product=m.get("product"),
             ))
 
         start, end = 0, len(msgs)

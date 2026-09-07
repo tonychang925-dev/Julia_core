@@ -10,6 +10,7 @@ import json
 import os
 import threading
 from pathlib import Path
+from typing import Any
 
 from julia_core.conversation_state.models import (
     ConversationSession,
@@ -121,6 +122,7 @@ class SessionRepository:
         turn_id: str = "",
         modality: str = "text",
         status: str = "completed",
+        product: dict[str, Any] | None = None,
     ) -> ConversationSession | None:
         with self._lock:
             session = self._sessions.get(session_id)
@@ -133,6 +135,7 @@ class SessionRepository:
                 modality=modality,
                 content=content,
                 status=status,
+                product=product,
             )
             session.messages.append(msg)
             session.touch()
