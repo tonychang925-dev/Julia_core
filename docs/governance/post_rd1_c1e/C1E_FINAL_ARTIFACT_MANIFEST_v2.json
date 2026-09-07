@@ -1,0 +1,96 @@
+{
+  "packet_version": "v3",
+  "packet_sha256": "3961a29bfee311b137337594a70afaf592ac93c959dbfd788fdc0052833cd7db",
+  "artifacts": [
+    {
+      "logical_gate": "A",
+      "filename": "07_A_EXACT_SOURCE_IDENTITY_V2.md",
+      "sha256": "0dd10193dc54ca7dbcee7646ea91a925eefed8d5d98db036a00ff442ef55336b",
+      "status": "PASS-ELIGIBLE"
+    },
+    {
+      "logical_gate": "B",
+      "filename": "01_CAPABILITY_BINDING_V2.md",
+      "sha256": "863bc2b6003a38f2872e70434798f40f7d3250588e0b730886d5eddf303750ee",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "logical_gate": "C",
+      "filename": "03_REQUEST_CONTRACT_V2.md",
+      "sha256": "f78b3f4f66f9a93afb1685f3dd438dea58d6757d847b3bf5fd6f4cebe6783e66",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "logical_gate": "D",
+      "filename": "04_RESPONSE_CONTRACT_V2.md",
+      "sha256": "9bcae136306bcd87b04694287705b711c3738c83a3a811348d2cea4bf31e0d02",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "logical_gate": "E",
+      "filename": "05_DERIVED_METRIC_OWNERSHIP_V2.md",
+      "sha256": "a9606695ad07e4e95f13279b787ce4bf78e495131f35a8bf59a6afb5ba80313a",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "logical_gate": "F",
+      "filename": "06_PROVENANCE_FRESHNESS_V2.md",
+      "sha256": "c61fc8b59601931858d5cbeb55215bb6dd6122d72aa654861217723b578b08fe",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "logical_gate": "G",
+      "filename": "08_G_FIXTURE_BASELINE_V3R.md",
+      "sha256": "44df213643080d0b6ec40d4cf436f1134b5bc14fec62ca03d3ebdd54095c414e",
+      "status": "PASS-ELIGIBLE"
+    },
+    {
+      "logical_gate": "G",
+      "filename": "09_CONSTITUENTS_HARDENING_CONTRACT_V2R.md",
+      "sha256": "bda67b54b967cc1dacafbaf03c6babda51016f94bba3be9ff82d3dbdfda72afd",
+      "status": "PASS-ELIGIBLE"
+    },
+    {
+      "logical_gate": "G",
+      "filename": "03_GENERATION_PUBLICATION_INVARIANTS_V1.md",
+      "sha256": "22c8bcfad9e3a5eecd3f6e736efd746aad444d17b69cf397aecc0a0b227a9321",
+      "status": "PASS-ELIGIBLE"
+    },
+    {
+      "logical_gate": "G",
+      "filename": "GC_FIXTURE_MANIFEST_v2.json",
+      "sha256": "c380c1fef043c9bc35a2ca6319c852e97ac5381951de31d2d2bc389eb9d54ded",
+      "status": "PASS-ELIGIBLE"
+    },
+    {
+      "logical_gate": "H",
+      "filename": "02_FAILURE_TAXONOMY_V2.md",
+      "sha256": "2f54780a3c45b688db6b36549b682b108e666d315ca4c8e7851322ea5521bd50",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "logical_gate": "I",
+      "filename": "03_CROSS_REPO_AUTHORITY_MATRIX_V1.md",
+      "sha256": "764089ed6e166ac1343fb92cebfbc40414a4616b37a60aed4303fd26e5b70153",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "logical_gate": "I",
+      "filename": "04_PRODUCTION_ISOLATION_INVARIANTS_V1.md",
+      "sha256": "77bafe9328f4a61d883fcd52d085446e5ee92a4be0e5b138918863ff3d50d169",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "logical_gate": "I",
+      "filename": "05_EXISTING_ROUTER_DISPOSITION.md",
+      "sha256": "47800a824ce666cfd16f7a10d48639a2f3071bfd2326bbc4d3b98b1888d30d30",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "logical_gate": "J",
+      "filename": "06_ROLLBACK_BOUNDARY_V1.md",
+      "sha256": "c33e8a2da4456aa220ed05ad8129e6128afc0794053eeb4a2b9904e5c93bdd94",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    }
+  ]
+}

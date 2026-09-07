@@ -1,0 +1,45 @@
+{
+  "manifest_version": "market.gc-manifest.v2",
+  "contract_version": "market.fixture.v3",
+  "failure_taxonomy_version": "market.failure.v2",
+  "fixture_spec_accepted": true,
+  "implementation_acceptance": "NOT_EXECUTED",
+  "donor": {
+    "repo": "tonychang925-dev/ai_theme_app",
+    "commit": "f1bc3def72e0c4184799201aaf1ac5d02d6084d6",
+    "constituents": {
+      "base_blob": "609ece34609f1eaaed1a2e73849e3f4d014cd7be",
+      "config_blob": "ca56b477c8cb5fdc27a8a0fcc0ad39b919159160",
+      "jyhf_producer_blob": "719695eb5c8a23d065429f4d94076907d7804ca5",
+      "detect_changed_blob": "ea2e517e8c80fc783d7be331cba69eea905792fc",
+      "importer_blob": "49e157320fd180a743c4a93c73dfc2567da828ec"
+    }
+  },
+  "cases": [
+    {"case_id": "GC-01", "canonical": "success", "failure_code": null},
+    {"case_id": "GC-02", "canonical": null, "failure_code": "INCOMPLETE_GENERATION"},
+    {"case_id": "GC-03", "canonical": null, "failure_code": "INCOMPLETE_GENERATION"},
+    {"case_id": "GC-04", "canonical": "completeness_proof_required", "failure_code": "SOURCE_INCOMPLETE"},
+    {"case_id": "GC-05", "canonical": null, "failure_code": "INCOMPLETE_GENERATION"},
+    {"case_id": "GC-06", "canonical": "dedup_counted", "failure_code": "SOURCE_PARSE_FAILED"},
+    {"case_id": "GC-07", "canonical": "per_date_membership", "failure_code": null},
+    {"case_id": "GC-08", "canonical": null, "failure_code": "NO_DATA"},
+    {"case_id": "GC-09", "canonical": "empty_data_state", "failure_code": "SOURCE_UNAVAILABLE"},
+    {"case_id": "GC-10", "canonical": "row_accounted_provable", "failure_code": "SOURCE_PARSE_FAILED"},
+    {"case_id": "GC-11", "canonical": "max_snapshot_le_as_of", "failure_code": null},
+    {"case_id": "GC-12", "canonical": null, "failure_code": "NO_DATA"},
+    {"case_id": "GC-13", "canonical": null, "failure_code": "INVALID_CONFIGURATION"},
+    {"case_id": "GC-14", "canonical": null, "failure_code": "INVALID_CONFIGURATION"},
+    {"case_id": "GC-15", "canonical": null, "failure_code": "MIXED_GENERATION_REJECTED"}
+  ],
+  "forbidden_path_counters": {
+    "PARTIAL_GENERATION_CANONICAL_SUCCESS_FORBIDDEN_PATH_COUNT": 0,
+    "MIXED_GENERATION_PUBLICATION_FORBIDDEN_PATH_COUNT": 0,
+    "FUTURE_SNAPSHOT_FORBIDDEN_PATH_COUNT": 0,
+    "CURRENT_MAP_AS_HISTORY_FORBIDDEN_PATH_COUNT": 0,
+    "UNKNOWN_COMPLETENESS_SUCCESS_FORBIDDEN_PATH_COUNT": 0,
+    "INVALID_PROVIDER_FALLBACK_FORBIDDEN_PATH_COUNT": 0,
+    "INVALID_ON_EXISTING_FALLBACK_FORBIDDEN_PATH_COUNT": 0,
+    "UPSTREAM_FAILURE_AS_EMPTY_FORBIDDEN_PATH_COUNT": 0
+  }
+}
