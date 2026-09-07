@@ -1,0 +1,133 @@
+{
+  "artifact_count": 18,
+  "artifacts": [
+    {
+      "filename": "00_A1_QUALIFICATION.md",
+      "logical_gate": "A",
+      "sha256": "43416d0a705dbd85e60cec9ea00a420859a15210d43e16fb32cdc3dce6eea143",
+      "source_path": "/tmp/post_rd1_c1e_a1/00_A1_QUALIFICATION.md",
+      "status": "PASS-ELIGIBLE"
+    },
+    {
+      "filename": "07_EXACT_SOURCE_IDENTITY_V1.md",
+      "logical_gate": "A",
+      "sha256": "901ad43fc031f3be79884eaedecc66ddf17b6a48b6ef38d2905b1ed241a6181e",
+      "source_path": "/tmp/post_rd1_c1e_freeze2/07_EXACT_SOURCE_IDENTITY_V1.md",
+      "status": "PASS-ELIGIBLE"
+    },
+    {
+      "filename": "01_CAPABILITY_BINDING_V1.md",
+      "logical_gate": "B",
+      "sha256": "31eb5ec898d526b8b3b5b432be49c3b7a7f33429899a2e123648b2efd21ea53f",
+      "source_path": "/tmp/post_rd1_c1e_unblock/01_CAPABILITY_BINDING_V1.md",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "filename": "01_REQUEST_CONTRACT_V1.md",
+      "logical_gate": "C",
+      "sha256": "4dcb0acf35b7f562e67615c160e9d3776e31b54dcfcdbb1fcd042623d5da196c",
+      "source_path": "/tmp/post_rd1_c1e_freeze2/01_REQUEST_CONTRACT_V1.md",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "filename": "02_RESPONSE_CONTRACT_V1.md",
+      "logical_gate": "D",
+      "sha256": "b321c978f4fc463d9e087899dca945016cbf4666dda23f707219c660e003a57f",
+      "source_path": "/tmp/post_rd1_c1e_freeze2/02_RESPONSE_CONTRACT_V1.md",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "filename": "03_DERIVED_METRIC_OWNERSHIP_V1.md",
+      "logical_gate": "E",
+      "sha256": "198ff7a3a97f335660bbd19ce8ca07801b2bffd0eaa7299b20255dff91399cd5",
+      "source_path": "/tmp/post_rd1_c1e_freeze2/03_DERIVED_METRIC_OWNERSHIP_V1.md",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "filename": "04_PROVENANCE_FRESHNESS_V1.md",
+      "logical_gate": "F",
+      "sha256": "8fb196fd839fae0e7f92e714d70fd9e21e64379c4862f4b692eb8b7ff9002323",
+      "source_path": "/tmp/post_rd1_c1e_freeze2/04_PROVENANCE_FRESHNESS_V1.md",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "filename": "01_G_FIXTURE_BASELINE_V3.md",
+      "logical_gate": "G",
+      "sha256": "018d51a63a04e5c1d6120c143a4da2d0929c86322fd7cfa84ae16465074231ac",
+      "source_path": "/tmp/post_rd1_c1e_g2_acceptance/01_G_FIXTURE_BASELINE_V3.md",
+      "status": "PASS-ELIGIBLE"
+    },
+    {
+      "filename": "02_CONSTITUENTS_HARDENING_CONTRACT_V2.md",
+      "logical_gate": "G",
+      "sha256": "ec36a509d465508157c574ef3462327d96f4d534f45fc81b597dfaf84733f11e",
+      "source_path": "/tmp/post_rd1_c1e_g2_acceptance/02_CONSTITUENTS_HARDENING_CONTRACT_V2.md",
+      "status": "PASS-ELIGIBLE"
+    },
+    {
+      "filename": "03_GENERATION_PUBLICATION_INVARIANTS_V1.md",
+      "logical_gate": "G",
+      "sha256": "22c8bcfad9e3a5eecd3f6e736efd746aad444d17b69cf397aecc0a0b227a9321",
+      "source_path": "/tmp/post_rd1_c1e_g2_acceptance/03_GENERATION_PUBLICATION_INVARIANTS_V1.md",
+      "status": "PASS-ELIGIBLE"
+    },
+    {
+      "filename": "04_G_ACCEPTANCE_MATRIX_V1.md",
+      "logical_gate": "G",
+      "sha256": "2bf5e21245fb4a318c9ed5cd4cb2a8b83b68dbdb3211ae494d33be5587e6eeec",
+      "source_path": "/tmp/post_rd1_c1e_g2_acceptance/04_G_ACCEPTANCE_MATRIX_V1.md",
+      "status": "PASS-ELIGIBLE"
+    },
+    {
+      "filename": "05_C1E_GATE_MATRIX_SNAPSHOT_V4.md",
+      "logical_gate": "G",
+      "sha256": "426b510f4189a0f26330b66ee18a38ee6f413add3890ee935eb5d125a7e681fa",
+      "source_path": "/tmp/post_rd1_c1e_g2_acceptance/05_C1E_GATE_MATRIX_SNAPSHOT_V4.md",
+      "status": "PASS-ELIGIBLE"
+    },
+    {
+      "filename": "GC_FIXTURE_MANIFEST_v1.json",
+      "logical_gate": "G",
+      "sha256": "dd6674ff3f5327f2cf6ee089728f6241f3f8669802c6bc8a48b3602fbab39f86",
+      "source_path": "/tmp/post_rd1_c1e_g2_acceptance/GC_FIXTURE_MANIFEST_v1.json",
+      "status": "PASS-ELIGIBLE"
+    },
+    {
+      "filename": "02_FAILURE_TAXONOMY_V1.md",
+      "logical_gate": "H",
+      "sha256": "d5d10171e71c642c49ff8296885e090af7a6fb18e64f94ca53e7722d926068ea",
+      "source_path": "/tmp/post_rd1_c1e_unblock/02_FAILURE_TAXONOMY_V1.md",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "filename": "03_CROSS_REPO_AUTHORITY_MATRIX_V1.md",
+      "logical_gate": "I",
+      "sha256": "764089ed6e166ac1343fb92cebfbc40414a4616b37a60aed4303fd26e5b70153",
+      "source_path": "/tmp/post_rd1_c1e_unblock/03_CROSS_REPO_AUTHORITY_MATRIX_V1.md",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "filename": "04_PRODUCTION_ISOLATION_INVARIANTS_V1.md",
+      "logical_gate": "I",
+      "sha256": "77bafe9328f4a61d883fcd52d085446e5ee92a4be0e5b138918863ff3d50d169",
+      "source_path": "/tmp/post_rd1_c1e_unblock/04_PRODUCTION_ISOLATION_INVARIANTS_V1.md",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "filename": "05_EXISTING_ROUTER_DISPOSITION.md",
+      "logical_gate": "I",
+      "sha256": "47800a824ce666cfd16f7a10d48639a2f3071bfd2326bbc4d3b98b1888d30d30",
+      "source_path": "/tmp/post_rd1_c1e_unblock/05_EXISTING_ROUTER_DISPOSITION.md",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    },
+    {
+      "filename": "06_ROLLBACK_BOUNDARY_V1.md",
+      "logical_gate": "J",
+      "sha256": "c33e8a2da4456aa220ed05ad8129e6128afc0794053eeb4a2b9904e5c93bdd94",
+      "source_path": "/tmp/post_rd1_c1e_freeze2/06_ROLLBACK_BOUNDARY_V1.md",
+      "status": "PASS-ELIGIBLE / REVIEW-PENDING"
+    }
+  ],
+  "packet_sha256": "460bd8e95ca2761ecb6c26e40942894f28683dd874d54872d4f38a5bc29590e2",
+  "packet_version": "v2"
+}
