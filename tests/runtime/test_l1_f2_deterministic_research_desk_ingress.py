@@ -288,3 +288,39 @@ async def test_l1_f2_t15_file_capability_behavior_remains_unchanged(monkeypatch,
     assert chunks == ["file answer"]
     assert len(provider.stream_calls) == 2
     assert market.requests == [] and research.requests == []
+
+
+# ── CLIENT-TEXT-E2E-R1: negation-aware research ingress ──────────────────────
+
+NEGATED_INTENT_FIXTURES = [
+    '这是 Julia Client Text E2E 验收消息。请用一句简短自然的话确认你已收到；不要调用研究、市场或语音能力。',
+    "不要调用研究能力。",
+    "不要研究市场。",
+    "这次不需要做市场研究。",
+    "我说的是“不要研究”，不是让你研究。",
+    "只回答我这句话，不要进入市场研究流程。",
+]
+
+POSITIVE_INTENT_FIXTURES = [
+    '请研究2026年7月19日“Token出海”这一主题的市场变化，形成事实研究简报；不要给出任何交易建议。',
+    "请研究 Token 出海这个主题。",
+    "帮我研究一下这个市场事件，并形成事实简报。",
+    "请研究 Token 出海这个主题，但不要给交易建议。",
+]
+
+
+@pytest.mark.parametrize("text", NEGATED_INTENT_FIXTURES)
+def test_r1_negated_research_intent_does_not_enter_research_desk(text):
+    """CLIENT-TEXT-E2E-R1: words are not intent. A negated research mention
+    (不要研究 / 不需要做市场研究 / 不要进入研究流程 …) must NOT enter the
+    Research Desk — it is ordinary conversation."""
+    call = JuliaSession._build_research_desk_resolver_call(text)
+    assert call is None
+
+
+@pytest.mark.parametrize("text", POSITIVE_INTENT_FIXTURES)
+def test_r1_positive_research_intent_still_enters_research_desk(text):
+    """CLIENT-TEXT-E2E-R1: genuine research requests still route to Research.
+    A trailing '不要给交易建议' negates trading advice, not the research intent."""
+    call = JuliaSession._build_research_desk_resolver_call(text)
+    assert call is not None

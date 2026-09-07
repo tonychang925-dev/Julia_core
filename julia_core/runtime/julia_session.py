@@ -145,6 +145,16 @@ class JuliaSession:
         ):
             return None
 
+        # CLIENT-TEXT-E2E-R1: words are not intent. A research-related word in
+        # a sentence is NOT sufficient evidence of a research request. When
+        # every clause that mentions a research action is NEGATED (不要研究 /
+        # 不需要做市场研究 / 不要进入研究流程 …) and no clause carries a
+        # positive request marker (请研究 / 帮我研究 …), the turn must NOT enter
+        # the Research Desk. A positive request still routes to Research even if
+        # a later clause negates something else (e.g. 不要给交易建议).
+        if JuliaSession._research_intent_is_negated_only(normalized_text):
+            return None
+
         arguments = {"query": normalized_text}
         quoted_theme = re.search(r"[“\"]([^”\"]+)[”\"]", normalized_text)
         if quoted_theme:
@@ -167,6 +177,46 @@ class JuliaSession:
             ensure_ascii=False,
             separators=(",", ":"),
         )
+
+    @staticmethod
+    def _research_intent_is_negated_only(normalized_text: str) -> bool:
+        """CLIENT-TEXT-E2E-R1 negation guard.
+
+        Returns True when every research action word in the text is negated by a
+        negation marker immediately preceding it (within a short window), so the
+        message is ordinary conversation, e.g.
+        "不要调用研究、市场或语音能力". A negation far away from the research
+        word (e.g. "请研究 Token 出海，但不要给交易建议") does NOT negate the
+        research request — the 不要 there scopes 交易建议, not 研究.
+        """
+        if not normalized_text:
+            return False
+        research_actions = ("研究", "调研", "查证")
+        negation_markers = (
+            "不要", "别", "不用", "不需要", "不必", "无需", "无须",
+            "不是", "禁止", "避免", "别让", "别做", "不要做",
+            "别进行", "不要进行", "别调用", "不要调用",
+            "别进入", "不要进入", "我说的是不要", "不是让你",
+        )
+        # Window before a research action word inside which a negation marker
+        # counts as negating that research mention. Long enough to span
+        # "不要调用"/"不需要做"/"不是让你", short enough that a later-clause
+        # "但不要给交易建议" never reaches an earlier "请研究".
+        _NEG_WINDOW = 10
+
+        research_mentions = [
+            m for m in re.finditer("|".join(research_actions), normalized_text)
+        ]
+        if not research_mentions:
+            return False
+        for m in research_mentions:
+            start = max(0, m.start() - _NEG_WINDOW)
+            preceding = normalized_text[start:m.start()]
+            if not any(marker in preceding for marker in negation_markers):
+                # At least one research mention is NOT negated => not a
+                # negated-only request; keep keyword-based routing.
+                return False
+        return True
 
     def _load_recent_experiences(self) -> str:
         """Build Wake State: where did we leave off?
