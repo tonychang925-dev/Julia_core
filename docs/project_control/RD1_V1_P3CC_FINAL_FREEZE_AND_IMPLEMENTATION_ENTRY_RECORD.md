@@ -1,15 +1,13 @@
 # RD1 V1 P3-CC — Final Freeze and Implementation Entry Record
 
 **Task**: RD1-V1-P3CC-I0
-**Status**: PREPARED — AWAITING OWNER FREEZE. NOT a freeze claim.
+**Status**: FROZEN — OWNER FREEZE APPROVED 2026-09-09.
 **Date**: 2026-09-09
 **Author**: 朱婉清 (Julia)
 **Repo**: tonychang925-dev/Julia_core
 
-> This record binds the reconciled implementation entry facts. It is prepared
-> for review. It does NOT constitute Owner freeze approval and does NOT
-> authorize implementation. TONY_OWNER_FREEZE remains PENDING until Tony
-> explicitly approves.
+> Owner freeze approval recorded. TONY_OWNER_FREEZE = YES.
+> Implementation authorized strictly under frozen D3 v0.6.
 
 ---
 
@@ -34,13 +32,18 @@ MIRA_SIS_SIGNOFF
 = PASS
 
 TONY_OWNER_FREEZE
-= PENDING
+= YES   (explicit Owner approval 2026-09-09)
 
 CONTRACT_FREEZE
-= NO
+= YES
 
 IMPLEMENTATION_AUTHORIZED
-= NO
+= YES   (strictly under frozen D3 v0.6 allowed paths, required tests,
+         G0–G5 gates, NCF requirements, no-fallback/no-mock rules)
+
+MAIN_MUTATION = NOT AUTHORIZED
+MERGE = NOT AUTHORIZED
+RELEASE = NOT AUTHORIZED
 ```
 
 ---
@@ -124,29 +127,39 @@ FROZEN_ASSUMPTION_DRIFT = 0
 
 ---
 
-## 4. Implementation Entry Gates
+## 4. Implementation Entry Gates — APPROVED
 
 ```text
 NEXT_GATE
-= OWNER FREEZE + EXACT IMPLEMENTATION BRANCH/BASE AUTHORIZATION
+= IMPLEMENTATION EXECUTION (PHASE B: I1a per D3 v0.6 §1)
 
-PROPOSED_IMPLEMENTATION_BRANCH (create ONLY after Owner authorization)
-= p3cc/rd1-v1-capability-convergence
+IMPLEMENTATION_BRANCH
+= p3cc/rd1-v1-capability-convergence   (APPROVED by Owner)
 
 IMPLEMENTATION_BASE_SHA
-= c14f6aa77a50dafc21a97083fac8cb97efc7231d   (bound by this record)
+= c14f6aa77a50dafc21a97083fac8cb97efc7231d   (bound, APPROVED)
 
-PRODUCTION_MUTATION = 0
+OWNER_AUTHORIZATION_SCOPE
+= RD1-V1-P3CC implementation strictly under frozen D3 v0.6 allowed paths,
+  required tests, G0–G5 gates, NCF requirements, and no-fallback/no-mock rules
+
+PRODUCTION_MUTATION = 0 (record preparation only)
 TEST_MUTATION = 0
 CONFIG_MUTATION = 0
 MAIN_MUTATION = 0
 ```
 
-Until Owner freeze:
+Execution constraints (from Owner):
 
 ```text
-TONY_OWNER_FREEZE = PENDING
-CONTRACT_FREEZE = NO
-IMPLEMENTATION_AUTHORIZED = NO
-IMPLEMENTATION_BRANCH = PENDING
+Any branch/base drift, required-path expansion, frozen-contract deviation,
+P0/P1 NCF finding, fallback/mock production reachability, or new semantic
+authority → STOP and Owner review.
+```
+
+```text
+TONY_OWNER_FREEZE = YES
+CONTRACT_FREEZE = YES
+IMPLEMENTATION_AUTHORIZED = YES
+IMPLEMENTATION_BRANCH = p3cc/rd1-v1-capability-convergence
 ```
