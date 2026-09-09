@@ -145,6 +145,10 @@ class ResearchContinuationMaterial:
     product: dict[str, Any] | None
     trace: dict[str, Any]
     failure: str = ""
+    # P3-CC I1b-3: the exact Context OS package that produced ``messages``.
+    # JuliaSession performs C-09 capability alignment at the provider boundary
+    # from this package; ResearchContinuation never owns Alignment.
+    context_package: Any = None
 
 
 class SameTurnResearchContinuation:
@@ -469,6 +473,7 @@ class SameTurnResearchContinuation:
             ),
             product=product,
             trace=trace,
+            context_package=continuation_package,
         )
 
     async def _execute(self, tool_json: str, turn_context, stage: str):

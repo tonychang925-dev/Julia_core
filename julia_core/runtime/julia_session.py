@@ -24,6 +24,8 @@ import threading
 import time as _time
 from typing import Optional
 
+from julia_core.alignment_os.capability_encoding import encode_capability_frame
+
 
 class ResearchTurnNotReady(Exception):
     """A research-required turn failed before C1 evidence was produced.
@@ -32,6 +34,16 @@ class ResearchTurnNotReady(Exception):
     must stop the cognition path — no ordinary model continuation, no completed
     conversation turn. Transport surfaces this as a typed error event, never as
     fabricated assistant content inside the canonical assistant channel.
+    """
+
+
+class CapabilityAlignmentNotReady(Exception):
+    """C-09 capability alignment failed closed before a provider call.
+
+    P3-CC I1b-3: when the governed capability frame cannot be represented
+    (REPRESENTATION_UNSUPPORTED / INVALID_CAPABILITY_FRAME /
+    INVALID_MANIFEST_ENTRY), the provider call MUST NOT proceed and no
+    fallback to a raw frame or legacy tool_manifest is allowed.
     """
 
 
@@ -320,7 +332,16 @@ class JuliaSession:
                 # cognition path — no ordinary model continuation is allowed to
                 # masquerade as a completed research turn.
                 raise ResearchTurnNotReady(material.failure)
-            async for streamed_delta in self.provider.stream_async(material.messages):
+            # I1b-3: final research continuation is aligned from the exact
+            # continuation package at the provider boundary.
+            if material.context_package is None:
+                raise ResearchTurnNotReady(
+                    "research continuation context package missing"
+                )
+            aligned = self._align_capability_messages(
+                material.context_package, material.messages
+            )
+            async for streamed_delta in self.provider.stream_async(aligned):
                 yield streamed_delta
             return
 
@@ -348,6 +369,10 @@ class JuliaSession:
             retry_messages = retry_package.to_messages(
                 retry_package.active_tail_messages,
                 "",
+            )
+            # I1b-3: retry aligns the CURRENT retry package (never P0 stale text).
+            retry_messages = self._align_capability_messages(
+                retry_package, retry_messages
             )
             retry_messages.insert(-1, {"role": "assistant", "content": reply}) if retry_messages else None
             reply, retry_chunks = await collect_stream(retry_messages)
@@ -379,11 +404,18 @@ class JuliaSession:
             if material.failure:
                 # NCF-A7 A1-5: stop cognition on research failure (fail-closed).
                 raise ResearchTurnNotReady(material.failure)
+            if material.context_package is None:
+                raise ResearchTurnNotReady(
+                    "research continuation context package missing"
+                )
             material.messages.insert(
                 -1,
                 {"role": "assistant", "content": reply},
             ) if material.messages else None
-            async for streamed_delta in self.provider.stream_async(material.messages):
+            aligned = self._align_capability_messages(
+                material.context_package, material.messages
+            )
+            async for streamed_delta in self.provider.stream_async(aligned):
                 yield streamed_delta
             return
 
@@ -404,6 +436,10 @@ class JuliaSession:
         )
         if delta is not None:
             continuation_messages = delta.to_messages(delta.active_tail_messages, "")
+            # I1b-3: tool continuation aligns the CURRENT delta package.
+            continuation_messages = self._align_capability_messages(
+                delta, continuation_messages
+            )
             continuation_messages.insert(
                 -1,
                 {"role": "assistant", "content": reply},
@@ -481,6 +517,10 @@ class JuliaSession:
             build_research_judgment_user_instruction,
         )
         messages = pkg.to_messages([], "Form Julia's preliminary research judgment in strict JSON.")
+        # I1b-3: the C2 call still crosses the SAME alignment seam. The C2
+        # package's capability_frame is a non-manifest execution frame, so the
+        # seam passes messages through unchanged (no capability block injected).
+        messages = self._align_capability_messages(pkg, messages)
         # NCF-A7 R10-A4: append the authoritative output schema (exact top-level
         # keys + usable claim/evidence/source-record IDs) so a real provider can
         # emit a payload ResearchJudgmentParser accepts. The parser schema is the
@@ -561,7 +601,58 @@ class JuliaSession:
 
         # P2: ActiveTail replaces history[-20:]
         messages = pkg.to_messages(pkg.active_tail_messages, text)
-        return messages
+        # P3-CC I1b-3: the primary turn package carries the governed capability
+        # surface through the single C-09 alignment seam (never rendered
+        # directly by to_messages anymore).
+        return self._align_capability_messages(pkg, messages)
+
+    # ── P3-CC I1b-3: single C-09 capability alignment seam ────────────────
+
+    _C09_ERROR_CODES = frozenset({
+        "REPRESENTATION_UNSUPPORTED",
+        "INVALID_CAPABILITY_FRAME",
+        "INVALID_MANIFEST_ENTRY",
+    })
+
+    def _align_capability_messages(self, package, messages):
+        """Inject the governed C-09 text-protocol capability block exactly once.
+
+        Alignment source is the CURRENT package's governed capability_frame
+        (never a stale generation). Frames that are not governed capability
+        manifests — empty frames or C2-style execution frames — pass through
+        unchanged. A malformed manifest fails closed with
+        CapabilityAlignmentNotReady: the provider call MUST NOT proceed, and no
+        raw-frame / tool_manifest / empty-catalog fallback exists.
+        """
+        frame = (
+            getattr(package, "capability_frame", None)
+            if package is not None
+            else None
+        )
+        if not frame or not isinstance(frame, dict) or "manifest_entries" not in frame:
+            return messages
+        result = encode_capability_frame(
+            frame, representation_mode="text_protocol"
+        )
+        error_codes = {
+            diagnostic.get("code") for diagnostic in result.diagnostics
+        } & self._C09_ERROR_CODES
+        if error_codes:
+            raise CapabilityAlignmentNotReady(
+                "C-09 capability alignment failed: "
+                f"{sorted(error_codes)}"
+            )
+        if not result.descriptors:
+            # An honestly empty governed capability surface proceeds as an
+            # ordinary cognition turn with no capability protocol block.
+            return messages
+        content = "[C-09 capability representation]\n" + (result.text or "")
+        aligned = list(messages)
+        index = 0
+        while index < len(aligned) and aligned[index].get("role") == "system":
+            index += 1
+        aligned.insert(index, {"role": "system", "content": content})
+        return aligned
 
     def _chat_impl(self, text: str, ctx: TurnContext) -> str:
         """One turn. Full cognitive pipeline. All turn state lives in ctx."""
@@ -597,6 +688,7 @@ class JuliaSession:
             )
             projection_parent = retry_package
             messages = retry_package.to_messages(retry_package.active_tail_messages, "")
+            messages = self._align_capability_messages(retry_package, messages)
             messages.insert(-1, {"role": "assistant", "content": reply}) if messages else None
             reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")
             tool_json = self.capability.detect_tool_call(reply)
@@ -610,6 +702,7 @@ class JuliaSession:
                 # P2-I: ToolResult must re-enter via Context OS (C-03 §11)
                 # NOT: bypassing Context OS with a direct message injection
                 messages = delta.to_messages(delta.active_tail_messages, "")
+                messages = self._align_capability_messages(delta, messages)
                 # Re-append the prior assistant reply for context
                 messages.insert(-1, {"role": "assistant", "content": reply}) if messages else None
                 reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")

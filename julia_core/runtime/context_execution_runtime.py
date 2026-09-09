@@ -76,6 +76,30 @@ def _manifest_entry_to_dict(entry: CapabilityManifestEntry) -> dict[str, Any]:
     }
 
 
+def _inherit_capability_manifest(
+    parent_package: "CognitiveContextPackage | None",
+    pkg: "CognitiveContextPackage",
+) -> None:
+    """Carry the parent's governed capability manifest onto a derived package.
+
+    Derived packages (retry/control, ToolResult continuation, authorization
+    outcome, research product continuation) keep the same-turn governed
+    capability surface so that the single C-09 alignment seam encodes the
+    CURRENT package at every provider invocation. The manifest is a derived
+    read-only projection (never mutated here); no second capability authority
+    is created. Packages whose capability_frame is NOT a governed manifest
+    (e.g. the C2 execution-id frame) are left untouched.
+    """
+    parent_frame = getattr(parent_package, "capability_frame", None)
+    if (
+        parent_frame
+        and isinstance(parent_frame, Mapping)
+        and "manifest_entries" in parent_frame
+        and not pkg.capability_frame
+    ):
+        pkg.capability_frame = parent_frame
+
+
 def build_capability_manifest(
     definitions: Sequence[Any],
     bound_providers: frozenset[str],
@@ -181,8 +205,10 @@ class CognitiveContextPackage:
             system_parts.append(self._render_frame("diary", self.diary_frame))
         if self.evidence_frame:
             system_parts.append(self._render_frame("evidence", self.evidence_frame))
-        if self.capability_frame:
-            system_parts.append(self._render_frame("capability", self.capability_frame))
+        # P3-CC I1b-3: capability_frame is NOT rendered here. The governed
+        # capability surface reaches the model through the single C-09
+        # encode_capability_frame() text-protocol seam at the provider boundary
+        # (JuliaSession). The structured frame remains intact C-03 output.
         if self.situation_frame:
             system_parts.append(self._render_frame("situation", self.situation_frame))
         if self.control_frame:
@@ -617,6 +643,7 @@ class ContextExecutionRuntime:
         pkg.situation_frame = {"mode": "tool_continuation"}
         pkg.add_provenance("evidence", "capability:tool_result",
                           reason="tool execution result (typed)", stage=2)
+        _inherit_capability_manifest(parent_package, pkg)
         return pkg
 
     def project_authorization_outcome(
@@ -659,6 +686,7 @@ class ContextExecutionRuntime:
         pkg.situation_frame = {"mode": "authorization_outcome"}
         pkg.add_provenance("evidence", "capability:authorization_outcome",
                           reason="authorization-only outcome", stage=2)
+        _inherit_capability_manifest(parent_package, pkg)
         return pkg
 
     def project_research_product_continuation(
@@ -713,6 +741,7 @@ class ContextExecutionRuntime:
             reason="same-turn C2/B1 product continuation",
             stage=3,
         )
+        _inherit_capability_manifest(parent_package, pkg)
         return pkg
 
     def project_capability_resolution_failure(
@@ -758,6 +787,7 @@ class ContextExecutionRuntime:
         pkg.situation_frame = {"mode": "capability_resolution_failure"}
         pkg.add_provenance("control", "capability:resolution_failure",
                           reason=f"{capability_id} {reason}", stage=2)
+        _inherit_capability_manifest(parent_package, pkg)
         return pkg
 
     def project_retry_control(
@@ -797,6 +827,7 @@ class ContextExecutionRuntime:
         pkg.situation_frame = {"mode": "retry_control"}
         pkg.add_provenance("control", "capability:retry_control",
                           reason=reason, stage=2)
+        _inherit_capability_manifest(parent_package, pkg)
         return pkg
 
     # ── P3.1A helpers ─────────────────────────────────────────────────────
@@ -822,6 +853,7 @@ class ContextExecutionRuntime:
         pkg.add_provenance("evidence", "capability:tool_result",
                           reason="tool execution result", stage=2,
                           token_estimate=len(tool_result) // 4)
+        _inherit_capability_manifest(parent_package, pkg)
         return pkg
 
     def _resolve_evidence_refs(
