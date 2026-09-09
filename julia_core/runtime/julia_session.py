@@ -245,19 +245,26 @@ class JuliaSession:
 
         if requested_capability == "research.run_brief":
             # P3-CC I2-A: model-owned high-level Research selection. The request
-            # reaches the governed composite ingress (authorization happens
-            # inside the composite seam before any internal sub-call).
+            # reaches the governed composite ingress where high-level
+            # authorization (I2-A-R1) happens BEFORE any internal sub-call.
             from julia_core.runtime.research_continuation import (
+                ResearchHighLevelDenied,
                 SameTurnResearchContinuation,
             )
 
-            material = await SameTurnResearchContinuation(self).run(
-                governed_research_request=tool_json,
-                turn_context=ctx,
-                parent_package=projection_parent,
-                research_product_hook=research_product_hook,
-                product_sink=product_sink,
-            )
+            try:
+                material = await SameTurnResearchContinuation(self).run(
+                    governed_research_request=tool_json,
+                    turn_context=ctx,
+                    parent_package=projection_parent,
+                    research_product_hook=(
+                        research_product_hook
+                        or self._default_research_product_hook
+                    ),
+                    product_sink=product_sink or self._default_product_sink,
+                )
+            except ResearchHighLevelDenied as exc:
+                raise ResearchTurnNotReady(str(exc)) from exc
             if material.failure:
                 # NCF-A7 A1-5: stop cognition on research failure (fail-closed).
                 raise ResearchTurnNotReady(material.failure)
@@ -475,6 +482,7 @@ class JuliaSession:
         import asyncio
 
         from julia_core.runtime.research_continuation import (
+            ResearchHighLevelDenied,
             SameTurnResearchContinuation,
         )
 
@@ -483,12 +491,15 @@ class JuliaSession:
                 governed_research_request=tool_json,
                 turn_context=ctx,
                 parent_package=ctx._last_package,
-                research_product_hook=None,
-                product_sink=None,
+                research_product_hook=self._default_research_product_hook,
+                product_sink=self._default_product_sink,
             )
             return material
 
-        material = asyncio.run(_execute())
+        try:
+            material = asyncio.run(_execute())
+        except ResearchHighLevelDenied as exc:
+            raise ResearchTurnNotReady(str(exc)) from exc
         if material.failure:
             raise ResearchTurnNotReady(material.failure)
         if material.context_package is None:
@@ -501,6 +512,40 @@ class JuliaSession:
         return self.provider.chat(
             aligned, cognitive_mode="private_voice_continuity"
         )
+
+    def _default_research_product_hook(self, judgment, validated_market):
+        """P3-CC I2-A-R1: minimal governed Research Brief composer.
+
+        Used ONLY when the production caller supplies no product hook (Core
+        standalone / sync path). It builds a research.brief.v1-shaped product
+        from the C2 judgment and the validated Market context — it never
+        fabricates evidence or judgment content. When an external product
+        layer supplies its hook, that authoritative hook is used instead.
+        """
+        event_id = None
+        try:
+            if isinstance(validated_market, dict) and "event" in validated_market:
+                event_id = validated_market["event"].get("event_id")
+            elif hasattr(validated_market, "event"):
+                event_id = validated_market.event.get("event_id")
+        except Exception:
+            event_id = None
+        judgment_id = getattr(judgment, "judgment_id", None)
+        return {
+            "contract_version": "research.brief.v1",
+            "brief_id": f"brief_{judgment_id}" if judgment_id else None,
+            "judgment_id": judgment_id,
+            "market_event_id": event_id,
+        }
+
+    def _default_product_sink(self, product):
+        """P3-CC I2-A-R1 default product sink (no external side effect).
+
+        Records the derived product on the session for traceability. The
+        canonical structured-product persistence layer still binds its own
+        sink when present.
+        """
+        self._last_research_product = product
 
     # ── P3-CC I1b-3: single C-09 capability alignment seam ────────────────
 

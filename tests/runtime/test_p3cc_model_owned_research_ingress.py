@@ -281,3 +281,108 @@ def test_static_no_user_text_semantic_gate_in_session():
     ).read_text()
     assert "requires_tool(text)" not in source
     assert "_build_research_desk_resolver_call(text)" not in source
+
+
+# ── I2-A-R1: high-level authorization precedes internal sub-calls ──────────
+
+def test_high_level_denied_blocks_internal_resolve(monkeypatch):
+    """R1: a denied research.run_brief high-level request must fail closed
+    BEFORE any internal market.event.resolve/read/enrich sub-call executes."""
+    from types import SimpleNamespace
+
+    from julia_core.capability.models import CapabilityStatus, SideEffectClass
+    from julia_core.runtime.research_continuation import (
+        ResearchHighLevelDenied,
+        SameTurnResearchContinuation,
+    )
+
+    sub_execute_calls = []
+
+    class _DenyPolicy:
+        def check(self, scope):
+            return SimpleNamespace(decision="DENY")
+
+    class _DenyCapability:
+        registry = None
+        policy = _DenyPolicy()
+
+        async def execute_capability_request_async(self, *a, **k):
+            sub_execute_calls.append(a)
+
+    definition = SimpleNamespace(
+        name="research.run_brief",
+        permission_scope="research.run_brief",
+        status=CapabilityStatus.AVAILABLE,
+        side_effect_class=SideEffectClass.READ_ONLY,
+    )
+
+    class _Registry:
+        def get(self, name):
+            if name == "research.run_brief":
+                return definition
+            return None
+
+    capability = _DenyCapability()
+    capability.registry = _Registry()
+
+    session = SimpleNamespace(capability=capability)
+    continuation = SameTurnResearchContinuation(session)
+
+    turn_context = SimpleNamespace(
+        conversation_id="c", turn_id="t", turn_count=1,
+        correlation_id="corr",
+    )
+
+    import asyncio
+
+    with pytest.raises(ResearchHighLevelDenied):
+        asyncio.run(continuation.run(
+            governed_research_request=_json.dumps({
+                "name": "research.run_brief",
+                "arguments": {"query": "查证某事"},
+            }),
+            turn_context=turn_context,
+            parent_package=CognitiveContextPackage(),
+            research_product_hook=None,
+            product_sink=None,
+        ))
+
+    # Denied high-level request → ZERO internal sub-capability execution.
+    assert sub_execute_calls == []
+
+
+def test_high_level_missing_definition_blocks_internal_resolve():
+    from types import SimpleNamespace
+
+    from julia_core.runtime.research_continuation import (
+        ResearchHighLevelDenied,
+        SameTurnResearchContinuation,
+    )
+
+    class _EmptyRegistry:
+        def get(self, name):
+            return None
+
+    class _EmptyCapability:
+        registry = _EmptyRegistry()
+        policy = None
+
+    session = SimpleNamespace(capability=_EmptyCapability())
+    continuation = SameTurnResearchContinuation(session)
+
+    import asyncio
+
+    with pytest.raises(ResearchHighLevelDenied):
+        asyncio.run(continuation.run(
+            governed_research_request=_json.dumps({
+                "name": "research.run_brief",
+                "arguments": {"query": "x"},
+            }),
+            turn_context=SimpleNamespace(
+                conversation_id="c", turn_id="t", turn_count=1,
+                correlation_id="corr",
+            ),
+            parent_package=CognitiveContextPackage(),
+            research_product_hook=None,
+            product_sink=None,
+        ))

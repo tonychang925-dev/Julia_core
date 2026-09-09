@@ -143,6 +143,16 @@ def _project_market_read_payload(
 _RESEARCH_RUN_BRIEF = "research.run_brief"
 
 
+class ResearchHighLevelDenied(Exception):
+    """P3-CC I2-A-R1: high-level research.run_brief authorization failed.
+
+    Raised BEFORE any internal sub-capability executes. Fail-closed: no
+    resolve/read/enrich, no ordinary-answer fallback, no synthetic success.
+    Transport surfaces it as a typed error (ResearchTurnNotReady at the
+    JuliaSession boundary).
+    """
+
+
 @dataclass(frozen=True, slots=True)
 class ResearchContinuationMaterial:
     messages: list[dict[str, str]]
@@ -204,6 +214,14 @@ class SameTurnResearchContinuation:
             resolver_tool_json = self._resolve_json_from_governed_request(
                 governed_research_request
             )
+            # P3-CC I2-A-R1: HIGH-LEVEL AUTHORIZATION BEFORE ANY INTERNAL
+            # SUB-CALL. Julia selected research.run_brief; Runtime must resolve
+            # its canonical definition and obtain an ALLOW from PermissionPolicy
+            # BEFORE constructing/executing market.event.resolve → read → enrich.
+            # A denied or unavailable high-level request executes ZERO internal
+            # sub-capabilities (no fallback to ordinary answer, no sub-level
+            # authorization substitution).
+            self._require_high_level_authorization()
         if resolver_tool_json is None:
             raise ValueError("governed research request is empty")
 
@@ -581,6 +599,44 @@ class SameTurnResearchContinuation:
             turn_context,
             failure=reason,
         )
+
+    def _require_high_level_authorization(self) -> None:
+        """P3-CC I2-A-R1 governed high-level authorization gate.
+
+        Canonical definition lookup → DISABLED/unavailable check →
+        PermissionPolicy AuthorizationDecision. Denied or unavailable raises
+        ResearchHighLevelDenied so NO internal market.event.resolve / read /
+        enrich sub-call executes. Sub-capability authorization during the
+        deterministic chain does NOT substitute for this high-level gate.
+        """
+        registry = getattr(
+            getattr(self.session, "capability", None), "registry", None
+        )
+        policy = getattr(getattr(self.session, "capability", None), "policy", None)
+        if registry is None or policy is None:
+            raise ResearchHighLevelDenied(
+                "research.run_brief: capability authority unavailable"
+            )
+        definition = registry.get(_RESEARCH_RUN_BRIEF)
+        if definition is None:
+            raise ResearchHighLevelDenied(
+                "research.run_brief: canonical definition not registered"
+            )
+        status = getattr(definition, "status", None)
+        disabled = getattr(status, "value", status) == "disabled"
+        if disabled:
+            raise ResearchHighLevelDenied(
+                "research.run_brief: capability disabled"
+            )
+        decision = policy.check(definition.permission_scope)
+        decision_value = getattr(
+            getattr(decision, "decision", None), "value",
+            getattr(decision, "decision", None),
+        )
+        if decision_value != "ALLOW":
+            raise ResearchHighLevelDenied(
+                "research.run_brief: authorization denied by PermissionPolicy"
+            )
 
     @staticmethod
     def _resolve_json_from_governed_request(request_json: str) -> str:
