@@ -50,6 +50,31 @@ class CapabilityLayer(str, Enum):
     ACTION        = "action"         # write, execute
 
 
+# ── C-08 Safety / Manifest Metadata Vocabulary (P3-CC I1a) ──────────────────
+
+class SideEffectClass(str, Enum):
+    """Frozen C-08 §7 side-effect classification vocabulary.
+
+    Exact five-member vocabulary. No UNKNOWN / DEFAULT / SAFE member exists.
+    ``CapabilityDefinition.side_effect_class = None`` is the UNCLASSIFIED
+    sentinel and MUST NOT be treated as READ_ONLY.
+    """
+    READ_ONLY = "read_only"
+    REVERSIBLE_WRITE = "reversible_write"
+    IRREVERSIBLE_WRITE = "irreversible_write"
+    EXTERNAL_SIDE_EFFECT = "external_side_effect"
+    HIGH_IMPACT = "high_impact"
+
+
+class IdempotencySupport(str, Enum):
+    """Declared idempotency support for a capability.
+
+    ``NONE`` means NOT RETRY-SAFE; no retry semantics may be inferred from it.
+    """
+    NONE = "none"
+    REQUEST_KEY = "request_key"
+
+
 # ── Capability Definition ───────────────────────────────────────────────────
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +92,58 @@ class CapabilityDefinition:
     adapter: str | None = None    # "mcp" | "http" | None for local handler
     status: CapabilityStatus = CapabilityStatus.REGISTERED
     schema_version: str = "1.0"
+    # P3-CC I1a C-08 declarative safety/metadata fields. Fail-closed defaults:
+    #   output_schema={}          → undeclared, NOT proof of output correctness
+    #   side_effect_class=None    → UNCLASSIFIED, ≠ READ_ONLY
+    #   idempotency_support=NONE  → NOT RETRY-SAFE
+    #   latency_cost_hints={}     → informational only
+    #   data_sensitivity=""       → NOT_DECLARED, ≠ PUBLIC / ≠ safe classification
+    output_schema: dict[str, str] = field(default_factory=dict)
+    side_effect_class: SideEffectClass | None = None
+    idempotency_support: IdempotencySupport = IdempotencySupport.NONE
+    latency_cost_hints: dict[str, str] = field(default_factory=dict)
+    data_sensitivity: str = ""
+
+
+# ── C-08 Model-Visible Manifest Projection (P3-CC I1a) ──────────────────────
+
+@dataclass(frozen=True, slots=True)
+class CapabilityManifestEntry:
+    """Derived C-08 model-visible manifest projection.
+
+    Derived from the final registered CapabilityDefinition plus governed
+    permission/availability sources. It is NEVER canonical capability truth,
+    NEVER an execution registry, NEVER a semantic router. Provider/transport
+    fields are intentionally absent: provider/adapter/endpoint must not become
+    model-owned semantic selection authority.
+    """
+    capability_id: str
+    description: str
+    input_schema: dict[str, str]
+    output_schema: dict[str, str]
+    side_effect_class: SideEffectClass | None
+    permission_requirements: tuple[str, ...]
+    idempotency_support: IdempotencySupport
+    latency_cost_hints: dict[str, str]
+    data_sensitivity: str
+    availability: CapabilityStatus
+    schema_version: str
+    provenance: dict[str, str]
+
+
+@dataclass(frozen=True, slots=True)
+class ManifestAdmission:
+    """Result of fail-closed C-08 metadata admission validation.
+
+    ``admitted`` is True only when the definition carries both explicit
+    side_effect_class and explicit data_sensitivity. ``reasons`` is empty when
+    admitted and otherwise carries ALL missing classifications in deterministic
+    order (never a silent single-reason truncation).
+    """
+    capability_id: str
+    admitted: bool
+    reasons: tuple[str, ...]
+    entry: CapabilityManifestEntry | None
 
 
 # ── Canonical C-08 Request / Call / Result ──────────────────────────────────

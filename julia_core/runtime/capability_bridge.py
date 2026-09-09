@@ -32,10 +32,80 @@ from julia_core.capability.models import (
     CapabilityLayer,
     CapabilityRequest,
     CapabilityStatus,
+    IdempotencySupport,
+    SideEffectClass,
 )
 from julia_core.capability.policy import PermissionPolicy
 from julia_core.capability.registry import CapabilityRegistry
 from julia_core.research.registration import register_research_event_enrichment
+
+
+# ── P3-CC I1a: composition-root canonical C-08 safety metadata ──────────────
+# Construction configuration ONLY. This table is never consulted as execution
+# authority after canonicalization; the final registered CapabilityDefinition
+# in the single CapabilityRegistry is the canonical runtime source.
+
+@dataclass(frozen=True, slots=True)
+class _CanonicalCapabilityMetadata:
+    """Explicit fail-closed C-08 metadata for one production definition."""
+    side_effect_class: SideEffectClass
+    data_sensitivity: str
+    idempotency_support: IdempotencySupport = IdempotencySupport.NONE
+
+
+_P3CC_CANONICAL_METADATA: dict[str, _CanonicalCapabilityMetadata] = {
+    # Local filesystem (READ_ONLY reads).
+    "file.read": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "local_user_files"),
+    "file.search": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "local_user_files"),
+    "file.list": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "local_user_files"),
+    # Frozen Market executable surface + legacy ai_theme domain reads.
+    "market.event.resolve": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "market_observe"),
+    "market.event.read": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "market_observe"),
+    "market.snapshot.read": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "market_observe"),
+    "market.alert.query": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "market_observe"),
+    "market.intelligence.observe": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "market_observe"),
+    "market.decision.explain": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "market_observe"),
+    "market.stock.history": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "market_observe"),
+    "market.stock.auction": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "market_observe"),
+    "market.theme.constituents": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "market_observe"),
+    "market.theme.capital": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "market_observe"),
+    "market.regime.read": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "market_observe"),
+    # Controlled D1 external observation (read; no external mutation).
+    "research.event.enrich": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "external_research_observation"),
+    # External review session submission (governed, manual ingress only).
+    "engineering.code_review": _CanonicalCapabilityMetadata(SideEffectClass.EXTERNAL_SIDE_EFFECT, "engineering_code_review"),
+}
+
+
+def _canonicalized_definition(
+    definition: CapabilityDefinition,
+    metadata: _CanonicalCapabilityMetadata,
+) -> CapabilityDefinition:
+    """Re-register one definition with explicit C-08 metadata.
+
+    Preserves every existing authority field (name, description, layer,
+    provider, permission_scope, input_schema, adapter, status, schema_version)
+    and any already-declared output_schema / latency hints. This is metadata
+    convergence, not behavioral routing: provider selection, permission scope,
+    administrative status, input schema, adapter, and availability are
+    unchanged.
+    """
+    return CapabilityDefinition(
+        name=definition.name,
+        description=definition.description,
+        layer=definition.layer,
+        provider=definition.provider,
+        permission_scope=definition.permission_scope,
+        input_schema=dict(definition.input_schema),
+        adapter=definition.adapter,
+        status=definition.status,
+        schema_version=definition.schema_version,
+        output_schema=dict(definition.output_schema),
+        side_effect_class=metadata.side_effect_class,
+        idempotency_support=metadata.idempotency_support,
+        latency_cost_hints=dict(definition.latency_cost_hints),
+        data_sensitivity=metadata.data_sensitivity,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -432,6 +502,13 @@ class RuntimeCapabilityBridge:
                     "controlled-live D1 research provider unbound: %s", exc
                 )
 
+        # P3-CC I1a: composition-root pre-activation metadata canonicalization.
+        # Every production-reachable definition must carry explicit C-08 safety
+        # metadata BEFORE CapabilityManager construction (frozen D2 v0.5 /
+        # D3 v0.6 G5 foundation). Any failure aborts initialization CLOSED —
+        # no manager, no executable manifest, no silent omission, no fallback.
+        self._canonicalize_production_metadata()
+
         # Build the manager
         self._manager = CapabilityManager(
             self.registry,
@@ -440,6 +517,55 @@ class RuntimeCapabilityBridge:
         )
 
         self._initialized = True
+
+    def _canonicalize_production_metadata(self) -> None:
+        """Apply C-08 safety metadata before CapabilityManager construction.
+
+        Runs strictly before CapabilityManager construction. The Core canonical
+        metadata table is a migration source for Core-owned baseline
+        definitions, NOT a global capability allowlist:
+
+          CASE A  capability_id in the Core table
+                  → re-register with canonical Core metadata (authority fields
+                    preserved)
+          CASE B  capability_id not in the table AND mandatory metadata already
+                  explicit (side_effect_class is not None AND
+                  data_sensitivity.strip() != "")
+                  → PASS THROUGH unchanged (product-owned declarative metadata;
+                    grants no permission/provider/model authority)
+          CASE C  capability_id not in the table AND metadata incomplete
+                  → FAIL CLOSED initialization
+
+        After canonicalization the single registry object is canonical. No
+        warning-and-continue, no dropped definitions, no permissive defaults,
+        no fallback.
+        """
+        for definition in self.registry.all_definitions():
+            metadata = _P3CC_CANONICAL_METADATA.get(definition.name)
+            if metadata is not None:
+                # CASE A — Core-owned baseline definition.
+                self.registry.register_definition(
+                    _canonicalized_definition(definition, metadata)
+                )
+            # CASE B — external explicit definition: preserve exactly (no-op).
+
+        # Validate every final production definition (CASE C enforcement).
+        unclassified_side_effect = [
+            d.name
+            for d in self.registry.all_definitions()
+            if d.side_effect_class is None
+        ]
+        unclassified_sensitivity = [
+            d.name
+            for d in self.registry.all_definitions()
+            if not str(d.data_sensitivity or "").strip()
+        ]
+        if unclassified_side_effect or unclassified_sensitivity:
+            raise RuntimeError(
+                "P3-CC metadata gate failed: "
+                f"unclassified_side_effect={unclassified_side_effect} "
+                f"unclassified_data_sensitivity={unclassified_sensitivity}"
+            )
 
     def _flatten_providers(self) -> dict:
         """Flatten nested provider dict into manager-compatible flat dict."""

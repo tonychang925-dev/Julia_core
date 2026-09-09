@@ -15,6 +15,13 @@ from enum import Enum
 from typing import Iterator
 
 
+# P3-CC I1a: governed scope for the future research.run_brief composite.
+# The scope rule is prepared now (frozen D3 v0.6 §1 / D2 v0.5 §7); the
+# capability itself is NOT registered in I1a. Unknown scopes remain default
+# DENY.
+RESEARCH_RUN_BRIEF_SCOPE = "research.run_brief"
+
+
 class AuthorizationStatus(str, Enum):
     """C-08 authorization decision space."""
 
@@ -97,6 +104,11 @@ class PermissionPolicy:
                                reason="Requires user confirmation"),
             "memory.delete":   PermissionRule("memory.delete", allow=False,
                                reason="Requires Tony explicit action"),
+            RESEARCH_RUN_BRIEF_SCOPE: PermissionRule(
+                RESEARCH_RUN_BRIEF_SCOPE,
+                allow=True,
+                reason="read-only governed Research Desk evidence acquisition",
+            ),
         })
 
     def check(self, scope: str) -> AuthorizationDecision:
@@ -131,4 +143,5 @@ __all__ = [
     "AuthorizationStatus",
     "PermissionPolicy",
     "PermissionRule",
+    "RESEARCH_RUN_BRIEF_SCOPE",
 ]

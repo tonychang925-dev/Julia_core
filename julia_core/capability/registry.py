@@ -13,7 +13,13 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from julia_core.capability.models import CapabilityDefinition, CapabilityLayer as M0Layer, CapabilityStatus
+from julia_core.capability.models import (
+    CapabilityDefinition,
+    CapabilityLayer as M0Layer,
+    CapabilityManifestEntry,
+    CapabilityStatus,
+    ManifestAdmission,
+)
 
 
 class CapabilityLayer(str, Enum):
@@ -134,6 +140,82 @@ class CapabilityRegistry:
     def list_names(self) -> list[str]:
         """List all registered capability names."""
         return sorted(self._definitions.keys())
+
+
+# ── P3-CC I1a: metadata admission + manifest derivation seam ──────────────
+
+_ADMISSION_REASON_SIDE_EFFECT = "unclassified_side_effect"
+_ADMISSION_REASON_SENSITIVITY = "unclassified_data_sensitivity"
+
+
+def metadata_admission_reasons(definition: CapabilityDefinition) -> tuple[str, ...]:
+    """Return ALL fail-closed metadata admission reasons for one definition.
+
+    Deterministic order: side-effect first, then data sensitivity. Empty tuple
+    means the definition is metadata-admitted. Never silently truncates to a
+    single reason; never defaults missing metadata to a safe value.
+    """
+    reasons: list[str] = []
+    if definition.side_effect_class is None:
+        reasons.append(_ADMISSION_REASON_SIDE_EFFECT)
+    if not str(definition.data_sensitivity or "").strip():
+        reasons.append(_ADMISSION_REASON_SENSITIVITY)
+    return tuple(reasons)
+
+
+def project_manifest_entry(
+    definition: CapabilityDefinition,
+    *,
+    availability: CapabilityStatus | None = None,
+    permission_requirements: tuple[str, ...] | None = None,
+) -> ManifestAdmission:
+    """Derive one model-visible CapabilityManifestEntry (fail-closed admission).
+
+    An unclassified definition (missing side_effect_class and/or
+    data_sensitivity) is NON_ADMITTED and yields no executable manifest entry.
+
+    ``availability`` defaults to the definition's administrative status
+    (Option C conservative base). The final live availability projection
+    (provider-bound conjunct) belongs to the later CapabilityFrame path and is
+    intentionally NOT implemented here.
+    """
+    reasons = metadata_admission_reasons(definition)
+    if reasons:
+        return ManifestAdmission(
+            capability_id=definition.name,
+            admitted=False,
+            reasons=reasons,
+            entry=None,
+        )
+    entry = CapabilityManifestEntry(
+        capability_id=definition.name,
+        description=definition.description,
+        input_schema=dict(definition.input_schema),
+        output_schema=dict(definition.output_schema),
+        side_effect_class=definition.side_effect_class,
+        permission_requirements=(
+            tuple(permission_requirements)
+            if permission_requirements is not None
+            else (definition.permission_scope,)
+        ),
+        idempotency_support=definition.idempotency_support,
+        latency_cost_hints=dict(definition.latency_cost_hints),
+        data_sensitivity=definition.data_sensitivity,
+        availability=(
+            availability if availability is not None else definition.status
+        ),
+        schema_version=definition.schema_version,
+        provenance={
+            "source": "capability:registry",
+            "definition_ref": definition.name,
+        },
+    )
+    return ManifestAdmission(
+        capability_id=definition.name,
+        admitted=True,
+        reasons=(),
+        entry=entry,
+    )
 
 
 # ── Singleton ───────────────────────────────────────────────────────────────

@@ -26,6 +26,7 @@ from julia_core.capability.models import (
     CapabilityRequestAuthorityError,
     CapabilityStatus,
     ProviderExecutionOutcome,
+    SideEffectClass,
     SideEffectState,
     ToolResultStatus,
     validate_capability_request_authority,
@@ -93,6 +94,14 @@ class RecordingPolicy(AllowExactScopePolicy):
 
 
 def _definition(provider: str = "product_adapter") -> CapabilityDefinition:
+    """Generic cross-repo product-owned capability fixture.
+
+    P3-CC I1a-R1: the fixture carries EXPLICIT frozen C-08 mandatory safety
+    metadata (test-local classification). A product capability that declares
+    its own metadata passes Core activation unchanged (CASE B); a product
+    capability without it fails closed (CASE C). Declarative metadata grants no
+    permission or provider authority here.
+    """
     return CapabilityDefinition(
         name="crossrepo.observe",
         description="Generic cross-repo provider acceptance fixture",
@@ -100,6 +109,8 @@ def _definition(provider: str = "product_adapter") -> CapabilityDefinition:
         provider=provider,
         permission_scope="crossrepo.observe",
         status=CapabilityStatus.AVAILABLE,
+        side_effect_class=SideEffectClass.READ_ONLY,
+        data_sensitivity="crossrepo_fixture_observation",
     )
 
 
@@ -581,3 +592,53 @@ async def test_m4_normal_immutable_and_set_semantics_do_not_regress():
     assert execution.tool_result.structured_output["tuple"] == (1, 2)
     assert execution.tool_result.structured_output["members"] == {"a", "b"}
     assert execution.tool_result.structured_output["flag"] is True
+
+
+def test_unclassified_external_definition_fails_closed_at_activation():
+    """CASE C: a non-Core product capability with incomplete mandatory safety
+    metadata (side_effect_class=None AND data_sensitivity=\"\") must abort
+    bridge activation CLOSED — CapabilityManager is not activated."""
+    bridge = RuntimeCapabilityBridge()
+    provider = FixtureProvider()
+    bridge.register_provider("product_adapter", provider)
+    bridge.registry.register_definition(
+        CapabilityDefinition(
+            name="crossrepo.unclassified",
+            description="product capability missing mandatory safety metadata",
+            layer=CapabilityLayer.WORLD,
+            provider="product_adapter",
+            permission_scope="crossrepo.unclassified",
+            status=CapabilityStatus.AVAILABLE,
+        )
+    )
+    bridge.policy.add_rule(
+        PermissionRule("crossrepo.unclassified", allow=True, reason="fixture")
+    )
+    with pytest.raises(RuntimeError, match="P3-CC metadata gate failed"):
+        bridge.initialize()
+    assert bridge._manager is None
+    assert bridge._initialized is not True
+
+
+def test_explicit_external_definition_survives_activation_unchanged():
+    """CASE B at bridge level: a non-Core definition carrying explicit C-08
+    metadata is preserved exactly across Core activation (no Core rewrite, no
+    allowlist failure, no provider/scope/status mutation)."""
+    bridge = RuntimeCapabilityBridge()
+    provider = FixtureProvider()
+    bridge.register_provider("product_adapter", provider)
+    bridge.registry.register_definition(_definition())
+    bridge.policy.add_rule(
+        PermissionRule("crossrepo.observe", allow=True, reason="fixture scope")
+    )
+    bridge.initialize()
+
+    stored = bridge.registry.get("crossrepo.observe")
+    assert stored is not None
+    assert stored.name == "crossrepo.observe"
+    assert stored.provider == "product_adapter"
+    assert stored.permission_scope == "crossrepo.observe"
+    assert stored.status == CapabilityStatus.AVAILABLE
+    assert stored.side_effect_class == SideEffectClass.READ_ONLY
+    assert stored.data_sensitivity == "crossrepo_fixture_observation"
+    assert bridge._initialized is True
