@@ -16,7 +16,106 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
 from julia_core.capability.models import Evidence, ToolResult
+from julia_core.capability.models import CapabilityManifestEntry, CapabilityStatus
 from julia_core.capability.policy import AuthorizationDecision, AuthorizationStatus
+from julia_core.capability.registry import project_manifest_entry
+
+
+# ── P3-CC I1b-1: Option-C governed capability manifest projection ──────────
+# Model-visible capability availability is derived from administrative status
+# PLUS the provider-bound conjunct. provider.health() is execution-time truth
+# only and is NEVER called during frame projection. No health cache, no
+# health writeback, no synthetic readiness.
+
+def derive_option_c_availability(
+    definition_status: CapabilityStatus,
+    *,
+    provider_bound: bool,
+) -> CapabilityStatus:
+    """Conservative Option-C model-visible availability truth table.
+
+    - DISABLED  → DISABLED (never AVAILABLE)
+    - DEGRADED  → DEGRADED
+    - REGISTERED→ REGISTERED (regardless of a later provider bind)
+    - AVAILABLE + provider namespace bound    → AVAILABLE
+    - AVAILABLE + provider namespace NOT bound→ REGISTERED (conservative
+      model-visible demotion; does NOT mutate CapabilityDefinition.status)
+    """
+    if definition_status == CapabilityStatus.DISABLED:
+        return CapabilityStatus.DISABLED
+    if definition_status == CapabilityStatus.DEGRADED:
+        return CapabilityStatus.DEGRADED
+    if definition_status == CapabilityStatus.REGISTERED:
+        return CapabilityStatus.REGISTERED
+    if definition_status == CapabilityStatus.AVAILABLE and provider_bound:
+        return CapabilityStatus.AVAILABLE
+    return CapabilityStatus.REGISTERED
+
+
+def _manifest_entry_to_dict(entry: CapabilityManifestEntry) -> dict[str, Any]:
+    """Deterministic serialization of one governed manifest entry.
+
+    The serialized frame is a projection, never a second canonical truth;
+    authority remains CapabilityDefinition + derived availability →
+    CapabilityManifestEntry → CapabilityFrame. Provider/transport fields are
+    intentionally absent (no semantic-selection authority).
+    """
+    return {
+        "capability_id": entry.capability_id,
+        "description": entry.description,
+        "input_schema": dict(entry.input_schema),
+        "output_schema": dict(entry.output_schema),
+        "side_effect_class": entry.side_effect_class.value,
+        "permission_requirements": list(entry.permission_requirements),
+        "idempotency_support": entry.idempotency_support.value,
+        "latency_cost_hints": dict(entry.latency_cost_hints),
+        "data_sensitivity": entry.data_sensitivity,
+        "availability": entry.availability.value,
+        "schema_version": entry.schema_version,
+        "provenance": dict(entry.provenance),
+    }
+
+
+def build_capability_manifest(
+    definitions: Sequence[Any],
+    bound_providers: frozenset[str],
+) -> dict[str, Any]:
+    """Build the governed C-03 capability frame from final definitions.
+
+    Every final registered definition flows through I1a fail-closed admission
+    (project_manifest_entry) with the Option-C derived availability. Admitted
+    entries become model-visible manifest entries; non-admitted definitions are
+    never exposed as executable and keep their typed reasons. Entries and
+    diagnostics are deterministically ordered by capability_id. This helper
+    NEVER inspects provider.health() and NEVER reads the raw registry catalog
+    into the model path.
+    """
+    manifest_entries: list[dict[str, Any]] = []
+    non_admitted: list[dict[str, Any]] = []
+    for definition in definitions:
+        provider_bound = definition.provider in bound_providers
+        availability = derive_option_c_availability(
+            definition.status, provider_bound=provider_bound
+        )
+        admission = project_manifest_entry(
+            definition, availability=availability
+        )
+        if admission.admitted and admission.entry is not None:
+            manifest_entries.append(_manifest_entry_to_dict(admission.entry))
+        else:
+            non_admitted.append(
+                {
+                    "capability_id": definition.name,
+                    "admitted": False,
+                    "reasons": list(admission.reasons),
+                }
+            )
+    manifest_entries.sort(key=lambda entry: entry["capability_id"])
+    non_admitted.sort(key=lambda diagnostic: diagnostic["capability_id"])
+    return {
+        "manifest_entries": manifest_entries,
+        "non_admitted_diagnostics": non_admitted,
+    }
 
 
 class ContextNotReady(Exception):
@@ -420,30 +519,38 @@ class ContextExecutionRuntime:
             except Exception as exc:
                 pkg.mark_frame_failure("evidence:market", str(exc), required=False)
 
-        # ── CapabilityFrame — structured registry catalog (C-08) ──
-        # `available_tools` is the structured advertised/registered capability
-        # catalog for this Context OS path. It is NOT authoritative proof that
-        # every entry is executable at this instant; execution availability is
-        # governed later by authorization, provider readiness, and lifecycle.
+        # ── CapabilityFrame — governed C-08 manifest projection (C-03/C-08) ──
+        # The model-visible capability surface is the governed C-08 manifest
+        # derived through project_manifest_entry (I1a fail-closed admission)
+        # with Option-C availability (administrative status + provider-bound
+        # conjunct). provider.health() is execution-time only and is NEVER
+        # called here. The raw registry-catalog path ("available_tools") is
+        # retired from this Context OS path; no fallback to it exists.
         if self._js is not None:
             try:
-                definitions = self._js.capability.registry.all()
-                entries = sorted(
-                    (
-                        {
-                            "capability_id": d.name,
-                            "description": d.description,
-                            "input_schema": copy.deepcopy(d.input_schema),
-                        }
-                        for d in definitions
-                    ),
-                    key=lambda entry: entry["capability_id"],
+                manager = getattr(self._js.capability, "manager", None)
+                providers = getattr(manager, "providers", None)
+                bound_providers = (
+                    frozenset(providers)
+                    if providers is not None
+                    else frozenset()
                 )
-                if entries:
-                    pkg.capability_frame = {"available_tools": entries}
-                    pkg.add_provenance("capability", "capability:registry",
-                                      reason="structured capability catalog", stage=0,
-                                      token_estimate=len(entries))
+                capability_manifest = build_capability_manifest(
+                    self._js.capability.registry.all_definitions(),
+                    bound_providers,
+                )
+                if (
+                    capability_manifest["manifest_entries"]
+                    or capability_manifest["non_admitted_diagnostics"]
+                ):
+                    pkg.capability_frame = capability_manifest
+                    pkg.add_provenance(
+                        "capability",
+                        "capability:registry",
+                        reason="governed C-08 capability manifest",
+                        stage=0,
+                        token_estimate=len(capability_manifest["manifest_entries"]),
+                    )
             except Exception as exc:
                 pkg.mark_frame_failure("capability", str(exc), required=False)
 

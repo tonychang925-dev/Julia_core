@@ -30,6 +30,7 @@ from julia_core.capability.models import (
     CapabilityDefinition,
     CapabilityLayer,
     CapabilityResult,
+    SideEffectClass,
     CapabilityStatus,
     Evidence,
     EvidenceSourceType,
@@ -221,6 +222,8 @@ def test_p3_capability_frame_canonical_state_is_structured_not_truncated_text():
                 permission_scope="file.read",
                 input_schema={"path": "file path"},
                 status=CapabilityStatus.AVAILABLE,
+                side_effect_class=SideEffectClass.READ_ONLY,
+                data_sensitivity="local_user_files",
             ))
             self.registry.register_definition(CapabilityDefinition(
                 name="file.search",
@@ -230,6 +233,8 @@ def test_p3_capability_frame_canonical_state_is_structured_not_truncated_text():
                 permission_scope="file.read",
                 input_schema={"pattern": "search pattern"},
                 status=CapabilityStatus.AVAILABLE,
+                side_effect_class=SideEffectClass.READ_ONLY,
+                data_sensitivity="local_user_files",
             ))
 
         def tool_manifest(self):
@@ -256,11 +261,29 @@ def test_p3_capability_frame_canonical_state_is_structured_not_truncated_text():
         history=[],
     )
 
-    entries = pkg.capability_frame["available_tools"]
+    # P3-CC I1b-1: the canonical capability frame is the governed C-08 manifest
+    # (raw "available_tools" catalog retired from Context OS).
+    assert "available_tools" not in pkg.capability_frame
+    assert set(pkg.capability_frame) == {"manifest_entries", "non_admitted_diagnostics"}
+    entries = pkg.capability_frame["manifest_entries"]
     assert isinstance(entries, list)
     assert entries
     assert all(isinstance(entry, dict) for entry in entries)
-    assert {"capability_id", "description", "input_schema"}.issubset(entries[0])
+    # Full governed manifest fields, not the old 3-field catalog.
+    assert {
+        "capability_id",
+        "description",
+        "input_schema",
+        "output_schema",
+        "side_effect_class",
+        "permission_requirements",
+        "idempotency_support",
+        "latency_cost_hints",
+        "data_sensitivity",
+        "availability",
+        "schema_version",
+        "provenance",
+    }.issubset(entries[0])
     assert "[:600]" not in inspect.getsource(ContextExecutionRuntime.prepare)
 
 

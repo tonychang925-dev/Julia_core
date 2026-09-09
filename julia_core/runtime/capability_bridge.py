@@ -461,10 +461,24 @@ class RuntimeCapabilityBridge:
             register_frozen_market_capabilities,
         )
         if "ai_theme_app" in self._providers:
+            # P3-CC I1b-1 Market registration-status discipline (no provider
+            # implementation change): the provider-first composition registers
+            # the full legacy ai_theme definition set as REGISTERED first, then
+            # re-registers ONLY the frozen executable Market surface
+            # (event.resolve / event.read / snapshot.read / alert.query) as
+            # AVAILABLE. The seven legacy ai_theme definitions the frozen
+            # provider cannot execute therefore stay REGISTERED and are never
+            # advertised model-visible AVAILABLE. Same registry update
+            # semantics, same capability IDs, no second registry, no provider
+            # introspection, no copied private operation table.
             from julia_core.capability.providers.ai_theme import (
                 register_ai_theme_capabilities,
             )
             register_ai_theme_capabilities(
+                self.registry,
+                status=CapabilityStatus.REGISTERED,
+            )
+            register_frozen_market_capabilities(
                 self.registry,
                 status=CapabilityStatus.AVAILABLE,
             )
