@@ -116,12 +116,16 @@ class CapabilityManifestEntry:
     NEVER an execution registry, NEVER a semantic router. Provider/transport
     fields are intentionally absent: provider/adapter/endpoint must not become
     model-owned semantic selection authority.
+
+    ``side_effect_class`` is NON-optional here. ``None`` is valid only as the
+    pre-admission ``CapabilityDefinition`` sentinel; an admitted, executable
+    manifest entry NEVER carries an unclassified side-effect class.
     """
     capability_id: str
     description: str
     input_schema: dict[str, str]
     output_schema: dict[str, str]
-    side_effect_class: SideEffectClass | None
+    side_effect_class: SideEffectClass
     permission_requirements: tuple[str, ...]
     idempotency_support: IdempotencySupport
     latency_cost_hints: dict[str, str]

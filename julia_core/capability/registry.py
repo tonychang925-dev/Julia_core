@@ -9,6 +9,7 @@ Keeps backward compatibility with existing Capability/handler-based tools.
 
 from __future__ import annotations
 
+import time as _time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -163,21 +164,32 @@ def metadata_admission_reasons(definition: CapabilityDefinition) -> tuple[str, .
     return tuple(reasons)
 
 
+def _iso_timestamp() -> str:
+    return _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime())
+
+
 def project_manifest_entry(
     definition: CapabilityDefinition,
     *,
-    availability: CapabilityStatus | None = None,
-    permission_requirements: tuple[str, ...] | None = None,
+    availability: CapabilityStatus,
 ) -> ManifestAdmission:
     """Derive one model-visible CapabilityManifestEntry (fail-closed admission).
 
+    Authority boundaries (frozen):
+    - Registry validates STATIC manifest metadata only.
+    - ``availability`` is an explicit REQUIRED derived input owned by the
+      CapabilityFrame build (later stage). The registry MUST NOT derive
+      availability from ``definition.status`` and MUST NOT inspect provider
+      state; administrative AVAILABLE never becomes model-visible AVAILABLE
+      here.
+    - ``permission_requirements`` has exactly one source:
+      ``(definition.permission_scope,)``. No caller override exists; the
+      manifest never creates or alters permission truth (PermissionPolicy
+      remains authorization authority).
+
     An unclassified definition (missing side_effect_class and/or
     data_sensitivity) is NON_ADMITTED and yields no executable manifest entry.
-
-    ``availability`` defaults to the definition's administrative status
-    (Option C conservative base). The final live availability projection
-    (provider-bound conjunct) belongs to the later CapabilityFrame path and is
-    intentionally NOT implemented here.
+    No admitted entry ever carries ``side_effect_class=None``.
     """
     reasons = metadata_admission_reasons(definition)
     if reasons:
@@ -187,27 +199,23 @@ def project_manifest_entry(
             reasons=reasons,
             entry=None,
         )
+    assert definition.side_effect_class is not None  # admission guarantees
     entry = CapabilityManifestEntry(
         capability_id=definition.name,
         description=definition.description,
         input_schema=dict(definition.input_schema),
         output_schema=dict(definition.output_schema),
         side_effect_class=definition.side_effect_class,
-        permission_requirements=(
-            tuple(permission_requirements)
-            if permission_requirements is not None
-            else (definition.permission_scope,)
-        ),
+        permission_requirements=(definition.permission_scope,),
         idempotency_support=definition.idempotency_support,
         latency_cost_hints=dict(definition.latency_cost_hints),
         data_sensitivity=definition.data_sensitivity,
-        availability=(
-            availability if availability is not None else definition.status
-        ),
+        availability=availability,
         schema_version=definition.schema_version,
         provenance={
             "source": "capability:registry",
             "definition_ref": definition.name,
+            "derived_at": _iso_timestamp(),
         },
     )
     return ManifestAdmission(

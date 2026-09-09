@@ -56,7 +56,9 @@ def _def(**overrides) -> CapabilityDefinition:
 )
 def test_unclassified_definitions_are_non_admitted(definition, expected_reasons):
     assert metadata_admission_reasons(definition) == expected_reasons
-    admission = project_manifest_entry(definition)
+    admission = project_manifest_entry(
+        definition, availability=CapabilityStatus.AVAILABLE
+    )
     assert admission.admitted is False
     assert admission.entry is None
     assert admission.reasons == expected_reasons
@@ -64,7 +66,9 @@ def test_unclassified_definitions_are_non_admitted(definition, expected_reasons)
 
 def test_both_missing_preserves_both_reasons_in_deterministic_order():
     definition = _def(side_effect_class=None, data_sensitivity="")
-    reasons = project_manifest_entry(definition).reasons
+    reasons = project_manifest_entry(
+        definition, availability=CapabilityStatus.AVAILABLE
+    ).reasons
     assert reasons == (
         "unclassified_side_effect",
         "unclassified_data_sensitivity",
@@ -75,7 +79,9 @@ def test_both_missing_preserves_both_reasons_in_deterministic_order():
 
 def test_missing_side_effect_is_never_read_only():
     definition = _def(side_effect_class=None, data_sensitivity="local_user_files")
-    admission = project_manifest_entry(definition)
+    admission = project_manifest_entry(
+        definition, availability=CapabilityStatus.AVAILABLE
+    )
     assert admission.admitted is False
     # A non-admitted definition must never be projected as READ_ONLY.
     assert definition.side_effect_class is None
@@ -84,7 +90,9 @@ def test_missing_side_effect_is_never_read_only():
 def test_blank_sensitivity_is_never_public():
     definition = _def(side_effect_class=SideEffectClass.READ_ONLY, data_sensitivity="")
     assert definition.data_sensitivity == ""
-    admission = project_manifest_entry(definition)
+    admission = project_manifest_entry(
+        definition, availability=CapabilityStatus.AVAILABLE
+    )
     assert admission.admitted is False
     assert "unclassified_data_sensitivity" in admission.reasons
 
@@ -95,7 +103,9 @@ def test_explicit_side_effect_and_sensitivity_are_admitted():
         data_sensitivity="local_user_files",
     )
     assert metadata_admission_reasons(definition) == ()
-    admission = project_manifest_entry(definition)
+    admission = project_manifest_entry(
+        definition, availability=CapabilityStatus.AVAILABLE
+    )
     assert admission.admitted is True
     assert admission.entry is not None
     assert admission.entry.side_effect_class == SideEffectClass.READ_ONLY

@@ -12,6 +12,7 @@ import json
 
 import pytest
 
+from julia_core.capability.models import CapabilityStatus
 from julia_core.runtime.capability_bridge import (
     CapabilityPreAuthorizationFailure,
     RuntimeCapabilityBridge,
@@ -58,7 +59,9 @@ def test_manifest_existence_does_not_mint_review_transaction_or_ledger_token():
     bridge.initialize()
     definition = bridge.registry.get("engineering.code_review")
     assert definition is not None
-    admission = project_manifest_entry(definition)
+    admission = project_manifest_entry(
+        definition, availability=CapabilityStatus.REGISTERED
+    )
     assert admission.admitted is True
     assert admission.entry is not None
     assert admission.entry.side_effect_class is not None

@@ -104,7 +104,8 @@ def test_canonicalization_failure_leaves_no_executable_manifest(monkeypatch):
 
     # The unclassified definition can never become an executable manifest entry.
     admission = project_manifest_entry(
-        bridge.registry.get("unknown.unclassified.cap")
+        bridge.registry.get("unknown.unclassified.cap"),
+        availability=CapabilityStatus.REGISTERED,
     )
     assert admission.admitted is False
     assert admission.entry is None
