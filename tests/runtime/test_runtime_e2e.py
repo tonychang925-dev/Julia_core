@@ -291,7 +291,10 @@ def test_tool_manifest_includes_both_local_and_market(bridge):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# R0.4 Real E2E: JuliaSession.chat() → WorkflowRouter → CapabilityManager
+# R0.4 / P3-CC I2-B: pre-cognitive Market prefetch is RETIRED.
+# The former `_resolve_market_context` prefetch chain (user-text keyword →
+# WorkflowRouter → MarketBriefPipeline → formatted market injection) is
+# Class A retired authority. Julia cognition is the sole semantic selector.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @pytest.fixture
@@ -319,7 +322,7 @@ def e2e_bridge():
 
 @pytest.fixture
 def e2e_session(e2e_bridge):
-    """JuliaSession with mock bridge — tests the real chat() pipeline."""
+    """JuliaSession with mock bridge — tests the retired seam directly."""
     import types
     from julia_core.runtime.julia_session import JuliaSession
 
@@ -341,52 +344,26 @@ def e2e_session(e2e_bridge):
     return session
 
 
-def test_session_resolve_market_context_returns_blocks(e2e_session):
-    """_resolve_market_context returns non-empty context for market query."""
-    context = e2e_session._resolve_market_context("今天市场怎么样？")
+def test_retired_market_seam_never_prefetches_from_user_text(e2e_session):
+    """P3-CC I2-B Class A replacement for the retired prefetch assertions.
 
-    assert context != ""
-    assert "市场情绪" in context
-    assert "活跃题材" in context
-    assert "AI Agent" in context or "半导体" in context
-    assert "风险提示" in context
+    Legacy market trigger text alone must NOT produce non-empty market
+    context, capability execution, or Market evidence. `_resolve_market_context`
+    is a non-semantic / non-executing / non-prefetching compatibility seam after
+    the cutover: it always returns empty, for market triggers and non-market
+    text alike, and no Market capability runs underneath it.
+    """
+    for query in (
+        "今天市场怎么样？",
+        "大盘怎么看",
+        "最近什么方向强",
+        "今天行情如何",
+        "你好，今天心情怎么样？",
+    ):
+        assert e2e_session._resolve_market_context(query) == "", query
 
-
-def test_session_non_market_returns_empty(e2e_session):
-    """_resolve_market_context returns empty for non-market query."""
-    context = e2e_session._resolve_market_context("你好，今天心情怎么样？")
-    assert context == ""
-
-
-def test_session_market_context_includes_evidence(e2e_session):
-    """Market context includes data source provenance."""
-    context = e2e_session._resolve_market_context("大盘怎么看")
-    assert context != ""
-    assert "数据来源" in context or "ai_theme_app" in context
-
-
-@pytest.mark.parametrize("query", [
-    "今天市场怎么样？",
-    "大盘怎么看",
-    "最近什么方向强",
-    "今天行情如何",
-])
-def test_session_market_queries_all_return_context(e2e_session, query):
-    """All common market queries trigger pipeline and return context."""
-    context = e2e_session._resolve_market_context(query)
-    assert context != "", f"'{query}' should return market context, got empty"
-
-
-def test_session_market_context_pipeline_trace(e2e_session):
-    """After _resolve_market_context, CapabilityManager has evidence."""
-    e2e_session._resolve_market_context("今天市场怎么样？")
-
-    # Evidence was recorded through the CapabilityManager
-    assert e2e_session.capability.manager.evidence.count >= 1
-    last = e2e_session.capability.manager.evidence.last()
-    assert last is not None
-    assert last.capability_name == "market.snapshot.read"
-    assert last.provider == "ai_theme_app"
+    # No capability executed through the seam → no Market evidence recorded.
+    assert e2e_session.capability.manager.evidence.count == 0
 
 
 # ── E2E-10: Health check — all providers available ──────────────────────────

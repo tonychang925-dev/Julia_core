@@ -701,6 +701,7 @@ class SameTurnResearchContinuation:
         )
 
 
+    @staticmethod
     def _stop(
         messages,
         request_ids,

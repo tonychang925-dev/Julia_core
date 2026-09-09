@@ -13,7 +13,11 @@ from typing import Any
 
 import pytest
 
-from julia_core.capability.models import ProviderExecutionOutcome, ToolResultStatus
+from julia_core.capability.models import (
+    CapabilityStatus,
+    ProviderExecutionOutcome,
+    ToolResultStatus,
+)
 from julia_core.conversation_state.storage_v2_repository import (
     StorageV2ConversationRepository,
 )
@@ -61,13 +65,36 @@ RELATIONS = [{
     "updated_at": "2026-09-03T09:36:00+08:00",
 }]
 
-RESOLVER_CALL = {
-    "name": "market.event.resolve",
+# P3-CC I2-B: the model-owned top-level Research selection. Julia cognition
+# emits research.run_brief; the deterministic resolve → read → enrich → C1 → C2
+# chain is the execution semantics of that already-selected governed program.
+# The internal market.event.resolve arguments mirror the old resolver fields so
+# the Class B downstream invariants (selected_event_id provenance, read fields,
+# C1/C2, product trace) stay materially equivalent.
+RESEARCH_RUN_BRIEF_CALL = {
+    "name": "research.run_brief",
     "arguments": {
         "query": "今天半导体设备为什么变化？",
         "normalized_theme": "半导体设备",
     },
 }
+
+
+def _activate_research_composite(capability) -> None:
+    """Fixture-only: mark research.event.enrich AVAILABLE post-initialize.
+
+    The production bridge registers research.event.enrich as REGISTERED and a
+    product composition that binds the research_enrichment provider activates it
+    to AVAILABLE (the I2-A-R2 shared composite gate requires every governed
+    sub-capability AVAILABLE + provider-bound). Tests mirror that activation so
+    the model-owned research.run_brief chain exercises its real execution path.
+    """
+    definition = capability.registry.get("research.event.enrich")
+    if definition is None:
+        return
+    capability.registry.register_definition(
+        dataclasses.replace(definition, status=CapabilityStatus.AVAILABLE)
+    )
 
 
 def envelope(operation: str, payload: dict[str, Any], status: str = "success") -> dict:
@@ -247,7 +274,7 @@ class ResearchCognitionProvider:
     async def stream_async(self, messages):
         self.stream_calls.append(list(messages))
         if len(self.stream_calls) == 1:
-            yield f"```tool_call\n{json.dumps(RESOLVER_CALL, ensure_ascii=False)}\n```"
+            yield f"```tool_call\n{json.dumps(RESEARCH_RUN_BRIEF_CALL, ensure_ascii=False)}\n```"
         else:
             yield "Julia's same-turn research answer retains the governed uncertainty."
 
@@ -357,6 +384,12 @@ def session(monkeypatch, *, market=None, research=None, cognition=None) -> Julia
         "research_enrichment", research or ResearchProvider()
     )
     result.capability.initialize()
+    # P3-CC I2-B: activate the governed research.event.enrich sub-capability for
+    # the fixture composition so the frozen I2-A high-level availability gate
+    # (research.run_brief composite == AVAILABLE) passes exactly as a product
+    # composition that activates the governed Research composite would. This is
+    # execution availability for the model-owned chain — not semantic routing.
+    _activate_research_composite(result.capability)
     result.context_os = ContextExecutionRuntime(result)
     result.action = FakeAction()
     result.recorder = FakeRecorder()

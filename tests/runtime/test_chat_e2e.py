@@ -380,7 +380,13 @@ def test_real_init_session_has_workflow_router(real_init_session):
 
 
 def test_real_init_session_chat_works(real_init_session):
-    """chat() on real-init session runs full market pipeline."""
+    """chat() on real-init session keeps a valid lifecycle turn.
+
+    P3-CC I2-B Class A replacement: a market trigger text alone must NOT run any
+    pre-cognitive Market capability. The model emits no governed capability →
+    ordinary non-empty reply, with ZERO pre-cognitive Market execution (no new
+    market.snapshot.read EvidenceLedger entry from the trigger text).
+    """
     session = real_init_session
 
     reply = session.chat("今天市场怎么样？")
@@ -388,18 +394,23 @@ def test_real_init_session_chat_works(real_init_session):
     assert reply is not None
     assert len(reply) > 0
 
-    # Evidence recorded through real bridge
-    assert session.capability.manager.evidence.count >= 1
-    last = session.capability.manager.evidence.last()
-    assert last.capability_name == "market.snapshot.read"
+    # Pre-cognitive Market capability execution = 0 → no Market evidence entry.
+    assert session.capability.manager.evidence.count == 0
+    assert session.capability.manager.evidence.last() is None
 
 
 def test_real_init_chat_produces_market_context(real_init_session):
-    """System prompt from real-init session contains market context."""
+    """System prompt must NOT be pre-injected with market context from text.
+
+    P3-CC I2-B Class A replacement: market trigger text "大盘怎么看" + model
+    emits no governed capability → "市场情报" is NOT injected before cognition
+    (the retired pre-cognitive seam returns empty).
+    """
     real_init_session.chat("大盘怎么看")
 
     system = MockLLMProvider.last_system_prompt()
-    assert "市场情报" in system
+    assert "市场情报" not in system
+    assert "市场情绪" not in system
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
