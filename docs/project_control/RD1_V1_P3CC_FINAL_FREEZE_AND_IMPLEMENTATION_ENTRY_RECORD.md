@@ -209,3 +209,60 @@ CASE C  not in table AND metadata incomplete  → FAIL CLOSED initialization
 After canonicalization the single `CapabilityRegistry` object is canonical.
 Explicit product-owned metadata is declarative input; it grants no permission,
 no provider authority, and no model semantic-selection authority.
+
+---
+
+## 6. I1b1 Test-Path Ratification Addendum (2026-09-09)
+
+```text
+TONY_OWNER_I1B1_TEST_PATH_RATIFICATION
+= YES
+
+RATIFIED_TEST_PATH
+= tests/runtime/test_r2_p3_context_os_typed_projection.py
+
+PURPOSE
+= mechanical adaptation from the retired raw "available_tools" assertion to
+  the frozen governed CapabilityFrame / manifest contract
+
+APPLIES_TO_CANDIDATE
+= c6c3af6be2dc8518a7ad4a24e4ad3d348fae572a
+
+REASON
+= existing Context OS acceptance test mechanically depended on raw
+  capability_frame["available_tools"], which I1b-1 is contractually required
+  to retire and replace with governed CapabilityManifestEntry projection
+
+SEMANTIC_ASSERTION_WEAKENING
+= NO
+
+PRODUCTION_SCOPE_CHANGE
+= NO
+
+REQUIRED_BUT_UNAUTHORIZED_TEST_PATH (pre-ratification)
+= YES, COUNT = 1
+
+PRODUCTION_PATH_EXPANSION
+= 0
+
+ADDITIONAL_TEST_PATH_COUNT
+= 1
+
+D2_CHANGE
+= NO
+
+D3_CHANGE
+= NO
+
+ARCHITECTURE_CHANGE
+= NO
+
+MAIN_MUTATION
+= NO
+
+MERGE
+= NO
+
+RELEASE
+= NO
+```
