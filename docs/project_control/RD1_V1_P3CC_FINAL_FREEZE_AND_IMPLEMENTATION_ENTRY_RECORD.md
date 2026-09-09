@@ -163,3 +163,49 @@ CONTRACT_FREEZE = YES
 IMPLEMENTATION_AUTHORIZED = YES
 IMPLEMENTATION_BRANCH = p3cc/rd1-v1-capability-convergence
 ```
+
+---
+
+## 5. I1a-R1 Owner Test-Path Exception Addendum (2026-09-09)
+
+```text
+TONY_OWNER_I1A_TEST_PATH_EXCEPTION
+= YES
+
+Additional test-only path:
+tests/capability/test_capability_cross_repo_provider_readiness.py
+
+Reason:
+align the generic cross-repo product-owned CapabilityDefinition fixture with
+frozen C-08 mandatory safety metadata (contract-driven fixture alignment only).
+
+Production allowed paths:
+UNCHANGED
+
+D2:
+UNCHANGED
+
+D3:
+UNCHANGED
+
+Architecture:
+UNCHANGED
+
+Main / merge / release:
+NOT AUTHORIZED
+```
+
+Binding interpretation (Mira-Sis resolution, I1a-R1):
+
+```text
+CORE_CANONICAL_METADATA_TABLE = migration/canonicalization source for
+  Core-owned baseline definitions; NOT a global capability allowlist.
+
+CASE A  capability_id in Core table           → apply canonical Core metadata
+CASE B  not in table AND metadata explicit    → PASS THROUGH unchanged
+CASE C  not in table AND metadata incomplete  → FAIL CLOSED initialization
+```
+
+After canonicalization the single `CapabilityRegistry` object is canonical.
+Explicit product-owned metadata is declarative input; it grants no permission,
+no provider authority, and no model semantic-selection authority.
