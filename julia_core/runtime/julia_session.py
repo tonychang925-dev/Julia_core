@@ -629,8 +629,19 @@ class JuliaSession:
             if package is not None
             else None
         )
-        if not frame or not isinstance(frame, dict) or "manifest_entries" not in frame:
+        # I1b-3-R1 (R1-B): capability_frame empty → no capability block, an
+        # ordinary turn proceeds. capability_frame non-empty → it MUST be a
+        # governed C-08 manifest shape: the accepted encoder is ALWAYS invoked,
+        # so a non-empty malformed frame yields an alignment diagnostic and
+        # fails closed instead of silently passing through.
+        if not frame:
             return messages
+        if not isinstance(frame, dict):
+            # A non-empty non-mapping capability frame is malformed input.
+            raise CapabilityAlignmentNotReady(
+                "C-09 capability alignment failed: "
+                "['INVALID_CAPABILITY_FRAME'] (non-mapping capability_frame)"
+            )
         result = encode_capability_frame(
             frame, representation_mode="text_protocol"
         )

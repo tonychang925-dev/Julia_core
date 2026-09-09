@@ -344,9 +344,18 @@ class ContextExecutionRuntime:
             generation_id=generation_id or material.provenance.get("generation_id", ""),
         )
         pkg.situation_frame = dict(material.situation_frame)
+        # P3-CC I1b-3-R1 (R1-A): the C2 execution-context projection
+        # (research_capability_request_id, research_capability_call_id,
+        # tool_result_status, correlation_id) is ordinary C-03 model-visible
+        # information and is preserved here under situation_frame. It is NOT a
+        # governed C-08 CapabilityManifest, so it must not live in
+        # capability_frame. pkg.capability_frame stays empty (reserved for the
+        # governed C-08 manifest semantic only).
+        pkg.situation_frame["capability_execution_context"] = dict(
+            material.capability_frame
+        )
         pkg.evidence_frame = dict(material.evidence_frame)
         pkg.control_frame = dict(material.control_frame)
-        pkg.capability_frame = dict(material.capability_frame)
         pkg.retrieval_handles["research_judgment"] = dict(material.provenance)
         pkg.projection_metadata["research_judgment_version"] = "research.preliminary_judgment.v1"
         pkg.projection_metadata["external_material_instruction_authority"] = False
