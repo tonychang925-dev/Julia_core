@@ -601,18 +601,33 @@ class SameTurnResearchContinuation:
         )
 
     def _require_high_level_authorization(self) -> None:
-        """P3-CC I2-A-R1 governed high-level authorization gate.
+        """P3-CC I2-A-R2 governed high-level authorization gate.
 
-        Canonical definition lookup → DISABLED/unavailable check →
-        PermissionPolicy AuthorizationDecision. Denied or unavailable raises
-        ResearchHighLevelDenied so NO internal market.event.resolve / read /
-        enrich sub-call executes. Sub-capability authorization during the
-        deterministic chain does NOT substitute for this high-level gate.
+        Order (frozen):
+          1. canonical research.run_brief definition exists;
+          2. composite availability == AVAILABLE (reusing the SAME I1b-4
+             derivation — imported, never re-implemented here), i.e. every
+             required sub-capability is AVAILABLE under the conservative
+             Option-C rule with its provider bound;
+          3. PermissionPolicy == ALLOW.
+
+        Any failure raises ResearchHighLevelDenied so NO internal
+        market.event.resolve / read / enrich sub-call executes. Sub-capability
+        authorization during the deterministic chain does NOT substitute for
+        this high-level gate. MODEL_VISIBLE_AVAILABILITY_RULE ==
+        EXECUTION_INGRESS_AVAILABILITY_RULE because both call the same shared
+        derivation.
         """
+        from julia_core.capability.models import CapabilityStatus
+        from julia_core.runtime.context_execution_runtime import (
+            _derive_research_composite_availability,
+        )
+
         registry = getattr(
             getattr(self.session, "capability", None), "registry", None
         )
         policy = getattr(getattr(self.session, "capability", None), "policy", None)
+        manager = getattr(getattr(self.session, "capability", None), "manager", None)
         if registry is None or policy is None:
             raise ResearchHighLevelDenied(
                 "research.run_brief: capability authority unavailable"
@@ -622,11 +637,23 @@ class SameTurnResearchContinuation:
             raise ResearchHighLevelDenied(
                 "research.run_brief: canonical definition not registered"
             )
-        status = getattr(definition, "status", None)
-        disabled = getattr(status, "value", status) == "disabled"
-        if disabled:
+        providers = getattr(manager, "providers", None)
+        bound_providers = (
+            frozenset(providers) if providers is not None else frozenset()
+        )
+        definitions_by_name = {
+            candidate.name: candidate
+            for candidate in registry.all_definitions()
+        }
+        availability = _derive_research_composite_availability(
+            definition,
+            definitions_by_name,
+            bound_providers,
+        )
+        if availability != CapabilityStatus.AVAILABLE:
             raise ResearchHighLevelDenied(
-                "research.run_brief: capability disabled"
+                "research.run_brief: composite not available "
+                f"(derived availability={availability.value})"
             )
         decision = policy.check(definition.permission_scope)
         decision_value = getattr(

@@ -322,8 +322,28 @@ def test_high_level_denied_blocks_internal_resolve(monkeypatch):
                 return definition
             return None
 
+        def all_definitions(self):
+            return [
+                definition,
+                SimpleNamespace(name="market.event.resolve",
+                                provider="ai_theme_app",
+                                permission_scope="market.observe",
+                                status=CapabilityStatus.AVAILABLE),
+                SimpleNamespace(name="market.event.read",
+                                provider="ai_theme_app",
+                                permission_scope="market.observe",
+                                status=CapabilityStatus.AVAILABLE),
+                SimpleNamespace(name="research.event.enrich",
+                                provider="research_enrichment",
+                                permission_scope="research.enrich",
+                                status=CapabilityStatus.AVAILABLE),
+            ]
+
     capability = _DenyCapability()
     capability.registry = _Registry()
+    capability.manager = SimpleNamespace(
+        providers={"ai_theme_app", "research_enrichment"}
+    )
 
     session = SimpleNamespace(capability=capability)
     continuation = SameTurnResearchContinuation(session)
@@ -386,3 +406,133 @@ def test_high_level_missing_definition_blocks_internal_resolve():
             research_product_hook=None,
             product_sink=None,
         ))
+
+
+# ── I2-A-R2: execution ingress reuses the frozen composite availability ────
+
+def _gate_fixture(*, resolve="available", read="available", enrich="available",
+                  bound=True, policy="ALLOW"):
+    """Build a SameTurn gate fixture whose registry/manager mirror the shared
+    I1b-4 composite availability inputs."""
+    from types import SimpleNamespace
+
+    from julia_core.capability.models import CapabilityStatus
+    from julia_core.runtime.research_continuation import (
+        SameTurnResearchContinuation,
+    )
+
+    run_brief = SimpleNamespace(
+        name="research.run_brief",
+        permission_scope="research.run_brief",
+        status=CapabilityStatus.AVAILABLE,
+    )
+    subcaps = {
+        "market.event.resolve": SimpleNamespace(
+            name="market.event.resolve", provider="ai_theme_app",
+            permission_scope="market.observe",
+            status=CapabilityStatus(resolve),
+        ),
+        "market.event.read": SimpleNamespace(
+            name="market.event.read", provider="ai_theme_app",
+            permission_scope="market.observe",
+            status=CapabilityStatus(read),
+        ),
+        "research.event.enrich": SimpleNamespace(
+            name="research.event.enrich", provider="research_enrichment",
+            permission_scope="research.enrich",
+            status=CapabilityStatus(enrich),
+        ),
+    }
+
+    class _Policy:
+        def __init__(self, decision):
+            self.decision_value = decision
+
+        def check(self, scope):
+            from types import SimpleNamespace as NS
+            return NS(decision=self.decision_value)
+
+    class _Registry:
+        def __init__(self):
+            self.by_name = {run_brief.name: run_brief, **subcaps}
+
+        def get(self, name):
+            return self.by_name.get(name)
+
+        def all_definitions(self):
+            return list(self.by_name.values())
+
+    capability = SimpleNamespace(
+        registry=_Registry(),
+        policy=_Policy(policy),
+        manager=SimpleNamespace(
+            providers=(
+                {"ai_theme_app", "research_enrichment"}
+                if bound else set()
+            )
+        ),
+    )
+    continuation = SameTurnResearchContinuation(
+        SimpleNamespace(capability=capability)
+    )
+    return continuation
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"resolve": "registered"},   # resolve REGISTERED
+        {"read": "registered"},      # read REGISTERED
+        {"enrich": "registered"},    # enrich REGISTERED
+        {"resolve": "degraded"},     # DEGRADED dependency
+        {"enrich": "disabled"},      # DISABLED dependency
+        {"bound": False},            # providers unbound
+        {"policy": "DENY"},          # policy denies
+    ],
+)
+def test_high_level_gate_negative_zero_subcalls(kwargs):
+    from julia_core.runtime.research_continuation import ResearchHighLevelDenied
+
+    continuation = _gate_fixture(**kwargs)
+    with pytest.raises(ResearchHighLevelDenied):
+        continuation._require_high_level_authorization()
+
+
+def test_high_level_gate_positive_allows_execution():
+    continuation = _gate_fixture()  # all AVAILABLE + bound + ALLOW
+    continuation._require_high_level_authorization()  # no raise → resolve may start
+
+
+def test_high_level_gate_missing_dependency_denied():
+    from julia_core.runtime.research_continuation import ResearchHighLevelDenied
+
+    continuation = _gate_fixture()
+    # Simulate a missing dependency by removing research.event.enrich from the
+    # registry view (dependency missing → not AVAILABLE).
+    registry = continuation.session.capability.registry
+    registry.by_name.pop("research.event.enrich")
+    with pytest.raises(ResearchHighLevelDenied):
+        continuation._require_high_level_authorization()
+
+
+def test_default_product_hook_is_existing_projection_not_new_authority():
+    """R2: the default hook only projects already-existing C2 judgment / Market
+    context fields into a research.brief.v1 shape — it never fabricates
+    evidence or judgment, and is superseded by an external product hook."""
+    from types import SimpleNamespace
+
+    session = _RealSession(_FakeContextOS(), _FakeCapability())
+    session._default_product_sink = (
+        lambda product: setattr(session, "_last_research_product", product)
+    )
+
+    judgment = SimpleNamespace(judgment_id="judgment-9")
+    validated_market = {"event": {"event_id": "event-215257"}}
+    brief = session._default_research_product_hook(judgment, validated_market)
+    assert brief["contract_version"] == "research.brief.v1"
+    assert brief["judgment_id"] == "judgment-9"
+    assert brief["market_event_id"] == "event-215257"
+    # Only projection fields; no synthesized evidence/claims/decision.
+    assert "evidence" not in brief
+    assert "claims" not in brief
+    assert "decision" not in brief
