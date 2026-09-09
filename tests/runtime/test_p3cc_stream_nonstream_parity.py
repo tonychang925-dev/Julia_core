@@ -14,6 +14,7 @@ from __future__ import annotations
 import ast
 import re
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -420,3 +421,350 @@ def test_no_vacuous_or_true_assertions_in_this_file():
     marker = "def test_no_vacuous_or_true_assertions_in_this_file():"
     source = source.split(marker)[0]
     assert "or True" not in source
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# R2 — REAL PRODUCTION CONTROL-FLOW PROVIDER-BOUNDARY PROOFS
+# These tests drive the actual JuliaSession control-flow methods
+# (_chat_impl / process_stream) with controlled test doubles for external
+# services. They NEVER hand-invoke the alignment seam as the proof.
+# ─────────────────────────────────────────────────────────────────────────────
+
+class _NoopEventStore:
+    def append(self, event):
+        pass
+
+
+class _FakeRecorder:
+    def __init__(self):
+        self.records = []
+
+    def record(self, *args, **kwargs):
+        self.records.append(args)
+
+    def consolidate(self, *args, **kwargs):
+        pass
+
+
+class _FakeAction:
+    def start(self, *args, **kwargs):
+        pass
+
+    def finish(self, *args, **kwargs):
+        pass
+
+
+class _FakePersona:
+    traits = {}
+    identity = {}
+
+
+class _FakeOutcome:
+    def __init__(self, tool_result=None, evidence=()):
+        self.authorization_decision = SimpleNamespace(decision="ALLOW")
+        self.tool_result = tool_result or SimpleNamespace(
+            status=SimpleNamespace(value="success"), structured_output={}
+        )
+        self.evidence = evidence
+        self.capability_call = SimpleNamespace(call_id="call-1")
+
+
+class _FakeCapability:
+    def __init__(self):
+        self.requires_tool_result = False
+        self.tool_call = None
+        self.outcome = None
+        self.execute_calls = []
+
+    def requires_tool(self, text):
+        return self.requires_tool_result
+
+    def detect_tool_call(self, reply):
+        return self.tool_call
+
+    def execute_tool_typed(self, tool_json, **kwargs):
+        self.execute_calls.append(tool_json)
+        return self.outcome
+
+    async def execute_tool_typed_async(self, tool_json, **kwargs):
+        self.execute_calls.append(tool_json)
+        return self.outcome
+
+
+class _FakeContextOS:
+    """Controlled Context OS double returning scripted packages.
+
+    The JuliaSession control-flow methods execute for real; only the Context OS
+    package returns are scripted (prepare / retry / tool-result)."""
+
+    def __init__(self):
+        self.initial_pkg = None
+        self.retry_pkg = None
+        self.delta_pkg = None
+        self.retry_calls = 0
+        self.tool_result_calls = 0
+
+    def prepare(self, **kwargs):
+        return self.initial_pkg
+
+    def project_retry_control(self, *, parent_package, reason, generation_id):
+        self.retry_calls += 1
+        return self.retry_pkg
+
+    def project_tool_result(self, *, parent_package, tool_result, evidence=(), generation_id=""):
+        self.tool_result_calls += 1
+        return self.delta_pkg
+
+    def project_authorization_outcome(self, **kwargs):
+        return self.delta_pkg
+
+
+class _RealSession(JuliaSession):
+    """A REAL JuliaSession instance; __init__ injects test doubles only."""
+
+    def __init__(self, context_os, capability):
+        self.provider = _ProviderSpy()
+        self.context_os = context_os
+        self.capability = capability
+        self.action = _FakeAction()
+        self.recorder = _FakeRecorder()
+        self.bootstrap = ""
+        self.persona = _FakePersona()
+        self.relationship = None
+        self._session_state = {}
+
+
+def _real_session(context_os, capability, monkeypatch):
+    monkeypatch.setattr(
+        "julia_core.events.store.get_event_store",
+        lambda: _NoopEventStore(),
+    )
+    return _RealSession(context_os, capability)
+
+
+def _c09_block(messages) -> str:
+    for message in messages:
+        content = str(message.get("content", ""))
+        if content.startswith("[C-09 capability representation]"):
+            return content
+    return ""
+
+
+def test_real_sync_initial_path(monkeypatch):
+    capability = _FakeCapability()
+    capability.requires_tool_result = False
+    capability.tool_call = None
+    context_os = _FakeContextOS()
+    context_os.initial_pkg = _package(FILE_A)
+    session = _real_session(context_os, capability, monkeypatch)
+
+    session.process("hello", [], conversation_id="c1", turn_id="t1")
+
+    assert len(session.provider.chat_calls) >= 1
+    sync_initial = _c09_block(session.provider.chat_calls[0])
+    assert sync_initial.count("[C-09 capability representation]") == 1
+    assert "capability: file.read" in sync_initial
+    assert "[capability]" not in str(session.provider.chat_calls[0])
+    assert "available_tools" not in str(session.provider.chat_calls[0])
+
+
+def test_real_stream_initial_path(monkeypatch):
+    capability = _FakeCapability()
+    context_os = _FakeContextOS()
+    context_os.initial_pkg = _package(FILE_A)
+    session = _real_session(context_os, capability, monkeypatch)
+
+    chunks = []
+    async def run():
+        async for chunk in session.process_stream(
+            "hello", [], conversation_id="c1", turn_id="t1"
+        ):
+            chunks.append(chunk)
+    import asyncio
+    asyncio.run(run())
+
+    assert len(session.provider.stream_calls) >= 1
+    stream_initial = _c09_block(session.provider.stream_calls[0])
+    assert stream_initial.count("[C-09 capability representation]") == 1
+    assert "capability: file.read" in stream_initial
+    assert "[capability]" not in str(session.provider.stream_calls[0])
+    assert len(chunks) >= 1
+
+
+def test_real_sync_stream_parity(monkeypatch):
+    sync_cap, stream_cap = _FakeCapability(), _FakeCapability()
+    sync_ctx, stream_ctx = _FakeContextOS(), _FakeContextOS()
+    pkg = _package(FILE_A, MARKET_B)
+    sync_ctx.initial_pkg = pkg
+    stream_ctx.initial_pkg = pkg
+    sync_session = _real_session(sync_ctx, sync_cap, monkeypatch)
+    stream_session = _real_session(stream_ctx, stream_cap, monkeypatch)
+
+    sync_session.process("q", [], conversation_id="c", turn_id="t")
+    async def consume():
+        async for _ in stream_session.process_stream(
+            "q", [], conversation_id="c", turn_id="t"
+        ):
+            pass
+    import asyncio
+    asyncio.run(consume())
+
+    sync_block = _c09_block(sync_session.provider.chat_calls[0])
+    stream_block = _c09_block(stream_session.provider.stream_calls[0])
+    assert sync_block != ""
+    assert sync_block == stream_block
+
+
+def test_real_sync_retry_path(monkeypatch):
+    capability = _FakeCapability()
+    capability.requires_tool_result = True
+    capability.tool_call = None  # first model pass emits no tool call
+    context_os = _FakeContextOS()
+    context_os.initial_pkg = _package(FILE_A)
+    context_os.retry_pkg = _package(MARKET_B)  # retry package carries B
+    session = _real_session(context_os, capability, monkeypatch)
+
+    session.process("market", [], conversation_id="c", turn_id="t")
+
+    assert len(session.provider.chat_calls) >= 2
+    assert context_os.retry_calls >= 1
+    first = _c09_block(session.provider.chat_calls[0])
+    retry = _c09_block(session.provider.chat_calls[1])
+    assert "capability: file.read" in first
+    assert "capability: market.event.read" in retry
+    assert "capability: file.read" not in retry  # stale A block absent
+
+
+def test_real_sync_tool_continuation_path(monkeypatch):
+    import json as _json
+
+    capability = _FakeCapability()
+    capability.requires_tool_result = False
+    capability.tool_call = _json.dumps(
+        {"name": "file.read", "arguments": {"path": "/tmp/x"}}
+    )
+    capability.outcome = _FakeOutcome()
+    context_os = _FakeContextOS()
+    context_os.initial_pkg = _package(FILE_A)
+    context_os.delta_pkg = _package(MARKET_B)  # delta carries B
+    session = _real_session(context_os, capability, monkeypatch)
+
+    session.process("read", [], conversation_id="c", turn_id="t")
+
+    assert len(capability.execute_calls) >= 1
+    assert context_os.tool_result_calls >= 1
+    assert len(session.provider.chat_calls) >= 2
+    continuation = _c09_block(session.provider.chat_calls[1])
+    assert "capability: market.event.read" in continuation
+    assert "capability: file.read" not in continuation  # stale parent absent
+
+
+def test_real_alignment_failure_at_provider_boundary(monkeypatch):
+    capability = _FakeCapability()
+    context_os = _FakeContextOS()
+    context_os.initial_pkg = CognitiveContextPackage()
+    context_os.initial_pkg.capability_frame = {
+        "non_admitted_diagnostics": []
+    }  # non-empty malformed frame
+    session = _real_session(context_os, capability, monkeypatch)
+
+    with pytest.raises(CapabilityAlignmentNotReady):
+        session.process("hi", [], conversation_id="c", turn_id="t")
+    assert session.provider.chat_calls == []
+    assert session.provider.stream_calls == []
+
+
+# ── R2: research final / failure REAL process_stream branches ──────────────
+
+class _FakeSameTurnResearchContinuation:
+    material = None
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def run(self, **kwargs):
+        return self.material
+
+
+def _research_text() -> str:
+    # Deterministic research ingress phrase (研究 + 市场) that reaches the
+    # SameTurnResearchContinuation branch inside process_stream.
+    return "请研究这个市场事件对行情的影响"
+
+
+def test_real_research_final_branch_aligns_context_package(monkeypatch):
+    import julia_core.runtime.research_continuation as rc
+
+    from julia_core.runtime.research_continuation import (
+        ResearchContinuationMaterial,
+    )
+
+    context_os = _FakeContextOS()
+    context_os.initial_pkg = _package(FILE_A)
+    session = _real_session(context_os, _FakeCapability(), monkeypatch)
+
+    final_pkg = _package(MARKET_B)
+    material = ResearchContinuationMaterial(
+        messages=[{"role": "user", "content": "final"}],
+        product=None,
+        trace={"judgment_id": "j1"},
+        context_package=final_pkg,
+    )
+    assert "[C-09" not in str(material.messages)
+    _FakeSameTurnResearchContinuation.material = material
+    monkeypatch.setattr(
+        rc, "SameTurnResearchContinuation", _FakeSameTurnResearchContinuation
+    )
+
+    async def consume():
+        async for _ in session.process_stream(
+            _research_text(), [], conversation_id="c", turn_id="t"
+        ):
+            pass
+
+    import asyncio
+    asyncio.run(consume())
+
+    assert len(session.provider.stream_calls) >= 1
+    research_block = _c09_block(session.provider.stream_calls[0])
+    assert "capability: market.event.read" in research_block
+    assert "capability: file.read" not in research_block
+    assert "[C-09" not in str(material.messages)
+
+
+def test_real_research_failure_branch_no_model_call(monkeypatch):
+    import julia_core.runtime.research_continuation as rc
+
+    from julia_core.runtime.research_continuation import (
+        ResearchContinuationMaterial,
+    )
+
+    context_os = _FakeContextOS()
+    context_os.initial_pkg = _package(FILE_A)
+    session = _real_session(context_os, _FakeCapability(), monkeypatch)
+
+    _FakeSameTurnResearchContinuation.material = ResearchContinuationMaterial(
+        messages=[],
+        product=None,
+        trace={},
+        failure="research chain failed",
+    )
+    monkeypatch.setattr(
+        rc, "SameTurnResearchContinuation", _FakeSameTurnResearchContinuation
+    )
+
+    async def consume():
+        async for _ in session.process_stream(
+            _research_text(), [], conversation_id="c", turn_id="t"
+        ):
+            pass
+
+    import asyncio
+    with pytest.raises(Exception) as excinfo:
+        asyncio.run(consume())
+    # Fail-closed: research failure stops cognition with the typed error.
+    from julia_core.runtime.julia_session import ResearchTurnNotReady
+
+    assert isinstance(excinfo.value, ResearchTurnNotReady)
+    assert session.provider.stream_calls == []
+    assert session.provider.chat_calls == []
