@@ -308,3 +308,169 @@ def test_capability_frame_renders_governed_manifest_transitionally():
     # The registry is not re-read by rendering; the frame is the single source
     # for this code path.
     assert pkg.capability_frame is manifest
+
+
+# ── P3-CC I1b-4: research.run_brief composite availability ────────────────
+
+from julia_core.runtime.context_execution_runtime import (
+    RESEARCH_RUN_BRIEF_CAPABILITY_ID,
+    build_capability_manifest,
+)
+
+REQUIRED_SUBCAPS = (
+    "market.event.resolve",
+    "market.event.read",
+    "research.event.enrich",
+)
+
+
+def _composite_frame(resolve, read, enrich, *, include_composite=True):
+    """Build a governed manifest from explicit dependency definitions."""
+    frame = {}
+    entries = []
+    if include_composite:
+        entries.append(_explicit_def(
+            "research.run_brief",
+            provider="composite",
+            scope="research.run_brief",
+            status=CapabilityStatus.REGISTERED,
+            sensitivity="market_event_research",
+        ))
+    entries.append(_explicit_def(
+        "market.event.resolve",
+        provider="ai_theme_app",
+        scope="market.observe",
+        status=resolve,
+    ))
+    entries.append(_explicit_def(
+        "market.event.read",
+        provider="ai_theme_app",
+        scope="market.observe",
+        status=read,
+    ))
+    if enrich is not None:
+        entries.append(_explicit_def(
+            "research.event.enrich",
+            provider="research_enrichment",
+            scope="research.enrich",
+            status=enrich,
+        ))
+    frame["manifest_entries"] = [vars_of(e) for e in entries] if False else [
+        {
+            "capability_id": e.name,
+            "description": e.description,
+            "input_schema": e.input_schema,
+            "output_schema": e.output_schema,
+            "side_effect_class": e.side_effect_class.value,
+            "permission_requirements": [e.permission_scope],
+            "idempotency_support": e.idempotency_support.value,
+            "latency_cost_hints": e.latency_cost_hints,
+            "data_sensitivity": e.data_sensitivity,
+            "availability": e.status.value,
+            "schema_version": e.schema_version,
+            "provenance": {"source": "capability:registry",
+                           "definition_ref": e.name,
+                           "derived_at": "2026-09-09T00:00:00Z"},
+        }
+        for e in entries
+    ]
+    return frame
+
+
+def _composite_result(*, resolve=CapabilityStatus.AVAILABLE,
+                      read=CapabilityStatus.AVAILABLE,
+                      enrich=CapabilityStatus.AVAILABLE,
+                      include_composite=True, include_enrich=True):
+    frame = _composite_frame(
+        resolve,
+        read,
+        enrich if include_enrich else None,
+        include_composite=include_composite,
+    )
+    # A fake provider double whose health() raises if invoked; only its name
+    # participates in projection (never the object).
+    provider = _RaisingHealthProvider()
+    bound = frozenset({"ai_theme_app", "research_enrichment"})
+    manifest = build_capability_manifest(
+        [defn_from(e) for e in frame["manifest_entries"]], bound
+    )
+    return manifest, provider
+
+
+def defn_from(entry):
+    from julia_core.capability.models import (
+        CapabilityDefinition,
+        CapabilityLayer,
+        CapabilityStatus,
+        IdempotencySupport,
+        SideEffectClass,
+    )
+    return CapabilityDefinition(
+        name=entry["capability_id"],
+        description=entry["description"],
+        layer=CapabilityLayer.WORLD,
+        provider="composite" if entry["capability_id"] == "research.run_brief"
+        else ("ai_theme_app" if entry["capability_id"].startswith("market.")
+              else "research_enrichment"),
+        permission_scope=entry["permission_requirements"][0],
+        input_schema=entry["input_schema"],
+        status=CapabilityStatus(entry["availability"]),
+        side_effect_class=SideEffectClass(entry["side_effect_class"]),
+        idempotency_support=IdempotencySupport(entry["idempotency_support"]),
+        data_sensitivity=entry["data_sensitivity"],
+    )
+
+
+def _run_brief_availability(manifest):
+    by_id = {e["capability_id"]: e for e in manifest["manifest_entries"]}
+    if RESEARCH_RUN_BRIEF_CAPABILITY_ID not in by_id:
+        return None
+    return by_id[RESEARCH_RUN_BRIEF_CAPABILITY_ID]["availability"]
+
+
+def test_composite_available_when_all_subcaps_available():
+    manifest, provider = _composite_result()
+    assert _run_brief_availability(manifest) == "available"
+    assert provider.health_calls == 0  # PROVIDER_HEALTH_CALL_COUNT == 0
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        ("resolve", CapabilityStatus.REGISTERED),
+        ("resolve", CapabilityStatus.DISABLED),
+        ("read", CapabilityStatus.REGISTERED),
+        ("read", CapabilityStatus.DISABLED),
+        ("enrich", CapabilityStatus.REGISTERED),
+        ("enrich", CapabilityStatus.DISABLED),
+    ],
+)
+def test_composite_not_available_when_any_subcap_not_available(mutate):
+    which, status = mutate
+    kwargs = {"resolve": CapabilityStatus.AVAILABLE,
+              "read": CapabilityStatus.AVAILABLE,
+              "enrich": CapabilityStatus.AVAILABLE}
+    kwargs[which] = status
+    manifest, provider = _composite_result(**kwargs)
+    assert _run_brief_availability(manifest) != "available"
+    assert provider.health_calls == 0
+
+
+def test_composite_not_available_when_subcap_provider_unbound():
+    # enrich AVAILABLE but its provider namespace NOT in the bound set.
+    frame = _composite_frame(
+        CapabilityStatus.AVAILABLE,
+        CapabilityStatus.AVAILABLE,
+        CapabilityStatus.AVAILABLE,
+    )
+    manifest = build_capability_manifest(
+        [defn_from(e) for e in frame["manifest_entries"]],
+        frozenset({"ai_theme_app"}),  # research_enrichment NOT bound
+    )
+    assert _run_brief_availability(manifest) != "available"
+
+
+def test_composite_not_available_when_dependency_missing():
+    manifest, provider = _composite_result(include_enrich=False)
+    assert _run_brief_availability(manifest) != "available"
+    assert provider.health_calls == 0

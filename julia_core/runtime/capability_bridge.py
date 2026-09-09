@@ -53,6 +53,18 @@ class _CanonicalCapabilityMetadata:
     idempotency_support: IdempotencySupport = IdempotencySupport.NONE
 
 
+# P3-CC I1b-4: governed high-level Research composite capability identity.
+# provider="composite" on the registered definition is a governed-runtime-
+# composite marker, NOT a transport provider namespace and NOT a provider
+# authority: no provider object is ever bound under it and no synthetic
+# provider is created. Direct transport execution of this id therefore
+# resolves fail-closed (unbound namespace → typed UNAVAILABLE). Its
+# model-visible availability is composite-derived in Context OS (sub-capability
+# AND), never from this marker.
+RESEARCH_RUN_BRIEF_CAPABILITY = "research.run_brief"
+RESEARCH_RUN_BRIEF_PROVIDER_MARKER = "composite"
+
+
 _P3CC_CANONICAL_METADATA: dict[str, _CanonicalCapabilityMetadata] = {
     # Local filesystem (READ_ONLY reads).
     "file.read": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "local_user_files"),
@@ -72,6 +84,14 @@ _P3CC_CANONICAL_METADATA: dict[str, _CanonicalCapabilityMetadata] = {
     "market.regime.read": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "market_observe"),
     # Controlled D1 external observation (read; no external mutation).
     "research.event.enrich": _CanonicalCapabilityMetadata(SideEffectClass.READ_ONLY, "external_research_observation"),
+    # Governed high-level Research composite (READ_ONLY; REQUEST_KEY idempotency
+    # prevents duplicate uncontrolled D1 external execution for the same logical
+    # request).
+    "research.run_brief": _CanonicalCapabilityMetadata(
+        SideEffectClass.READ_ONLY,
+        "market_event_research",
+        IdempotencySupport.REQUEST_KEY,
+    ),
     # External review session submission (governed, manual ingress only).
     "engineering.code_review": _CanonicalCapabilityMetadata(SideEffectClass.EXTERNAL_SIDE_EFFECT, "engineering_code_review"),
 }
@@ -515,6 +535,38 @@ class RuntimeCapabilityBridge:
                 logging.getLogger("julia.capability").debug(
                     "controlled-live D1 research provider unbound: %s", exc
                 )
+
+        # P3-CC I1b-4: register the governed high-level Research composite
+        # definition BEFORE canonicalization/manager construction. Explicit
+        # C-08 metadata (READ_ONLY / market_event_research / REQUEST_KEY) is
+        # applied by the canonicalization table below. Availability is
+        # composite-derived in Context OS; no transport provider authority is
+        # created (see RESEARCH_RUN_BRIEF_PROVIDER_MARKER).
+        self.registry.register_definition(
+            CapabilityDefinition(
+                name=RESEARCH_RUN_BRIEF_CAPABILITY,
+                description=(
+                    "Execute the governed RD1 research evidence spine for one "
+                    "cognitively selected research objective "
+                    "(market.event.resolve → market.event.read → "
+                    "research.event.enrich → C1 normalization) and return a "
+                    "ResearchEvidenceBundle. Julia then forms her preliminary "
+                    "judgment (C2) from the returned evidence."
+                ),
+                layer=CapabilityLayer.INTELLIGENCE,
+                provider=RESEARCH_RUN_BRIEF_PROVIDER_MARKER,
+                permission_scope=RESEARCH_RUN_BRIEF_CAPABILITY,
+                input_schema={
+                    "query": "original user research objective",
+                    "normalized_theme": (
+                        "optional governed theme (model or explicit upstream "
+                        "artifact only)"
+                    ),
+                    "time_window": "optional explicit date window",
+                },
+                status=CapabilityStatus.REGISTERED,
+            )
+        )
 
         # P3-CC I1a: composition-root pre-activation metadata canonicalization.
         # Every production-reachable definition must carry explicit C-08 safety

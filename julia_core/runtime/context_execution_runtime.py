@@ -20,12 +20,52 @@ from julia_core.capability.models import CapabilityManifestEntry, CapabilityStat
 from julia_core.capability.policy import AuthorizationDecision, AuthorizationStatus
 from julia_core.capability.registry import project_manifest_entry
 
+# P3-CC I1b-4: governed high-level Research composite.
+RESEARCH_RUN_BRIEF_CAPABILITY_ID = "research.run_brief"
+_RESEARCH_RUN_BRIEF_REQUIRED_SUBCAPABILITIES = (
+    "market.event.resolve",
+    "market.event.read",
+    "research.event.enrich",
+)
+
 
 # ── P3-CC I1b-1: Option-C governed capability manifest projection ──────────
 # Model-visible capability availability is derived from administrative status
 # PLUS the provider-bound conjunct. provider.health() is execution-time truth
 # only and is NEVER called during frame projection. No health cache, no
 # health writeback, no synthetic readiness.
+
+def _derive_research_composite_availability(
+    composite_definition: Any,
+    definitions_by_name: Mapping[str, Any],
+    bound_providers: frozenset[str],
+) -> CapabilityStatus:
+    """Composite Option-C availability for research.run_brief.
+
+    Conservative AND over the required governed sub-capabilities:
+      market.event.resolve / market.event.read / research.event.enrich
+
+    A missing sub-capability, a DISABLED/DEGRADED/REGISTERED sub-capability,
+    or an AVAILABLE-but-provider-unbound sub-capability makes the composite NOT
+    AVAILABLE (conservative REGISTERED). provider.health() is never called and
+    no health cache / writeback / runtime probe exists.
+    """
+    if composite_definition.status == CapabilityStatus.DISABLED:
+        return CapabilityStatus.DISABLED
+    if composite_definition.status == CapabilityStatus.DEGRADED:
+        return CapabilityStatus.DEGRADED
+    for subcapability in _RESEARCH_RUN_BRIEF_REQUIRED_SUBCAPABILITIES:
+        sub_definition = definitions_by_name.get(subcapability)
+        if sub_definition is None:
+            return CapabilityStatus.REGISTERED
+        sub_availability = derive_option_c_availability(
+            sub_definition.status,
+            provider_bound=sub_definition.provider in bound_providers,
+        )
+        if sub_availability != CapabilityStatus.AVAILABLE:
+            return CapabilityStatus.REGISTERED
+    return CapabilityStatus.AVAILABLE
+
 
 def derive_option_c_availability(
     definition_status: CapabilityStatus,
@@ -116,11 +156,26 @@ def build_capability_manifest(
     """
     manifest_entries: list[dict[str, Any]] = []
     non_admitted: list[dict[str, Any]] = []
+    definitions_by_name = {definition.name: definition for definition in definitions}
     for definition in definitions:
-        provider_bound = definition.provider in bound_providers
-        availability = derive_option_c_availability(
-            definition.status, provider_bound=provider_bound
-        )
+        if definition.name == RESEARCH_RUN_BRIEF_CAPABILITY_ID:
+            # P3-CC I1b-4 composite availability law: research.run_brief is
+            # AVAILABLE IFF every required governed sub-capability is AVAILABLE
+            # (each under the conservative Option-C rule). DISABLED/DEGRADED of
+            # the composite itself still wins; a missing dependency, a
+            # non-AVAILABLE sub-capability, or an unbound dependency provider
+            # makes the composite NOT AVAILABLE (conservative REGISTERED).
+            # provider.health() is never consulted here.
+            availability = _derive_research_composite_availability(
+                definition,
+                definitions_by_name,
+                bound_providers,
+            )
+        else:
+            provider_bound = definition.provider in bound_providers
+            availability = derive_option_c_availability(
+                definition.status, provider_bound=provider_bound
+            )
         admission = project_manifest_entry(
             definition, availability=availability
         )

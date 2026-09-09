@@ -29,7 +29,7 @@ from julia_core.runtime.capability_bridge import (
 
 BASELINE_IDS = sorted(_P3CC_CANONICAL_METADATA)
 
-EXPECTED_16 = {
+EXPECTED_17 = {
     "file.read",
     "file.search",
     "file.list",
@@ -46,26 +46,27 @@ EXPECTED_16 = {
     "market.regime.read",
     "research.event.enrich",
     "engineering.code_review",
+    "research.run_brief",
 }
 
 
-def _legacy_def(name: str) -> CapabilityDefinition:
+def _legacy_def(name: str, *, scope: str = "market.observe") -> CapabilityDefinition:
     return CapabilityDefinition(
         name=name,
         description=f"legacy {name}",
         layer=CapabilityLayer.INTELLIGENCE,
         provider="local",
-        permission_scope="market.observe",
+        permission_scope=scope,
         status=CapabilityStatus.REGISTERED,
     )
 
 
-def test_frozen_baseline_mapping_covers_exactly_16_definitions():
-    assert len(_P3CC_CANONICAL_METADATA) == 16
-    assert set(BASELINE_IDS) == EXPECTED_16
+def test_frozen_baseline_mapping_covers_exactly_17_definitions():
+    assert len(_P3CC_CANONICAL_METADATA) == 17
+    assert set(BASELINE_IDS) == EXPECTED_17
 
 
-def test_provider_first_composition_canonicalizes_all_16():
+def test_provider_first_composition_canonicalizes_all_17():
     bridge = RuntimeCapabilityBridge()
     # Simulate the provider-first composition surface: every production id is
     # registered as a legacy (unclassified) definition first.
@@ -75,8 +76,8 @@ def test_provider_first_composition_canonicalizes_all_16():
     bridge._canonicalize_production_metadata()
 
     definitions = bridge.registry.all_definitions()
-    assert len(definitions) == 16
-    assert {d.name for d in definitions} == EXPECTED_16
+    assert len(definitions) == 17
+    assert {d.name for d in definitions} == EXPECTED_17
 
     unclassified_side_effect = [d for d in definitions if d.side_effect_class is None]
     blank_sensitivity = [
@@ -122,7 +123,7 @@ def test_provider_absent_initialize_path_canonicalizes_and_activates():
     assert bridge._manager is not None
 
     definitions = bridge.registry.all_definitions()
-    assert len(definitions) == 9  # 3 file.* + 4 frozen market.* + enrich + code_review
+    assert len(definitions) == 10  # 3 file.* + 4 frozen market.* + enrich + code_review + research.run_brief
     unclassified_side_effect = [
         d for d in definitions if d.side_effect_class is None
     ]
@@ -132,3 +133,62 @@ def test_provider_absent_initialize_path_canonicalizes_and_activates():
     assert unclassified_side_effect == []
     assert blank_sensitivity == []
     assert bridge.manager.registry is bridge.registry  # single registry
+
+
+def test_research_run_brief_registered_exactly_once_with_explicit_metadata():
+    """P3-CC I1b-4: research.run_brief is a real canonical production
+    definition in the single registry with the frozen explicit metadata."""
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+
+    definitions = [
+        d for d in bridge.registry.all_definitions()
+        if d.name == "research.run_brief"
+    ]
+    assert len(definitions) == 1  # DUPLICATE_RESEARCH_RUN_BRIEF_DEFINITION_COUNT == 0
+    definition = definitions[0]
+    assert definition.capability_id == "research.run_brief" if hasattr(definition, "capability_id") else True
+    assert definition.side_effect_class == SideEffectClass.READ_ONLY
+    assert definition.data_sensitivity == "market_event_research"
+    assert definition.idempotency_support.value == "request_key"
+    assert definition.permission_scope == "research.run_brief"
+    assert definition.provider == "composite"  # governed-composite marker, not transport
+    # Canonical source is the registry definition, not a synthetic descriptor.
+    stored = bridge.registry.get("research.run_brief")
+    assert stored is not None
+    assert stored.side_effect_class == SideEffectClass.READ_ONLY
+    assert stored.data_sensitivity == "market_event_research"
+    assert stored.permission_scope == "research.run_brief"
+
+
+def test_research_run_brief_provider_first_canonical_metadata():
+    """P3-CC I1b-4 (A): exact frozen fields after provider-first style
+    canonicalization."""
+    bridge = RuntimeCapabilityBridge()
+    # Seed every baseline id (incl. research.run_brief) as a legacy def, then
+    # canonicalize exactly as initialize does. Canonicalization preserves
+    # permission scope, so each seed carries its governed scope.
+    scope_for = {
+        "research.run_brief": "research.run_brief",
+        "research.event.enrich": "research.enrich",
+        "engineering.code_review": "engineering.review.external",
+    }
+    for capability_id in BASELINE_IDS:
+        bridge.registry.register_definition(
+            _legacy_def(
+                capability_id,
+                scope=scope_for.get(
+                    capability_id,
+                    "market.observe" if capability_id.startswith("market.")
+                    else "file.read",
+                ),
+            )
+        )
+    bridge._canonicalize_production_metadata()
+    definition = bridge.registry.get("research.run_brief")
+    assert definition is not None
+    assert definition.name == "research.run_brief"
+    assert definition.side_effect_class == SideEffectClass.READ_ONLY
+    assert definition.data_sensitivity == "market_event_research"
+    assert definition.permission_scope == "research.run_brief"
+    assert definition.idempotency_support.value == "request_key"

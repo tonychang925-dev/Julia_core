@@ -53,7 +53,7 @@ def test_canonicalization_precedes_manager_construction(monkeypatch):
     # The registry the manager saw was already fully canonicalized.
     registry = _ManagerSpy.registry_at_construction[0]
     definitions = registry.all_definitions()
-    assert len(definitions) == 9
+    assert len(definitions) == 10
     assert all(d.side_effect_class is not None for d in definitions)
     assert all(str(d.data_sensitivity or "").strip() for d in definitions)
     assert bridge._initialized is True
@@ -155,3 +155,30 @@ def test_external_explicit_definition_passes_through_unchanged():
     assert stored.side_effect_class == SideEffectClass.READ_ONLY
     assert stored.data_sensitivity == "product_fixture_observation"
     assert bridge._initialized is True
+
+
+def test_research_run_brief_cannot_activate_without_explicit_metadata(monkeypatch):
+    """P3-CC I1b-4 (B): if the canonical metadata entry for research.run_brief
+    were absent, an unclassified definition must fail closed at activation (no
+    silent side-effect/sensitivity defaulting)."""
+    import julia_core.runtime.capability_bridge as bridge_module
+
+    bridge = RuntimeCapabilityBridge()
+    bridge.registry.register_definition(
+        CapabilityDefinition(
+            name="research.run_brief",
+            description="unclassified legacy composite",
+            layer=CapabilityLayer.INTELLIGENCE,
+            provider="composite",
+            permission_scope="research.run_brief",
+            status=CapabilityStatus.REGISTERED,
+        )
+    )
+    # Drop the frozen metadata entry → canonicalization must fail closed.
+    broken_table = dict(bridge_module._P3CC_CANONICAL_METADATA)
+    broken_table.pop("research.run_brief")
+    monkeypatch.setattr(bridge_module, "_P3CC_CANONICAL_METADATA", broken_table)
+
+    with pytest.raises(RuntimeError, match="P3-CC metadata gate failed"):
+        bridge._canonicalize_production_metadata()
+    assert bridge._manager is None
