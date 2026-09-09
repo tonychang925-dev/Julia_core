@@ -521,7 +521,6 @@ class RuntimeCapabilityBridge:
 
         # RD1-C1 research capability. Provider binding remains explicit and
         # product-owned; without a binding the manager returns typed UNAVAILABLE.
-        register_research_event_enrichment(self.registry, policy=self.policy)
         if "research_enrichment" not in self._providers:
             from julia_core.research.d1_provider import (
                 create_d1_research_provider_from_environment,
@@ -535,6 +534,21 @@ class RuntimeCapabilityBridge:
                 logging.getLogger("julia.capability").debug(
                     "controlled-live D1 research provider unbound: %s", exc
                 )
+
+        # Composition activation: a real D1 provider binding is the sole
+        # condition that promotes the canonical research capability from its
+        # fail-closed REGISTERED state to AVAILABLE.  This mirrors the frozen
+        # Market activation path without making register_provider(), provider
+        # health, or Option-C projection a second availability authority.
+        register_research_event_enrichment(
+            self.registry,
+            policy=self.policy,
+            status=(
+                CapabilityStatus.AVAILABLE
+                if "research_enrichment" in self._providers
+                else CapabilityStatus.REGISTERED
+            ),
+        )
 
         # P3-CC I1b-4: register the governed high-level Research composite
         # definition BEFORE canonicalization/manager construction. Explicit
