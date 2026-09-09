@@ -139,6 +139,10 @@ def _project_market_read_payload(
     return {"event": projected_event, "theme_relations": projected_relations}
 
 
+# P3-CC I2-A: governed high-level Research composite capability identity.
+_RESEARCH_RUN_BRIEF = "research.run_brief"
+
+
 @dataclass(frozen=True, slots=True)
 class ResearchContinuationMaterial:
     messages: list[dict[str, str]]
@@ -162,12 +166,47 @@ class SameTurnResearchContinuation:
     async def run(
         self,
         *,
-        resolver_tool_json: str,
+        governed_research_request: str | None = None,
         turn_context,
         parent_package,
         research_product_hook: Callable[[Any, Any], Any] | None,
         product_sink: Callable[[dict[str, Any]], None] | None,
+        resolver_tool_json: str | None = None,
     ) -> ResearchContinuationMaterial:
+        """P3-CC I2-A governed Research composite ingress.
+
+        The high-level semantic program (research.run_brief) is selected by
+        Julia cognition. ``governed_research_request`` is the model-emitted
+        CapabilityRequest for research.run_brief; the internal sub-requests
+        (market.event.resolve → read → research.event.enrich → C1) are the
+        deterministic execution semantics of the already-selected program, not
+        semantic routing.
+
+        ``resolver_tool_json`` is retained ONLY as legacy/test compatibility (a
+        prebuilt market.event.resolve request). Production callers MUST pass
+        ``governed_research_request``. A malformed or non-research.run_brief
+        governed request fails closed BEFORE any internal sub-call.
+        """
+        if governed_research_request is None and resolver_tool_json is None:
+            raise ValueError(
+                "governed research request (or legacy resolver_tool_json) is "
+                "required"
+            )
+        if (
+            governed_research_request is not None
+            and resolver_tool_json is not None
+        ):
+            raise ValueError(
+                "provide exactly one of governed_research_request / "
+                "resolver_tool_json"
+            )
+        if governed_research_request is not None:
+            resolver_tool_json = self._resolve_json_from_governed_request(
+                governed_research_request
+            )
+        if resolver_tool_json is None:
+            raise ValueError("governed research request is empty")
+
         capability_requests = []
         capability_calls = []
         event_names = []
@@ -544,6 +583,41 @@ class SameTurnResearchContinuation:
         )
 
     @staticmethod
+    def _resolve_json_from_governed_request(request_json: str) -> str:
+        """Convert a model-emitted research.run_brief request into the internal
+        deterministic market.event.resolve request.
+
+        This is execution construction inside an already-selected governed
+        program — not semantic selection. Only the governed high-level request
+        may enter here; anything else fails closed before any sub-call.
+        """
+        import json as _json
+
+        try:
+            parsed = _json.loads(request_json)
+        except _json.JSONDecodeError as exc:
+            raise ValueError(
+                "malformed governed research request: not decodable JSON"
+            ) from exc
+        if not isinstance(parsed, dict) or parsed.get("name") != _RESEARCH_RUN_BRIEF:
+            raise ValueError(
+                "governed research request must select research.run_brief"
+            )
+        arguments = parsed.get("arguments") or {}
+        if not isinstance(arguments, dict):
+            raise ValueError("governed research request arguments must be a mapping")
+        resolve_arguments = {
+            key: arguments[key]
+            for key in ("query", "normalized_theme", "time_window")
+            if arguments.get(key) is not None
+        }
+        return _json.dumps(
+            {"name": "market.event.resolve", "arguments": resolve_arguments},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+
+
     def _stop(
         messages,
         request_ids,

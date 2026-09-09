@@ -615,24 +615,22 @@ def test_real_sync_stream_parity(monkeypatch):
     assert sync_block == stream_block
 
 
-def test_real_sync_retry_path(monkeypatch):
+def test_real_sync_model_no_capability_is_ordinary_answer_no_retry(monkeypatch):
+    """P3-CC I2-A: requires_tool(user_text) retry coercion is retired. When the
+    model emits no capability request, Julia gives an ordinary answer and
+    Runtime performs no forced retry and never consults user-text keywords."""
     capability = _FakeCapability()
-    capability.requires_tool_result = True
-    capability.tool_call = None  # first model pass emits no tool call
+    capability.requires_tool_result = True  # legacy keyword signal MUST be ignored
+    capability.tool_call = None
     context_os = _FakeContextOS()
     context_os.initial_pkg = _package(FILE_A)
-    context_os.retry_pkg = _package(MARKET_B)  # retry package carries B
     session = _real_session(context_os, capability, monkeypatch)
 
-    session.process("market", [], conversation_id="c", turn_id="t")
+    session.process("市场研究", [], conversation_id="c", turn_id="t")
 
-    assert len(session.provider.chat_calls) >= 2
-    assert context_os.retry_calls >= 1
-    first = _c09_block(session.provider.chat_calls[0])
-    retry = _c09_block(session.provider.chat_calls[1])
-    assert "capability: file.read" in first
-    assert "capability: market.event.read" in retry
-    assert "capability: file.read" not in retry  # stale A block absent
+    # No retry projection, no second provider invocation.
+    assert context_os.retry_calls == 0
+    assert len(session.provider.chat_calls) == 1
 
 
 def test_real_sync_tool_continuation_path(monkeypatch):
@@ -693,15 +691,26 @@ def _research_text() -> str:
 
 
 def test_real_research_final_branch_aligns_context_package(monkeypatch):
+    """P3-CC I2-A: model emits research.run_brief (no keyword authority needed)
+    → process_stream routes it to the governed composite; the final stream call
+    is aligned from material.context_package."""
+    import json as _json
+
     import julia_core.runtime.research_continuation as rc
 
     from julia_core.runtime.research_continuation import (
         ResearchContinuationMaterial,
     )
 
+    capability = _FakeCapability()
+    capability.requires_tool_result = False
+    capability.tool_call = _json.dumps({
+        "name": "research.run_brief",
+        "arguments": {"query": "把这件事搞清楚"},
+    })
     context_os = _FakeContextOS()
     context_os.initial_pkg = _package(FILE_A)
-    session = _real_session(context_os, _FakeCapability(), monkeypatch)
+    session = _real_session(context_os, capability, monkeypatch)
 
     final_pkg = _package(MARKET_B)
     material = ResearchContinuationMaterial(
@@ -718,7 +727,7 @@ def test_real_research_final_branch_aligns_context_package(monkeypatch):
 
     async def consume():
         async for _ in session.process_stream(
-            _research_text(), [], conversation_id="c", turn_id="t"
+            "帮我把这件事搞清楚", [], conversation_id="c", turn_id="t"
         ):
             pass
 
@@ -726,22 +735,33 @@ def test_real_research_final_branch_aligns_context_package(monkeypatch):
     asyncio.run(consume())
 
     assert len(session.provider.stream_calls) >= 1
-    research_block = _c09_block(session.provider.stream_calls[0])
+    research_block = _c09_block(session.provider.stream_calls[-1])
     assert "capability: market.event.read" in research_block
     assert "capability: file.read" not in research_block
     assert "[C-09" not in str(material.messages)
 
 
 def test_real_research_failure_branch_no_model_call(monkeypatch):
+    """P3-CC I2-A: after Julia explicitly selects research.run_brief, a governed
+    composite failure is fail-closed (ResearchTurnNotReady) with zero model
+    calls — never an ordinary-answer fallback."""
+    import json as _json
+
     import julia_core.runtime.research_continuation as rc
 
     from julia_core.runtime.research_continuation import (
         ResearchContinuationMaterial,
     )
 
+    capability = _FakeCapability()
+    capability.requires_tool_result = False
+    capability.tool_call = _json.dumps({
+        "name": "research.run_brief",
+        "arguments": {"query": "查一下这件事"},
+    })
     context_os = _FakeContextOS()
     context_os.initial_pkg = _package(FILE_A)
-    session = _real_session(context_os, _FakeCapability(), monkeypatch)
+    session = _real_session(context_os, capability, monkeypatch)
 
     _FakeSameTurnResearchContinuation.material = ResearchContinuationMaterial(
         messages=[],
@@ -755,16 +775,17 @@ def test_real_research_failure_branch_no_model_call(monkeypatch):
 
     async def consume():
         async for _ in session.process_stream(
-            _research_text(), [], conversation_id="c", turn_id="t"
+            "帮我把这件事搞清楚", [], conversation_id="c", turn_id="t"
         ):
             pass
 
     import asyncio
     with pytest.raises(Exception) as excinfo:
         asyncio.run(consume())
-    # Fail-closed: research failure stops cognition with the typed error.
     from julia_core.runtime.julia_session import ResearchTurnNotReady
 
     assert isinstance(excinfo.value, ResearchTurnNotReady)
-    assert session.provider.stream_calls == []
+    # Only the initial ordinary cognition pass may have reached the provider;
+    # the research continuation itself made NO model call (fail-closed).
+    assert len(session.provider.stream_calls) == 1
     assert session.provider.chat_calls == []

@@ -139,97 +139,6 @@ class JuliaSession:
             + self.bootstrap
         )
 
-    @staticmethod
-    def _build_research_desk_resolver_call(user_text: str) -> str | None:
-        normalized_text = re.sub(r"\s+", " ", str(user_text).strip())
-        if not normalized_text or len(normalized_text) > 512:
-            return None
-        if any(term in normalized_text for term in (
-            "买", "卖", "做多", "做空", "仓位", "目标价", "止损", "止盈",
-        )):
-            return None
-
-        research_actions = ("研究", "调研", "查证")
-        market_objects = ("市场", "行情", "事件", "主题", "简报")
-        if not (
-            any(term in normalized_text for term in research_actions)
-            and any(term in normalized_text for term in market_objects)
-        ):
-            return None
-
-        # CLIENT-TEXT-E2E-R1: words are not intent. A research-related word in
-        # a sentence is NOT sufficient evidence of a research request. When
-        # every clause that mentions a research action is NEGATED (不要研究 /
-        # 不需要做市场研究 / 不要进入研究流程 …) and no clause carries a
-        # positive request marker (请研究 / 帮我研究 …), the turn must NOT enter
-        # the Research Desk. A positive request still routes to Research even if
-        # a later clause negates something else (e.g. 不要给交易建议).
-        if JuliaSession._research_intent_is_negated_only(normalized_text):
-            return None
-
-        arguments = {"query": normalized_text}
-        quoted_theme = re.search(r"[“\"]([^”\"]+)[”\"]", normalized_text)
-        if quoted_theme:
-            theme = quoted_theme.group(1).strip()
-            if theme and len(theme) <= 256:
-                arguments["normalized_theme"] = theme
-
-        explicit_date = re.search(
-            r"(?P<year>\d{4})年(?P<month>\d{1,2})月(?P<day>\d{1,2})日",
-            normalized_text,
-        )
-        if explicit_date:
-            parsed = {key: int(value) for key, value in explicit_date.groupdict().items()}
-            arguments["time_window"] = {
-                "date": "{year:04d}-{month:02d}-{day:02d}".format(**parsed)
-            }
-
-        return _json.dumps(
-            {"name": "market.event.resolve", "arguments": arguments},
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
-
-    @staticmethod
-    def _research_intent_is_negated_only(normalized_text: str) -> bool:
-        """CLIENT-TEXT-E2E-R1 negation guard.
-
-        Returns True when every research action word in the text is negated by a
-        negation marker immediately preceding it (within a short window), so the
-        message is ordinary conversation, e.g.
-        "不要调用研究、市场或语音能力". A negation far away from the research
-        word (e.g. "请研究 Token 出海，但不要给交易建议") does NOT negate the
-        research request — the 不要 there scopes 交易建议, not 研究.
-        """
-        if not normalized_text:
-            return False
-        research_actions = ("研究", "调研", "查证")
-        negation_markers = (
-            "不要", "别", "不用", "不需要", "不必", "无需", "无须",
-            "不是", "禁止", "避免", "别让", "别做", "不要做",
-            "别进行", "不要进行", "别调用", "不要调用",
-            "别进入", "不要进入", "我说的是不要", "不是让你",
-        )
-        # Window before a research action word inside which a negation marker
-        # counts as negating that research mention. Long enough to span
-        # "不要调用"/"不需要做"/"不是让你", short enough that a later-clause
-        # "但不要给交易建议" never reaches an earlier "请研究".
-        _NEG_WINDOW = 10
-
-        research_mentions = [
-            m for m in re.finditer("|".join(research_actions), normalized_text)
-        ]
-        if not research_mentions:
-            return False
-        for m in research_mentions:
-            start = max(0, m.start() - _NEG_WINDOW)
-            preceding = normalized_text[start:m.start()]
-            if not any(marker in preceding for marker in negation_markers):
-                # At least one research mention is NOT negated => not a
-                # negated-only request; keep keyword-based routing.
-                return False
-        return True
-
     def _load_recent_experiences(self) -> str:
         """Build Wake State: where did we leave off?
 
@@ -314,73 +223,18 @@ class JuliaSession:
 
         messages = self._prepare_turn(text, ctx)
 
-        deterministic_resolver_call = self._build_research_desk_resolver_call(text)
-        if deterministic_resolver_call is not None:
-            from julia_core.runtime.research_continuation import (
-                SameTurnResearchContinuation,
-            )
-
-            material = await SameTurnResearchContinuation(self).run(
-                resolver_tool_json=deterministic_resolver_call,
-                turn_context=ctx,
-                parent_package=ctx._last_package,
-                research_product_hook=research_product_hook,
-                product_sink=product_sink,
-            )
-            if material.failure:
-                # NCF-A7 A1-5: research-required turn failed before C1. Stop the
-                # cognition path — no ordinary model continuation is allowed to
-                # masquerade as a completed research turn.
-                raise ResearchTurnNotReady(material.failure)
-            # I1b-3: final research continuation is aligned from the exact
-            # continuation package at the provider boundary.
-            if material.context_package is None:
-                raise ResearchTurnNotReady(
-                    "research continuation context package missing"
-                )
-            aligned = self._align_capability_messages(
-                material.context_package, material.messages
-            )
-            async for streamed_delta in self.provider.stream_async(aligned):
-                yield streamed_delta
-            return
-
-        async def collect_stream(stream_messages):
-            chunks = []
-            async for delta in self.provider.stream_async(stream_messages):
-                chunks.append(delta)
-            return "".join(chunks), chunks
-
         first_chunks = []
         async for delta in self.provider.stream_async(messages):
             first_chunks.append(delta)
         reply = "".join(first_chunks)
         projection_parent = ctx._last_package
         tool_json = self.capability.detect_tool_call(reply)
-        final_chunks = first_chunks
-
-        if self.capability.requires_tool(text) and not tool_json:
-            retry_package = self.context_os.project_retry_control(
-                parent_package=projection_parent,
-                reason="required_tool_call_missing",
-                generation_id=f"gen_retry_stream_{ctx.turn_count}",
-            )
-            projection_parent = retry_package
-            retry_messages = retry_package.to_messages(
-                retry_package.active_tail_messages,
-                "",
-            )
-            # I1b-3: retry aligns the CURRENT retry package (never P0 stale text).
-            retry_messages = self._align_capability_messages(
-                retry_package, retry_messages
-            )
-            retry_messages.insert(-1, {"role": "assistant", "content": reply}) if retry_messages else None
-            reply, retry_chunks = await collect_stream(retry_messages)
-            tool_json = self.capability.detect_tool_call(reply)
-            final_chunks = retry_chunks or first_chunks
 
         if not tool_json:
-            for chunk in final_chunks:
+            # P3-CC I2-A: Julia emitted no capability request → ordinary answer.
+            # Runtime no longer coerces a capability call from user-text
+            # keywords (requires_tool retry retired).
+            for chunk in first_chunks:
                 yield chunk
             return
 
@@ -389,13 +243,16 @@ class JuliaSession:
         except _json.JSONDecodeError:
             requested_capability = ""
 
-        if requested_capability == "market.event.resolve":
+        if requested_capability == "research.run_brief":
+            # P3-CC I2-A: model-owned high-level Research selection. The request
+            # reaches the governed composite ingress (authorization happens
+            # inside the composite seam before any internal sub-call).
             from julia_core.runtime.research_continuation import (
                 SameTurnResearchContinuation,
             )
 
             material = await SameTurnResearchContinuation(self).run(
-                resolver_tool_json=tool_json,
+                governed_research_request=tool_json,
                 turn_context=ctx,
                 parent_package=projection_parent,
                 research_product_hook=research_product_hook,
@@ -606,6 +463,45 @@ class JuliaSession:
         # directly by to_messages anymore).
         return self._align_capability_messages(pkg, messages)
 
+    def _run_model_research_composite_sync(self, ctx, tool_json: str) -> str:
+        """P3-CC I2-A: sync-path model-owned research.run_brief execution.
+
+        Same governed ingress/authorization + deterministic internal chain as
+        streaming (SameTurnResearchContinuation); the final continuation uses
+        the sync provider transport (provider.chat). Any research failure
+        remains fail-closed (ResearchTurnNotReady) — never an ordinary-answer
+        fallback.
+        """
+        import asyncio
+
+        from julia_core.runtime.research_continuation import (
+            SameTurnResearchContinuation,
+        )
+
+        async def _execute() -> "object":
+            material = await SameTurnResearchContinuation(self).run(
+                governed_research_request=tool_json,
+                turn_context=ctx,
+                parent_package=ctx._last_package,
+                research_product_hook=None,
+                product_sink=None,
+            )
+            return material
+
+        material = asyncio.run(_execute())
+        if material.failure:
+            raise ResearchTurnNotReady(material.failure)
+        if material.context_package is None:
+            raise ResearchTurnNotReady(
+                "research continuation context package missing"
+            )
+        aligned = self._align_capability_messages(
+            material.context_package, material.messages
+        )
+        return self.provider.chat(
+            aligned, cognitive_mode="private_voice_continuity"
+        )
+
     # ── P3-CC I1b-3: single C-09 capability alignment seam ────────────────
 
     _C09_ERROR_CODES = frozenset({
@@ -685,39 +581,38 @@ class JuliaSession:
         # Layer 4: LLM (Pass 1)
         reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")
 
-        # Layer 5: Evidence Gate — does this need external evidence?
-        needs_evidence = self.capability.requires_tool(text)
+        # Layer 5: structural decode of Julia's generated capability request
+        # (P3-CC I2-A: Runtime never infers capability need from user text;
+        # requires_tool(user_text) retry coercion is retired).
         tool_json = self.capability.detect_tool_call(reply)
 
-        if needs_evidence and not tool_json:
-            # Structured retry/control through Context OS (P3.3). No direct
-            # raw control-message injection; no ad-hoc prompt.
-            retry_package = self.context_os.project_retry_control(
-                parent_package=projection_parent,
-                reason="required_tool_call_missing",
-                generation_id=f"gen_retry_{ctx.turn_count}",
-            )
-            projection_parent = retry_package
-            messages = retry_package.to_messages(retry_package.active_tail_messages, "")
-            messages = self._align_capability_messages(retry_package, messages)
-            messages.insert(-1, {"role": "assistant", "content": reply}) if messages else None
-            reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")
-            tool_json = self.capability.detect_tool_call(reply)
-
-        # Layer 6: Capability Execution (Pass 2 — if tool called)
+        # Layer 6: Capability Execution (if Julia issued a governed request)
         if tool_json:
+            try:
+                requested_capability = _json.loads(tool_json).get("name", "")
+            except _json.JSONDecodeError:
+                requested_capability = ""
             self._execute_tool_with_action(tool_json, ctx)
-            outcome = self.capability.execute_tool_typed(tool_json)
-            delta = self._dispatch_typed_outcome(outcome, ctx, parent_package=projection_parent)
-            if delta is not None:
-                # P2-I: ToolResult must re-enter via Context OS (C-03 §11)
-                # NOT: bypassing Context OS with a direct message injection
-                messages = delta.to_messages(delta.active_tail_messages, "")
-                messages = self._align_capability_messages(delta, messages)
-                # Re-append the prior assistant reply for context
-                messages.insert(-1, {"role": "assistant", "content": reply}) if messages else None
-                reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")
-                self.action.finish(self._outcome_action_status(outcome), correlation_id=ctx.correlation_id)
+
+            if requested_capability == "research.run_brief":
+                # P3-CC I2-A: model-owned high-level Research composite. The
+                # sync path shares the same governed ingress/authorization and
+                # deterministic internal chain as streaming; only the final
+                # transport is provider.chat (sync) instead of stream_async.
+                reply = self._run_model_research_composite_sync(ctx, tool_json)
+                self.action.finish("success", correlation_id=ctx.correlation_id)
+            else:
+                outcome = self.capability.execute_tool_typed(tool_json)
+                delta = self._dispatch_typed_outcome(outcome, ctx, parent_package=projection_parent)
+                if delta is not None:
+                    # P2-I: ToolResult must re-enter via Context OS (C-03 §11)
+                    # NOT: bypassing Context OS with a direct message injection
+                    messages = delta.to_messages(delta.active_tail_messages, "")
+                    messages = self._align_capability_messages(delta, messages)
+                    # Re-append the prior assistant reply for context
+                    messages.insert(-1, {"role": "assistant", "content": reply}) if messages else None
+                    reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")
+                    self.action.finish(self._outcome_action_status(outcome), correlation_id=ctx.correlation_id)
 
         # Layer 7: Update state
         ctx.history.append({"role": "user", "content": text})
