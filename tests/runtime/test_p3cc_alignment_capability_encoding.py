@@ -35,7 +35,7 @@ _READ_ONLY_ENTRY = {
     "side_effect_class": "read_only",
     "permission_requirements": ["file.read"],
     "idempotency_support": "none",
-    "latency_cost_hints": {},
+    "latency_cost_hints": {"latency_class": "low", "cost_class": "low"},
     "data_sensitivity": "local_user_files",
     "availability": "available",
     "schema_version": "1.0",
@@ -230,10 +230,43 @@ def test_text_protocol_mode_preserves_fidelity_deterministically():
     assert "side_effect_class: external_side_effect" in result.text
     assert "availability: registered" in result.text
     assert "availability: available" in result.text
+    # R1-A: latency_cost_hints is not silently lost.
+    assert '"latency_class": "low"' in result.text
+    assert '"cost_class": "low"' in result.text
+    # R1-A: provenance fields are preserved semantically (not just the word).
+    assert '"source": "capability:registry"' in result.text
+    assert '"definition_ref": "file.read"' in result.text
+    assert '"derived_at": "2026-09-09T00:00:00Z"' in result.text
     # No cognition/router instruction text is added.
     assert "you should use" not in result.text.lower()
     assert "best tool" not in result.text.lower()
     assert "for market questions" not in result.text.lower()
+
+
+def test_text_protocol_deterministic_digest():
+    a = encode_capability_frame(FULL_FRAME, representation_mode="text_protocol")
+    b = encode_capability_frame(FULL_FRAME, representation_mode="text_protocol")
+    assert a.digest == b.digest
+    assert a.digest != ""
+    assert a.text == b.text
+
+
+def test_no_silent_field_loss_in_any_representation():
+    # Structured: every governed field is present on every descriptor.
+    structured = encode_capability_frame(FULL_FRAME, representation_mode="structured")
+    for descriptor in structured.descriptors:
+        for field in _GOVERNED_FIELDS:
+            assert field in descriptor, (descriptor["capability_id"], field)
+
+    # Text: every governed field is semantically present (capability_id is
+    # rendered under the "capability:" header token; the rest as field labels).
+    text = encode_capability_frame(FULL_FRAME, representation_mode="text_protocol")
+    assert text.text is not None
+    for field in _GOVERNED_FIELDS:
+        if field == "capability_id":
+            assert "capability:" in text.text, field
+        else:
+            assert field in text.text, field
 
 
 # ── 3. No semantic selection ───────────────────────────────────────────────
@@ -270,6 +303,9 @@ def test_deterministic_ordering_by_capability_id():
 
 def test_unsupported_mode_returns_structured_diagnostic():
     result = encode_capability_frame(FULL_FRAME, representation_mode="banana")
+    # R1-C: diagnostics runtime shape is always tuple.
+    assert isinstance(result.diagnostics, tuple)
+    assert len(result.diagnostics) >= 1
     assert result.descriptors == ()
     assert result.text is None
     assert result.source_capability_ids == ()
@@ -325,6 +361,51 @@ def test_invalid_entry_surfaces_diagnostic_not_silent():
     # The valid entry is still represented; the invalid one is not silently
     # assumed safe and is not dropped without a diagnostic.
     assert any(d["capability_id"] == "file.read" for d in result.descriptors)
+
+
+def test_partial_manifest_entry_is_structured_invalid_not_keyerror():
+    """R1-B: a mapping with a valid capability_id but missing governed fields
+    never reaches direct indexing (no KeyError), yields a structured
+    INVALID_MANIFEST_ENTRY with a deterministic missing_fields list, and is not
+    represented as an executable capability. Other valid entries remain
+    representable."""
+    partial = {
+        "capability_id": "file.search",
+        "description": "incomplete entry",
+        # deliberately missing most governed fields
+    }
+    frame = _frame(_READ_ONLY_ENTRY, partial)
+    result = encode_capability_frame(frame)
+
+    # No exception and no descriptor for the malformed entry.
+    assert all(
+        d["capability_id"] != "file.search" for d in result.descriptors
+    )
+    # The valid sibling entry is still represented.
+    assert any(d["capability_id"] == "file.read" for d in result.descriptors)
+
+    diagnostics = [
+        d for d in result.diagnostics
+        if d.get("capability_id") == "file.search"
+        and d["code"] == "INVALID_MANIFEST_ENTRY"
+    ]
+    assert len(diagnostics) == 1
+    missing = diagnostics[0]["missing_fields"]
+    assert isinstance(missing, list)
+    assert missing == sorted(missing)  # deterministic ordering
+    for field in (
+        "input_schema",
+        "output_schema",
+        "side_effect_class",
+        "permission_requirements",
+        "idempotency_support",
+        "latency_cost_hints",
+        "data_sensitivity",
+        "availability",
+        "schema_version",
+        "provenance",
+    ):
+        assert field in missing
 
 
 # ── 8. Availability/permission immutability ────────────────────────────────

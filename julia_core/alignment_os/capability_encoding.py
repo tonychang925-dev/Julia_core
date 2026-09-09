@@ -199,9 +199,23 @@ def _render_text_protocol(
         lines.append(
             f"  idempotency_support: {descriptor['idempotency_support']}"
         )
+        lines.append(
+            "  latency_cost_hints: "
+            + json.dumps(
+                descriptor["latency_cost_hints"],
+                sort_keys=True,
+                ensure_ascii=False,
+            )
+        )
         lines.append(f"  data_sensitivity: {descriptor['data_sensitivity']}")
         lines.append(f"  availability: {descriptor['availability']}")
         lines.append(f"  schema_version: {descriptor['schema_version']}")
+        lines.append(
+            "  provenance: "
+            + json.dumps(
+                descriptor["provenance"], sort_keys=True, ensure_ascii=False
+            )
+        )
         blocks.append("\n".join(lines))
     return "\n\n".join(blocks)
 
@@ -261,7 +275,7 @@ def encode_capability_frame(
             source_capability_ids=(),
             descriptors=(),
             text=None,
-            diagnostics=[
+            diagnostics=(
                 {
                     "code": "REPRESENTATION_UNSUPPORTED",
                     "mode": representation_mode,
@@ -269,8 +283,8 @@ def encode_capability_frame(
                         f"unsupported representation mode; supported="
                         f"{sorted(SUPPORTED_REPRESENTATION_MODES)}"
                     ),
-                }
-            ],
+                },
+            ),
             digest="",
         )
 
@@ -280,21 +294,45 @@ def encode_capability_frame(
     valid_entries, entry_diagnostics = _sorted_manifest_entries(entries)
     diagnostics.extend(entry_diagnostics)
 
-    descriptors = tuple(
-        _structured_descriptor(entry) for entry in valid_entries
-    )
+    # Complete governed-field validation BEFORE descriptor construction. A
+    # mapping with a valid capability_id but missing any mandatory governed
+    # field must never reach direct indexing (no KeyError) and is surfaced as
+    # a structured INVALID_MANIFEST_ENTRY diagnostic with a deterministic
+    # missing_fields list. Malformed entries are never represented as
+    # executable capabilities.
+    descriptors: list[dict[str, Any]] = []
+    for entry in valid_entries:
+        missing_fields = sorted(
+            field
+            for field in _GOVERNED_MANIFEST_FIELDS
+            if field not in entry
+        )
+        if missing_fields:
+            diagnostics.append(
+                {
+                    "code": "INVALID_MANIFEST_ENTRY",
+                    "capability_id": entry["capability_id"],
+                    "missing_fields": missing_fields,
+                    "reason": "governed manifest entry is incomplete",
+                }
+            )
+            continue
+        descriptors.append(_structured_descriptor(entry))
+    # valid_entries are sorted by capability_id ascending; descriptors follow
+    # the same deterministic order.
+    descriptors_tuple = tuple(descriptors)
     capability_ids = tuple(
-        descriptor["capability_id"] for descriptor in descriptors
+        descriptor["capability_id"] for descriptor in descriptors_tuple
     )
 
     text: str | None = None
     if representation_mode == "text_protocol":
-        text = _render_text_protocol(descriptors)
+        text = _render_text_protocol(descriptors_tuple)
 
     digest_source = _normalized_repr(
         representation_mode=representation_mode,
         encoding_version=encoding_version,
-        descriptors=descriptors,
+        descriptors=descriptors_tuple,
     )
     digest = hashlib.sha256(digest_source.encode("utf-8")).hexdigest()
 
@@ -303,7 +341,7 @@ def encode_capability_frame(
         encoding_version=encoding_version,
         source=_SOURCE_LINEAGE,
         source_capability_ids=capability_ids,
-        descriptors=descriptors,
+        descriptors=descriptors_tuple,
         text=text,
         diagnostics=tuple(diagnostics),
         digest=digest,
