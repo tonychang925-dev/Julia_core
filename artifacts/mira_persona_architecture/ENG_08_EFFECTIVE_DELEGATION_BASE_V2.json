@@ -1,0 +1,14 @@
+{
+  "task_id": "ENG-08",
+  "repository": "tonychang925-dev/Julia_core",
+  "branch": "mira/persona-architecture-v1",
+  "previous_delegation_base_sha": "f4357b5311934cbcc1d99e1ca0a901856ad6df84",
+  "reauthorization_commit_sha": "ceeb56a2a617ec2d04bc9e324c85e3ff6b4884e0",
+  "effective_delegation_base_sha": "ceeb56a2a617ec2d04bc9e324c85e3ff6b4884e0",
+  "reason": "bounded governance amendment authorizing one test-scope repair before ENG-08 implementation",
+  "implementation_authority_expanded": false,
+  "additional_mutable_path": "tests/identity/test_identity_minimal_slice.py",
+  "additional_mutation_purpose": "repair cumulative branch-scope test semantics only",
+  "main_cutover_authorized": false,
+  "eng09_authorized": false
+}
