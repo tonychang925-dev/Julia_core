@@ -23,6 +23,14 @@ from julia_core.identity import (
 
 
 BASE_SHA = "5c704ce193ac0c1ceb48ea5e7cc626437e4ddf60"
+CUMULATIVE_AUTHORIZED_PATH_PREFIXES = (
+    "julia_core/identity/",
+    "tests/identity/",
+    "julia_core/projection/",
+    "tests/projection/",
+    "docs/mira_persona_architecture/",
+    "artifacts/mira_persona_architecture/",
+)
 
 
 def contract(*, anchor: str = "Synthetic identity anchor") -> IdentityContract:
@@ -156,7 +164,7 @@ def test_identity_package_has_no_runtime_authority_imports() -> None:
         assert forbidden not in source
 
 
-def test_changed_scope_is_limited_to_authorized_eng07_paths() -> None:
+def test_changed_scope_remains_within_cumulative_authorized_branch_paths() -> None:
     changed = subprocess.run(
         ["git", "diff", "--name-only", BASE_SHA],
         check=True,
@@ -173,15 +181,9 @@ def test_changed_scope_is_limited_to_authorized_eng07_paths() -> None:
         ).stdout.splitlines()
         if path.startswith(("julia_core/identity/", "tests/identity/", "docs/mira_persona_architecture/", "artifacts/mira_persona_architecture/"))
     )
-    allowed = (
-        "julia_core/identity/",
-        "tests/identity/",
-        "docs/mira_persona_architecture/",
-        "artifacts/mira_persona_architecture/",
-    )
 
     assert changed
-    assert all(path.startswith(allowed) for path in changed)
+    assert all(path.startswith(CUMULATIVE_AUTHORIZED_PATH_PREFIXES) for path in changed)
 
 
 def test_legacy_and_runtime_scope_remains_unchanged_from_delegation_base() -> None:

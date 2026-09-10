@@ -1,0 +1,101 @@
+{
+  "task_id": "ENG-08",
+  "repository": "tonychang925-dev/Julia_core",
+  "branch": "mira/persona-architecture-v1",
+  "effective_base_sha": "cd98d168ecc5a83a9628890687774d25a847c59f",
+  "historical_eng07_base_sha": "f4357b5311934cbcc1d99e1ca0a901856ad6df84",
+  "reauthorization_comment_id": 5617295090,
+  "result": "PASS",
+  "contract_status": "C0-03..C0-08 CONTRACT DRAFT / NOT FROZEN / NO IMPLEMENTATION AUTHORITY",
+  "implementation_status": "branch-only engineering candidate / identity-only projection",
+  "changed_files": [
+    "julia_core/projection/__init__.py",
+    "julia_core/projection/contracts.py",
+    "julia_core/projection/policy.py",
+    "tests/projection/test_identity_only_persona_projection.py",
+    "tests/identity/test_identity_minimal_slice.py",
+    "docs/mira_persona_architecture/ENG_08_IDENTITY_ONLY_PERSONA_PROJECTION_V1.md",
+    "artifacts/mira_persona_architecture/ENG_08_RESULT_V1.json"
+  ],
+  "authorized_test_governance_amendment": {
+    "path": "tests/identity/test_identity_minimal_slice.py",
+    "purpose": "replace single-task ENG-07 branch exclusivity with cumulative authorized branch scope",
+    "identity_implementation_modified": false,
+    "protections_weakened": false,
+    "scope_test_deleted_or_vacuous": false
+  },
+  "projection_gates": {
+    "identity_only_deterministic_projection": true,
+    "exact_ref_and_digest_preserved": true,
+    "lifecycle_state_preserved_without_promotion": true,
+    "canonical_identity_not_mutated": true,
+    "anchor_invention_blocked": true,
+    "memory_runtime_provider_legacy_payloads_excluded": true,
+    "implicit_latest_fallback": false,
+    "legacy_persona_dependency": false,
+    "self_model_dependency": false,
+    "context_os_import": false
+  },
+  "tests": {
+    "eng07_identity": {
+      "command": "/opt/miniconda3/bin/pytest tests/identity/test_identity_minimal_slice.py -q",
+      "result": "PASS",
+      "passed": 10,
+      "failed": 0
+    },
+    "eng08_projection": {
+      "command": "/opt/miniconda3/bin/pytest tests/projection/test_identity_only_persona_projection.py -q",
+      "result": "PASS",
+      "passed": 11,
+      "failed": 0
+    },
+    "full_tracked_regression": {
+      "command": "/opt/miniconda3/bin/pytest -q $(git ls-files 'tests/**test_*.py' 'tests/**/test_*.py')",
+      "result": "BASELINE_EQUIVALENT",
+      "passed": 1204,
+      "failed": 48,
+      "skipped": 6,
+      "xfailed": 26,
+      "errors": 3,
+      "baseline_failure_summary": {
+        "failed": 48,
+        "errors": 3,
+        "exact_failure_set_equivalent": true
+      },
+      "regression_introduced": false
+    },
+    "no_critical_fallback_review": {
+      "gate_script_available": false,
+      "manual_review_result": "APPROVE",
+      "risk": "NONE"
+    }
+  },
+  "scope_audit": {
+    "identity_implementation_mutated": false,
+    "identity_test_governance_amended": true,
+    "legacy_persona_changed": false,
+    "self_model_changed": false,
+    "memory_changed": false,
+    "experience_changed": false,
+    "continuity_changed": false,
+    "context_os_changed": false,
+    "context_assembly_changed": false,
+    "runtime_changed": false,
+    "provider_changed": false,
+    "relationship_changed": false,
+    "alignment_changed": false,
+    "voice_changed": false,
+    "deploy_changed": false,
+    "authorized_paths_only": true
+  },
+  "identity_mutated": false,
+  "memory_changed": false,
+  "continuity_changed": false,
+  "context_os_changed": false,
+  "runtime_changed": false,
+  "provider_changed": false,
+  "c03_implemented": false,
+  "c05_implemented": false,
+  "c06_implemented": false,
+  "mira_lineage_decided": false
+}
