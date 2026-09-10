@@ -39,6 +39,8 @@ class IdentityRepository:
         self._lock = threading.RLock()
 
     def store_candidate(self, version: IdentityVersion) -> GovernedIdentity:
+        if type(version) is not IdentityVersion:
+            raise TypeError("store_candidate accepts an exact IdentityVersion only")
         with self._lock:
             existing = self._versions.get(version.ref)
             if existing is not None:

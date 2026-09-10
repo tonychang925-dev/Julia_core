@@ -12,6 +12,7 @@ import json
 from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Any
+from urllib.parse import urlsplit
 
 
 MAX_EXPERIENCE_TEXT_LENGTH = 4_000
@@ -291,6 +292,8 @@ class MemoryExperienceCandidate:
     submitted_at: str
 
     def __post_init__(self) -> None:
+        if type(self.record) is not MemoryExperienceRecord:
+            raise TypeError("MemoryExperienceCandidate requires an exact MemoryExperienceRecord")
         _require_text(self.submitted_at, "submitted_at", max_length=128)
 
 
@@ -366,7 +369,14 @@ def _require_text(
 
 
 def _require_ref(value: str) -> None:
-    if "://" not in value or len(value) > 2_048:
+    if not value or len(value) > 2_048 or any(char.isspace() for char in value):
+        raise ValueError("experience source references must be URI-shaped and bounded")
+    parsed = urlsplit(value)
+    scheme = parsed.scheme
+    valid_scheme = bool(scheme) and scheme[0].isalpha() and all(
+        char.isascii() and (char.isalnum() or char in "+-.") for char in scheme
+    )
+    if not valid_scheme or not parsed.netloc:
         raise ValueError("experience source references must be URI-shaped and bounded")
 
 

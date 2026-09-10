@@ -111,11 +111,16 @@ class IdentityProvenance:
             raise ValueError("source_digest must be lowercase SHA-256 hex")
         metadata_items = []
         for item in self.admission_metadata:
-            if not isinstance(item, tuple) or len(item) != 2:
+            if (
+                type(item) is not tuple
+                or len(item) != 2
+                or type(item[0]) is not str
+                or type(item[1]) is not str
+            ):
                 raise ValueError(
                     "admission_metadata must contain key/value string pairs"
                 )
-            metadata_items.append((str(item[0]), str(item[1])))
+            metadata_items.append(item)
         metadata = tuple(metadata_items)
         metadata_keys = [key for key, _ in metadata]
         if len(metadata_keys) != len(set(metadata_keys)):

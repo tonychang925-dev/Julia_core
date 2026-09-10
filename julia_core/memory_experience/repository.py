@@ -30,8 +30,10 @@ class MemoryExperienceRepository:
         self._lock = threading.RLock()
 
     def store_candidate(self, candidate: MemoryExperienceCandidate) -> GovernedMemoryExperience:
-        if not isinstance(candidate, MemoryExperienceCandidate):
-            raise TypeError("store_candidate accepts MemoryExperienceCandidate only")
+        if type(candidate) is not MemoryExperienceCandidate:
+            raise TypeError("store_candidate accepts an exact MemoryExperienceCandidate only")
+        if type(candidate.record) is not MemoryExperienceRecord:
+            raise TypeError("MemoryExperienceCandidate requires an exact MemoryExperienceRecord")
         record = candidate.record
         with self._lock:
             existing = self._records.get(record.ref)
