@@ -13,9 +13,14 @@ import pytest
 from julia_core.capability.models import ProviderExecutionOutcome, ToolResultStatus
 from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
 from julia_core.runtime.conversation_runtime import ConversationRuntime
+from julia_core.runtime.research_continuation import (
+    ResearchContinuationMaterial,
+    ResearchHighLevelDenied,
+)
 from julia_core.runtime.julia_session import (
     CapabilityContinuationLimitExceeded,
     JuliaSession,
+    ResearchTurnNotReady,
 )
 from julia_core.conversation_state.storage_v2_repository import (
     StorageV2ConversationRepository,
@@ -48,6 +53,11 @@ THEME_RELATION = {
     "source_trace_id": "news_event:321:policy_change",
     "updated_at": "2026-09-04T08:01:00Z",
 }
+
+RESEARCH_RUN_BRIEF_CALL = json.dumps({
+    "name": "research.run_brief",
+    "arguments": {"query": "Research after the governed event"},
+}, ensure_ascii=False)
 
 TOOL_CALL = json.dumps({
     "name": "research.event.enrich",
@@ -111,6 +121,21 @@ class SequenceStreamingProvider:
     async def stream_async(self, messages):
         self.stream_calls.append(list(messages))
         yield self.replies.pop(0)
+
+
+class SecondPassResearchContinuation:
+    calls = []
+    denied = False
+    material = None
+
+    def __init__(self, session):
+        self.session = session
+
+    async def run(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.denied:
+            raise ResearchHighLevelDenied("high-level research denied")
+        return self.material
 
 
 class FakeContextOS:
@@ -191,6 +216,8 @@ def session(monkeypatch, provider=None, fixture_provider=None) -> JuliaSession:
     result.context_os = FakeContextOS()
     result.action = FakeAction()
     result.recorder = type("Recorder", (), {"record": lambda *args, **kwargs: None})()
+    result._default_research_product_hook = lambda product: None
+    result._default_product_sink = lambda product: None
 
     class Package:
         active_tail_messages = []
@@ -465,6 +492,85 @@ async def test_c2_generic_capability_chain_is_bounded(monkeypatch):
 
     assert chunks == []
     assert len(cognitive._research_fixture_provider.requests) == 2
+
+
+@pytest.mark.asyncio
+async def test_c2r1_second_pass_research_uses_dedicated_path(monkeypatch):
+    import julia_core.runtime.research_continuation as research_continuation
+
+    SecondPassResearchContinuation.calls = []
+    SecondPassResearchContinuation.denied = False
+    SecondPassResearchContinuation.material = ResearchContinuationMaterial(
+        messages=[{"role": "user", "content": "final research continuation"}],
+        product=None,
+        trace={"judgment_id": "judgment-second-pass"},
+        context_package=type("ResearchPackage", (), {})(),
+    )
+    monkeypatch.setattr(
+        research_continuation,
+        "SameTurnResearchContinuation",
+        SecondPassResearchContinuation,
+    )
+    monkeypatch.setattr(
+        JuliaSession,
+        "_align_capability_messages",
+        lambda self, package, messages: list(messages),
+    )
+    provider = SequenceStreamingProvider([
+        f"```tool_call\n{TOOL_CALL}\n```",
+        f"```tool_call\n{RESEARCH_RUN_BRIEF_CALL}\n```",
+        "Julia answered after the dedicated research continuation.",
+    ])
+    cognitive = session(monkeypatch, provider=provider)
+    original_execute = cognitive.capability.execute_tool_typed_async
+
+    async def execute_without_research(tool_json, **kwargs):
+        assert json.loads(tool_json)["name"] != "research.run_brief"
+        return await original_execute(tool_json, **kwargs)
+
+    cognitive.capability.execute_tool_typed_async = execute_without_research
+    chunks = [
+        chunk async for chunk in cognitive.process_stream(
+            "Research after a governed event", [],
+            conversation_id="conv", turn_id="turn-research-second",
+        )
+    ]
+
+    assert chunks == ["Julia answered after the dedicated research continuation."]
+    assert len(SecondPassResearchContinuation.calls) == 1
+    research_call = SecondPassResearchContinuation.calls[0]
+    assert research_call["governed_research_request"] == RESEARCH_RUN_BRIEF_CALL
+    assert research_call["turn_context"].correlation_id == "conv:conv:turn:turn-research-second"
+    assert len(cognitive._research_fixture_provider.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_c2r1_second_pass_research_denial_fails_closed(monkeypatch):
+    import julia_core.runtime.research_continuation as research_continuation
+
+    SecondPassResearchContinuation.calls = []
+    SecondPassResearchContinuation.denied = True
+    monkeypatch.setattr(
+        research_continuation,
+        "SameTurnResearchContinuation",
+        SecondPassResearchContinuation,
+    )
+    provider = SequenceStreamingProvider([
+        f"```tool_call\n{TOOL_CALL}\n```",
+        f"```tool_call\n{RESEARCH_RUN_BRIEF_CALL}\n```",
+    ])
+    cognitive = session(monkeypatch, provider=provider)
+    chunks = []
+    with pytest.raises(ResearchTurnNotReady, match="high-level research denied"):
+        async for chunk in cognitive.process_stream(
+            "Denied research after a governed event", [],
+            conversation_id="conv", turn_id="turn-research-denied",
+        ):
+            chunks.append(chunk)
+
+    assert chunks == []
+    assert len(SecondPassResearchContinuation.calls) == 1
+    assert len(cognitive._research_fixture_provider.requests) == 1
 
 
 def test_i1_f09_c2_downstream_trading_prohibition_remains_fail_closed():

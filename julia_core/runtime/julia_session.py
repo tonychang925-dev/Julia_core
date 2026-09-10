@@ -202,6 +202,50 @@ class JuliaSession:
 
     # ── Public API ────────────────────────────────────────────────────────
 
+    async def _run_research_continuation(
+        self,
+        tool_json: str,
+        ctx: TurnContext,
+        *,
+        parent_package,
+        assistant_replies: list[str],
+        research_product_hook=None,
+        product_sink=None,
+    ) -> list[dict]:
+        from julia_core.runtime.research_continuation import (
+            ResearchHighLevelDenied,
+            SameTurnResearchContinuation,
+        )
+
+        try:
+            material = await SameTurnResearchContinuation(self).run(
+                governed_research_request=tool_json,
+                turn_context=ctx,
+                parent_package=parent_package,
+                research_product_hook=(
+                    research_product_hook
+                    or self._default_research_product_hook
+                ),
+                product_sink=product_sink or self._default_product_sink,
+            )
+        except ResearchHighLevelDenied as exc:
+            raise ResearchTurnNotReady(str(exc)) from exc
+        if material.failure:
+            raise ResearchTurnNotReady(material.failure)
+        if material.context_package is None:
+            raise ResearchTurnNotReady(
+                "research continuation context package missing"
+            )
+        for assistant_reply in assistant_replies:
+            if material.messages:
+                material.messages.insert(
+                    -1,
+                    {"role": "assistant", "content": assistant_reply},
+                )
+        return self._align_capability_messages(
+            material.context_package, material.messages
+        )
+
     async def process_stream(self, text: str, history: list[dict],
                               conversation_id: str = "", turn_id: str = "",
                               modality: str = "text",
@@ -247,40 +291,13 @@ class JuliaSession:
             requested_capability = ""
 
         if requested_capability == "research.run_brief":
-            # P3-CC I2-A: model-owned high-level Research selection. The request
-            # reaches the governed composite ingress where high-level
-            # authorization (I2-A-R1) happens BEFORE any internal sub-call.
-            from julia_core.runtime.research_continuation import (
-                ResearchHighLevelDenied,
-                SameTurnResearchContinuation,
-            )
-
-            try:
-                material = await SameTurnResearchContinuation(self).run(
-                    governed_research_request=tool_json,
-                    turn_context=ctx,
-                    parent_package=projection_parent,
-                    research_product_hook=(
-                        research_product_hook
-                        or self._default_research_product_hook
-                    ),
-                    product_sink=product_sink or self._default_product_sink,
-                )
-            except ResearchHighLevelDenied as exc:
-                raise ResearchTurnNotReady(str(exc)) from exc
-            if material.failure:
-                # NCF-A7 A1-5: stop cognition on research failure (fail-closed).
-                raise ResearchTurnNotReady(material.failure)
-            if material.context_package is None:
-                raise ResearchTurnNotReady(
-                    "research continuation context package missing"
-                )
-            material.messages.insert(
-                -1,
-                {"role": "assistant", "content": reply},
-            ) if material.messages else None
-            aligned = self._align_capability_messages(
-                material.context_package, material.messages
+            aligned = await self._run_research_continuation(
+                tool_json,
+                ctx,
+                parent_package=projection_parent,
+                assistant_replies=[reply],
+                research_product_hook=research_product_hook,
+                product_sink=product_sink,
             )
             async for streamed_delta in self.provider.stream_async(aligned):
                 yield streamed_delta
@@ -345,6 +362,20 @@ class JuliaSession:
             continuation_parent = delta
             assistant_tool_replies.append(continuation_reply)
             pending_tool_json = next_tool_json
+            try:
+                next_capability = _json.loads(next_tool_json).get("name", "")
+            except _json.JSONDecodeError:
+                next_capability = ""
+            if next_capability == "research.run_brief":
+                aligned = await self._run_research_continuation(
+                    next_tool_json,
+                    ctx,
+                    parent_package=continuation_parent,
+                    assistant_replies=assistant_tool_replies,
+                )
+                async for streamed_delta in self.provider.stream_async(aligned):
+                    yield streamed_delta
+                return
             if execution_index == 1:
                 raise CapabilityContinuationLimitExceeded(
                     "generic capability continuation limit exceeded"
