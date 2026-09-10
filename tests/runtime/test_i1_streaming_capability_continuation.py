@@ -13,7 +13,10 @@ import pytest
 from julia_core.capability.models import ProviderExecutionOutcome, ToolResultStatus
 from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
 from julia_core.runtime.conversation_runtime import ConversationRuntime
-from julia_core.runtime.julia_session import JuliaSession
+from julia_core.runtime.julia_session import (
+    CapabilityContinuationLimitExceeded,
+    JuliaSession,
+)
 from julia_core.conversation_state.storage_v2_repository import (
     StorageV2ConversationRepository,
 )
@@ -98,6 +101,16 @@ class StreamingProvider:
             yield f"```tool_call\n{TOOL_CALL}\n```"
         else:
             yield "Julia resumed within the same canonical turn."
+
+
+class SequenceStreamingProvider:
+    def __init__(self, replies):
+        self.replies = list(replies)
+        self.stream_calls = []
+
+    async def stream_async(self, messages):
+        self.stream_calls.append(list(messages))
+        yield self.replies.pop(0)
 
 
 class FakeContextOS:
@@ -373,6 +386,85 @@ async def test_i1_f10_ordinary_stream_has_no_capability_execution(monkeypatch):
     ]
     assert chunks == ["ordinary answer"]
     assert cognitive.context_os.calls == []
+
+
+@pytest.mark.asyncio
+async def test_c2_second_capability_call_is_detected_and_governed(monkeypatch):
+    events = FakeEventStore()
+    monkeypatch.setattr(
+        "julia_core.events.store.get_event_store", lambda: events
+    )
+    second_call = json.dumps({
+        "name": "research.event.enrich",
+        "arguments": {"event": MARKET_EVENT, "theme_relations": []},
+    })
+    provider = SequenceStreamingProvider([
+        f"```tool_call\n{TOOL_CALL}\n```",
+        f"```tool_call\n{second_call}\n```",
+        "Julia answered after both governed events.",
+    ])
+    cognitive = session(monkeypatch, provider=provider)
+    chunks = [
+        chunk async for chunk in cognitive.process_stream(
+            "Research chained events", [], conversation_id="conv", turn_id="turn-second"
+        )
+    ]
+
+    assert chunks == ["Julia answered after both governed events."]
+    assert len(cognitive._research_fixture_provider.requests) == 2
+    assert [event.event_type for event in events.events] == [
+        "capability.started",
+        "capability.completed",
+        "capability.started",
+        "capability.completed",
+    ]
+    assert all(
+        event.correlation_id == "conv:conv:turn:turn-second"
+        for event in events.events
+    )
+
+
+@pytest.mark.asyncio
+async def test_c2_malformed_second_call_fails_closed_without_leak(monkeypatch):
+    provider = SequenceStreamingProvider([
+        f"```tool_call\n{TOOL_CALL}\n```",
+        "```tool_call\n{\"name\":\n```",
+    ])
+    cognitive = session(monkeypatch, provider=provider)
+    chunks = []
+    with pytest.raises(ValueError, match="malformed capability request"):
+        async for chunk in cognitive.process_stream(
+            "Research malformed continuation", [],
+            conversation_id="conv", turn_id="turn-malformed-second",
+        ):
+            chunks.append(chunk)
+
+    assert chunks == []
+    assert len(cognitive._research_fixture_provider.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_c2_generic_capability_chain_is_bounded(monkeypatch):
+    third_call = json.dumps({
+        "name": "research.event.enrich",
+        "arguments": {"event": MARKET_EVENT, "theme_relations": []},
+    })
+    provider = SequenceStreamingProvider([
+        f"```tool_call\n{TOOL_CALL}\n```",
+        f"```tool_call\n{TOOL_CALL}\n```",
+        f"```tool_call\n{third_call}\n```",
+    ])
+    cognitive = session(monkeypatch, provider=provider)
+    chunks = []
+    with pytest.raises(CapabilityContinuationLimitExceeded):
+        async for chunk in cognitive.process_stream(
+            "Research bounded continuation", [],
+            conversation_id="conv", turn_id="turn-bounded",
+        ):
+            chunks.append(chunk)
+
+    assert chunks == []
+    assert len(cognitive._research_fixture_provider.requests) == 2
 
 
 def test_i1_f09_c2_downstream_trading_prohibition_remains_fail_closed():

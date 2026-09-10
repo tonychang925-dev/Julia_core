@@ -46,6 +46,10 @@ class CapabilityAlignmentNotReady(Exception):
     """
 
 
+class CapabilityContinuationLimitExceeded(ValueError):
+    """The bounded same-turn generic capability chain exceeded its allowed depth."""
+
+
 class TurnContext:
     """CORE-C1.3a: Per-turn execution state.
 
@@ -282,38 +286,69 @@ class JuliaSession:
                 yield streamed_delta
             return
 
-        self._execute_tool_with_action(tool_json, ctx)
-        outcome = await self.capability.execute_tool_typed_async(
-            tool_json,
-            turn_id=ctx.turn_id,
-            generation_id=f"gen_stream_tool_{ctx.turn_count}",
-            correlation_id=ctx.correlation_id,
-        )
-        if outcome is None:
-            raise ValueError("malformed capability request from cognition")
+        pending_tool_json = tool_json
+        assistant_tool_replies = [reply]
+        continuation_parent = projection_parent
+        for execution_index in range(2):
+            self._execute_tool_with_action(pending_tool_json, ctx)
+            generation_id = (
+                f"gen_stream_tool_{ctx.turn_count}"
+                if execution_index == 0
+                else f"gen_stream_tool_{ctx.turn_count}_{execution_index + 1}"
+            )
+            outcome = await self.capability.execute_tool_typed_async(
+                pending_tool_json,
+                turn_id=ctx.turn_id,
+                generation_id=generation_id,
+                correlation_id=ctx.correlation_id,
+            )
+            if outcome is None:
+                raise ValueError("malformed capability request from cognition")
 
-        delta = self._dispatch_typed_outcome(
-            outcome,
-            ctx,
-            parent_package=projection_parent,
-        )
-        if delta is not None:
+            delta = self._dispatch_typed_outcome(
+                outcome,
+                ctx,
+                parent_package=continuation_parent,
+            )
+            if delta is None:
+                self.action.finish(
+                    self._outcome_action_status(outcome),
+                    correlation_id=ctx.correlation_id,
+                )
+                return
+
             continuation_messages = delta.to_messages(delta.active_tail_messages, "")
-            # I1b-3: tool continuation aligns the CURRENT delta package.
             continuation_messages = self._align_capability_messages(
                 delta, continuation_messages
             )
-            continuation_messages.insert(
-                -1,
-                {"role": "assistant", "content": reply},
-            ) if continuation_messages else None
+            for assistant_tool_reply in assistant_tool_replies:
+                if continuation_messages:
+                    continuation_messages.insert(
+                        -1,
+                        {"role": "assistant", "content": assistant_tool_reply},
+                    )
+            continuation_chunks = []
             async for streamed_delta in self.provider.stream_async(continuation_messages):
-                yield streamed_delta
+                continuation_chunks.append(streamed_delta)
 
-        self.action.finish(
-            self._outcome_action_status(outcome),
-            correlation_id=ctx.correlation_id,
-        )
+            self.action.finish(
+                self._outcome_action_status(outcome),
+                correlation_id=ctx.correlation_id,
+            )
+            continuation_reply = "".join(continuation_chunks)
+            next_tool_json = self.capability.detect_tool_call(continuation_reply)
+            if not next_tool_json:
+                for continuation_chunk in continuation_chunks:
+                    yield continuation_chunk
+                return
+
+            continuation_parent = delta
+            assistant_tool_replies.append(continuation_reply)
+            pending_tool_json = next_tool_json
+            if execution_index == 1:
+                raise CapabilityContinuationLimitExceeded(
+                    "generic capability continuation limit exceeded"
+                )
 
     def process(self, text: str, history: list[dict],
                 conversation_id: str = "", turn_id: str = "",
