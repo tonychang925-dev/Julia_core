@@ -67,6 +67,18 @@ def admitted_identity(anchor: str = "Synthetic identity anchor") -> GovernedIden
     )
 
 
+def project_admitted(anchor: str = "Synthetic identity anchor"):
+    repository = IdentityRepository()
+    candidate = repository.store_candidate(version(anchor=anchor))
+    repository.admit(
+        candidate.ref,
+        actor="synthetic-governance-test",
+        reason="Synthetic admission fixture",
+        occurred_at="2026-09-10T00:01:00Z",
+    )
+    return PersonaProjectionPolicy().project_ref(candidate.ref, IdentityResolver(repository)), repository, candidate
+
+
 def test_exact_admitted_ref_projects_deterministic_identity_frame() -> None:
     repository = IdentityRepository()
     candidate = repository.store_candidate(version())
@@ -113,7 +125,7 @@ def test_projection_preserves_lifecycle_without_promotion(method: str, expected_
     elif method == "retired":
         governed = repository.retire(candidate.ref, actor="test", reason="retired", occurred_at="2026-09-10T00:02:00Z")
 
-    frame = PersonaProjectionPolicy().project(governed)
+    frame = PersonaProjectionPolicy().project_ref(candidate.ref, IdentityResolver(repository))
 
     assert frame.source_status.value == expected_status
     assert repository.resolve(candidate.ref).status.value == expected_status
@@ -121,19 +133,18 @@ def test_projection_preserves_lifecycle_without_promotion(method: str, expected_
 
 def test_semantic_change_changes_frame_digest() -> None:
     policy = PersonaProjectionPolicy()
-    first = policy.project(admitted_identity())
-    changed = policy.project(admitted_identity(anchor="Changed synthetic identity anchor"))
+    first = project_admitted()[0]
+    changed = project_admitted(anchor="Changed synthetic identity anchor")[0]
 
     assert first.digest() != changed.digest()
     assert first.anchors != changed.anchors
 
 
 def test_projection_does_not_mutate_identity_version_or_invent_anchors() -> None:
-    governed = admitted_identity()
+    frame, repository, candidate = project_admitted()
+    governed = repository.resolve(candidate.ref)
     source_digest = governed.version.digest()
     source_anchor = governed.version.contract.anchors[0].to_dict()
-
-    frame = PersonaProjectionPolicy().project(governed)
 
     assert governed.version.digest() == source_digest
     assert frame.anchors == (source_anchor,)
@@ -146,7 +157,7 @@ def test_projection_does_not_mutate_identity_version_or_invent_anchors() -> None
 
 
 def test_frame_contains_only_bounded_identity_fields() -> None:
-    frame = PersonaProjectionPolicy().project(admitted_identity())
+    frame = project_admitted()[0]
     payload = json.dumps(frame.to_dict())
 
     expected_top_level = {
@@ -200,6 +211,42 @@ def test_invalid_input_fails_closed() -> None:
         PersonaProjectionPolicy().project({"status": "ADMITTED"})
 
 
+def test_fabricated_admitted_governed_identity_cannot_project() -> None:
+    repository = IdentityRepository()
+    candidate = repository.store_candidate(version())
+    fabricated = GovernedIdentity(
+        version=candidate.version,
+        status=candidate.status.__class__("ADMITTED"),
+        governance_events=(),
+    )
+
+    with pytest.raises(TypeError, match="project_ref"):
+        PersonaProjectionPolicy().project(fabricated)
+
+
+def test_identity_frame_nested_payload_is_deeply_immutable() -> None:
+    frame, repository, candidate = project_admitted()
+    governed = repository.resolve(candidate.ref)
+    original_serialization = frame.canonical_serialization()
+    original_digest = frame.digest()
+    source_digest = governed.version.digest()
+
+    with pytest.raises(TypeError):
+        frame.anchors[0]["statement"] = "mutated"
+    with pytest.raises(TypeError):
+        frame.provenance_refs[0]["admission_metadata"]["fixture"] = "mutated"
+
+    outward = frame.to_dict()
+    outward["anchors"][0]["statement"] = "mutated outward"
+    outward["provenance_refs"][0]["admission_metadata"]["fixture"] = "mutated outward"
+
+    assert frame.canonical_serialization() == original_serialization
+    assert frame.digest() == original_digest
+    assert governed.version.digest() == source_digest
+    assert frame.anchors[0]["statement"] == "Synthetic identity anchor"
+    assert frame.provenance_refs[0]["admission_metadata"]["fixture"] == "ENG-08"
+
+
 def test_changed_scope_is_limited_to_authorized_eng08_paths() -> None:
     changed = subprocess.run(
         ["git", "diff", "--name-only", EFFECTIVE_BASE_SHA],
@@ -218,6 +265,7 @@ def test_changed_scope_is_limited_to_authorized_eng08_paths() -> None:
         if path.startswith(("julia_core/projection/", "tests/projection/", "tests/identity/", "docs/mira_persona_architecture/", "artifacts/mira_persona_architecture/"))
     )
     allowed = (
+        "julia_core/identity/",
         "julia_core/projection/",
         "tests/projection/",
         "tests/identity/",

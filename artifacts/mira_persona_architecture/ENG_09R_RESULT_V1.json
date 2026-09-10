@@ -1,0 +1,112 @@
+{
+  "task_id": "ENG-09R",
+  "repository": "tonychang925-dev/Julia_core",
+  "branch": "mira/persona-architecture-v1",
+  "base_sha": "2d51099367dc42841338db1fe6a6528d93a5fba5",
+  "pre_incident_semantic_baseline_sha": "20a4a8c53531975627f5ce85c1b720c5df509177",
+  "reauthorization_comment_id": 5618106470,
+  "result": "PASS",
+  "implementation_status": "branch-only canonical rail P1 hardening candidate",
+  "changed_files": [
+    "julia_core/identity/contracts.py",
+    "julia_core/projection/contracts.py",
+    "julia_core/projection/policy.py",
+    "tests/identity/test_identity_minimal_slice.py",
+    "tests/projection/test_identity_only_persona_projection.py",
+    "tests/memory_experience/test_memory_experience_minimal_slice.py",
+    "docs/mira_persona_architecture/ENG_09R_CANONICAL_RAIL_P1_HARDENING_V1.md",
+    "artifacts/mira_persona_architecture/ENG_09R_RESULT_V1.json"
+  ],
+  "p1_findings": {
+    "P1-01": {
+      "title": "IdentityFrame deep immutability",
+      "status": "CLOSED",
+      "mechanism": "recursive MappingProxyType freeze plus detached outward serialization"
+    },
+    "P1-02": {
+      "title": "provenance duplicate-key canonicalization",
+      "status": "CLOSED",
+      "mechanism": "reject malformed pairs and duplicate metadata keys before canonicalization"
+    },
+    "P1-03": {
+      "title": "repository-backed projection governance",
+      "status": "CLOSED",
+      "mechanism": "forbid direct GovernedIdentity projection; require exact ref through IdentityResolver"
+    }
+  },
+  "p1_01_identity_frame_deep_immutable": true,
+  "p1_02_provenance_duplicate_lossless_or_rejected": true,
+  "p1_03_repository_backed_projection_enforced": true,
+  "p1_open_count": 0,
+  "p2_dispositions": {
+    "P2-01_shallow_history_dependence": "OPEN_NO_UNSAFE_FALLBACK",
+    "P2-02_forbidden_untracked_paths": "CLOSED",
+    "P2-03_identity_ref_uri_delimiters": "CLOSED"
+  },
+  "tests": {
+    "eng07_hardened": {
+      "command": "/opt/miniconda3/bin/pytest tests/identity/test_identity_minimal_slice.py -q",
+      "result": "PASS",
+      "passed": 14
+    },
+    "eng08_hardened": {
+      "command": "/opt/miniconda3/bin/pytest tests/projection/test_identity_only_persona_projection.py -q",
+      "result": "PASS",
+      "passed": 13
+    },
+    "eng09": {
+      "command": "/opt/miniconda3/bin/pytest tests/memory_experience/test_memory_experience_minimal_slice.py -q",
+      "result": "PASS",
+      "passed": 16
+    },
+    "eng09r_hardening": {
+      "command": "/opt/miniconda3/bin/pytest tests/identity/test_identity_minimal_slice.py tests/projection/test_identity_only_persona_projection.py tests/memory_experience/test_memory_experience_minimal_slice.py -q",
+      "result": "PASS",
+      "passed": 43,
+      "new_hardening_tests": 6
+    },
+    "full_tracked_regression": {
+      "command": "/opt/miniconda3/bin/pytest -q $(git ls-files 'tests/**test_*.py' 'tests/**/test_*.py')",
+      "result": "BASELINE_EQUIVALENT",
+      "passed": 1226,
+      "failed": 48,
+      "skipped": 6,
+      "xfailed": 26,
+      "errors": 3,
+      "baseline_failure_summary": {
+        "failed": 48,
+        "errors": 3,
+        "exact_failure_set_equivalent": true
+      },
+      "regression_introduced": false
+    },
+    "no_critical_fallback_review": {
+      "gate_script_available": false,
+      "manual_review_result": "APPROVE",
+      "risk": "NONE"
+    }
+  },
+  "scope_audit": {
+    "memory_experience_implementation_changed": false,
+    "memory_experience_scope_test_only": true,
+    "continuity_changed": false,
+    "context_os_changed": false,
+    "context_assembly_changed": false,
+    "runtime_changed": false,
+    "provider_changed": false,
+    "persona_changed": false,
+    "self_model_changed": false,
+    "relationship_changed": false,
+    "alignment_changed": false,
+    "voice_changed": false,
+    "deploy_changed": false,
+    "authorized_paths_only": true
+  },
+  "eng10_authorized": false,
+  "memory_experience_changed": false,
+  "continuity_changed": false,
+  "context_os_changed": false,
+  "runtime_changed": false,
+  "provider_changed": false,
+  "mira_data_migrated": false
+}

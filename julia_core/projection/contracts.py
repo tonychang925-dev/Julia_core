@@ -7,8 +7,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+from types import MappingProxyType
 from dataclasses import dataclass
 from typing import Any
+
+from collections.abc import Mapping
 
 from julia_core.identity import GovernedIdentity, IdentityRef, IdentityStatus
 
@@ -30,11 +33,26 @@ class IdentityFrame:
     source_status: IdentityStatus
     identity_id: str
     predecessor_version_id: str | None
-    anchors: tuple[dict[str, str], ...]
-    values: tuple[dict[str, str], ...]
-    boundaries: tuple[dict[str, str], ...]
-    relationship_role_anchors: tuple[dict[str, str], ...]
-    provenance_refs: tuple[dict[str, Any], ...]
+    anchors: tuple[Mapping[str, str], ...]
+    values: tuple[Mapping[str, str], ...]
+    boundaries: tuple[Mapping[str, str], ...]
+    relationship_role_anchors: tuple[Mapping[str, str], ...]
+    provenance_refs: tuple[Mapping[str, Any], ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "anchors", tuple(_deep_freeze(item) for item in self.anchors))
+        object.__setattr__(self, "values", tuple(_deep_freeze(item) for item in self.values))
+        object.__setattr__(self, "boundaries", tuple(_deep_freeze(item) for item in self.boundaries))
+        object.__setattr__(
+            self,
+            "relationship_role_anchors",
+            tuple(_deep_freeze(item) for item in self.relationship_role_anchors),
+        )
+        object.__setattr__(
+            self,
+            "provenance_refs",
+            tuple(_deep_freeze(item) for item in self.provenance_refs),
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -55,11 +73,11 @@ class IdentityFrame:
                 "predecessor_version_id": self.predecessor_version_id,
             },
             "identity_id": self.identity_id,
-            "anchors": [dict(item) for item in self.anchors],
-            "values": [dict(item) for item in self.values],
-            "boundaries": [dict(item) for item in self.boundaries],
-            "relationship_role_anchors": [dict(item) for item in self.relationship_role_anchors],
-            "provenance_refs": [dict(item) for item in self.provenance_refs],
+            "anchors": [_deep_unfreeze(item) for item in self.anchors],
+            "values": [_deep_unfreeze(item) for item in self.values],
+            "boundaries": [_deep_unfreeze(item) for item in self.boundaries],
+            "relationship_role_anchors": [_deep_unfreeze(item) for item in self.relationship_role_anchors],
+            "provenance_refs": [_deep_unfreeze(item) for item in self.provenance_refs],
         }
 
     def canonical_serialization(self) -> str:
@@ -72,6 +90,22 @@ class IdentityFrame:
 
     def digest(self) -> str:
         return hashlib.sha256(self.canonical_serialization().encode("utf-8")).hexdigest()
+
+
+def _deep_freeze(value: Any) -> Any:
+    if isinstance(value, dict):
+        return MappingProxyType({key: _deep_freeze(item) for key, item in value.items()})
+    if isinstance(value, (tuple, list)):
+        return tuple(_deep_freeze(item) for item in value)
+    return value
+
+
+def _deep_unfreeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _deep_unfreeze(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_deep_unfreeze(item) for item in value]
+    return value
 
 
 __all__ = [

@@ -105,7 +105,16 @@ class IdentityProvenance:
             raise ValueError("source_digest must be a SHA-256 hex digest")
         if self.source_digest and any(char not in "0123456789abcdef" for char in self.source_digest):
             raise ValueError("source_digest must be lowercase SHA-256 hex")
-        object.__setattr__(self, "admission_metadata", tuple((str(k), str(v)) for k, v in self.admission_metadata))
+        metadata_items = []
+        for item in self.admission_metadata:
+            if not isinstance(item, tuple) or len(item) != 2:
+                raise ValueError("admission_metadata must contain key/value string pairs")
+            metadata_items.append((str(item[0]), str(item[1])))
+        metadata = tuple(metadata_items)
+        metadata_keys = [key for key, _ in metadata]
+        if len(metadata_keys) != len(set(metadata_keys)):
+            raise ValueError("admission_metadata keys must be unique")
+        object.__setattr__(self, "admission_metadata", metadata)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -156,7 +165,9 @@ class IdentityRef:
 
     @property
     def uri(self) -> str:
-        return f"identity://{self.lineage_id}/{self.version_id}"
+        from urllib.parse import quote
+
+        return f"identity://{quote(self.lineage_id, safe='')}/{quote(self.version_id, safe='')}"
 
     def to_dict(self) -> dict[str, Any]:
         return {"lineage_id": self.lineage_id, "version_id": self.version_id}

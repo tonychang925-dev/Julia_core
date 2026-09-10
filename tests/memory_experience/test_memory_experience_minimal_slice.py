@@ -280,6 +280,8 @@ def test_changed_scope_is_limited_to_authorized_eng09_paths() -> None:
         if path.startswith(("julia_core/memory_experience/", "tests/memory_experience/", "tests/identity/", "tests/projection/", "docs/mira_persona_architecture/", "artifacts/mira_persona_architecture/"))
     )
     allowed = (
+        "julia_core/identity/",
+        "julia_core/projection/",
         "julia_core/memory_experience/",
         "tests/memory_experience/",
         "tests/identity/",

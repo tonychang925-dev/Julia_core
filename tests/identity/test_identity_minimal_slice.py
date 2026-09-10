@@ -101,12 +101,60 @@ def test_identity_ref_is_deterministic_and_exact() -> None:
     assert first.to_dict() == second.to_dict()
 
 
+def test_identity_ref_uri_encodes_reserved_delimiters() -> None:
+    ref = IdentityRef(lineage_id="lineage/one", version_id="v/1")
+
+    assert ref.uri == "identity://lineage%2Fone/v%2F1"
+    assert ref.uri.removeprefix("identity://").count("/") == 1
+
+
 def test_duplicate_conflicting_version_is_rejected() -> None:
     repository = IdentityRepository()
     repository.store_candidate(version())
 
     with pytest.raises(IdentityConflictError):
         repository.store_candidate(version(anchor="Changed semantic anchor"))
+
+
+def test_duplicate_provenance_metadata_keys_are_rejected() -> None:
+    with pytest.raises(ValueError, match="key/value string pairs"):
+        IdentityProvenance(
+            source_type="synthetic_fixture",
+            source_ref="fixture://eng07/synthetic-identity",
+            source_digest="a" * 64,
+            admission_metadata={"fixture": "not-a-pair-tuple"},
+        )
+
+    with pytest.raises(ValueError, match="admission_metadata keys must be unique"):
+        IdentityProvenance(
+            source_type="synthetic_fixture",
+            source_ref="fixture://eng07/synthetic-identity",
+            source_digest="a" * 64,
+            admission_metadata=(("duplicate", "first"), ("duplicate", "second")),
+        )
+
+
+def test_materially_different_provenance_for_same_version_is_rejected() -> None:
+    repository = IdentityRepository()
+    repository.store_candidate(version())
+    alternate = IdentityVersion(
+        contract=contract(),
+        lineage_id="lineage-synthetic-test",
+        version_id="v1",
+        predecessor_version_id=None,
+        created_at="2026-09-10T00:00:00Z",
+        provenance_refs=(
+            IdentityProvenance(
+                source_type="synthetic_fixture",
+                source_ref="fixture://eng07/synthetic-identity",
+                source_digest="a" * 64,
+                admission_metadata=(("governance_case", "alternate"),),
+            ),
+        ),
+    )
+
+    with pytest.raises(IdentityConflictError):
+        repository.store_candidate(alternate)
 
 
 def test_digest_is_deterministic_and_semantic_change_changes_it() -> None:
@@ -186,6 +234,33 @@ def test_changed_scope_remains_within_cumulative_authorized_branch_paths() -> No
 
     assert changed
     assert all(path.startswith(CUMULATIVE_AUTHORIZED_PATH_PREFIXES) for path in changed)
+
+
+def test_forbidden_untracked_paths_are_detected() -> None:
+    def forbidden_paths(paths: list[str]) -> list[str]:
+        protected = (
+            "julia_core/persona/",
+            "julia_core/self_model/",
+            "julia_core/runtime/",
+            "julia_core/providers/",
+            "julia_core/context_os/",
+            "julia_core/context_assembly/",
+            "julia_core/memory/",
+            "julia_core/continuity/",
+        )
+        return [path for path in paths if path.startswith(protected)]
+
+    untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+
+    assert forbidden_paths(untracked) == []
+    assert forbidden_paths(["julia_core/runtime/untracked_override.py"]) == [
+        "julia_core/runtime/untracked_override.py"
+    ]
 
 
 def test_legacy_and_runtime_scope_remains_unchanged_from_delegation_base() -> None:
