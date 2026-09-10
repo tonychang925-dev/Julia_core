@@ -93,7 +93,7 @@ class IdentityFrame:
 
 
 def _deep_freeze(value: Any) -> Any:
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         return MappingProxyType({key: _deep_freeze(item) for key, item in value.items()})
     if isinstance(value, (tuple, list)):
         return tuple(_deep_freeze(item) for item in value)

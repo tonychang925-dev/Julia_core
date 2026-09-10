@@ -56,6 +56,7 @@ class MemoryExperienceRepository:
         reason: str,
         occurred_at: str,
     ) -> GovernedMemoryExperience:
+        _require_exact_ref(ref)
         with self._lock:
             current = self.resolve(ref)
             if current.status is not MemoryExperienceStatus.CANDIDATE:
@@ -81,6 +82,7 @@ class MemoryExperienceRepository:
         reason: str,
         occurred_at: str,
     ) -> GovernedMemoryExperience:
+        _require_exact_ref(ref)
         return self._transition(
             ref,
             MemoryExperienceStatus.SUPERSEDED,
@@ -98,6 +100,7 @@ class MemoryExperienceRepository:
         reason: str,
         occurred_at: str,
     ) -> GovernedMemoryExperience:
+        _require_exact_ref(ref)
         return self._transition(
             ref,
             MemoryExperienceStatus.RETIRED,
@@ -154,6 +157,7 @@ class MemoryExperienceRepository:
         reason: str,
         occurred_at: str,
     ) -> GovernedMemoryExperience:
+        _require_exact_ref(ref)
         with self._lock:
             current = self.resolve(ref)
             if current.status not in allowed_from:
@@ -170,6 +174,13 @@ class MemoryExperienceRepository:
             self._states[ref] = status
             self._events[ref].append((status, admission))
             return self.resolve(ref)
+
+
+def _require_exact_ref(ref: MemoryExperienceRef) -> None:
+    if type(ref) is not MemoryExperienceRef:
+        raise TypeError(
+            "MemoryExperience lifecycle transitions accept exact MemoryExperienceRef objects only"
+        )
 
 
 __all__ = ["MemoryExperienceRepository"]

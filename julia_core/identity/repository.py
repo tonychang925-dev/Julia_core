@@ -63,6 +63,7 @@ class IdentityRepository:
             return self.resolve(version.ref)
 
     def admit(self, ref: IdentityRef, *, actor: str, reason: str, occurred_at: str) -> GovernedIdentity:
+        _require_exact_ref(ref)
         return self._append_event(
             ref,
             IdentityStatus.ADMITTED,
@@ -74,6 +75,7 @@ class IdentityRepository:
         )
 
     def supersede(self, ref: IdentityRef, *, actor: str, reason: str, occurred_at: str) -> GovernedIdentity:
+        _require_exact_ref(ref)
         return self._append_event(
             ref,
             IdentityStatus.SUPERSEDED,
@@ -85,6 +87,7 @@ class IdentityRepository:
         )
 
     def retire(self, ref: IdentityRef, *, actor: str, reason: str, occurred_at: str) -> GovernedIdentity:
+        _require_exact_ref(ref)
         return self._append_event(
             ref,
             IdentityStatus.RETIRED,
@@ -143,6 +146,7 @@ class IdentityRepository:
         allowed_from: set[IdentityStatus],
         event_kind: str,
     ) -> GovernedIdentity:
+        _require_exact_ref(ref)
         with self._lock:
             current = self.resolve(ref)
             if current.status not in allowed_from:
@@ -159,6 +163,11 @@ class IdentityRepository:
             )
             self._events[ref].append(event)
             return self.resolve(ref)
+
+
+def _require_exact_ref(ref: IdentityRef) -> None:
+    if type(ref) is not IdentityRef:
+        raise TypeError("identity lifecycle transitions accept exact IdentityRef objects only")
 
 
 __all__ = [

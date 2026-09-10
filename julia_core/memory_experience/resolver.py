@@ -7,10 +7,12 @@ from .repository import MemoryExperienceRepository, MemoryExperienceRefNotFoundE
 
 class MemoryExperienceResolver:
     def __init__(self, repository: MemoryExperienceRepository):
+        if type(repository) is not MemoryExperienceRepository:
+            raise TypeError("MemoryExperienceResolver accepts an exact MemoryExperienceRepository only")
         self._repository = repository
 
     def resolve(self, ref: MemoryExperienceRef):
-        if not isinstance(ref, MemoryExperienceRef):
+        if type(ref) is not MemoryExperienceRef:
             raise TypeError("MemoryExperienceResolver accepts an exact MemoryExperienceRef only")
         return self._repository.resolve(ref)
 
