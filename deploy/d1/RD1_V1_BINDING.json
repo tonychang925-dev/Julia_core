@@ -1,0 +1,20 @@
+{
+  "contract_version": "julia.core.d1-runtime-binding.v1",
+  "d1_release_sha256": "c173f92d34de212f84646d2467e382ea6d8f53ebec24b01ac65404f38d774dd4",
+  "d1_release_root": "/Users/admin/julia_rd1_controlled/releases/d1-c173f92d34de212f84646d2467e382ea6d8f53ebec24b01ac65404f38d774dd4",
+  "d1_manifest": "/Users/admin/julia_rd1_controlled/manifests/d1-c173f92d34de212f84646d2467e382ea6d8f53ebec24b01ac65404f38d774dd4.file-manifest.sha256",
+  "bun_path": "/Users/admin/.bun/bin/bun",
+  "bun_sha256": "4aa2fe331eb3110723e35dc8170d2d30fb7540805f179aab07a04b6c3daa5a69",
+  "zod_version": "4.4.3",
+  "zod_import": "zod/v4",
+  "zod_tree_sha256": "18281fa9e1d6eff276fcb954885b98bdc32c8998fa6fc882f7e680b1621088bd",
+  "zod_tarball_sha512_base64": "ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==",
+  "auto_install": false,
+  "retry_count": 0,
+  "fallback_count": 0,
+  "synthetic_success_count": 0,
+  "claude_top_level_capability_selection": false,
+  "claude_market_authority": false,
+  "claude_c1_mint_authority": false,
+  "claude_final_judgment_authority": false
+}

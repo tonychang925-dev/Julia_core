@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import subprocess
 from typing import Any
 
 import pytest
@@ -22,6 +23,10 @@ from julia_core.capability.models import (
 from julia_core.research.adapter import MarketEventResearchAdapter
 from julia_core.research.d1_provider import (
     D1_SOURCE_SHA,
+    D1_LAUNCHER_PATH,
+    D1_LAUNCHER_SHA256,
+    D1_ZOD_TREE_SHA256,
+    D1_ZOD_VERSION,
     D1ResearchBindingConfigError,
     D1ResearchBridgeProvider,
     build_d1_research_request,
@@ -234,13 +239,11 @@ def provider(transport=None) -> D1ResearchBridgeProvider:
 
 
 def controlled_environment(**overrides) -> dict[str, str]:
-    executable = Path("/bin/sh")
+    executable = D1_LAUNCHER_PATH
     values = {
         "JULIA_D1_SOURCE_SHA": D1_SOURCE_SHA,
-        "JULIA_D1_RESEARCH_BRIDGE_EXECUTABLE": str(executable),
-        "JULIA_D1_RESEARCH_BRIDGE_SHA256": hashlib.sha256(
-            executable.read_bytes()
-        ).hexdigest(),
+        "JULIA_D1_RESEARCH_BRIDGE_EXECUTABLE": str(executable.resolve()),
+        "JULIA_D1_RESEARCH_BRIDGE_SHA256": D1_LAUNCHER_SHA256,
         "JULIA_D1_RESEARCH_SOURCE_AUTHORITY_JSON": json.dumps(
             {
                 "allowed_https_domains": ["trusted.example"],
@@ -262,6 +265,9 @@ def controlled_environment(**overrides) -> dict[str, str]:
                 "artifact_root": "/tmp/d1-controlled-artifacts",
             }
         ),
+        "JULIA_D1_ZOD_VERSION": D1_ZOD_VERSION,
+        "JULIA_D1_ZOD_TREE_SHA256": D1_ZOD_TREE_SHA256,
+        "BUN_CONFIG_AUTO_INSTALL": "0",
     }
     values.update(overrides)
     return values
@@ -463,14 +469,66 @@ def test_l0a_config_is_required_and_pinned():
         create_d1_research_provider_from_environment({})
 
     wrong_source = controlled_environment(JULIA_D1_SOURCE_SHA="0" * 40)
-    with pytest.raises(D1ResearchBindingConfigError, match="frozen D1 commit"):
+    with pytest.raises(D1ResearchBindingConfigError, match="frozen D1 release"):
         create_d1_research_provider_from_environment(wrong_source)
 
     bad_pin = controlled_environment(
         JULIA_D1_RESEARCH_BRIDGE_SHA256="0" * 64,
     )
-    with pytest.raises(D1ResearchBindingConfigError, match="digest mismatch"):
+    with pytest.raises(D1ResearchBindingConfigError, match="exact candidate pin"):
         create_d1_research_provider_from_environment(bad_pin)
+
+    alternate_launcher = controlled_environment(
+        JULIA_D1_RESEARCH_BRIDGE_EXECUTABLE="/bin/sh"
+    )
+    with pytest.raises(D1ResearchBindingConfigError, match="exact RD1-V1 D1 launcher"):
+        create_d1_research_provider_from_environment(alternate_launcher)
+
+    ambient_zod = controlled_environment(BUN_CONFIG_AUTO_INSTALL="1")
+    with pytest.raises(D1ResearchBindingConfigError, match="auto-install boundary"):
+        create_d1_research_provider_from_environment(ambient_zod)
+
+
+def test_rd1_v1_launcher_resolves_zod_without_ambient_install():
+    completed = subprocess.run(
+        [str(D1_LAUNCHER_PATH)],
+        input=b"{}",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=20,
+    )
+    response = json.loads(completed.stdout)
+    assert completed.returncode == 0
+    assert response["error"]["code"] == "MISSING_LF"
+    assert response["execution"]["provider_action_retry_count"] == 0
+    assert response["execution"]["fallback_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_rd1_v1_launcher_digest_is_rechecked_before_invocation(tmp_path):
+    executable = tmp_path / "launcher"
+    executable.write_text("#!/bin/sh\nexit 0\n")
+    executable.chmod(0o700)
+    digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+    d1_provider = D1ResearchBridgeProvider(
+        executable=executable,
+        executable_sha256=digest,
+        environment=controlled_environment(),
+        transport=FakeTransport(),
+    )
+    executable.write_text("#!/bin/sh\nexit 99\n")
+    request = research_request()
+    with pytest.raises(D1ResearchBindingConfigError, match="changed before execution"):
+        await d1_provider.execute_bound(
+            request,
+            CapabilityCall(
+                capability_call_id="cap_call_l0a",
+                capability_request_id=request.capability_request_id,
+                provider="research_enrichment",
+                correlation_id="corr-l0a",
+            ),
+        )
+    assert d1_provider.execution_count == 0
 
 
 def test_l0a_scope_remains_core_d1_only():

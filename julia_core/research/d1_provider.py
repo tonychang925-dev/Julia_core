@@ -27,6 +27,12 @@ from julia_core.research.adapter import RESEARCH_EVENT_ENRICH_CAPABILITY
 # 0e1b5ca commit-label after the reference-based response transport fix
 # (extracted content is no longer inlined on the D1→Core IPC envelope).
 D1_SOURCE_SHA = "c173f92d34de212f84646d2467e382ea6d8f53ebec24b01ac65404f38d774dd4"
+D1_LAUNCHER_PATH = (
+    Path(__file__).resolve().parents[2] / "executables" / "d1-research-bridge-rd1-v1.py"
+)
+D1_LAUNCHER_SHA256 = "a73e906234db9f525546d770aba6cb6b1a287f29ef3b06d7271dcdb0cac00b28"
+D1_ZOD_VERSION = "4.4.3"
+D1_ZOD_TREE_SHA256 = "18281fa9e1d6eff276fcb954885b98bdc32c8998fa6fc882f7e680b1621088bd"
 D1_REQUEST_CONTRACT_VERSION = "research.bridge.request.v3"
 D1_RESPONSE_CONTRACT_VERSION = "research.bridge.response.v1"
 D1_PROMPT_FORMAT_VERSION = "research.event-enrichment-prompt.v1"
@@ -39,6 +45,8 @@ _CONFIG_REQUIRED = (
     "JULIA_D1_RESEARCH_BRIDGE_SHA256",
     "JULIA_D1_RESEARCH_SOURCE_AUTHORITY_JSON",
     "JULIA_D1_CONTROLLED_ACQUISITION_CONFIG_JSON",
+    "JULIA_D1_ZOD_VERSION",
+    "JULIA_D1_ZOD_TREE_SHA256",
 )
 
 
@@ -120,6 +128,10 @@ class D1ResearchBridgeProvider:
         if request.capability_id != RESEARCH_EVENT_ENRICH_CAPABILITY:
             raise ValueError("D1 provider accepts only research.event.enrich")
         self._require_boundary_environment()
+        if _file_sha256(self.pin.path) != self.pin.sha256:
+            raise D1ResearchBindingConfigError(
+                "pinned D1 launcher digest changed before execution"
+            )
         capability_request_id = request.capability_request_id
         capability_call_id = call.capability_call_id if call is not None else ""
         if not capability_request_id or not capability_call_id:
@@ -177,6 +189,14 @@ class D1ResearchBridgeProvider:
         if self.environment.get("JULIA_D1_SOURCE_SHA") != D1_SOURCE_SHA:
             raise D1ResearchBindingConfigError(
                 f"JULIA_D1_SOURCE_SHA must equal frozen D1 commit {D1_SOURCE_SHA}"
+            )
+        if (
+            self.environment.get("JULIA_D1_ZOD_VERSION") != D1_ZOD_VERSION
+            or self.environment.get("JULIA_D1_ZOD_TREE_SHA256") != D1_ZOD_TREE_SHA256
+            or self.environment.get("BUN_CONFIG_AUTO_INSTALL") != "0"
+        ):
+            raise D1ResearchBindingConfigError(
+                "controlled D1 zod dependency identity or auto-install boundary mismatch"
             )
         try:
             authority = json.loads(
@@ -245,6 +265,9 @@ class D1ResearchBridgeProvider:
                     "observed_at": "",
                     "provenance": {
                         "d1_source_sha": D1_SOURCE_SHA,
+                        "d1_launcher_sha256": self.pin.sha256,
+                        "zod_version": D1_ZOD_VERSION,
+                        "zod_tree_sha256": D1_ZOD_TREE_SHA256,
                         "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
                         "transmission_state": "AMBIGUOUS",
                         "preserved_d1_response": (
@@ -324,6 +347,18 @@ def create_d1_research_provider_from_environment(
     transport: D1Transport | None = None,
 ) -> D1ResearchBridgeProvider:
     env = dict(environment if environment is not None else os.environ)
+    if env.get("JULIA_D1_RESEARCH_BRIDGE_EXECUTABLE") != str(D1_LAUNCHER_PATH):
+        raise D1ResearchBindingConfigError(
+            "controlled-live Core candidate must select the exact RD1-V1 D1 launcher"
+        )
+    if env.get("JULIA_D1_RESEARCH_BRIDGE_SHA256") != D1_LAUNCHER_SHA256:
+        raise D1ResearchBindingConfigError(
+            "controlled-live RD1-V1 D1 launcher digest is not the exact candidate pin"
+        )
+    if env.get("JULIA_D1_SOURCE_SHA") != D1_SOURCE_SHA:
+        raise D1ResearchBindingConfigError(
+            f"JULIA_D1_SOURCE_SHA must equal frozen D1 release {D1_SOURCE_SHA}"
+        )
     configured = any(name in env for name in _CONFIG_REQUIRED)
     if not configured:
         raise D1ResearchBindingConfigError(
@@ -758,6 +793,10 @@ async def _terminate(process: asyncio.subprocess.Process) -> None:
 
 __all__ = [
     "D1_SOURCE_SHA",
+    "D1_LAUNCHER_PATH",
+    "D1_LAUNCHER_SHA256",
+    "D1_ZOD_TREE_SHA256",
+    "D1_ZOD_VERSION",
     "D1ResearchBindingConfigError",
     "D1ResearchBridgeProvider",
     "D1ResearchTransmissionError",
