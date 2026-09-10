@@ -28,6 +28,8 @@ CUMULATIVE_AUTHORIZED_PATH_PREFIXES = (
     "tests/identity/",
     "julia_core/projection/",
     "tests/projection/",
+    "julia_core/memory_experience/",
+    "tests/memory_experience/",
     "docs/mira_persona_architecture/",
     "artifacts/mira_persona_architecture/",
 )

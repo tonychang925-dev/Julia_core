@@ -221,6 +221,8 @@ def test_changed_scope_is_limited_to_authorized_eng08_paths() -> None:
         "julia_core/projection/",
         "tests/projection/",
         "tests/identity/",
+        "julia_core/memory_experience/",
+        "tests/memory_experience/",
         "docs/mira_persona_architecture/",
         "artifacts/mira_persona_architecture/",
     )
