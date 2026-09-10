@@ -42,8 +42,10 @@ class PersonaProjectionPolicy:
         )
 
     def project_ref(self, ref: IdentityRef, resolver: IdentityResolver) -> IdentityFrame:
-        if not isinstance(resolver, IdentityResolver):
-            raise TypeError("project_ref accepts IdentityResolver only")
+        if type(resolver) is not IdentityResolver:
+            raise TypeError("project_ref accepts an exact IdentityResolver only")
+        if type(ref) is not IdentityRef:
+            raise TypeError("project_ref accepts an exact IdentityRef only")
         return self._project(resolver.resolve(ref))
 
 

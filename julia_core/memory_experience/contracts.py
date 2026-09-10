@@ -231,9 +231,9 @@ class MemoryExperienceRecord:
         if not isinstance(self.experience_type, MemoryExperienceType):
             raise ValueError("experience_type must be a canonical MemoryExperienceType")
         expected_type = _CONTENT_TYPE_BY_EXPERIENCE_TYPE[self.experience_type]
-        if not isinstance(self.content, expected_type):
+        if type(self.content) is not expected_type:
             raise ValueError(
-                f"{self.experience_type.value} requires {expected_type.__name__}"
+                f"{self.experience_type.value} requires exact {expected_type.__name__}"
             )
         object.__setattr__(self, "provenance_refs", tuple(self.provenance_refs))
         if any(
