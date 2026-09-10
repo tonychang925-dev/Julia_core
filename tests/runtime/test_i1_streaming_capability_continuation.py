@@ -522,6 +522,8 @@ async def test_c2r1_second_pass_research_uses_dedicated_path(monkeypatch):
         "Julia answered after the dedicated research continuation.",
     ])
     cognitive = session(monkeypatch, provider=provider)
+    research_product_hook = lambda product: product
+    product_sink = lambda product: None
     original_execute = cognitive.capability.execute_tool_typed_async
 
     async def execute_without_research(tool_json, **kwargs):
@@ -533,6 +535,8 @@ async def test_c2r1_second_pass_research_uses_dedicated_path(monkeypatch):
         chunk async for chunk in cognitive.process_stream(
             "Research after a governed event", [],
             conversation_id="conv", turn_id="turn-research-second",
+            research_product_hook=research_product_hook,
+            product_sink=product_sink,
         )
     ]
 
@@ -540,6 +544,8 @@ async def test_c2r1_second_pass_research_uses_dedicated_path(monkeypatch):
     assert len(SecondPassResearchContinuation.calls) == 1
     research_call = SecondPassResearchContinuation.calls[0]
     assert research_call["governed_research_request"] == RESEARCH_RUN_BRIEF_CALL
+    assert research_call["research_product_hook"] is research_product_hook
+    assert research_call["product_sink"] is product_sink
     assert research_call["turn_context"].correlation_id == "conv:conv:turn:turn-research-second"
     assert len(cognitive._research_fixture_provider.requests) == 1
 

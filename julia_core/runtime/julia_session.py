@@ -372,6 +372,8 @@ class JuliaSession:
                     ctx,
                     parent_package=continuation_parent,
                     assistant_replies=assistant_tool_replies,
+                    research_product_hook=research_product_hook,
+                    product_sink=product_sink,
                 )
                 async for streamed_delta in self.provider.stream_async(aligned):
                     yield streamed_delta
