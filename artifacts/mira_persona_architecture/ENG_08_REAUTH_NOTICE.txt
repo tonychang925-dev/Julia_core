@@ -1,0 +1,1 @@
+ENG-08 bounded reauthorization notice: authoritative execution base is declared in Issue #19 comments and must equal the current branch HEAD before implementation. This file is informational only and does not define the execution base.
