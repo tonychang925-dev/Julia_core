@@ -4,6 +4,7 @@ This bounded canonical seam stores governed lived/history semantics only. It
 has no recall, context admission, continuity hydration, runtime, or provider
 authority.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -120,7 +121,9 @@ class ProjectCommitmentExperienceContent:
         _require_text(self.scope, "scope")
         _require_text(self.commitment, "commitment")
         if not isinstance(self.transfer_semantics, CommitmentTransferSemantics):
-            raise ValueError("transfer_semantics must be an explicit commitment transfer enum")
+            raise ValueError(
+                "transfer_semantics must be an explicit commitment transfer enum"
+            )
         _require_text(self.occurred_at, "occurred_at", max_length=128)
 
     def to_dict(self) -> dict[str, Any]:
@@ -165,13 +168,26 @@ class MemoryExperienceProvenance:
     def __post_init__(self) -> None:
         _require_id(self.source_type, "source_type")
         _require_ref(self.source_ref)
-        if len(self.source_digest) != 64 or any(char not in "0123456789abcdef" for char in self.source_digest):
+        if len(self.source_digest) != 64 or any(
+            char not in "0123456789abcdef" for char in self.source_digest
+        ):
             raise ValueError("source_digest must be a lowercase SHA-256 hex digest")
-        object.__setattr__(
-            self,
-            "admission_metadata",
-            tuple((str(key), str(value)) for key, value in self.admission_metadata),
-        )
+        if not isinstance(self.admission_metadata, tuple):
+            raise ValueError("admission_metadata must contain key/value string pairs")
+        for item in self.admission_metadata:
+            if (
+                type(item) is not tuple
+                or len(item) != 2
+                or type(item[0]) is not str
+                or type(item[1]) is not str
+            ):
+                raise ValueError(
+                    "admission_metadata must contain key/value string pairs"
+                )
+        metadata_keys = [key for key, _ in self.admission_metadata]
+        if len(metadata_keys) != len(set(metadata_keys)):
+            raise ValueError("admission_metadata keys must be unique")
+        object.__setattr__(self, "admission_metadata", self.admission_metadata)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -216,8 +232,17 @@ class MemoryExperienceRecord:
             raise ValueError("experience_type must be a canonical MemoryExperienceType")
         expected_type = _CONTENT_TYPE_BY_EXPERIENCE_TYPE[self.experience_type]
         if not isinstance(self.content, expected_type):
-            raise ValueError(f"{self.experience_type.value} requires {expected_type.__name__}")
+            raise ValueError(
+                f"{self.experience_type.value} requires {expected_type.__name__}"
+            )
         object.__setattr__(self, "provenance_refs", tuple(self.provenance_refs))
+        if any(
+            type(item) is not MemoryExperienceProvenance
+            for item in self.provenance_refs
+        ):
+            raise ValueError(
+                "provenance_refs elements must be MemoryExperienceProvenance"
+            )
         if not self.provenance_refs:
             raise ValueError("MemoryExperienceRecord requires provenance")
         _require_text(self.created_at, "created_at", max_length=128)
@@ -255,7 +280,9 @@ class MemoryExperienceRecord:
         )
 
     def digest(self) -> str:
-        return hashlib.sha256(self.canonical_serialization().encode("utf-8")).hexdigest()
+        return hashlib.sha256(
+            self.canonical_serialization().encode("utf-8")
+        ).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
@@ -291,7 +318,9 @@ class MemoryExperienceAdmission:
 class GovernedMemoryExperience:
     record: MemoryExperienceRecord
     status: MemoryExperienceStatus
-    governance_events: tuple[tuple[MemoryExperienceStatus, MemoryExperienceAdmission | None], ...]
+    governance_events: tuple[
+        tuple[MemoryExperienceStatus, MemoryExperienceAdmission | None], ...
+    ]
 
     @property
     def ref(self) -> MemoryExperienceRef:
@@ -322,12 +351,18 @@ _CONTENT_TYPE_BY_EXPERIENCE_TYPE = {
 
 def _require_id(value: str, field_name: str) -> None:
     if not value or not value.strip() or len(value) > MAX_ID_LENGTH:
-        raise ValueError(f"{field_name} is required and must be at most {MAX_ID_LENGTH} characters")
+        raise ValueError(
+            f"{field_name} is required and must be at most {MAX_ID_LENGTH} characters"
+        )
 
 
-def _require_text(value: str, field_name: str, *, max_length: int = MAX_EXPERIENCE_TEXT_LENGTH) -> None:
+def _require_text(
+    value: str, field_name: str, *, max_length: int = MAX_EXPERIENCE_TEXT_LENGTH
+) -> None:
     if not value or not value.strip() or len(value) > max_length:
-        raise ValueError(f"{field_name} is required and must be at most {max_length} characters")
+        raise ValueError(
+            f"{field_name} is required and must be at most {max_length} characters"
+        )
 
 
 def _require_ref(value: str) -> None:
