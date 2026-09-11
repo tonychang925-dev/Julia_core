@@ -1,6 +1,12 @@
 """Branch-only C-05 MemoryExperience minimal seam."""
 from .contracts import (
+    AutobiographicalOwner,
+    CausalStatus,
+    CommitmentApplicability,
+    CommitmentRevision,
+    CommitmentStage,
     CommitmentTransferSemantics,
+    EvidenceBindingRef,
     EpisodicExperienceContent,
     GovernedMemoryExperience,
     MemoryExperienceAdmission,
@@ -12,9 +18,14 @@ from .contracts import (
     MemoryExperienceStatus,
     MemoryExperienceType,
     NarrativeExperienceContent,
+    PolicyTransferApplicability,
+    PolicyTransferNotApplicable,
+    PolicyTransferSemantics,
     PreferenceExperienceContent,
     ProjectCommitmentExperienceContent,
     RelationshipExperienceContent,
+    SubjectBoundary,
+    SubjectIdentity,
 )
 from .repository import (
     MemoryExperienceConflictError,
@@ -25,7 +36,13 @@ from .repository import (
 from .resolver import MemoryExperienceResolver
 
 __all__ = [
+    "AutobiographicalOwner",
+    "CausalStatus",
+    "CommitmentApplicability",
+    "CommitmentRevision",
+    "CommitmentStage",
     "CommitmentTransferSemantics",
+    "EvidenceBindingRef",
     "EpisodicExperienceContent",
     "GovernedMemoryExperience",
     "MemoryExperienceAdmission",
@@ -42,7 +59,12 @@ __all__ = [
     "MemoryExperienceStatus",
     "MemoryExperienceType",
     "NarrativeExperienceContent",
+    "PolicyTransferApplicability",
+    "PolicyTransferNotApplicable",
+    "PolicyTransferSemantics",
     "PreferenceExperienceContent",
     "ProjectCommitmentExperienceContent",
     "RelationshipExperienceContent",
+    "SubjectBoundary",
+    "SubjectIdentity",
 ]
