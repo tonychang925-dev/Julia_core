@@ -1,4 +1,5 @@
 """Exact-reference Identity resolver (ENG-07 candidate)."""
+
 from __future__ import annotations
 
 from .contracts import GovernedIdentity, IdentityRef
@@ -25,7 +26,7 @@ class IdentityResolver:
         repository = self._repository
         if type(repository) is not IdentityRepository:
             raise TypeError("IdentityResolver repository binding is invalid")
-        return repository.resolve(ref)
+        return IdentityRepository.resolve(repository, ref)
 
 
 __all__ = ["IdentityResolver"]

@@ -327,6 +327,8 @@ def _require_exact_elements(items: tuple, expected_type: type, field_name: str) 
 
 
 def _require_source_ref(value: str) -> None:
+    if type(value) is not str:
+        raise ValueError("source_ref must be an exact built-in string")
     if not value or len(value) > 2_048 or any(char.isspace() for char in value):
         raise ValueError("source_ref must be a bounded URI-shaped reference")
     parsed = urlsplit(value)

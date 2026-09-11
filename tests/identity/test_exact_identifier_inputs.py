@@ -1,17 +1,25 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from julia_core.identity import (
+    GovernedIdentity,
     IdentityRepository,
     IdentityResolver,
     IdentityAnchor,
     IdentityBoundary,
+    IdentityContract,
+    IdentityProvenance,
     IdentityRef,
+    IdentityStatus,
+    IdentityVersion,
     IdentityValue,
     RelationshipRoleAnchor,
 )
 from julia_core.identity.contracts import IdentityGovernanceEvent
+from julia_core.projection import PersonaProjectionPolicy
 
 
 class SpoofString(str):
@@ -24,6 +32,11 @@ class MutableSpoofString(str):
 
     def mutate(self) -> None:
         self.backing.append("!")
+
+
+class ParsingSpoofSourceRef(str):
+    def lstrip(self, *args: object, **kwargs: object) -> str:
+        return "fixture://eng10r4/valid-source"
 
 
 def test_identity_anchor_rejects_string_subclass_identifier() -> None:
@@ -157,3 +170,107 @@ def test_forged_identity_repository_substitution_fails_resolve_revalidation() ->
 
     with pytest.raises(TypeError, match="repository binding is invalid"):
         resolver.resolve(IdentityRef(lineage_id="lineage-synthetic", version_id="v1"))
+
+
+def test_identity_instance_resolve_shadow_cannot_fabricate_projection() -> None:
+    repository = IdentityRepository()
+    version = IdentityVersion(
+        contract=IdentityContract(
+            identity_id="identity-synthetic",
+            anchors=(
+                IdentityAnchor(
+                    anchor_id="anchor-synthetic", statement="Synthetic anchor"
+                ),
+            ),
+            values=(),
+            boundaries=(),
+            relationship_role_anchors=(),
+        ),
+        lineage_id="lineage-synthetic",
+        version_id="v1",
+        predecessor_version_id=None,
+        created_at="2026-09-11T00:00:00Z",
+        provenance_refs=(
+            IdentityProvenance(
+                source_type="synthetic_fixture",
+                source_ref="fixture://eng10r4/synthetic-identity",
+                source_digest="a" * 64,
+            ),
+        ),
+    )
+    candidate = repository.store_candidate(version)
+    resolver = IdentityResolver(repository)
+    repository.resolve = lambda ref: GovernedIdentity(
+        version=version,
+        status=IdentityStatus.ADMITTED,
+        governance_events=(),
+    )
+
+    resolved = resolver.resolve(candidate.ref)
+    frame = PersonaProjectionPolicy().project_ref(candidate.ref, resolver)
+
+    assert resolved.status is IdentityStatus.CANDIDATE
+    assert frame.source_status is IdentityStatus.CANDIDATE
+
+
+@pytest.mark.parametrize(
+    "spoof",
+    [
+        SpoofString("fixture://eng10r4/source"),
+        MutableSpoofString("fixture://eng10r4/source"),
+        ParsingSpoofSourceRef("not-a-uri"),
+        pytest.param(MagicMock(spec=str), id="proxy"),
+    ],
+)
+def test_identity_source_ref_rejects_non_exact_strings_before_parsing(spoof) -> None:
+    with pytest.raises(ValueError, match="source_ref must be an exact built-in string"):
+        IdentityProvenance(
+            source_type="synthetic_fixture",
+            source_ref=spoof,
+            source_digest="a" * 64,
+        )
+
+
+def test_exact_identity_source_ref_remains_valid_and_cannot_diverge() -> None:
+    def version() -> IdentityVersion:
+        return IdentityVersion(
+            contract=IdentityContract(
+                identity_id="identity-synthetic",
+                anchors=(
+                    IdentityAnchor(
+                        anchor_id="anchor-synthetic", statement="Synthetic anchor"
+                    ),
+                ),
+                values=(),
+                boundaries=(),
+                relationship_role_anchors=(),
+            ),
+            lineage_id="lineage-synthetic",
+            version_id="v1",
+            predecessor_version_id=None,
+            created_at="2026-09-11T00:00:00Z",
+            provenance_refs=(
+                IdentityProvenance(
+                    source_type="synthetic_fixture",
+                    source_ref="fixture://eng10r4/synthetic-identity",
+                    source_digest="a" * 64,
+                ),
+            ),
+        )
+
+    valid_version = version()
+    payload = valid_version.canonical_payload()
+    digest = valid_version.digest()
+    spoof = MutableSpoofString("not-a-uri")
+
+    with pytest.raises(ValueError, match="source_ref must be an exact built-in string"):
+        IdentityProvenance(
+            source_type="synthetic_fixture",
+            source_ref=spoof,
+            source_digest="a" * 64,
+        )
+    spoof.mutate()
+
+    assert valid_version.canonical_payload() == payload
+    assert valid_version.digest() == digest
+    assert version().digest() == digest

@@ -1,4 +1,5 @@
 """Exact-reference MemoryExperience resolver."""
+
 from __future__ import annotations
 
 from .contracts import MemoryExperienceRef
@@ -10,7 +11,9 @@ class MemoryExperienceResolver:
 
     def __init__(self, repository: MemoryExperienceRepository):
         if type(repository) is not MemoryExperienceRepository:
-            raise TypeError("MemoryExperienceResolver accepts an exact MemoryExperienceRepository only")
+            raise TypeError(
+                "MemoryExperienceResolver accepts an exact MemoryExperienceRepository only"
+            )
         object.__setattr__(self, "_repository", repository)
 
     def __setattr__(self, name: str, value: object) -> None:
@@ -21,11 +24,13 @@ class MemoryExperienceResolver:
 
     def resolve(self, ref: MemoryExperienceRef):
         if type(ref) is not MemoryExperienceRef:
-            raise TypeError("MemoryExperienceResolver accepts an exact MemoryExperienceRef only")
+            raise TypeError(
+                "MemoryExperienceResolver accepts an exact MemoryExperienceRef only"
+            )
         repository = self._repository
         if type(repository) is not MemoryExperienceRepository:
             raise TypeError("MemoryExperienceResolver repository binding is invalid")
-        return repository.resolve(ref)
+        return MemoryExperienceRepository.resolve(repository, ref)
 
 
 __all__ = ["MemoryExperienceResolver"]

@@ -7,6 +7,7 @@ import pytest
 from julia_core.memory_experience import (
     CommitmentTransferSemantics,
     EpisodicExperienceContent,
+    GovernedMemoryExperience,
     MemoryExperienceAdmission,
     MemoryExperienceCandidate,
     MemoryExperienceProvenance,
@@ -14,12 +15,14 @@ from julia_core.memory_experience import (
     MemoryExperienceRepository,
     MemoryExperienceResolver,
     MemoryExperienceRecord,
+    MemoryExperienceStatus,
     MemoryExperienceType,
     NarrativeExperienceContent,
     PreferenceExperienceContent,
     ProjectCommitmentExperienceContent,
     RelationshipExperienceContent,
 )
+from julia_core.projection import ExperienceProjectionPolicy
 
 
 class SpoofString(str):
@@ -507,6 +510,28 @@ def test_forged_memory_repository_substitution_fails_resolve_revalidation() -> N
         resolver.resolve(
             MemoryExperienceRef(experience_id="experience-synthetic", version_id="v1")
         )
+
+
+def test_memory_instance_resolve_shadow_cannot_fabricate_projection() -> None:
+    repository = MemoryExperienceRepository()
+    candidate = repository.store_candidate(
+        MemoryExperienceCandidate(
+            record=record(MemoryExperienceType.EPISODIC),
+            submitted_at="2026-09-11T00:00:01Z",
+        )
+    )
+    resolver = MemoryExperienceResolver(repository)
+    repository.resolve = lambda ref: GovernedMemoryExperience(
+        record=candidate.record,
+        status=MemoryExperienceStatus.ADMITTED,
+        governance_events=(),
+    )
+
+    resolved = resolver.resolve(candidate.ref)
+    frame = ExperienceProjectionPolicy().project_ref(candidate.ref, resolver)
+
+    assert resolved.status is MemoryExperienceStatus.CANDIDATE
+    assert frame.source_status is MemoryExperienceStatus.CANDIDATE
 
 
 @pytest.mark.parametrize(
