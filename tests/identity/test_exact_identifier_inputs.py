@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from copy import copy, deepcopy
 from inspect import signature
+from types import FunctionType
 from unittest.mock import MagicMock
 
 import pytest
@@ -256,22 +256,17 @@ def test_identity_governance_containers_reject_direct_mutation() -> None:
     with pytest.raises(AttributeError):
         repository._events[candidate.ref].append(object())
 
-    assert not hasattr(repository, "_replace_events")
-    assert not hasattr(repository, "_replace_version")
-    with pytest.raises(AttributeError):
-        repository._replace_events(candidate.ref, object())
-    with pytest.raises(AttributeError):
-        repository._replace_version(candidate.ref, version)
-    with pytest.raises(AttributeError):
-        repository._append_event(
-            candidate.ref,
-            IdentityStatus.ADMITTED,
-            actor="synthetic-governance-test",
-            reason="Synthetic admission",
-            occurred_at="2026-09-11T00:01:00Z",
-            allowed_from={IdentityStatus.CANDIDATE},
-            event_kind="admission",
-        )
+    forbidden_names = (
+        "_replace_events",
+        "_replace_version",
+        "_append_event",
+        "_IdentityRepository__replace_events",
+        "_IdentityRepository__replace_version",
+        "_IdentityRepository__append_event",
+        "_IdentityRepository__authorize_mutation",
+    )
+    for helper_name in forbidden_names:
+        assert not hasattr(repository, helper_name)
     with pytest.raises(TypeError):
         repository.admit(
             candidate.ref,
@@ -291,50 +286,22 @@ def test_identity_governance_containers_reject_direct_mutation() -> None:
 
     assert set(IdentityRepository.__slots__) == {"_events", "_lock", "_versions"}
     assert "capability" not in signature(repository.admit).parameters
-    with pytest.raises(TypeError):
-        repository._IdentityRepository__replace_events(candidate.ref, object())
-    with pytest.raises(TypeError):
-        repository._IdentityRepository__replace_version(candidate.ref, version)
-    with pytest.raises(TypeError):
-        repository._IdentityRepository__append_event(
-            candidate.ref,
-            IdentityStatus.ADMITTED,
-            actor="synthetic-governance-test",
-            reason="Synthetic admission",
-            occurred_at="2026-09-11T00:01:00Z",
-            allowed_from={IdentityStatus.CANDIDATE},
-            event_kind="admission",
-        )
-
-    lookalike = type("Capability", (), {})()
-    for fake_capability in (
-        object(),
-        True,
-        "capability",
-        1,
-        lookalike,
-        copy(lookalike),
-        deepcopy(lookalike),
+    for method in (
+        repository.store_candidate,
+        repository.admit,
+        repository.supersede,
+        repository.retire,
     ):
-        with pytest.raises(PermissionError, match="exact lifecycle capability"):
-            repository._IdentityRepository__replace_events(
-                candidate.ref, object(), capability=fake_capability
-            )
-        with pytest.raises(PermissionError, match="exact lifecycle capability"):
-            repository._IdentityRepository__replace_version(
-                candidate.ref, version, capability=fake_capability
-            )
-        with pytest.raises(PermissionError, match="exact lifecycle capability"):
-            repository._IdentityRepository__append_event(
-                candidate.ref,
-                IdentityStatus.ADMITTED,
-                actor="synthetic-governance-test",
-                reason="Synthetic admission",
-                occurred_at="2026-09-11T00:01:00Z",
-                allowed_from={IdentityStatus.CANDIDATE},
-                event_kind="admission",
-                capability=fake_capability,
-            )
+        assert method.__func__.__closure__ is None
+        assert method.__func__.__defaults__ is None
+        assert method.__func__.__kwdefaults__ is None
+    for class_value in IdentityRepository.__dict__.values():
+        if isinstance(class_value, FunctionType):
+            assert class_value.__closure__ is None
+    method_globals = repository.admit.__func__.__globals__
+    assert "LifecycleCapability" not in method_globals
+    assert "capabilities" not in method_globals
+    assert "_capability_guarded" not in method_globals
 
     assert repository.resolve(candidate.ref).to_dict() == before
     assert repository.resolve(candidate.ref).status is IdentityStatus.CANDIDATE
