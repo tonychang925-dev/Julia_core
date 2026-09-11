@@ -6,15 +6,26 @@ from .repository import MemoryExperienceRepository, MemoryExperienceRefNotFoundE
 
 
 class MemoryExperienceResolver:
+    __slots__ = ("_repository",)
+
     def __init__(self, repository: MemoryExperienceRepository):
         if type(repository) is not MemoryExperienceRepository:
             raise TypeError("MemoryExperienceResolver accepts an exact MemoryExperienceRepository only")
-        self._repository = repository
+        object.__setattr__(self, "_repository", repository)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise TypeError("MemoryExperienceResolver repository binding is immutable")
+
+    def __delattr__(self, name: str) -> None:
+        raise TypeError("MemoryExperienceResolver repository binding is immutable")
 
     def resolve(self, ref: MemoryExperienceRef):
         if type(ref) is not MemoryExperienceRef:
             raise TypeError("MemoryExperienceResolver accepts an exact MemoryExperienceRef only")
-        return self._repository.resolve(ref)
+        repository = self._repository
+        if type(repository) is not MemoryExperienceRepository:
+            raise TypeError("MemoryExperienceResolver repository binding is invalid")
+        return repository.resolve(ref)
 
 
 __all__ = ["MemoryExperienceResolver"]

@@ -63,6 +63,8 @@ class NarrativeExperienceContent:
         _require_text(self.event, "event")
         _require_text(self.meaning_at_time, "meaning_at_time")
         _require_text(self.significance, "significance")
+        if type(self.later_reinterpretation) is not str:
+            raise ValueError("later_reinterpretation must be an exact built-in string")
         if self.later_reinterpretation:
             _require_text(self.later_reinterpretation, "later_reinterpretation")
         object.__setattr__(self, "source_refs", tuple(self.source_refs))
@@ -377,6 +379,8 @@ def _require_text(
 
 
 def _require_ref(value: str) -> None:
+    if type(value) is not str:
+        raise ValueError("experience source references must be exact built-in strings")
     if not value or len(value) > 2_048 or any(char.isspace() for char in value):
         raise ValueError("experience source references must be URI-shaped and bounded")
     parsed = urlsplit(value)

@@ -3,6 +3,8 @@ from __future__ import annotations
 import pytest
 
 from julia_core.identity import (
+    IdentityRepository,
+    IdentityResolver,
     IdentityAnchor,
     IdentityBoundary,
     IdentityRef,
@@ -131,3 +133,27 @@ def test_exact_identity_text_remains_valid_and_deterministic() -> None:
     ]
 
     assert all(item.to_dict() == item.to_dict() for item in anchors)
+
+
+def test_identity_resolver_repository_binding_cannot_be_rebound() -> None:
+    repository = IdentityRepository()
+    resolver = IdentityResolver(repository)
+
+    with pytest.raises(TypeError, match="repository binding is immutable"):
+        resolver._repository = object()
+    with pytest.raises(TypeError, match="repository binding is immutable"):
+        resolver._repository = IdentityRepository()
+    with pytest.raises(TypeError, match="repository binding is immutable"):
+        del resolver._repository
+
+    assert resolver._repository is repository
+    assert not hasattr(resolver, "__dict__")
+
+
+def test_forged_identity_repository_substitution_fails_resolve_revalidation() -> None:
+    repository = IdentityRepository()
+    resolver = IdentityResolver(repository)
+    object.__setattr__(resolver, "_repository", object())
+
+    with pytest.raises(TypeError, match="repository binding is invalid"):
+        resolver.resolve(IdentityRef(lineage_id="lineage-synthetic", version_id="v1"))

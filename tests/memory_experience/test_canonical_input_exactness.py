@@ -11,6 +11,8 @@ from julia_core.memory_experience import (
     MemoryExperienceCandidate,
     MemoryExperienceProvenance,
     MemoryExperienceRef,
+    MemoryExperienceRepository,
+    MemoryExperienceResolver,
     MemoryExperienceRecord,
     MemoryExperienceType,
     NarrativeExperienceContent,
@@ -30,6 +32,19 @@ class MutableSpoofString(str):
 
     def mutate(self) -> None:
         self.backing.append("!")
+
+
+class FalsyMutableSpoofString(str):
+    def __bool__(self) -> bool:
+        return False
+
+    def mutate(self) -> None:
+        self.backing = "mutated"
+
+
+class DeepCopySpoofString(str):
+    def __deepcopy__(self, memo: dict) -> str:
+        return "fixture://eng10r3/exact-string"
 
 
 class MutableMetadataTuple(tuple):
@@ -422,4 +437,115 @@ def test_record_rejects_mocked_experience_type() -> None:
             content=content(MemoryExperienceType.EPISODIC),
             provenance_refs=(provenance(),),
             created_at="2026-09-11T00:00:00Z",
+        )
+
+
+def test_falsy_non_exact_later_reinterpretation_is_rejected_before_truthiness() -> None:
+    spoof = FalsyMutableSpoofString("")
+    valid_record = record(MemoryExperienceType.NARRATIVE)
+    digest = valid_record.digest()
+
+    with pytest.raises(
+        ValueError, match="later_reinterpretation must be an exact built-in string"
+    ):
+        NarrativeExperienceContent(
+            event="Synthetic narrative event",
+            meaning_at_time="Synthetic meaning at the recorded time",
+            significance="Synthetic significance",
+            later_reinterpretation=spoof,
+            source_refs=("fixture://eng10r3/narrative-source",),
+        )
+    spoof.mutate()
+
+    assert valid_record.digest() == digest
+
+
+def test_exact_optional_later_reinterpretation_remains_deterministic() -> None:
+    arguments = {
+        "event": "Synthetic narrative event",
+        "meaning_at_time": "Synthetic meaning at the recorded time",
+        "significance": "Synthetic significance",
+        "source_refs": ("fixture://eng10r3/narrative-source",),
+    }
+
+    empty = NarrativeExperienceContent(**arguments)
+    present = NarrativeExperienceContent(
+        **arguments, later_reinterpretation="Synthetic later interpretation"
+    )
+
+    assert empty.later_reinterpretation == ""
+    assert empty.to_dict() == NarrativeExperienceContent(**arguments).to_dict()
+    assert (
+        present.to_dict()
+        == NarrativeExperienceContent(
+            **arguments, later_reinterpretation="Synthetic later interpretation"
+        ).to_dict()
+    )
+
+
+def test_memory_resolver_repository_binding_cannot_be_rebound() -> None:
+    repository = MemoryExperienceRepository()
+    resolver = MemoryExperienceResolver(repository)
+
+    with pytest.raises(TypeError, match="repository binding is immutable"):
+        resolver._repository = object()
+    with pytest.raises(TypeError, match="repository binding is immutable"):
+        resolver._repository = MemoryExperienceRepository()
+    with pytest.raises(TypeError, match="repository binding is immutable"):
+        del resolver._repository
+
+    assert resolver._repository is repository
+    assert not hasattr(resolver, "__dict__")
+
+
+def test_forged_memory_repository_substitution_fails_resolve_revalidation() -> None:
+    repository = MemoryExperienceRepository()
+    resolver = MemoryExperienceResolver(repository)
+    object.__setattr__(resolver, "_repository", object())
+
+    with pytest.raises(TypeError, match="repository binding is invalid"):
+        resolver.resolve(
+            MemoryExperienceRef(experience_id="experience-synthetic", version_id="v1")
+        )
+
+
+@pytest.mark.parametrize(
+    "spoof",
+    [
+        SpoofString("fixture://eng10r3/source"),
+        DeepCopySpoofString("fixture://eng10r3/source"),
+        ["fixture://eng10r3/source"],
+    ],
+)
+def test_content_source_refs_reject_non_exact_strings(spoof) -> None:
+    narrative_arguments = {
+        "event": "Synthetic narrative event",
+        "meaning_at_time": "Synthetic meaning at the recorded time",
+        "significance": "Synthetic significance",
+    }
+    scalar_arguments = {
+        "subject": "subject-synthetic",
+        "preference": "Prefer bounded architecture summaries",
+    }
+
+    with pytest.raises(
+        ValueError, match="experience source references must be exact built-in strings"
+    ):
+        NarrativeExperienceContent(**narrative_arguments, source_refs=(spoof,))
+    with pytest.raises(
+        ValueError, match="experience source references must be exact built-in strings"
+    ):
+        PreferenceExperienceContent(
+            **scalar_arguments,
+            learned_from_event="Synthetic preference-bearing event",
+            source_ref=spoof,
+        )
+    with pytest.raises(
+        ValueError, match="experience source references must be exact built-in strings"
+    ):
+        EpisodicExperienceContent(
+            event="Synthetic episodic event",
+            occurred_at="2026-09-11T00:00:00Z",
+            context="Synthetic bounded episodic context",
+            source_ref=spoof,
         )
