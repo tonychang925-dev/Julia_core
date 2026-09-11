@@ -233,7 +233,7 @@ class MemoryExperienceRecord:
     def __post_init__(self) -> None:
         _require_id(self.experience_id, "experience_id")
         _require_id(self.version_id, "version_id")
-        if not isinstance(self.experience_type, MemoryExperienceType):
+        if type(self.experience_type) is not MemoryExperienceType:
             raise ValueError("experience_type must be a canonical MemoryExperienceType")
         expected_type = _CONTENT_TYPE_BY_EXPERIENCE_TYPE[self.experience_type]
         if type(self.content) is not expected_type:
@@ -368,6 +368,8 @@ def _require_id(value: str, field_name: str) -> None:
 def _require_text(
     value: str, field_name: str, *, max_length: int = MAX_EXPERIENCE_TEXT_LENGTH
 ) -> None:
+    if type(value) is not str:
+        raise ValueError(f"{field_name} must be an exact built-in string")
     if not value or not value.strip() or len(value) > max_length:
         raise ValueError(
             f"{field_name} is required and must be at most {max_length} characters"

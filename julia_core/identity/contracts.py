@@ -72,7 +72,7 @@ class IdentityBoundary:
 
     def __post_init__(self) -> None:
         _require_id(self.boundary_id, "boundary_id")
-        _require_statement(self.constraint)
+        _require_statement(self.constraint, field_name="constraint")
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -87,7 +87,7 @@ class RelationshipRoleAnchor:
     def __post_init__(self) -> None:
         _require_id(self.anchor_id, "anchor_id")
         _require_id(self.relationship_id, "relationship_id")
-        _require_statement(self.role)
+        _require_statement(self.role, field_name="role")
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -313,6 +313,8 @@ def _require_id(value: str, field_name: str) -> None:
 
 
 def _require_statement(value: str, field_name: str = "statement") -> None:
+    if type(value) is not str:
+        raise ValueError(f"{field_name} must be an exact built-in string")
     if not value or not value.strip() or len(value) > MAX_ANCHOR_LENGTH:
         raise ValueError(
             f"{field_name} is required and must be at most {MAX_ANCHOR_LENGTH} characters"

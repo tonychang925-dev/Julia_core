@@ -1,17 +1,35 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from julia_core.memory_experience import (
     CommitmentTransferSemantics,
+    EpisodicExperienceContent,
+    MemoryExperienceAdmission,
+    MemoryExperienceCandidate,
     MemoryExperienceProvenance,
     MemoryExperienceRef,
+    MemoryExperienceRecord,
+    MemoryExperienceType,
+    NarrativeExperienceContent,
+    PreferenceExperienceContent,
     ProjectCommitmentExperienceContent,
+    RelationshipExperienceContent,
 )
 
 
 class SpoofString(str):
     pass
+
+
+class MutableSpoofString(str):
+    def __init__(self, value: str) -> None:
+        self.backing = list(value)
+
+    def mutate(self) -> None:
+        self.backing.append("!")
 
 
 class MutableMetadataTuple(tuple):
@@ -28,11 +46,221 @@ class SpoofTransferSemantics:
     value = CommitmentTransferSemantics.EXPLICIT_REAUTHORIZATION_REQUIRED.value
 
 
+CONTENT_TEXT_CASES = (
+    (
+        NarrativeExperienceContent,
+        "event",
+        {
+            "meaning_at_time": "Synthetic meaning at the recorded time",
+            "significance": "Synthetic significance",
+            "source_refs": ("fixture://eng10r2/narrative-source",),
+        },
+    ),
+    (
+        NarrativeExperienceContent,
+        "meaning_at_time",
+        {
+            "event": "Synthetic narrative event",
+            "significance": "Synthetic significance",
+            "source_refs": ("fixture://eng10r2/narrative-source",),
+        },
+    ),
+    (
+        NarrativeExperienceContent,
+        "significance",
+        {
+            "event": "Synthetic narrative event",
+            "meaning_at_time": "Synthetic meaning at the recorded time",
+            "source_refs": ("fixture://eng10r2/narrative-source",),
+        },
+    ),
+    (
+        NarrativeExperienceContent,
+        "later_reinterpretation",
+        {
+            "event": "Synthetic narrative event",
+            "meaning_at_time": "Synthetic meaning at the recorded time",
+            "significance": "Synthetic significance",
+            "source_refs": ("fixture://eng10r2/narrative-source",),
+        },
+    ),
+    (
+        RelationshipExperienceContent,
+        "event",
+        {
+            "relationship_id": "relationship-synthetic",
+            "interpretation": "Synthetic bounded interpretation",
+            "occurred_at": "2026-09-11T00:00:00Z",
+        },
+    ),
+    (
+        RelationshipExperienceContent,
+        "interpretation",
+        {
+            "relationship_id": "relationship-synthetic",
+            "event": "Synthetic relationship event",
+            "occurred_at": "2026-09-11T00:00:00Z",
+        },
+    ),
+    (
+        RelationshipExperienceContent,
+        "occurred_at",
+        {
+            "relationship_id": "relationship-synthetic",
+            "event": "Synthetic relationship event",
+            "interpretation": "Synthetic bounded interpretation",
+        },
+    ),
+    (
+        PreferenceExperienceContent,
+        "preference",
+        {
+            "subject": "subject-synthetic",
+            "learned_from_event": "Synthetic preference-bearing event",
+            "source_ref": "fixture://eng10r2/preference-source",
+        },
+    ),
+    (
+        PreferenceExperienceContent,
+        "learned_from_event",
+        {
+            "subject": "subject-synthetic",
+            "preference": "Prefer bounded architecture summaries",
+            "source_ref": "fixture://eng10r2/preference-source",
+        },
+    ),
+    (
+        ProjectCommitmentExperienceContent,
+        "scope",
+        {
+            "subject": "subject-synthetic",
+            "counterparty": "counterparty-synthetic",
+            "commitment": "Preserve exact canonical text",
+            "transfer_semantics": CommitmentTransferSemantics.EXPLICIT_REAUTHORIZATION_REQUIRED,
+            "occurred_at": "2026-09-11T00:00:00Z",
+        },
+    ),
+    (
+        ProjectCommitmentExperienceContent,
+        "commitment",
+        {
+            "subject": "subject-synthetic",
+            "counterparty": "counterparty-synthetic",
+            "scope": "ENG-10R2 synthetic fixture",
+            "transfer_semantics": CommitmentTransferSemantics.EXPLICIT_REAUTHORIZATION_REQUIRED,
+            "occurred_at": "2026-09-11T00:00:00Z",
+        },
+    ),
+    (
+        ProjectCommitmentExperienceContent,
+        "occurred_at",
+        {
+            "subject": "subject-synthetic",
+            "counterparty": "counterparty-synthetic",
+            "scope": "ENG-10R2 synthetic fixture",
+            "commitment": "Preserve exact canonical text",
+            "transfer_semantics": CommitmentTransferSemantics.EXPLICIT_REAUTHORIZATION_REQUIRED,
+        },
+    ),
+    (
+        EpisodicExperienceContent,
+        "event",
+        {
+            "occurred_at": "2026-09-11T00:00:00Z",
+            "context": "Synthetic bounded episodic context",
+            "source_ref": "fixture://eng10r2/episodic-source",
+        },
+    ),
+    (
+        EpisodicExperienceContent,
+        "occurred_at",
+        {
+            "event": "Synthetic episodic event",
+            "context": "Synthetic bounded episodic context",
+            "source_ref": "fixture://eng10r2/episodic-source",
+        },
+    ),
+    (
+        EpisodicExperienceContent,
+        "context",
+        {
+            "event": "Synthetic episodic event",
+            "occurred_at": "2026-09-11T00:00:00Z",
+            "source_ref": "fixture://eng10r2/episodic-source",
+        },
+    ),
+)
+
+
+def provenance() -> MemoryExperienceProvenance:
+    return MemoryExperienceProvenance(
+        source_type="synthetic_fixture",
+        source_ref="fixture://eng10r2/synthetic-experience",
+        source_digest="c" * 64,
+    )
+
+
+def content(experience_type: MemoryExperienceType):
+    if experience_type is MemoryExperienceType.NARRATIVE:
+        return NarrativeExperienceContent(
+            event="Synthetic narrative event",
+            meaning_at_time="Synthetic meaning at the recorded time",
+            significance="Synthetic significance",
+            source_refs=("fixture://eng10r2/narrative-source",),
+        )
+    if experience_type is MemoryExperienceType.RELATIONSHIP:
+        return RelationshipExperienceContent(
+            relationship_id="relationship-synthetic",
+            event="Synthetic relationship event",
+            interpretation="Synthetic bounded interpretation",
+            occurred_at="2026-09-11T00:00:00Z",
+        )
+    if experience_type is MemoryExperienceType.PREFERENCE:
+        return PreferenceExperienceContent(
+            subject="subject-synthetic",
+            preference="Prefer bounded architecture summaries",
+            learned_from_event="Synthetic preference-bearing event",
+            source_ref="fixture://eng10r2/preference-source",
+        )
+    if experience_type is MemoryExperienceType.PROJECT_COMMITMENT:
+        return ProjectCommitmentExperienceContent(
+            subject="subject-synthetic",
+            counterparty="counterparty-synthetic",
+            scope="ENG-10R2 synthetic fixture",
+            commitment="Preserve exact canonical text",
+            transfer_semantics=CommitmentTransferSemantics.EXPLICIT_REAUTHORIZATION_REQUIRED,
+            occurred_at="2026-09-11T00:00:00Z",
+        )
+    return EpisodicExperienceContent(
+        event="Synthetic episodic event",
+        occurred_at="2026-09-11T00:00:00Z",
+        context="Synthetic bounded episodic context",
+        source_ref="fixture://eng10r2/episodic-source",
+    )
+
+
+def record(experience_type: MemoryExperienceType) -> MemoryExperienceRecord:
+    return MemoryExperienceRecord(
+        experience_id=f"experience-{experience_type.value.lower()}",
+        version_id="v1",
+        experience_type=experience_type,
+        content=content(experience_type),
+        provenance_refs=(provenance(),),
+        created_at="2026-09-11T00:00:00Z",
+    )
+
+
 def test_memory_ref_rejects_string_subclass_identifiers() -> None:
-    with pytest.raises(ValueError, match="experience_id must be an exact built-in string"):
-        MemoryExperienceRef(experience_id=SpoofString("experience-synthetic"), version_id="v1")
+    with pytest.raises(
+        ValueError, match="experience_id must be an exact built-in string"
+    ):
+        MemoryExperienceRef(
+            experience_id=SpoofString("experience-synthetic"), version_id="v1"
+        )
     with pytest.raises(ValueError, match="version_id must be an exact built-in string"):
-        MemoryExperienceRef(experience_id="experience-synthetic", version_id=SpoofString("v1"))
+        MemoryExperienceRef(
+            experience_id="experience-synthetic", version_id=SpoofString("v1")
+        )
 
 
 def test_plain_built_in_memory_identifiers_remain_valid() -> None:
@@ -97,3 +325,101 @@ def test_exact_transfer_semantics_remain_valid_and_deterministic() -> None:
 
     assert first.to_dict() == second.to_dict()
     assert first.to_dict()["transfer_semantics"] == "EXPLICIT_REAUTHORIZATION_REQUIRED"
+
+
+@pytest.mark.parametrize(
+    "spoof", [SpoofString("synthetic"), MutableSpoofString("synthetic"), ["spoof"]]
+)
+@pytest.mark.parametrize(("content_type", "field_name", "defaults"), CONTENT_TEXT_CASES)
+def test_memory_experience_content_text_rejects_non_exact_strings(
+    content_type, field_name, defaults, spoof
+) -> None:
+    with pytest.raises(
+        ValueError, match=f"{field_name} must be an exact built-in string"
+    ):
+        content_type(**{**defaults, field_name: spoof})
+
+
+def test_record_created_at_rejects_non_exact_string_and_cannot_mutate_valid_record() -> (
+    None
+):
+    valid_record = record(MemoryExperienceType.EPISODIC)
+    payload = valid_record.canonical_payload()
+    spoof = MutableSpoofString("2026-09-11T00:00:00Z")
+
+    with pytest.raises(ValueError, match="created_at must be an exact built-in string"):
+        MemoryExperienceRecord(
+            experience_id=valid_record.experience_id,
+            version_id="v1",
+            experience_type=MemoryExperienceType.EPISODIC,
+            content=valid_record.content,
+            provenance_refs=valid_record.provenance_refs,
+            created_at=spoof,
+        )
+    spoof.mutate()
+
+    assert valid_record.canonical_payload() == payload
+
+
+def test_candidate_submitted_at_rejects_non_exact_string() -> None:
+    valid_record = record(MemoryExperienceType.EPISODIC)
+
+    with pytest.raises(
+        ValueError, match="submitted_at must be an exact built-in string"
+    ):
+        MemoryExperienceCandidate(
+            record=valid_record,
+            submitted_at=SpoofString("2026-09-11T00:00:01Z"),
+        )
+
+
+def test_governance_text_fields_reject_non_exact_strings() -> None:
+    target = MemoryExperienceRef(experience_id="experience-synthetic", version_id="v1")
+    base = {
+        "admission_id": "admission-synthetic",
+        "target": target,
+        "actor": "synthetic-governance-test",
+    }
+
+    with pytest.raises(ValueError, match="reason must be an exact built-in string"):
+        MemoryExperienceAdmission(
+            **base,
+            reason=SpoofString("Synthetic admission"),
+            occurred_at="2026-09-11T00:00:00Z",
+        )
+    with pytest.raises(
+        ValueError, match="occurred_at must be an exact built-in string"
+    ):
+        MemoryExperienceAdmission(
+            **base,
+            reason="Synthetic admission",
+            occurred_at=["2026-09-11T00:00:00Z"],
+        )
+
+
+def test_exact_experience_types_remain_valid_and_deterministic() -> None:
+    experience_types = tuple(MemoryExperienceType)
+
+    records = {
+        experience_type: record(experience_type) for experience_type in experience_types
+    }
+
+    assert set(records) == set(experience_types)
+    assert all(
+        record(experience_type).digest() == records[experience_type].digest()
+        for experience_type in experience_types
+    )
+
+
+def test_record_rejects_mocked_experience_type() -> None:
+    with pytest.raises(
+        ValueError, match="experience_type must be a canonical MemoryExperienceType"
+    ):
+        MemoryExperienceRecord(
+            experience_id="experience-synthetic",
+            version_id="v1",
+            experience_type=MagicMock(spec=MemoryExperienceType),
+            content=content(MemoryExperienceType.EPISODIC),
+            provenance_refs=(provenance(),),
+            created_at="2026-09-11T00:00:00Z",
+        )
