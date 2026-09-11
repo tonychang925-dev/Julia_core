@@ -57,7 +57,8 @@ class MutableMetadataTuple(tuple):
         return value
 
     def __iter__(self):
-        return iter(self._backing)
+        yield from self._backing
+        self._backing.append(("fixture", "retained-after-iteration"))
 
 
 class SpoofTransferSemantics:
@@ -316,6 +317,24 @@ def test_duplicate_provenance_metadata_keys_remain_rejected() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        ((SpoofString("fixture"), "ENG-10R5"),),
+        (("fixture", SpoofString("ENG-10R5")),),
+        ((["fixture", "ENG-10R5"],),),
+    ],
+)
+def test_provenance_metadata_rejects_non_exact_items(metadata) -> None:
+    with pytest.raises(ValueError, match="must contain key/value string pairs"):
+        MemoryExperienceProvenance(
+            source_type="synthetic_fixture",
+            source_ref="fixture://eng10r5/synthetic-experience",
+            source_digest="c" * 64,
+            admission_metadata=metadata,
+        )
+
+
 def test_project_commitment_rejects_spoofed_transfer_semantics() -> None:
     with pytest.raises(ValueError, match="explicit commitment transfer enum"):
         ProjectCommitmentExperienceContent(
@@ -521,17 +540,65 @@ def test_memory_instance_resolve_shadow_cannot_fabricate_projection() -> None:
         )
     )
     resolver = MemoryExperienceResolver(repository)
-    repository.resolve = lambda ref: GovernedMemoryExperience(
-        record=candidate.record,
-        status=MemoryExperienceStatus.ADMITTED,
-        governance_events=(),
-    )
+    with pytest.raises(
+        TypeError, match="MemoryExperienceRepository fields are immutable"
+    ):
+        repository.resolve = lambda ref: GovernedMemoryExperience(
+            record=candidate.record,
+            status=MemoryExperienceStatus.ADMITTED,
+            governance_events=(),
+        )
 
     resolved = resolver.resolve(candidate.ref)
     frame = ExperienceProjectionPolicy().project_ref(candidate.ref, resolver)
 
     assert resolved.status is MemoryExperienceStatus.CANDIDATE
     assert frame.source_status is MemoryExperienceStatus.CANDIDATE
+
+
+def test_memory_governance_containers_reject_direct_mutation() -> None:
+    repository = MemoryExperienceRepository()
+    candidate = repository.store_candidate(
+        MemoryExperienceCandidate(
+            record=record(MemoryExperienceType.EPISODIC),
+            submitted_at="2026-09-11T00:00:01Z",
+        )
+    )
+    before = repository.resolve(candidate.ref).to_dict()
+
+    with pytest.raises(
+        TypeError, match="MemoryExperienceRepository fields are immutable"
+    ):
+        repository._records = {}
+    with pytest.raises(
+        TypeError, match="MemoryExperienceRepository fields are immutable"
+    ):
+        repository._states = {}
+    with pytest.raises(
+        TypeError, match="MemoryExperienceRepository fields are immutable"
+    ):
+        repository._events = {}
+    with pytest.raises(TypeError):
+        repository._records[candidate.ref] = candidate.record
+    with pytest.raises(TypeError):
+        repository._states[candidate.ref] = MemoryExperienceStatus.ADMITTED
+    with pytest.raises(TypeError):
+        repository._events[candidate.ref] = ()
+    with pytest.raises(AttributeError):
+        repository._events[candidate.ref].append(object())
+
+    assert repository.resolve(candidate.ref).to_dict() == before
+    assert repository.resolve(candidate.ref).status is MemoryExperienceStatus.CANDIDATE
+
+    admitted = repository.admit(
+        candidate.ref,
+        actor="synthetic-governance-test",
+        reason="Synthetic admission",
+        occurred_at="2026-09-11T00:01:00Z",
+    )
+
+    assert admitted.status is MemoryExperienceStatus.ADMITTED
+    assert len(repository.resolve(candidate.ref).governance_events) == 2
 
 
 @pytest.mark.parametrize(

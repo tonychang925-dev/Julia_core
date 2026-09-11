@@ -169,6 +169,7 @@ class MemoryExperienceProvenance:
     admission_metadata: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
+        metadata = tuple(self.admission_metadata)
         _require_id(self.source_type, "source_type")
         _require_ref(self.source_ref)
         if len(self.source_digest) != 64 or any(
@@ -177,7 +178,8 @@ class MemoryExperienceProvenance:
             raise ValueError("source_digest must be a lowercase SHA-256 hex digest")
         if not isinstance(self.admission_metadata, tuple):
             raise ValueError("admission_metadata must contain key/value string pairs")
-        for item in self.admission_metadata:
+        object.__setattr__(self, "admission_metadata", metadata)
+        for item in metadata:
             if (
                 type(item) is not tuple
                 or len(item) != 2
@@ -187,14 +189,9 @@ class MemoryExperienceProvenance:
                 raise ValueError(
                     "admission_metadata must contain key/value string pairs"
                 )
-        metadata_keys = [key for key, _ in self.admission_metadata]
+        metadata_keys = [key for key, _ in metadata]
         if len(metadata_keys) != len(set(metadata_keys)):
             raise ValueError("admission_metadata keys must be unique")
-        object.__setattr__(
-            self,
-            "admission_metadata",
-            tuple((key, value) for key, value in self.admission_metadata),
-        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -299,7 +296,9 @@ class MemoryExperienceCandidate:
 
     def __post_init__(self) -> None:
         if type(self.record) is not MemoryExperienceRecord:
-            raise TypeError("MemoryExperienceCandidate requires an exact MemoryExperienceRecord")
+            raise TypeError(
+                "MemoryExperienceCandidate requires an exact MemoryExperienceRecord"
+            )
         _require_text(self.submitted_at, "submitted_at", max_length=128)
 
 
@@ -385,8 +384,10 @@ def _require_ref(value: str) -> None:
         raise ValueError("experience source references must be URI-shaped and bounded")
     parsed = urlsplit(value)
     scheme = parsed.scheme
-    valid_scheme = bool(scheme) and scheme[0].isalpha() and all(
-        char.isascii() and (char.isalnum() or char in "+-.") for char in scheme
+    valid_scheme = (
+        bool(scheme)
+        and scheme[0].isalpha()
+        and all(char.isascii() and (char.isalnum() or char in "+-.") for char in scheme)
     )
     if not valid_scheme or not parsed.netloc:
         raise ValueError("experience source references must be URI-shaped and bounded")

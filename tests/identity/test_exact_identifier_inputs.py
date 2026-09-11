@@ -200,17 +200,72 @@ def test_identity_instance_resolve_shadow_cannot_fabricate_projection() -> None:
     )
     candidate = repository.store_candidate(version)
     resolver = IdentityResolver(repository)
-    repository.resolve = lambda ref: GovernedIdentity(
-        version=version,
-        status=IdentityStatus.ADMITTED,
-        governance_events=(),
-    )
+    with pytest.raises(TypeError, match="IdentityRepository fields are immutable"):
+        repository.resolve = lambda ref: GovernedIdentity(
+            version=version,
+            status=IdentityStatus.ADMITTED,
+            governance_events=(),
+        )
 
     resolved = resolver.resolve(candidate.ref)
     frame = PersonaProjectionPolicy().project_ref(candidate.ref, resolver)
 
     assert resolved.status is IdentityStatus.CANDIDATE
     assert frame.source_status is IdentityStatus.CANDIDATE
+
+
+def test_identity_governance_containers_reject_direct_mutation() -> None:
+    repository = IdentityRepository()
+    version = IdentityVersion(
+        contract=IdentityContract(
+            identity_id="identity-synthetic",
+            anchors=(
+                IdentityAnchor(
+                    anchor_id="anchor-synthetic", statement="Synthetic anchor"
+                ),
+            ),
+            values=(),
+            boundaries=(),
+            relationship_role_anchors=(),
+        ),
+        lineage_id="lineage-synthetic",
+        version_id="v1",
+        predecessor_version_id=None,
+        created_at="2026-09-11T00:00:00Z",
+        provenance_refs=(
+            IdentityProvenance(
+                source_type="synthetic_fixture",
+                source_ref="fixture://eng10r5/synthetic-identity",
+                source_digest="a" * 64,
+            ),
+        ),
+    )
+    candidate = repository.store_candidate(version)
+    before = repository.resolve(candidate.ref).to_dict()
+
+    with pytest.raises(TypeError, match="IdentityRepository fields are immutable"):
+        repository._versions = {}
+    with pytest.raises(TypeError, match="IdentityRepository fields are immutable"):
+        repository._events = {}
+    with pytest.raises(TypeError):
+        repository._versions[candidate.ref] = version
+    with pytest.raises(TypeError):
+        repository._events[candidate.ref] = ()
+    with pytest.raises(AttributeError):
+        repository._events[candidate.ref].append(object())
+
+    assert repository.resolve(candidate.ref).to_dict() == before
+    assert repository.resolve(candidate.ref).status is IdentityStatus.CANDIDATE
+
+    admitted = repository.admit(
+        candidate.ref,
+        actor="synthetic-governance-test",
+        reason="Synthetic admission",
+        occurred_at="2026-09-11T00:01:00Z",
+    )
+
+    assert admitted.status is IdentityStatus.ADMITTED
+    assert len(repository.resolve(candidate.ref).governance_events) == 2
 
 
 @pytest.mark.parametrize(

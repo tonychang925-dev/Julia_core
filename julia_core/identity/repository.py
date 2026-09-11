@@ -1,8 +1,9 @@
 """Exact-version immutable Identity repository (ENG-07 candidate)."""
+
 from __future__ import annotations
 
 import threading
-from collections import defaultdict
+from types import MappingProxyType
 
 from .contracts import (
     GovernedIdentity,
@@ -26,6 +27,8 @@ class InvalidIdentityLifecycleError(ValueError):
 
 
 class IdentityRepository:
+    __slots__ = ("_events", "_lock", "_versions")
+
     """Thread-safe exact-reference store with an append-only governance ledger.
 
     The repository is intentionally bounded to in-memory semantics in ENG-07.
@@ -34,9 +37,19 @@ class IdentityRepository:
     """
 
     def __init__(self) -> None:
-        self._versions: dict[IdentityRef, IdentityVersion] = {}
-        self._events: dict[IdentityRef, list[IdentityGovernanceEvent]] = defaultdict(list)
-        self._lock = threading.RLock()
+        object.__setattr__(self, "_versions", MappingProxyType({}))
+        object.__setattr__(
+            self,
+            "_events",
+            MappingProxyType({}),
+        )
+        object.__setattr__(self, "_lock", threading.RLock())
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise TypeError("IdentityRepository fields are immutable")
+
+    def __delattr__(self, name: str) -> None:
+        raise TypeError("IdentityRepository fields are immutable")
 
     def store_candidate(self, version: IdentityVersion) -> GovernedIdentity:
         if type(version) is not IdentityVersion:
@@ -45,7 +58,9 @@ class IdentityRepository:
             existing = self._versions.get(version.ref)
             if existing is not None:
                 if existing.digest() != version.digest():
-                    raise IdentityConflictError(f"conflicting identity version: {version.ref.uri}")
+                    raise IdentityConflictError(
+                        f"conflicting identity version: {version.ref.uri}"
+                    )
                 return self.resolve(version.ref)
 
             self._validate_lineage(version)
@@ -58,11 +73,13 @@ class IdentityRepository:
                 reason="Candidate stored; existence does not establish canonical authority.",
                 occurred_at=version.created_at,
             )
-            self._versions[version.ref] = version
-            self._events[version.ref].append(event)
+            self._replace_version(version.ref, version)
+            self._replace_events(version.ref, event)
             return self.resolve(version.ref)
 
-    def admit(self, ref: IdentityRef, *, actor: str, reason: str, occurred_at: str) -> GovernedIdentity:
+    def admit(
+        self, ref: IdentityRef, *, actor: str, reason: str, occurred_at: str
+    ) -> GovernedIdentity:
         _require_exact_ref(ref)
         return self._append_event(
             ref,
@@ -74,7 +91,9 @@ class IdentityRepository:
             event_kind="admission",
         )
 
-    def supersede(self, ref: IdentityRef, *, actor: str, reason: str, occurred_at: str) -> GovernedIdentity:
+    def supersede(
+        self, ref: IdentityRef, *, actor: str, reason: str, occurred_at: str
+    ) -> GovernedIdentity:
         _require_exact_ref(ref)
         return self._append_event(
             ref,
@@ -86,7 +105,9 @@ class IdentityRepository:
             event_kind="supersession",
         )
 
-    def retire(self, ref: IdentityRef, *, actor: str, reason: str, occurred_at: str) -> GovernedIdentity:
+    def retire(
+        self, ref: IdentityRef, *, actor: str, reason: str, occurred_at: str
+    ) -> GovernedIdentity:
         _require_exact_ref(ref)
         return self._append_event(
             ref,
@@ -94,7 +115,11 @@ class IdentityRepository:
             actor=actor,
             reason=reason,
             occurred_at=occurred_at,
-            allowed_from={IdentityStatus.CANDIDATE, IdentityStatus.ADMITTED, IdentityStatus.SUPERSEDED},
+            allowed_from={
+                IdentityStatus.CANDIDATE,
+                IdentityStatus.ADMITTED,
+                IdentityStatus.SUPERSEDED,
+            },
             event_kind="retirement",
         )
 
@@ -103,7 +128,7 @@ class IdentityRepository:
             version = self._versions.get(ref)
             if version is None:
                 raise IdentityRefNotFoundError(f"unknown identity ref: {ref.uri}")
-            events = tuple(self._events[ref])
+            events = self._events[ref]
             return GovernedIdentity(
                 version=version,
                 status=events[-1].status,
@@ -114,13 +139,18 @@ class IdentityRepository:
         with self._lock:
             return tuple(
                 self._versions[ref]
-                for ref in sorted(self._versions, key=lambda item: (item.version_id, item.lineage_id))
+                for ref in sorted(
+                    self._versions, key=lambda item: (item.version_id, item.lineage_id)
+                )
                 if ref.lineage_id == lineage_id
             )
 
     def _validate_lineage(self, version: IdentityVersion) -> None:
         lineage_versions = self.lineage_versions(version.lineage_id)
-        if any(item.contract.identity_id != version.contract.identity_id for item in lineage_versions):
+        if any(
+            item.contract.identity_id != version.contract.identity_id
+            for item in lineage_versions
+        ):
             raise IdentityConflictError(
                 f"lineage {version.lineage_id} cannot mix identity objects"
             )
@@ -161,13 +191,25 @@ class IdentityRepository:
                 reason=reason,
                 occurred_at=occurred_at,
             )
-            self._events[ref].append(event)
+            self._replace_events(ref, event)
             return self.resolve(ref)
+
+    def _replace_events(self, ref: IdentityRef, event: IdentityGovernanceEvent) -> None:
+        events = dict(self._events)
+        events[ref] = (*events.get(ref, ()), event)
+        object.__setattr__(self, "_events", MappingProxyType(events))
+
+    def _replace_version(self, ref: IdentityRef, version: IdentityVersion) -> None:
+        versions = dict(self._versions)
+        versions[ref] = version
+        object.__setattr__(self, "_versions", MappingProxyType(versions))
 
 
 def _require_exact_ref(ref: IdentityRef) -> None:
     if type(ref) is not IdentityRef:
-        raise TypeError("identity lifecycle transitions accept exact IdentityRef objects only")
+        raise TypeError(
+            "identity lifecycle transitions accept exact IdentityRef objects only"
+        )
 
 
 __all__ = [

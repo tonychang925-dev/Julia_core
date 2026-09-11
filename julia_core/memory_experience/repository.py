@@ -1,8 +1,9 @@
 """Exact-version immutable MemoryExperience repository."""
+
 from __future__ import annotations
 
 import threading
-from collections import defaultdict
+from types import MappingProxyType
 
 from .contracts import (
     GovernedMemoryExperience,
@@ -18,34 +19,47 @@ from .contracts import (
 
 
 class MemoryExperienceRepository:
+    __slots__ = ("_events", "_lock", "_records", "_states")
+
     """Store exact canonical records and append governance state separately."""
 
     def __init__(self) -> None:
-        self._records: dict[MemoryExperienceRef, MemoryExperienceRecord] = {}
-        self._states: dict[MemoryExperienceRef, MemoryExperienceStatus] = {}
-        self._events: dict[
-            MemoryExperienceRef,
-            list[tuple[MemoryExperienceStatus, MemoryExperienceAdmission | None]],
-        ] = defaultdict(list)
-        self._lock = threading.RLock()
+        object.__setattr__(self, "_records", MappingProxyType({}))
+        object.__setattr__(self, "_states", MappingProxyType({}))
+        object.__setattr__(self, "_events", MappingProxyType({}))
+        object.__setattr__(self, "_lock", threading.RLock())
 
-    def store_candidate(self, candidate: MemoryExperienceCandidate) -> GovernedMemoryExperience:
+    def __setattr__(self, name: str, value: object) -> None:
+        raise TypeError("MemoryExperienceRepository fields are immutable")
+
+    def __delattr__(self, name: str) -> None:
+        raise TypeError("MemoryExperienceRepository fields are immutable")
+
+    def store_candidate(
+        self, candidate: MemoryExperienceCandidate
+    ) -> GovernedMemoryExperience:
         if type(candidate) is not MemoryExperienceCandidate:
-            raise TypeError("store_candidate accepts an exact MemoryExperienceCandidate only")
+            raise TypeError(
+                "store_candidate accepts an exact MemoryExperienceCandidate only"
+            )
         if type(candidate.record) is not MemoryExperienceRecord:
-            raise TypeError("MemoryExperienceCandidate requires an exact MemoryExperienceRecord")
+            raise TypeError(
+                "MemoryExperienceCandidate requires an exact MemoryExperienceRecord"
+            )
         record = candidate.record
         with self._lock:
             existing = self._records.get(record.ref)
             if existing is not None:
                 if existing.digest() != record.digest():
-                    raise MemoryExperienceConflictError(f"conflicting MemoryExperience version: {record.ref.uri}")
+                    raise MemoryExperienceConflictError(
+                        f"conflicting MemoryExperience version: {record.ref.uri}"
+                    )
                 return self.resolve(record.ref)
 
             self._validate_lineage(record)
-            self._records[record.ref] = record
-            self._states[record.ref] = MemoryExperienceStatus.CANDIDATE
-            self._events[record.ref].append((MemoryExperienceStatus.CANDIDATE, None))
+            self._replace_record(record.ref, record)
+            self._replace_state(record.ref, MemoryExperienceStatus.CANDIDATE)
+            self._replace_events(record.ref, (MemoryExperienceStatus.CANDIDATE, None))
             return self.resolve(record.ref)
 
     def admit(
@@ -70,8 +84,8 @@ class MemoryExperienceRepository:
                 reason=reason,
                 occurred_at=occurred_at,
             )
-            self._states[ref] = MemoryExperienceStatus.ADMITTED
-            self._events[ref].append((MemoryExperienceStatus.ADMITTED, admission))
+            self._replace_state(ref, MemoryExperienceStatus.ADMITTED)
+            self._replace_events(ref, (MemoryExperienceStatus.ADMITTED, admission))
             return self.resolve(ref)
 
     def supersede(
@@ -86,7 +100,10 @@ class MemoryExperienceRepository:
         return self._transition(
             ref,
             MemoryExperienceStatus.SUPERSEDED,
-            allowed_from={MemoryExperienceStatus.CANDIDATE, MemoryExperienceStatus.ADMITTED},
+            allowed_from={
+                MemoryExperienceStatus.CANDIDATE,
+                MemoryExperienceStatus.ADMITTED,
+            },
             actor=actor,
             reason=reason,
             occurred_at=occurred_at,
@@ -118,14 +135,18 @@ class MemoryExperienceRepository:
         with self._lock:
             record = self._records.get(ref)
             if record is None:
-                raise MemoryExperienceRefNotFoundError(f"unknown MemoryExperience ref: {ref.uri}")
+                raise MemoryExperienceRefNotFoundError(
+                    f"unknown MemoryExperience ref: {ref.uri}"
+                )
             return GovernedMemoryExperience(
                 record=record,
                 status=self._states[ref],
-                governance_events=tuple(self._events[ref]),
+                governance_events=self._events[ref],
             )
 
-    def experience_versions(self, experience_id: str) -> tuple[MemoryExperienceRecord, ...]:
+    def experience_versions(
+        self, experience_id: str
+    ) -> tuple[MemoryExperienceRecord, ...]:
         with self._lock:
             return tuple(
                 self._records[ref]
@@ -141,7 +162,9 @@ class MemoryExperienceRepository:
             )
         if record.predecessor_version_id is None:
             return
-        predecessor = MemoryExperienceRef(record.experience_id, record.predecessor_version_id)
+        predecessor = MemoryExperienceRef(
+            record.experience_id, record.predecessor_version_id
+        )
         if predecessor not in self._records:
             raise MemoryExperienceRefNotFoundError(
                 f"unknown predecessor MemoryExperience ref: {predecessor.uri}"
@@ -171,9 +194,32 @@ class MemoryExperienceRepository:
                 reason=reason,
                 occurred_at=occurred_at,
             )
-            self._states[ref] = status
-            self._events[ref].append((status, admission))
+            self._replace_state(ref, status)
+            self._replace_events(ref, (status, admission))
             return self.resolve(ref)
+
+    def _replace_state(
+        self, ref: MemoryExperienceRef, status: MemoryExperienceStatus
+    ) -> None:
+        states = dict(self._states)
+        states[ref] = status
+        object.__setattr__(self, "_states", MappingProxyType(states))
+
+    def _replace_record(
+        self, ref: MemoryExperienceRef, record: MemoryExperienceRecord
+    ) -> None:
+        records = dict(self._records)
+        records[ref] = record
+        object.__setattr__(self, "_records", MappingProxyType(records))
+
+    def _replace_events(
+        self,
+        ref: MemoryExperienceRef,
+        event: tuple[MemoryExperienceStatus, MemoryExperienceAdmission | None],
+    ) -> None:
+        events = dict(self._events)
+        events[ref] = (*events.get(ref, ()), event)
+        object.__setattr__(self, "_events", MappingProxyType(events))
 
 
 def _require_exact_ref(ref: MemoryExperienceRef) -> None:
