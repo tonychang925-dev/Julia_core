@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from copy import copy, deepcopy
+from inspect import signature
 from unittest.mock import MagicMock
 
 import pytest
@@ -270,6 +272,69 @@ def test_identity_governance_containers_reject_direct_mutation() -> None:
             allowed_from={IdentityStatus.CANDIDATE},
             event_kind="admission",
         )
+    with pytest.raises(TypeError):
+        repository.admit(
+            candidate.ref,
+            actor="synthetic-governance-test",
+            reason="Synthetic admission",
+            occurred_at="2026-09-11T00:01:00Z",
+            capability=object(),
+        )
+    with pytest.raises(TypeError):
+        repository.admit(
+            candidate.ref,
+            actor="synthetic-governance-test",
+            reason="Synthetic admission",
+            occurred_at="2026-09-11T00:01:00Z",
+            _authorized=lambda *args, **kwargs: None,
+        )
+
+    assert set(IdentityRepository.__slots__) == {"_events", "_lock", "_versions"}
+    assert "capability" not in signature(repository.admit).parameters
+    with pytest.raises(TypeError):
+        repository._IdentityRepository__replace_events(candidate.ref, object())
+    with pytest.raises(TypeError):
+        repository._IdentityRepository__replace_version(candidate.ref, version)
+    with pytest.raises(TypeError):
+        repository._IdentityRepository__append_event(
+            candidate.ref,
+            IdentityStatus.ADMITTED,
+            actor="synthetic-governance-test",
+            reason="Synthetic admission",
+            occurred_at="2026-09-11T00:01:00Z",
+            allowed_from={IdentityStatus.CANDIDATE},
+            event_kind="admission",
+        )
+
+    lookalike = type("Capability", (), {})()
+    for fake_capability in (
+        object(),
+        True,
+        "capability",
+        1,
+        lookalike,
+        copy(lookalike),
+        deepcopy(lookalike),
+    ):
+        with pytest.raises(PermissionError, match="exact lifecycle capability"):
+            repository._IdentityRepository__replace_events(
+                candidate.ref, object(), capability=fake_capability
+            )
+        with pytest.raises(PermissionError, match="exact lifecycle capability"):
+            repository._IdentityRepository__replace_version(
+                candidate.ref, version, capability=fake_capability
+            )
+        with pytest.raises(PermissionError, match="exact lifecycle capability"):
+            repository._IdentityRepository__append_event(
+                candidate.ref,
+                IdentityStatus.ADMITTED,
+                actor="synthetic-governance-test",
+                reason="Synthetic admission",
+                occurred_at="2026-09-11T00:01:00Z",
+                allowed_from={IdentityStatus.CANDIDATE},
+                event_kind="admission",
+                capability=fake_capability,
+            )
 
     assert repository.resolve(candidate.ref).to_dict() == before
     assert repository.resolve(candidate.ref).status is IdentityStatus.CANDIDATE

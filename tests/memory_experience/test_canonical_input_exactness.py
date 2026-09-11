@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from copy import copy, deepcopy
+from inspect import signature
 from unittest.mock import MagicMock
 
 import pytest
@@ -607,6 +609,88 @@ def test_memory_governance_containers_reject_direct_mutation() -> None:
             reason="Synthetic retirement",
             occurred_at="2026-09-11T00:01:00Z",
         )
+    with pytest.raises(TypeError):
+        repository.admit(
+            candidate.ref,
+            actor="synthetic-governance-test",
+            reason="Synthetic admission",
+            occurred_at="2026-09-11T00:01:00Z",
+            capability=object(),
+        )
+    with pytest.raises(TypeError):
+        repository.admit(
+            candidate.ref,
+            actor="synthetic-governance-test",
+            reason="Synthetic admission",
+            occurred_at="2026-09-11T00:01:00Z",
+            _authorized=lambda *args, **kwargs: None,
+        )
+
+    assert set(MemoryExperienceRepository.__slots__) == {
+        "_events",
+        "_lock",
+        "_records",
+        "_states",
+    }
+    assert "capability" not in signature(repository.admit).parameters
+    with pytest.raises(TypeError):
+        repository._MemoryExperienceRepository__replace_state(
+            candidate.ref, MemoryExperienceStatus.RETIRED
+        )
+    with pytest.raises(TypeError):
+        repository._MemoryExperienceRepository__replace_events(
+            candidate.ref, (MemoryExperienceStatus.RETIRED, None)
+        )
+    with pytest.raises(TypeError):
+        repository._MemoryExperienceRepository__replace_record(
+            candidate.ref, candidate.record
+        )
+    with pytest.raises(TypeError):
+        repository._MemoryExperienceRepository__transition(
+            candidate.ref,
+            MemoryExperienceStatus.RETIRED,
+            allowed_from={MemoryExperienceStatus.CANDIDATE},
+            actor="synthetic-governance-test",
+            reason="Synthetic retirement",
+            occurred_at="2026-09-11T00:01:00Z",
+        )
+
+    lookalike = type("Capability", (), {})()
+    for fake_capability in (
+        object(),
+        True,
+        "capability",
+        1,
+        lookalike,
+        copy(lookalike),
+        deepcopy(lookalike),
+    ):
+        with pytest.raises(PermissionError, match="exact lifecycle capability"):
+            repository._MemoryExperienceRepository__replace_state(
+                candidate.ref,
+                MemoryExperienceStatus.RETIRED,
+                capability=fake_capability,
+            )
+        with pytest.raises(PermissionError, match="exact lifecycle capability"):
+            repository._MemoryExperienceRepository__replace_events(
+                candidate.ref,
+                (MemoryExperienceStatus.RETIRED, None),
+                capability=fake_capability,
+            )
+        with pytest.raises(PermissionError, match="exact lifecycle capability"):
+            repository._MemoryExperienceRepository__replace_record(
+                candidate.ref, candidate.record, capability=fake_capability
+            )
+        with pytest.raises(PermissionError, match="exact lifecycle capability"):
+            repository._MemoryExperienceRepository__transition(
+                candidate.ref,
+                MemoryExperienceStatus.RETIRED,
+                allowed_from={MemoryExperienceStatus.CANDIDATE},
+                actor="synthetic-governance-test",
+                reason="Synthetic retirement",
+                occurred_at="2026-09-11T00:01:00Z",
+                capability=fake_capability,
+            )
 
     assert repository.resolve(candidate.ref).to_dict() == before
     assert repository.resolve(candidate.ref).status is MemoryExperienceStatus.CANDIDATE

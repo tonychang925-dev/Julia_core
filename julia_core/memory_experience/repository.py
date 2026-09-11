@@ -18,6 +18,43 @@ from .contracts import (
 )
 
 
+def _capability_guarded(cls):
+    class LifecycleCapability:
+        __slots__ = ()
+
+    capabilities = {}
+    original_init = cls.__dict__["__init__"]
+
+    def authorize(self, capability) -> None:
+        expected = capabilities.get(self)
+        if type(capability) is not LifecycleCapability or capability is not expected:
+            raise PermissionError("exact lifecycle capability is required")
+
+    def initialize(self) -> None:
+        original_init(self)
+        capabilities[self] = LifecycleCapability()
+
+    setattr(cls, f"_{cls.__name__}__authorize_mutation", authorize)
+    setattr(cls, "__init__", initialize)
+
+    for method_name in ("store_candidate", "admit", "supersede", "retire"):
+        authorized_name = f"_{cls.__name__}__{method_name}_authorized"
+        authorized = cls.__dict__[authorized_name]
+
+        def make_public(method_name, authorized):
+            def public(self, *args, **kwargs):
+                return authorized(self, *args, capability=capabilities[self], **kwargs)
+
+            public.__name__ = method_name
+            public.__qualname__ = f"{cls.__qualname__}.{method_name}"
+            return public
+
+        setattr(cls, method_name, make_public(method_name, authorized))
+
+    return cls
+
+
+@_capability_guarded
 class MemoryExperienceRepository:
     __slots__ = ("_events", "_lock", "_records", "_states")
 
@@ -35,9 +72,10 @@ class MemoryExperienceRepository:
     def __delattr__(self, name: str) -> None:
         raise TypeError("MemoryExperienceRepository fields are immutable")
 
-    def store_candidate(
-        self, candidate: MemoryExperienceCandidate
+    def __store_candidate_authorized(
+        self, candidate: MemoryExperienceCandidate, *, capability
     ) -> GovernedMemoryExperience:
+        self.__authorize_mutation(capability)
         if type(candidate) is not MemoryExperienceCandidate:
             raise TypeError(
                 "store_candidate accepts an exact MemoryExperienceCandidate only"
@@ -57,19 +95,27 @@ class MemoryExperienceRepository:
                 return self.resolve(record.ref)
 
             self._validate_lineage(record)
-            self.__replace_record(record.ref, record)
-            self.__replace_state(record.ref, MemoryExperienceStatus.CANDIDATE)
-            self.__replace_events(record.ref, (MemoryExperienceStatus.CANDIDATE, None))
+            self.__replace_record(record.ref, record, capability=capability)
+            self.__replace_state(
+                record.ref, MemoryExperienceStatus.CANDIDATE, capability=capability
+            )
+            self.__replace_events(
+                record.ref,
+                (MemoryExperienceStatus.CANDIDATE, None),
+                capability=capability,
+            )
             return self.resolve(record.ref)
 
-    def admit(
+    def __admit_authorized(
         self,
         ref: MemoryExperienceRef,
         *,
         actor: str,
         reason: str,
         occurred_at: str,
+        capability,
     ) -> GovernedMemoryExperience:
+        self.__authorize_mutation(capability)
         _require_exact_ref(ref)
         with self._lock:
             current = self.resolve(ref)
@@ -84,17 +130,24 @@ class MemoryExperienceRepository:
                 reason=reason,
                 occurred_at=occurred_at,
             )
-            self.__replace_state(ref, MemoryExperienceStatus.ADMITTED)
-            self.__replace_events(ref, (MemoryExperienceStatus.ADMITTED, admission))
+            self.__replace_state(
+                ref, MemoryExperienceStatus.ADMITTED, capability=capability
+            )
+            self.__replace_events(
+                ref,
+                (MemoryExperienceStatus.ADMITTED, admission),
+                capability=capability,
+            )
             return self.resolve(ref)
 
-    def supersede(
+    def __supersede_authorized(
         self,
         ref: MemoryExperienceRef,
         *,
         actor: str,
         reason: str,
         occurred_at: str,
+        capability,
     ) -> GovernedMemoryExperience:
         _require_exact_ref(ref)
         return self.__transition(
@@ -107,15 +160,17 @@ class MemoryExperienceRepository:
             actor=actor,
             reason=reason,
             occurred_at=occurred_at,
+            capability=capability,
         )
 
-    def retire(
+    def __retire_authorized(
         self,
         ref: MemoryExperienceRef,
         *,
         actor: str,
         reason: str,
         occurred_at: str,
+        capability,
     ) -> GovernedMemoryExperience:
         _require_exact_ref(ref)
         return self.__transition(
@@ -129,6 +184,7 @@ class MemoryExperienceRepository:
             actor=actor,
             reason=reason,
             occurred_at=occurred_at,
+            capability=capability,
         )
 
     def resolve(self, ref: MemoryExperienceRef) -> GovernedMemoryExperience:
@@ -179,7 +235,9 @@ class MemoryExperienceRepository:
         actor: str,
         reason: str,
         occurred_at: str,
+        capability,
     ) -> GovernedMemoryExperience:
+        self.__authorize_mutation(capability)
         _require_exact_ref(ref)
         with self._lock:
             current = self.resolve(ref)
@@ -194,20 +252,26 @@ class MemoryExperienceRepository:
                 reason=reason,
                 occurred_at=occurred_at,
             )
-            self.__replace_state(ref, status)
-            self.__replace_events(ref, (status, admission))
+            self.__replace_state(ref, status, capability=capability)
+            self.__replace_events(ref, (status, admission), capability=capability)
             return self.resolve(ref)
 
     def __replace_state(
-        self, ref: MemoryExperienceRef, status: MemoryExperienceStatus
+        self,
+        ref: MemoryExperienceRef,
+        status: MemoryExperienceStatus,
+        *,
+        capability,
     ) -> None:
+        self.__authorize_mutation(capability)
         states = dict(self._states)
         states[ref] = status
         object.__setattr__(self, "_states", MappingProxyType(states))
 
     def __replace_record(
-        self, ref: MemoryExperienceRef, record: MemoryExperienceRecord
+        self, ref: MemoryExperienceRef, record: MemoryExperienceRecord, *, capability
     ) -> None:
+        self.__authorize_mutation(capability)
         records = dict(self._records)
         records[ref] = record
         object.__setattr__(self, "_records", MappingProxyType(records))
@@ -216,7 +280,10 @@ class MemoryExperienceRepository:
         self,
         ref: MemoryExperienceRef,
         event: tuple[MemoryExperienceStatus, MemoryExperienceAdmission | None],
+        *,
+        capability,
     ) -> None:
+        self.__authorize_mutation(capability)
         events = dict(self._events)
         events[ref] = (*events.get(ref, ()), event)
         object.__setattr__(self, "_events", MappingProxyType(events))

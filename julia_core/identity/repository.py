@@ -26,6 +26,43 @@ class InvalidIdentityLifecycleError(ValueError):
     pass
 
 
+def _capability_guarded(cls):
+    class LifecycleCapability:
+        __slots__ = ()
+
+    capabilities = {}
+    original_init = cls.__dict__["__init__"]
+
+    def authorize(self, capability) -> None:
+        expected = capabilities.get(self)
+        if type(capability) is not LifecycleCapability or capability is not expected:
+            raise PermissionError("exact lifecycle capability is required")
+
+    def initialize(self) -> None:
+        original_init(self)
+        capabilities[self] = LifecycleCapability()
+
+    setattr(cls, f"_{cls.__name__}__authorize_mutation", authorize)
+    setattr(cls, "__init__", initialize)
+
+    for method_name in ("store_candidate", "admit", "supersede", "retire"):
+        authorized_name = f"_{cls.__name__}__{method_name}_authorized"
+        authorized = cls.__dict__[authorized_name]
+
+        def make_public(method_name, authorized):
+            def public(self, *args, **kwargs):
+                return authorized(self, *args, capability=capabilities[self], **kwargs)
+
+            public.__name__ = method_name
+            public.__qualname__ = f"{cls.__qualname__}.{method_name}"
+            return public
+
+        setattr(cls, method_name, make_public(method_name, authorized))
+
+    return cls
+
+
+@_capability_guarded
 class IdentityRepository:
     __slots__ = ("_events", "_lock", "_versions")
 
@@ -51,7 +88,10 @@ class IdentityRepository:
     def __delattr__(self, name: str) -> None:
         raise TypeError("IdentityRepository fields are immutable")
 
-    def store_candidate(self, version: IdentityVersion) -> GovernedIdentity:
+    def __store_candidate_authorized(
+        self, version: IdentityVersion, *, capability
+    ) -> GovernedIdentity:
+        self.__authorize_mutation(capability)
         if type(version) is not IdentityVersion:
             raise TypeError("store_candidate accepts an exact IdentityVersion only")
         with self._lock:
@@ -73,12 +113,18 @@ class IdentityRepository:
                 reason="Candidate stored; existence does not establish canonical authority.",
                 occurred_at=version.created_at,
             )
-            self.__replace_version(version.ref, version)
-            self.__replace_events(version.ref, event)
+            self.__replace_version(version.ref, version, capability=capability)
+            self.__replace_events(version.ref, event, capability=capability)
             return self.resolve(version.ref)
 
-    def admit(
-        self, ref: IdentityRef, *, actor: str, reason: str, occurred_at: str
+    def __admit_authorized(
+        self,
+        ref: IdentityRef,
+        *,
+        actor: str,
+        reason: str,
+        occurred_at: str,
+        capability,
     ) -> GovernedIdentity:
         _require_exact_ref(ref)
         return self.__append_event(
@@ -89,10 +135,17 @@ class IdentityRepository:
             occurred_at=occurred_at,
             allowed_from={IdentityStatus.CANDIDATE, IdentityStatus.ADMITTED},
             event_kind="admission",
+            capability=capability,
         )
 
-    def supersede(
-        self, ref: IdentityRef, *, actor: str, reason: str, occurred_at: str
+    def __supersede_authorized(
+        self,
+        ref: IdentityRef,
+        *,
+        actor: str,
+        reason: str,
+        occurred_at: str,
+        capability,
     ) -> GovernedIdentity:
         _require_exact_ref(ref)
         return self.__append_event(
@@ -103,10 +156,17 @@ class IdentityRepository:
             occurred_at=occurred_at,
             allowed_from={IdentityStatus.CANDIDATE, IdentityStatus.ADMITTED},
             event_kind="supersession",
+            capability=capability,
         )
 
-    def retire(
-        self, ref: IdentityRef, *, actor: str, reason: str, occurred_at: str
+    def __retire_authorized(
+        self,
+        ref: IdentityRef,
+        *,
+        actor: str,
+        reason: str,
+        occurred_at: str,
+        capability,
     ) -> GovernedIdentity:
         _require_exact_ref(ref)
         return self.__append_event(
@@ -121,6 +181,7 @@ class IdentityRepository:
                 IdentityStatus.SUPERSEDED,
             },
             event_kind="retirement",
+            capability=capability,
         )
 
     def resolve(self, ref: IdentityRef) -> GovernedIdentity:
@@ -175,7 +236,9 @@ class IdentityRepository:
         occurred_at: str,
         allowed_from: set[IdentityStatus],
         event_kind: str,
+        capability,
     ) -> GovernedIdentity:
+        self.__authorize_mutation(capability)
         _require_exact_ref(ref)
         with self._lock:
             current = self.resolve(ref)
@@ -191,17 +254,21 @@ class IdentityRepository:
                 reason=reason,
                 occurred_at=occurred_at,
             )
-            self.__replace_events(ref, event)
+            self.__replace_events(ref, event, capability=capability)
             return self.resolve(ref)
 
     def __replace_events(
-        self, ref: IdentityRef, event: IdentityGovernanceEvent
+        self, ref: IdentityRef, event: IdentityGovernanceEvent, *, capability
     ) -> None:
+        self.__authorize_mutation(capability)
         events = dict(self._events)
         events[ref] = (*events.get(ref, ()), event)
         object.__setattr__(self, "_events", MappingProxyType(events))
 
-    def __replace_version(self, ref: IdentityRef, version: IdentityVersion) -> None:
+    def __replace_version(
+        self, ref: IdentityRef, version: IdentityVersion, *, capability
+    ) -> None:
+        self.__authorize_mutation(capability)
         versions = dict(self._versions)
         versions[ref] = version
         object.__setattr__(self, "_versions", MappingProxyType(versions))
