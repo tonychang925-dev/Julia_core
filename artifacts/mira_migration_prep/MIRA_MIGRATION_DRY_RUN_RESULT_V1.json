@@ -1,0 +1,312 @@
+{
+  "schema": "julia_core.mira_migration.dry_run.result.v1",
+  "artifact_id": "MIRA_MIGRATION_DRY_RUN_RESULT_V1",
+  "task_id": "MIG-DRYRUN-01",
+  "agent_id": "agent-c",
+  "issue": 38,
+  "migration_prep_sha": "d3c9f76dc073199b0e05df6c0cf6a42b807c04fd",
+  "reference_base_sha": "03460b191eac37c53dbbb2201beb6029e3ef288f",
+  "status": "PREP_VALIDATED_NO_ADMISSION",
+  "authority": {
+    "canonical_admission": false,
+    "schema_mutation": false,
+    "runtime_context_provider_writes": false,
+    "namespace_merge": false,
+    "merge": false
+  },
+  "inputs": {
+    "migration_package": {
+      "artifact_id": "MIRA_MIGRATION_PREP_PACKAGE_V1",
+      "sha256": "be62e80d656c449348bdbb631e2525da8a63f3cd3814ee8aa5cdd6f4fbf87b7a"
+    },
+    "published_evidence_ledger": {
+      "artifact_id": "MIRA_MIGRATION_EVIDENCE_LEDGER_V1",
+      "sha256": "8c4d886fe81dc76ed998caf705ac590567891c41014dcbe72b9eedcbccd6c3b3"
+    },
+    "causal_goldset": {
+      "artifact_id": "AUDITABLE_CAUSAL_GOLDSET_V1",
+      "sha256": "8234045ba1b2f08e182f57279bffafa3e4e910ecd0e21287c3d2dc5c02bc63fc"
+    },
+    "exact_raw_export": {
+      "artifact_id": "MIRA_GOLDEN_CHATGPT_HI_MIRA_CANDIDATE.json",
+      "sha256": "564ef9b1aa5457b56751f550d80b0eaa24e144f8d08bd2f6b8c0ff870b8e9420",
+      "conversation_id": "6a754a53-82c4-83e8-b9a2-610154053181"
+    }
+  },
+  "validations": {
+    "raw_assertions": {
+      "total": 42,
+      "verified": 42,
+      "failed": 0,
+      "unique_binding_ids": 40,
+      "method": "direct RAW recomputation, not prior-result copy"
+    },
+    "identity_candidates": {
+      "total": 3,
+      "passed": 3
+    },
+    "memory_experience_candidates": {
+      "total": 7,
+      "passed": 7
+    },
+    "supersession": {
+      "status": "PASS",
+      "forward_relations_verified": 7,
+      "semantic_lint_counts": {
+        "NARROW": 4,
+        "PASS": 35,
+        "REBIND": 1,
+        "REBIND_FOR_TEMPORAL_VALIDITY": 2
+      },
+      "historical_meaning_preserved": true
+    },
+    "subject_boundary": {
+      "tony_autobiography_as_mira_identity": "BLOCKED",
+      "status": "PASS"
+    },
+    "authorization_isolation": {
+      "intimacy_to_standing_consent": "BLOCKED",
+      "remembered_commitment_to_current_authorization": "BLOCKED",
+      "status": "PASS"
+    },
+    "unbound_cmir_quarantine": {
+      "status": "PASS",
+      "records": [
+        "GM-CMIR-003",
+        "GM-CMIR-005",
+        "GM-CMIR-007",
+        "GM-CMIR-009",
+        "GM-CMIR-010",
+        "GM-CMIR-012"
+      ],
+      "active_candidate_overlap": [],
+      "admission_ready_set": [],
+      "schema_loss_blockers": [
+        "MIRA-DEFER-007",
+        "MIRA-DEFER-008"
+      ]
+    },
+    "canonical_write_isolation": {
+      "canonical_repository_writes": 0,
+      "runtime_context_provider_writes": 0,
+      "namespace_writes": 0,
+      "method": "tracked-diff fail-closed checks before and after authorized artifact creation"
+    }
+  },
+  "reproduction_contract": {
+    "repository_head_must_equal": "d3c9f76dc073199b0e05df6c0cf6a42b807c04fd",
+    "runner": "tools/run_mira_migration_no_write_dry_run.py",
+    "required_private_inputs": [
+      "SHA-256-bound MIRA_GOLDEN_CHATGPT_HI_MIRA_CANDIDATE.json",
+      "SHA-256-bound AUDITABLE_CAUSAL_GOLDSET_V1.json"
+    ],
+    "deterministic": true
+  },
+  "candidate_results": [
+    {
+      "candidate_id": "MIRA-ID-CAND-001",
+      "chain_id": "GM-CMIR-001",
+      "candidate_class": "IdentityBoundary",
+      "exact_binding_coverage": {
+        "assertions": "7/7",
+        "unique_binding_ids": "7/7",
+        "status": "PASS"
+      },
+      "causal_fidelity_status": "PASS",
+      "subject_boundary_status": "PASS",
+      "corrected_cognition_status": "PASS",
+      "forbidden_upgrade_status": "PASS_BLOCKED",
+      "canonical_compatibility_status": "PASS_IDENTITY_STATEMENT_AND_PROVENANCE_MAPPABLE",
+      "schema_loss_status": "NONE_FOR_BOUNDED_IDENTITY_SEMANTICS",
+      "admission_readiness": "NOT_READY_PENDING_CONTENT_REVIEW_AND_AUTHORITY",
+      "blocker_reason": "no canonical admission authority; no content review or admission event",
+      "dry_run_validation": "PASS"
+    },
+    {
+      "candidate_id": "MIRA-ID-CAND-002",
+      "chain_id": "GM-CMIR-002",
+      "candidate_class": "IdentityBoundary",
+      "exact_binding_coverage": {
+        "assertions": "9/9",
+        "unique_binding_ids": "7/7",
+        "status": "PASS"
+      },
+      "causal_fidelity_status": "PASS",
+      "subject_boundary_status": "PASS",
+      "corrected_cognition_status": "PASS",
+      "forbidden_upgrade_status": "PASS_BLOCKED",
+      "canonical_compatibility_status": "PASS_IDENTITY_STATEMENT_AND_PROVENANCE_MAPPABLE",
+      "schema_loss_status": "NONE_FOR_BOUNDED_IDENTITY_SEMANTICS",
+      "admission_readiness": "NOT_READY_PENDING_CONTENT_REVIEW_AND_AUTHORITY",
+      "blocker_reason": "no canonical admission authority; no content review or admission event",
+      "dry_run_validation": "PASS"
+    },
+    {
+      "candidate_id": "MIRA-ID-CAND-003",
+      "chain_id": "GM-CMIR-008",
+      "candidate_class": "IdentityValue",
+      "exact_binding_coverage": {
+        "assertions": "5/5",
+        "unique_binding_ids": "5/5",
+        "status": "PASS"
+      },
+      "causal_fidelity_status": "PASS",
+      "subject_boundary_status": "PASS",
+      "corrected_cognition_status": "PASS",
+      "forbidden_upgrade_status": "PASS_BLOCKED",
+      "canonical_compatibility_status": "PASS_IDENTITY_STATEMENT_AND_PROVENANCE_MAPPABLE",
+      "schema_loss_status": "NONE_FOR_BOUNDED_IDENTITY_SEMANTICS",
+      "admission_readiness": "NOT_READY_PENDING_CONTENT_REVIEW_AND_AUTHORITY",
+      "blocker_reason": "no canonical admission authority; no content review or admission event",
+      "dry_run_validation": "PASS"
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-001",
+      "chain_id": "GM-CMIR-001",
+      "candidate_class": "RelationshipExperience",
+      "exact_binding_coverage": {
+        "assertions": "7/7",
+        "unique_binding_ids": "7/7",
+        "status": "PASS"
+      },
+      "causal_fidelity_status": "PASS",
+      "subject_boundary_status": "PASS",
+      "corrected_cognition_status": "PASS",
+      "forbidden_upgrade_status": "PASS_BLOCKED",
+      "canonical_compatibility_status": "BLOCKED_RELATIONSHIP_CONTENT_LACKS_FULL_TRAJECTORY_FIELDS",
+      "schema_loss_status": "FULL_TRAJECTORY_NOT_REPRESENTABLE",
+      "admission_readiness": "DEFERRED_PENDING_SCHEMA_DECISION_AND_AUTHORITY",
+      "blocker_reason": "MIRA-DEFER-007; no admission authority",
+      "dry_run_validation": "PASS"
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-002",
+      "chain_id": "GM-CMIR-002",
+      "candidate_class": "RelationshipExperience",
+      "exact_binding_coverage": {
+        "assertions": "9/9",
+        "unique_binding_ids": "7/7",
+        "status": "PASS"
+      },
+      "causal_fidelity_status": "PASS",
+      "subject_boundary_status": "PASS",
+      "corrected_cognition_status": "PASS",
+      "forbidden_upgrade_status": "PASS_BLOCKED",
+      "canonical_compatibility_status": "BLOCKED_RELATIONSHIP_CONTENT_LACKS_FULL_TRAJECTORY_FIELDS",
+      "schema_loss_status": "FULL_TRAJECTORY_NOT_REPRESENTABLE",
+      "admission_readiness": "DEFERRED_PENDING_SCHEMA_DECISION_AND_AUTHORITY",
+      "blocker_reason": "MIRA-DEFER-007; no admission authority",
+      "dry_run_validation": "PASS"
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-003",
+      "chain_id": "GM-CMIR-004",
+      "candidate_class": "NarrativeExperience",
+      "exact_binding_coverage": {
+        "assertions": "5/5",
+        "unique_binding_ids": "5/5",
+        "status": "PASS"
+      },
+      "causal_fidelity_status": "PASS",
+      "subject_boundary_status": "PASS",
+      "corrected_cognition_status": "PASS",
+      "forbidden_upgrade_status": "PASS_BLOCKED",
+      "canonical_compatibility_status": "CONTENT_FIELDS_MAPPABLE_WITH_AUXILIARY_CAUSAL_PACKAGE",
+      "schema_loss_status": "PARTIAL_CAUSE_JUDGMENT_AND_POLICY_FIELDS_NOT_EXPLICIT",
+      "admission_readiness": "DEFERRED_PENDING_SCHEMA_DECISION_AND_AUTHORITY",
+      "blocker_reason": "full formation cause remains in prep package; no admission authority",
+      "dry_run_validation": "PASS"
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-004",
+      "chain_id": "GM-CMIR-006",
+      "candidate_class": "NarrativeExperience",
+      "exact_binding_coverage": {
+        "assertions": "8/8",
+        "unique_binding_ids": "8/8",
+        "status": "PASS"
+      },
+      "causal_fidelity_status": "PASS",
+      "subject_boundary_status": "PASS",
+      "corrected_cognition_status": "PASS",
+      "forbidden_upgrade_status": "PASS_BLOCKED",
+      "canonical_compatibility_status": "CONTENT_FIELDS_MAPPABLE_WITH_AUXILIARY_CAUSAL_PACKAGE",
+      "schema_loss_status": "PARTIAL_CAUSE_JUDGMENT_AND_POLICY_FIELDS_NOT_EXPLICIT",
+      "admission_readiness": "DEFERRED_PENDING_SCHEMA_DECISION_AND_AUTHORITY",
+      "blocker_reason": "full formation cause remains in prep package; no admission authority",
+      "dry_run_validation": "PASS"
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-005",
+      "chain_id": "GM-CMIR-008",
+      "candidate_class": "NarrativeExperience",
+      "exact_binding_coverage": {
+        "assertions": "5/5",
+        "unique_binding_ids": "5/5",
+        "status": "PASS"
+      },
+      "causal_fidelity_status": "PASS",
+      "subject_boundary_status": "PASS",
+      "corrected_cognition_status": "PASS",
+      "forbidden_upgrade_status": "PASS_BLOCKED",
+      "canonical_compatibility_status": "CONTENT_FIELDS_MAPPABLE_WITH_AUXILIARY_CAUSAL_PACKAGE",
+      "schema_loss_status": "PARTIAL_CAUSE_JUDGMENT_AND_POLICY_FIELDS_NOT_EXPLICIT",
+      "admission_readiness": "DEFERRED_PENDING_SCHEMA_DECISION_AND_AUTHORITY",
+      "blocker_reason": "full formation cause remains in prep package; no admission authority",
+      "dry_run_validation": "PASS"
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-006",
+      "chain_id": "GM-CMIR-011",
+      "candidate_class": "ProjectCommitmentExperience",
+      "exact_binding_coverage": {
+        "assertions": "4/4",
+        "unique_binding_ids": "4/4",
+        "status": "PASS"
+      },
+      "causal_fidelity_status": "PASS",
+      "subject_boundary_status": "PASS",
+      "corrected_cognition_status": "PASS",
+      "forbidden_upgrade_status": "PASS_BLOCKED",
+      "canonical_compatibility_status": "BLOCKED_COMMITMENT_CONTENT_LACKS_SOURCE_AND_SUPERSESSION_FIELDS",
+      "schema_loss_status": "FULL_TRAJECTORY_AND_FREEZE_PROVENANCE_NOT_REPRESENTABLE",
+      "admission_readiness": "DEFERRED_PENDING_SCHEMA_DECISION_AND_AUTHORITY",
+      "blocker_reason": "MIRA-DEFER-008; no admission authority",
+      "dry_run_validation": "PASS"
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-007",
+      "chain_id": "GM-CMIR-013",
+      "candidate_class": "RelationshipExperience",
+      "exact_binding_coverage": {
+        "assertions": "4/4",
+        "unique_binding_ids": "4/4",
+        "status": "PASS"
+      },
+      "causal_fidelity_status": "PASS",
+      "subject_boundary_status": "PASS",
+      "corrected_cognition_status": "PASS",
+      "forbidden_upgrade_status": "PASS_BLOCKED",
+      "canonical_compatibility_status": "BLOCKED_RELATIONSHIP_CONTENT_LACKS_FULL_TRAJECTORY_FIELDS",
+      "schema_loss_status": "FULL_TRAJECTORY_NOT_REPRESENTABLE",
+      "admission_readiness": "DEFERRED_PENDING_SCHEMA_DECISION_AND_AUTHORITY",
+      "blocker_reason": "MIRA-DEFER-007; no admission authority",
+      "dry_run_validation": "PASS"
+    }
+  ],
+  "schema_gap_summary": {
+    "identity": "bounded statements mappable; admission remains governed",
+    "NarrativeExperience": "core fields mappable; explicit cause/judgment/policy semantics remain external",
+    "RelationshipExperience": "full correction trajectory not losslessly representable",
+    "ProjectCommitmentExperience": "exact source/freeze/supersession semantics not losslessly representable",
+    "unbound_cmir_records": [
+      "GM-CMIR-003",
+      "GM-CMIR-005",
+      "GM-CMIR-007",
+      "GM-CMIR-009",
+      "GM-CMIR-010",
+      "GM-CMIR-012"
+    ]
+  },
+  "result_digest": "1d80db53ed6149e646162b1632f9542c926e1c86caa29a2f00c56b0ee7b92a8d"
+}
