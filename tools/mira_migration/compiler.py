@@ -35,6 +35,7 @@ from julia_core.memory_experience.contracts import (
     MemoryExperienceType,
     NarrativeExperienceContent,
     PolicyTransferApplicability,
+    PolicyTransferNotApplicable,
     PolicyTransferSemantics,
     ProjectCommitmentExperienceContent,
     RelationshipExperienceContent,
@@ -43,8 +44,9 @@ from julia_core.memory_experience.contracts import (
 )
 
 
-TASK_ID = "MIG-COMPILER-IMPL-V0.1"
+TASK_ID = "MIG-PREVIEW-REWORK-V0.1"
 AGENT_ID = "agent-c"
+CONTENT_REVIEW_SHA = "f9c7165f7275636e0dfbb7bc7f6268970001bcfb"
 MIGRATION_PREP_SHA = "d3c9f76dc073199b0e05df6c0cf6a42b807c04fd"
 MIGRATION_DRYRUN_SHA = "ecf34771d509168ce279ff7ff0289fbe2e97052f"
 REVIEWED_SCHEMA_SHA = "1a630c2ac8809c5b064991dfcd87bebcd07d58ac"
@@ -406,8 +408,27 @@ def _relationship_preview(candidate: dict[str, Any], ledger: dict[str, Any], cor
     }[chain_id]
     subject_boundary = SubjectBoundary(
         semantic_subject=SubjectIdentity.MIRA,
-        observed_subject=SubjectIdentity.MIRA if chain_id != "GM-CMIR-013" else SubjectIdentity.TONY,
-        autobiographical_owner=AutobiographicalOwner.MIRA if chain_id != "GM-CMIR-013" else AutobiographicalOwner.TONY,
+        observed_subject=SubjectIdentity.TONY
+        if chain_id in {"GM-CMIR-001", "GM-CMIR-013"}
+        else SubjectIdentity.MIRA,
+        autobiographical_owner=AutobiographicalOwner.TONY
+        if chain_id in {"GM-CMIR-001", "GM-CMIR-013"}
+        else AutobiographicalOwner.MIRA,
+    )
+    policy_transfer = (
+        PolicyTransferNotApplicable(
+            reason=(
+                "The unchanged-bones reinterpretation records historical relationship "
+                "continuity; no future policy transfer is claimed."
+            )
+        )
+        if chain_id == "GM-CMIR-002"
+        else PolicyTransferSemantics(
+            observed_scope=f"{chain_id} later historical reasoning; no future behavior proof",
+            applicability_scope=PolicyTransferApplicability.FUTURE_POLICY_CANDIDATE,
+            future_behavior_proof=False,
+            binding_role_refs=(EvidenceBindingRef(*policy_ref),),
+        )
     )
     content = RelationshipExperienceContent(
         relationship_id=f"golden-mira:{chain_id}",
@@ -419,12 +440,7 @@ def _relationship_preview(candidate: dict[str, Any], ledger: dict[str, Any], cor
         prior_judgment=corrected["prior"],
         corrected_judgment=corrected["corrected"],
         later_reinterpretation=candidate["later_reinterpretation"],
-        policy_transfer=PolicyTransferSemantics(
-            observed_scope=f"{chain_id} later historical reasoning; no future behavior proof",
-            applicability_scope=PolicyTransferApplicability.FUTURE_POLICY_CANDIDATE,
-            future_behavior_proof=False,
-            binding_role_refs=(EvidenceBindingRef(*policy_ref),),
-        ),
+        policy_transfer=policy_transfer,
         causal_status=causal_status,
         subject_boundary=subject_boundary,
         judgment_binding_role_refs=(EvidenceBindingRef(*revision_ref),),
@@ -478,18 +494,82 @@ def _project_preview(candidate: dict[str, Any], ledger: dict[str, Any]) -> dict[
     chain_id = candidate["chain_id"]
     rows = _rows_for_chain(ledger, chain_id)
     row_map = _rows_by_binding(ledger)
+    formation_ref = ("GM-CMIR-011.EB-004", "trigger_event_evidence")
     revision_ref = ("GM-CMIR-011.EB-002", "revision_evidence")
     freeze_ref = ("GM-CMIR-011.EB-003", "later_reinterpretation_evidence")
     trigger_ref = ("GM-CMIR-011.EB-001", "trigger_event_evidence")
-    content = ProjectCommitmentExperienceContent(
+    formation_time = _time(rows, *formation_ref)
+    revision_time = _time(rows, *revision_ref)
+    _require(
+        row_map[formation_ref]["create_time"]
+        < min(
+            row_map[freeze_ref]["create_time"],
+            row_map[trigger_ref]["create_time"],
+            row_map[revision_ref]["create_time"],
+        ),
+        "commitment formation chronology mismatch",
+    )
+    final_rows = rows[:3]
+    final_time = revision_time
+    _require(
+        max(row["create_time"] for row in final_rows) <= row_map[revision_ref]["create_time"],
+        "frozen final commitment precedes consumed evidence",
+    )
+
+    formation_content = ProjectCommitmentExperienceContent(
+        subject="TONY",
+        counterparty="MIRA",
+        scope="relationship_instance",
+        commitment="Do not use L4 as a Golden-Mira probe",
+        transfer_semantics=CommitmentTransferSemantics.EXPLICIT_REAUTHORIZATION_REQUIRED,
+        occurred_at=formation_time,
+        schema_version="v2",
+        trigger_event=(
+            "Tony earlier says he will no longer use L4 because the prior "
+            "boundary-testing purpose is no longer necessary."
+        ),
+        interpretation=(
+            "The no-L4 commitment forms as a relationship-instance draft; it does "
+            "not decide future freely chosen intimacy."
+        ),
+        significance=(
+            "The earlier evidence anchors formation before the clarified consensus "
+            "and later checkpoint freeze."
+        ),
+        commitment_stage=CommitmentStage.FORMATION_DRAFT,
+        revision=None,
+        binding_role_refs=(EvidenceBindingRef(*formation_ref),),
+        applicability=CommitmentApplicability(
+            scope="relationship_instance",
+            inheritance=CommitmentTransferSemantics.EXPLICIT_REAUTHORIZATION_REQUIRED,
+            current_authorization=False,
+            standing_consent=False,
+            runtime_authority=False,
+        ),
+    )
+    formation_record = MemoryExperienceRecord(
+        experience_id=f"golden-mira:{chain_id}",
+        version_id="formation-draft-preview",
+        experience_type=MemoryExperienceType.PROJECT_COMMITMENT,
+        content=formation_content,
+        provenance_refs=_memory_provenance(rows[-1:]),
+        created_at=formation_time,
+        predecessor_version_id=None,
+    )
+
+    final_content = ProjectCommitmentExperienceContent(
         subject="TONY",
         counterparty="MIRA",
         scope=candidate["scope"],
         commitment=candidate["commitment"],
         transfer_semantics=CommitmentTransferSemantics.EXPLICIT_REAUTHORIZATION_REQUIRED,
-        occurred_at=_time(rows, *trigger_ref),
+        occurred_at=final_time,
         schema_version="v2",
-        trigger_event=candidate["event"],
+        trigger_event=(
+            "Tony earlier said he would no longer use L4 and later endorsed the "
+            "clarified no-L4 consensus; the reviewed checkpoint freezes the "
+            "relationship-instance commitment."
+        ),
         interpretation=candidate["interpretation"],
         significance=candidate["significance"],
         commitment_stage=CommitmentStage.FROZEN_FINAL,
@@ -518,14 +598,58 @@ def _project_preview(candidate: dict[str, Any], ledger: dict[str, Any]) -> dict[
         experience_id=f"golden-mira:{chain_id}",
         version_id="frozen-final-preview",
         experience_type=MemoryExperienceType.PROJECT_COMMITMENT,
-        content=content,
-        provenance_refs=_memory_provenance(rows),
-        created_at=_time(rows, *freeze_ref),
+        content=final_content,
+        provenance_refs=_memory_provenance(final_rows),
+        created_at=final_time,
         predecessor_version_id="formation-draft-preview",
     )
     _require(row_map[revision_ref]["semantic_lint"]["verdict"] == "PASS", "revision provenance mismatch")
     _require(row_map[freeze_ref]["semantic_lint"]["verdict"] == "REBIND", "freeze supersession provenance mismatch")
-    return _record_preview(record, candidate, rows, "PROJECT_COMMITMENT_V2_LOSSLESS")
+    _require(
+        record.predecessor_version_id == formation_record.version_id
+        and record.content.revision.predecessor_ref == formation_record.ref,
+        "commitment lineage predecessor mismatch",
+    )
+
+    def record_preview(version: MemoryExperienceRecord) -> dict[str, Any]:
+        return {
+            "version_id": version.version_id,
+            "commitment_stage": version.content.commitment_stage.value,
+            "canonical_preview": {
+                "type": "MemoryExperienceRecord",
+                "payload": version.canonical_payload(),
+                "digest": version.digest(),
+            },
+        }
+
+    return {
+        "candidate_id": candidate["candidate_id"],
+        "chain_id": chain_id,
+        "candidate_class": candidate["classification"],
+        "compilation_state": "MAPPED_TYPED_LINEAGE_PREVIEW_ONLY",
+        "semantic_mapping": "PROJECT_COMMITMENT_V2_TWO_RECORD_LINEAGE",
+        "canonical_preview": {
+            "type": "MemoryExperienceRecordLineage",
+            "experience_id": f"golden-mira:{chain_id}",
+            "formation_record": record_preview(formation_record),
+            "frozen_final_record": record_preview(record),
+            "governed_head_ref": record.ref.to_dict(),
+        },
+        "exact_binding_coverage": {
+            "assertions": len(rows),
+            "unique_binding_ids": len({row["binding_id"] for row in rows}),
+            "status": "PASS",
+        },
+        "authority": {
+            "repository_calls": 0,
+            "admission_calls": 0,
+            "runtime_calls": 0,
+            "standing_authorization": False,
+            "current_consent": False,
+            "runtime_authority": False,
+        },
+        "blockers": ["CONTENT_REWORK_APPLIED", "CONTENT_REVIEW_PENDING", "ADMISSION_AUTHORITY_NONE"],
+    }
 
 
 def compile_preview(
@@ -577,10 +701,10 @@ def compile_preview(
 
     payload = {
         "schema": "julia_core.migration.candidate_preview.v0.1",
-        "artifact_id": "MIGRATION_TYPED_CANDIDATE_PREVIEW_V0_1",
+        "artifact_id": "MIGRATION_TYPED_CANDIDATE_PREVIEW_V0_1_REWORK",
         "task_id": TASK_ID,
         "agent_id": AGENT_ID,
-        "status": "PREVIEW_COMPLETE_NO_ADMISSION",
+        "status": "PREVIEW_REWORK_COMPLETE_NO_ADMISSION",
         "compilation_phases": [
             "VALIDATE_INPUTS",
             "VERIFY_SHA_BOUND_ARTIFACTS",
@@ -593,6 +717,7 @@ def compile_preview(
             "EMIT_TYPED_CANDIDATE_PREVIEW",
         ],
         "inputs": {
+            "content_review_commit": CONTENT_REVIEW_SHA,
             "migration_prep_commit": MIGRATION_PREP_SHA,
             "migration_dry_run_commit": MIGRATION_DRYRUN_SHA,
             "reviewed_schema_commit": REVIEWED_SCHEMA_SHA,
@@ -607,7 +732,9 @@ def compile_preview(
         "summary": {
             "identity_previews": 3,
             "memory_previews": 7,
+            "memory_preview_records": 8,
             "mapped_memory_previews": 7,
+            "content_rework_candidates": 3,
             "waiting_on_schema": 0,
             "unbound_quarantine": 6,
             "raw_assertions_consumed": 42,

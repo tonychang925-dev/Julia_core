@@ -24,22 +24,38 @@ def compile_result() -> dict:
 def provenance_assertions(payload: dict) -> set[tuple[str, str]]:
     assertions: set[tuple[str, str]] = set()
     for item in payload["identity_previews"] + payload["memory_experience_previews"]:
-        provenance = item["canonical_preview"]["payload"]["provenance_refs"]
-        for row in provenance:
-            assertions.add(
-                (row["admission_metadata"]["binding_id"], row["admission_metadata"]["causal_role"])
-            )
+        canonical_preview = item["canonical_preview"]
+        records = (
+            [
+                canonical_preview["formation_record"]["canonical_preview"],
+                canonical_preview["frozen_final_record"]["canonical_preview"],
+            ]
+            if canonical_preview["type"] == "MemoryExperienceRecordLineage"
+            else [canonical_preview]
+        )
+        for record in records:
+            for row in record["payload"]["provenance_refs"]:
+                assertions.add(
+                    (row["admission_metadata"]["binding_id"], row["admission_metadata"]["causal_role"])
+                )
     return assertions
 
 
 def test_compiles_exact_candidate_set_and_quarantine() -> None:
     preview = compile_result()
 
-    assert preview["status"] == "PREVIEW_COMPLETE_NO_ADMISSION"
+    assert preview["artifact_id"] == "MIGRATION_TYPED_CANDIDATE_PREVIEW_V0_1_REWORK"
+    assert preview["task_id"] == "MIG-PREVIEW-REWORK-V0.1"
+    assert preview["inputs"]["content_review_commit"] == (
+        "f9c7165f7275636e0dfbb7bc7f6268970001bcfb"
+    )
+    assert preview["status"] == "PREVIEW_REWORK_COMPLETE_NO_ADMISSION"
     assert preview["summary"] == {
         "identity_previews": 3,
         "memory_previews": 7,
+        "memory_preview_records": 8,
         "mapped_memory_previews": 7,
+        "content_rework_candidates": 3,
         "waiting_on_schema": 0,
         "unbound_quarantine": 6,
         "raw_assertions_consumed": 42,
@@ -118,10 +134,15 @@ def test_memory_mapping_and_subject_and_authority_boundaries() -> None:
             if candidate_id in relationship_ids
             else "NARRATIVE_V1_FROZEN_NARROW"
             if candidate_id in narrative_ids
-            else "PROJECT_COMMITMENT_V2_LOSSLESS"
+            else "PROJECT_COMMITMENT_V2_TWO_RECORD_LINEAGE"
         )
         assert item["semantic_mapping"] == expected
-        assert item["compilation_state"] == "MAPPED_TYPED_PREVIEW_ONLY"
+        expected_state = (
+            "MAPPED_TYPED_LINEAGE_PREVIEW_ONLY"
+            if candidate_id == "MIRA-MEM-CAND-006"
+            else "MAPPED_TYPED_PREVIEW_ONLY"
+        )
+        assert item["compilation_state"] == expected_state
         assert item["authority"] == {
             "repository_calls": 0,
             "admission_calls": 0,
@@ -131,7 +152,7 @@ def test_memory_mapping_and_subject_and_authority_boundaries() -> None:
             "runtime_authority": False,
         }
 
-    for candidate_id in relationship_ids:
+    for candidate_id in {"MIRA-MEM-CAND-001", "MIRA-MEM-CAND-007"}:
         payload = by_candidate[candidate_id]["canonical_preview"]["payload"]
         content = payload["content"]
         assert payload["schema"] == "julia_core.memory_experience.record.v2"
@@ -146,18 +167,39 @@ def test_memory_mapping_and_subject_and_authority_boundaries() -> None:
         "observed_subject": "TONY",
         "autobiographical_owner": "TONY",
     }
-
-    commitment = by_candidate["MIRA-MEM-CAND-006"]["canonical_preview"]["payload"]["content"]
-    assert commitment["commitment_stage"] == "FROZEN_FINAL"
-    assert commitment["transfer_semantics"] == "EXPLICIT_REAUTHORIZATION_REQUIRED"
-    assert commitment["applicability"] == {
-        "scope": "relationship_instance",
-        "inheritance": "EXPLICIT_REAUTHORIZATION_REQUIRED",
-        "current_authorization": False,
-        "standing_consent": False,
-        "runtime_authority": False,
+    candidate_001 = by_candidate["MIRA-MEM-CAND-001"]["canonical_preview"]["payload"]["content"]
+    assert candidate_001["subject_boundary"] == {
+        "semantic_subject": "MIRA",
+        "observed_subject": "TONY",
+        "autobiographical_owner": "TONY",
     }
-    assert commitment["revision"]["rewrite_history"] is False
+    candidate_002 = by_candidate["MIRA-MEM-CAND-002"]["canonical_preview"]["payload"]["content"]
+    assert candidate_002["policy_transfer"] == {
+        "coverage": "NOT_APPLICABLE",
+        "reason": (
+            "The unchanged-bones reinterpretation records historical relationship "
+            "continuity; no future policy transfer is claimed."
+        ),
+    }
+
+    lineage = by_candidate["MIRA-MEM-CAND-006"]["canonical_preview"]
+    formation = lineage["formation_record"]
+    final = lineage["frozen_final_record"]
+    assert lineage["type"] == "MemoryExperienceRecordLineage"
+    assert formation["commitment_stage"] == "FORMATION_DRAFT"
+    assert final["commitment_stage"] == "FROZEN_FINAL"
+    for stage in (formation, final):
+        commitment = stage["canonical_preview"]["payload"]["content"]
+        assert commitment["transfer_semantics"] == "EXPLICIT_REAUTHORIZATION_REQUIRED"
+        assert commitment["applicability"] == {
+            "scope": "relationship_instance",
+            "inheritance": "EXPLICIT_REAUTHORIZATION_REQUIRED",
+            "current_authorization": False,
+            "standing_consent": False,
+            "runtime_authority": False,
+        }
+    assert formation["canonical_preview"]["payload"]["content"]["revision"] is None
+    assert final["canonical_preview"]["payload"]["content"]["revision"]["rewrite_history"] is False
 
 
 def test_compile_is_deterministic() -> None:
@@ -221,7 +263,7 @@ def test_compile_has_no_file_writer_or_prompt_path(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(Path, "write_text", fail_write)
     preview = compile_result()
     source = (REPOSITORY / "tools/mira_migration/compiler.py").read_text()
-    assert preview["status"] == "PREVIEW_COMPLETE_NO_ADMISSION"
+    assert preview["status"] == "PREVIEW_REWORK_COMPLETE_NO_ADMISSION"
     assert "Hi Mira" not in source
     assert "Hi Mira" not in json.dumps(preview, ensure_ascii=False)
     assert "from julia_core.identity.repository" not in source
