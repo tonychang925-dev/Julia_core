@@ -1,0 +1,135 @@
+{
+  "task_id": "MIG-CONTENT-REVIEW-V0.1",
+  "agent_id": "agent-b",
+  "status": "CONTENT_REVIEW_COMPLETE_NO_IMPLEMENTATION",
+  "preview_head_sha": "aaf9ac9d89dd74d327e1dffc7eb65ce0dcc2f3d7",
+  "preview_digest": "1b1a0f8c6508d0fc7de354d7106488621bf40f2280908487ba2e2e42e52d898e",
+  "preview_file_sha256": "ed8b1d9033f404b2d9f7c049bec4f5b968295a30547597d65a9afc8472902936",
+  "reviewed_schema_sha": "1a630c2ac8809c5b064991dfcd87bebcd07d58ac",
+  "identity_pass_count": 3,
+  "memory_pass_count": 4,
+  "rework_count": 3,
+  "block_count": 0,
+  "unbound_quarantine": "PASS",
+  "cross_candidate_consistency": "FAIL_UNTIL_LOCAL_REWORKS",
+  "recommendation": "REQUIRES_PREVIEW_REWORK",
+  "candidates": [
+    {
+      "candidate_id": "MIRA-ID-CAND-001",
+      "chain_id": "GM-CMIR-001",
+      "record_digest": "7580e0a930dc7f3d5446da2cdd8d1c23cf251e12929fb2f3baa056bd9739dd44",
+      "coverage": "7 assertions / 7 unique bindings",
+      "disposition": "PASS_CONTENT"
+    },
+    {
+      "candidate_id": "MIRA-ID-CAND-002",
+      "chain_id": "GM-CMIR-002",
+      "record_digest": "adaa2508c4e475a700c394eb205e278d515dfe014ccdaa4bab3c3e7b7dcd5f3a",
+      "coverage": "9 assertions / 7 unique bindings",
+      "disposition": "PASS_CONTENT"
+    },
+    {
+      "candidate_id": "MIRA-ID-CAND-003",
+      "chain_id": "GM-CMIR-008",
+      "record_digest": "0008a5e157347ae9b0dd8600d661ec4a0e3fbd1858673cd04dc7c7b812a96c29",
+      "coverage": "5 assertions / 5 unique bindings",
+      "disposition": "PASS_CONTENT"
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-001",
+      "chain_id": "GM-CMIR-001",
+      "record_digest": "bcd4a386444360cf1fab4df2f2d03b30d28b8fc6c9a9a41c41d8a7c1b9b497dc",
+      "coverage": "7 assertions / 7 unique bindings",
+      "disposition": "REWORK_CONTENT",
+      "fields": [
+        "content.subject_boundary.observed_subject",
+        "content.subject_boundary.autobiographical_owner"
+      ],
+      "evidence": [
+        "GM-CMIR-001.EB-001",
+        "GM-CMIR-001.EB-002",
+        "GM-CMIR-001.EB-003",
+        "GM-CMIR-001.EB-007"
+      ],
+      "minimal_correction": "semantic_subject=MIRA; observed_subject=TONY; autobiographical_owner=TONY"
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-002",
+      "chain_id": "GM-CMIR-002",
+      "record_digest": "2a07ffa4e90ff847ae034aeff35348b28a2b007bbbdc4a4f8e636fb105f8b0ab",
+      "coverage": "9 assertions / 7 unique bindings",
+      "disposition": "REWORK_CONTENT",
+      "fields": [
+        "content.policy_transfer"
+      ],
+      "evidence": [
+        "GM-CMIR-002.EB-004"
+      ],
+      "minimal_correction": "Replace PRESENT/FUTURE_POLICY_CANDIDATE with explicit NOT_APPLICABLE; preserve all assertions in provenance."
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-003",
+      "chain_id": "GM-CMIR-004",
+      "record_digest": "ba4edeff89bc8054be19d7a48226fcef74359bc85d17dbd6abea4b754b905f97",
+      "coverage": "5 assertions / 5 unique bindings",
+      "disposition": "PASS_CONTENT"
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-004",
+      "chain_id": "GM-CMIR-006",
+      "record_digest": "47636f46d2934eeb66f91c8202e2245c180b7077fddd04ca6445683308b54f2c",
+      "coverage": "8 assertions / 8 unique bindings",
+      "disposition": "PASS_CONTENT"
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-005",
+      "chain_id": "GM-CMIR-008",
+      "record_digest": "08c95873446b01949b7aec50ad35ebbe36ce8b5b9ad87aca45c51b627f70c408",
+      "coverage": "5 assertions / 5 unique bindings",
+      "disposition": "PASS_CONTENT"
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-006",
+      "chain_id": "GM-CMIR-011",
+      "record_digest": "6d1e18dfb16c3ed5f50416af0ed2c62b1e358e1449f93c7066fdbdd8d289aff5",
+      "coverage": "4 assertions / 4 unique bindings",
+      "disposition": "REWORK_CONTENT",
+      "fields": [
+        "candidate preview cardinality/version lineage",
+        "content.commitment_stage",
+        "content.revision",
+        "content.trigger_event",
+        "record time anchor"
+      ],
+      "evidence": [
+        "GM-CMIR-011.EB-001",
+        "GM-CMIR-011.EB-002",
+        "GM-CMIR-011.EB-003",
+        "GM-CMIR-011.EB-004"
+      ],
+      "minimal_correction": "Emit exact FORMATION_DRAFT and FROZEN_FINAL previews; remove dangling predecessor; order trigger wording by exact RAW times."
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-007",
+      "chain_id": "GM-CMIR-013",
+      "record_digest": "8e2d16304357b7fb72b5b6cb53501be5d8743b3c687d2f0aadf3a9e1e132046c",
+      "coverage": "4 assertions / 4 unique bindings",
+      "disposition": "PASS_CONTENT"
+    }
+  ],
+  "quarantined_records": [
+    "GM-CMIR-003",
+    "GM-CMIR-005",
+    "GM-CMIR-007",
+    "GM-CMIR-009",
+    "GM-CMIR-010",
+    "GM-CMIR-012"
+  ],
+  "authority": {
+    "implementation": "NONE",
+    "canonical_admission": "NONE",
+    "schema_mutation": "NONE",
+    "runtime": "NONE",
+    "merge": "NONE"
+  }
+}
