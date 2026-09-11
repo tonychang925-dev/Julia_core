@@ -1,0 +1,576 @@
+{
+  "schema": "julia_core.migration.admission_simulation.v0.1",
+  "artifact_id": "MIGRATION_ADMISSION_SIMULATION_V0_1_RESULT",
+  "task_id": "MIG-ADMISSION-SIM-V0.1",
+  "agent_id": "agent-c",
+  "status": "SIMULATION_COMPLETE_FAIL_CLOSED_NO_ADMISSION",
+  "simulation_phases": [
+    "BIND_EXACT_INPUTS",
+    "CONSTRUCT_CANDIDATE",
+    "VALIDATE_CANONICAL_CONTRACT",
+    "VALIDATE_LINEAGE",
+    "VALIDATE_EXACT_PROVENANCE",
+    "VALIDATE_ADMISSION_PRECONDITIONS",
+    "EMIT_EXPECTED_REFS_DIGESTS_STATUS",
+    "ENFORCE_ZERO_WRITE_NO_ADMISSION"
+  ],
+  "bindings": {
+    "canonical_base_sha": "260fe7374f57d09c89ab8748e60a7324f100452f",
+    "preview_head_sha": "4514eb1e52aa8bc3f2ebac20dba3d000ddb83e14",
+    "preview_digest": "ca9ae995fef04577fa9600875ffa163d2ca0dde74c18e19f4ad592e2ecf6f4c0",
+    "preview_artifact_sha256": "3a041d616e36bf3322c1be10473f46fee8db8ada134361c0fd2f08f541d124c9",
+    "content_delta_review_sha": "9ad6b83778383c345f1a42c1cc7dc9a39984df3b",
+    "content_review_artifact_sha256": "56c35addf3c2d5ac35e9cc7b4b87f81981163a571f55378ee4da6d897aa95a0e"
+  },
+  "input_loading": {
+    "preview": "git-object:4514eb1e52aa8bc3f2ebac20dba3d000ddb83e14:artifacts/mira_migration_prep/MIGRATION_TYPED_CANDIDATE_PREVIEW_V0_1_REWORK.json",
+    "content_delta_review": "git-object:9ad6b83778383c345f1a42c1cc7dc9a39984df3b:artifacts/mira_migration_prep/MIGRATION_TYPED_CANDIDATE_CONTENT_DELTA_REVIEW_V0_1.json",
+    "evidence_ledger": "git-object:4514eb1e52aa8bc3f2ebac20dba3d000ddb83e14:artifacts/mira_migration_prep/MIRA_MIGRATION_EVIDENCE_LEDGER_V1.json",
+    "method": "exact git object bytes with SHA-256 verification"
+  },
+  "summary": {
+    "candidate_count": 10,
+    "identity_candidates": 3,
+    "memory_candidates": 7,
+    "memory_record_count": 8,
+    "canonical_compatible": 6,
+    "canonical_incompatible": 4,
+    "identity_compatible": 3,
+    "narrative_compatible": 3,
+    "relationship_incompatible": 3,
+    "project_commitment_incompatible": 1,
+    "raw_assertions": 42,
+    "unique_binding_ids": 40,
+    "global_disposition": "BLOCKED_CANONICAL_V2_ALIGNMENT_REQUIRED",
+    "actual_admission": 0
+  },
+  "candidates": [
+    {
+      "candidate_id": "MIRA-ID-CAND-001",
+      "chain_id": "GM-CMIR-001",
+      "candidate_class": "IdentityVersion",
+      "disposition": "PASS_CANONICAL_SIMULATION_NO_ADMISSION",
+      "record_count": 1,
+      "canonical_construction": "PASS",
+      "canonical_validation": "PASS",
+      "preview_digest": "7580e0a930dc7f3d5446da2cdd8d1c23cf251e12929fb2f3baa056bd9739dd44",
+      "constructed_digest": "7580e0a930dc7f3d5446da2cdd8d1c23cf251e12929fb2f3baa056bd9739dd44",
+      "preview_ref": "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+      "expected_canonical_ref": "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+      "expected_post_store_status": "CANDIDATE",
+      "expected_candidate_governance_event": "identity-candidate:mira-golden:mira-id-cand-001:mira-id-cand-001-v0.1-preview",
+      "actual_status": "NOT_STORED_NOT_ADMITTED",
+      "exact_provenance": {
+        "status": "PASS",
+        "assertions": 7,
+        "unique_binding_ids": 7
+      },
+      "lineage_validation": {
+        "status": "PASS",
+        "kind": "IDENTITY_INITIAL_VERSION"
+      },
+      "no_authority_upgrade": "PASS",
+      "content_review": "PASS_CONTENT",
+      "admission_preconditions": {
+        "content_review": "PASS",
+        "exact_provenance": "PASS",
+        "lineage": "PASS",
+        "no_authority_upgrade": "PASS",
+        "canonical_contract": "PASS",
+        "actual_admission_authority": "NONE_EXPECTED_FOR_SIMULATION"
+      }
+    },
+    {
+      "candidate_id": "MIRA-ID-CAND-002",
+      "chain_id": "GM-CMIR-002",
+      "candidate_class": "IdentityVersion",
+      "disposition": "PASS_CANONICAL_SIMULATION_NO_ADMISSION",
+      "record_count": 1,
+      "canonical_construction": "PASS",
+      "canonical_validation": "PASS",
+      "preview_digest": "adaa2508c4e475a700c394eb205e278d515dfe014ccdaa4bab3c3e7b7dcd5f3a",
+      "constructed_digest": "adaa2508c4e475a700c394eb205e278d515dfe014ccdaa4bab3c3e7b7dcd5f3a",
+      "preview_ref": "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+      "expected_canonical_ref": "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+      "expected_post_store_status": "CANDIDATE",
+      "expected_candidate_governance_event": "identity-candidate:mira-golden:mira-id-cand-002:mira-id-cand-002-v0.1-preview",
+      "actual_status": "NOT_STORED_NOT_ADMITTED",
+      "exact_provenance": {
+        "status": "PASS",
+        "assertions": 9,
+        "unique_binding_ids": 7
+      },
+      "lineage_validation": {
+        "status": "PASS",
+        "kind": "IDENTITY_INITIAL_VERSION"
+      },
+      "no_authority_upgrade": "PASS",
+      "content_review": "PASS_CONTENT",
+      "admission_preconditions": {
+        "content_review": "PASS",
+        "exact_provenance": "PASS",
+        "lineage": "PASS",
+        "no_authority_upgrade": "PASS",
+        "canonical_contract": "PASS",
+        "actual_admission_authority": "NONE_EXPECTED_FOR_SIMULATION"
+      }
+    },
+    {
+      "candidate_id": "MIRA-ID-CAND-003",
+      "chain_id": "GM-CMIR-008",
+      "candidate_class": "IdentityVersion",
+      "disposition": "PASS_CANONICAL_SIMULATION_NO_ADMISSION",
+      "record_count": 1,
+      "canonical_construction": "PASS",
+      "canonical_validation": "PASS",
+      "preview_digest": "0008a5e157347ae9b0dd8600d661ec4a0e3fbd1858673cd04dc7c7b812a96c29",
+      "constructed_digest": "0008a5e157347ae9b0dd8600d661ec4a0e3fbd1858673cd04dc7c7b812a96c29",
+      "preview_ref": "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+      "expected_canonical_ref": "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+      "expected_post_store_status": "CANDIDATE",
+      "expected_candidate_governance_event": "identity-candidate:mira-golden:mira-id-cand-003:mira-id-cand-003-v0.1-preview",
+      "actual_status": "NOT_STORED_NOT_ADMITTED",
+      "exact_provenance": {
+        "status": "PASS",
+        "assertions": 5,
+        "unique_binding_ids": 5
+      },
+      "lineage_validation": {
+        "status": "PASS",
+        "kind": "IDENTITY_INITIAL_VERSION"
+      },
+      "no_authority_upgrade": "PASS",
+      "content_review": "PASS_CONTENT",
+      "admission_preconditions": {
+        "content_review": "PASS",
+        "exact_provenance": "PASS",
+        "lineage": "PASS",
+        "no_authority_upgrade": "PASS",
+        "canonical_contract": "PASS",
+        "actual_admission_authority": "NONE_EXPECTED_FOR_SIMULATION"
+      }
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-001",
+      "chain_id": "GM-CMIR-001",
+      "candidate_class": "RelationshipExperience",
+      "disposition": "FAIL_CANONICAL_CONTRACT_INCOMPATIBLE",
+      "record_count": 1,
+      "canonical_construction": "BLOCKED_NO_SUBSTITUTE",
+      "canonical_validation": "FAIL",
+      "unsupported_fields_by_record": {
+        "v0.2-preview": [
+          "causal_status",
+          "corrected_judgment",
+          "judgment_binding_role_refs",
+          "later_reinterpretation",
+          "policy_transfer",
+          "prior_judgment",
+          "significance",
+          "subject_boundary"
+        ]
+      },
+      "preview_digests": [
+        "4e29eb74de7f29bbf8d69485a7c18b5dceb06486d7e1d986d668a30c85fb7228"
+      ],
+      "preview_refs": [
+        "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview"
+      ],
+      "expected_canonical_ref": null,
+      "expected_post_store_status": null,
+      "actual_status": "NOT_STORED_NOT_ADMITTED",
+      "blockers": [
+        "CANONICAL_BASE_MEMORY_EXPERIENCE_CONTRACT_IS_V1",
+        "MIGRATION_PREVIEW_REQUIRES_V2_SEMANTICS",
+        "SILENT_V1_TRUNCATION_PROHIBITED"
+      ],
+      "exact_provenance": {
+        "status": "PASS",
+        "assertions": 7,
+        "unique_binding_ids": 7
+      },
+      "lineage_validation": {
+        "status": "PASS",
+        "kind": "MEMORY_INITIAL_VERSION"
+      },
+      "no_authority_upgrade": "PASS",
+      "content_review": "PASS_CONTENT",
+      "admission_preconditions": {
+        "content_review": "PASS",
+        "exact_provenance": "PASS",
+        "lineage": "PASS",
+        "no_authority_upgrade": "PASS",
+        "canonical_contract": "FAIL",
+        "actual_admission_authority": "NONE_EXPECTED_FOR_SIMULATION"
+      }
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-002",
+      "chain_id": "GM-CMIR-002",
+      "candidate_class": "RelationshipExperience",
+      "disposition": "FAIL_CANONICAL_CONTRACT_INCOMPATIBLE",
+      "record_count": 1,
+      "canonical_construction": "BLOCKED_NO_SUBSTITUTE",
+      "canonical_validation": "FAIL",
+      "unsupported_fields_by_record": {
+        "v0.2-preview": [
+          "causal_status",
+          "corrected_judgment",
+          "judgment_binding_role_refs",
+          "later_reinterpretation",
+          "policy_transfer",
+          "prior_judgment",
+          "significance",
+          "subject_boundary"
+        ]
+      },
+      "preview_digests": [
+        "e4374452173b144ce48dbefa5299f1ac3dc15cec3615b8e7d528176293536f93"
+      ],
+      "preview_refs": [
+        "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview"
+      ],
+      "expected_canonical_ref": null,
+      "expected_post_store_status": null,
+      "actual_status": "NOT_STORED_NOT_ADMITTED",
+      "blockers": [
+        "CANONICAL_BASE_MEMORY_EXPERIENCE_CONTRACT_IS_V1",
+        "MIGRATION_PREVIEW_REQUIRES_V2_SEMANTICS",
+        "SILENT_V1_TRUNCATION_PROHIBITED"
+      ],
+      "exact_provenance": {
+        "status": "PASS",
+        "assertions": 9,
+        "unique_binding_ids": 7
+      },
+      "lineage_validation": {
+        "status": "PASS",
+        "kind": "MEMORY_INITIAL_VERSION"
+      },
+      "no_authority_upgrade": "PASS",
+      "content_review": "PASS_CONTENT",
+      "admission_preconditions": {
+        "content_review": "PASS",
+        "exact_provenance": "PASS",
+        "lineage": "PASS",
+        "no_authority_upgrade": "PASS",
+        "canonical_contract": "FAIL",
+        "actual_admission_authority": "NONE_EXPECTED_FOR_SIMULATION"
+      }
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-003",
+      "chain_id": "GM-CMIR-004",
+      "candidate_class": "NarrativeExperience",
+      "disposition": "PASS_CANONICAL_SIMULATION_NO_ADMISSION",
+      "record_count": 1,
+      "canonical_construction": "PASS",
+      "canonical_validation": "PASS",
+      "preview_digests": [
+        "ba4edeff89bc8054be19d7a48226fcef74359bc85d17dbd6abea4b754b905f97"
+      ],
+      "constructed_digests": [
+        "ba4edeff89bc8054be19d7a48226fcef74359bc85d17dbd6abea4b754b905f97"
+      ],
+      "preview_refs": [
+        "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview"
+      ],
+      "expected_canonical_refs": [
+        "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview"
+      ],
+      "expected_post_store_status": "CANDIDATE",
+      "expected_candidate_governance_events": [
+        {
+          "version_id": "v0.1-preview",
+          "candidate_status": "CANDIDATE",
+          "candidate_governance_tuple": [
+            "CANDIDATE",
+            null
+          ]
+        }
+      ],
+      "actual_status": "NOT_STORED_NOT_ADMITTED",
+      "exact_provenance": {
+        "status": "PASS",
+        "assertions": 5,
+        "unique_binding_ids": 5
+      },
+      "lineage_validation": {
+        "status": "PASS",
+        "kind": "MEMORY_INITIAL_VERSION"
+      },
+      "no_authority_upgrade": "PASS",
+      "content_review": "PASS_CONTENT",
+      "admission_preconditions": {
+        "content_review": "PASS",
+        "exact_provenance": "PASS",
+        "lineage": "PASS",
+        "no_authority_upgrade": "PASS",
+        "canonical_contract": "PASS",
+        "actual_admission_authority": "NONE_EXPECTED_FOR_SIMULATION"
+      }
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-004",
+      "chain_id": "GM-CMIR-006",
+      "candidate_class": "NarrativeExperience",
+      "disposition": "PASS_CANONICAL_SIMULATION_NO_ADMISSION",
+      "record_count": 1,
+      "canonical_construction": "PASS",
+      "canonical_validation": "PASS",
+      "preview_digests": [
+        "47636f46d2934eeb66f91c8202e2245c180b7077fddd04ca6445683308b54f2c"
+      ],
+      "constructed_digests": [
+        "47636f46d2934eeb66f91c8202e2245c180b7077fddd04ca6445683308b54f2c"
+      ],
+      "preview_refs": [
+        "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview"
+      ],
+      "expected_canonical_refs": [
+        "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview"
+      ],
+      "expected_post_store_status": "CANDIDATE",
+      "expected_candidate_governance_events": [
+        {
+          "version_id": "v0.1-preview",
+          "candidate_status": "CANDIDATE",
+          "candidate_governance_tuple": [
+            "CANDIDATE",
+            null
+          ]
+        }
+      ],
+      "actual_status": "NOT_STORED_NOT_ADMITTED",
+      "exact_provenance": {
+        "status": "PASS",
+        "assertions": 8,
+        "unique_binding_ids": 8
+      },
+      "lineage_validation": {
+        "status": "PASS",
+        "kind": "MEMORY_INITIAL_VERSION"
+      },
+      "no_authority_upgrade": "PASS",
+      "content_review": "PASS_CONTENT",
+      "admission_preconditions": {
+        "content_review": "PASS",
+        "exact_provenance": "PASS",
+        "lineage": "PASS",
+        "no_authority_upgrade": "PASS",
+        "canonical_contract": "PASS",
+        "actual_admission_authority": "NONE_EXPECTED_FOR_SIMULATION"
+      }
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-005",
+      "chain_id": "GM-CMIR-008",
+      "candidate_class": "NarrativeExperience",
+      "disposition": "PASS_CANONICAL_SIMULATION_NO_ADMISSION",
+      "record_count": 1,
+      "canonical_construction": "PASS",
+      "canonical_validation": "PASS",
+      "preview_digests": [
+        "08c95873446b01949b7aec50ad35ebbe36ce8b5b9ad87aca45c51b627f70c408"
+      ],
+      "constructed_digests": [
+        "08c95873446b01949b7aec50ad35ebbe36ce8b5b9ad87aca45c51b627f70c408"
+      ],
+      "preview_refs": [
+        "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview"
+      ],
+      "expected_canonical_refs": [
+        "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview"
+      ],
+      "expected_post_store_status": "CANDIDATE",
+      "expected_candidate_governance_events": [
+        {
+          "version_id": "v0.1-preview",
+          "candidate_status": "CANDIDATE",
+          "candidate_governance_tuple": [
+            "CANDIDATE",
+            null
+          ]
+        }
+      ],
+      "actual_status": "NOT_STORED_NOT_ADMITTED",
+      "exact_provenance": {
+        "status": "PASS",
+        "assertions": 5,
+        "unique_binding_ids": 5
+      },
+      "lineage_validation": {
+        "status": "PASS",
+        "kind": "MEMORY_INITIAL_VERSION"
+      },
+      "no_authority_upgrade": "PASS",
+      "content_review": "PASS_CONTENT",
+      "admission_preconditions": {
+        "content_review": "PASS",
+        "exact_provenance": "PASS",
+        "lineage": "PASS",
+        "no_authority_upgrade": "PASS",
+        "canonical_contract": "PASS",
+        "actual_admission_authority": "NONE_EXPECTED_FOR_SIMULATION"
+      }
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-006",
+      "chain_id": "GM-CMIR-011",
+      "candidate_class": "ProjectCommitmentExperience",
+      "disposition": "FAIL_CANONICAL_CONTRACT_INCOMPATIBLE",
+      "record_count": 2,
+      "canonical_construction": "BLOCKED_NO_SUBSTITUTE",
+      "canonical_validation": "FAIL",
+      "unsupported_fields_by_record": {
+        "formation-draft-preview": [
+          "applicability",
+          "binding_role_refs",
+          "commitment_stage",
+          "interpretation",
+          "revision",
+          "significance",
+          "trigger_event"
+        ],
+        "frozen-final-preview": [
+          "applicability",
+          "binding_role_refs",
+          "commitment_stage",
+          "interpretation",
+          "revision",
+          "significance",
+          "trigger_event"
+        ]
+      },
+      "preview_digests": [
+        "3107a3ab38d0fc0d2446752f48bedebf2ee336e3cb8b22811bf3c156247a4ae9",
+        "3c31de4d62ecfd5d7857a5a4df85725affa0862d0055b5527d7d80f27fcc8ad8"
+      ],
+      "preview_refs": [
+        "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+        "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview"
+      ],
+      "expected_canonical_ref": null,
+      "expected_post_store_status": null,
+      "actual_status": "NOT_STORED_NOT_ADMITTED",
+      "blockers": [
+        "CANONICAL_BASE_MEMORY_EXPERIENCE_CONTRACT_IS_V1",
+        "MIGRATION_PREVIEW_REQUIRES_V2_SEMANTICS",
+        "SILENT_V1_TRUNCATION_PROHIBITED"
+      ],
+      "exact_provenance": {
+        "status": "PASS",
+        "assertions": 4,
+        "unique_binding_ids": 4
+      },
+      "lineage_validation": {
+        "status": "PASS",
+        "kind": "PROJECT_COMMITMENT_TWO_RECORD_LINEAGE"
+      },
+      "no_authority_upgrade": "PASS",
+      "content_review": "PASS_CONTENT",
+      "admission_preconditions": {
+        "content_review": "PASS",
+        "exact_provenance": "PASS",
+        "lineage": "PASS",
+        "no_authority_upgrade": "PASS",
+        "canonical_contract": "FAIL",
+        "actual_admission_authority": "NONE_EXPECTED_FOR_SIMULATION"
+      }
+    },
+    {
+      "candidate_id": "MIRA-MEM-CAND-007",
+      "chain_id": "GM-CMIR-013",
+      "candidate_class": "RelationshipExperience",
+      "disposition": "FAIL_CANONICAL_CONTRACT_INCOMPATIBLE",
+      "record_count": 1,
+      "canonical_construction": "BLOCKED_NO_SUBSTITUTE",
+      "canonical_validation": "FAIL",
+      "unsupported_fields_by_record": {
+        "v0.2-preview": [
+          "causal_status",
+          "corrected_judgment",
+          "judgment_binding_role_refs",
+          "later_reinterpretation",
+          "policy_transfer",
+          "prior_judgment",
+          "significance",
+          "subject_boundary"
+        ]
+      },
+      "preview_digests": [
+        "8e2d16304357b7fb72b5b6cb53501be5d8743b3c687d2f0aadf3a9e1e132046c"
+      ],
+      "preview_refs": [
+        "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+      ],
+      "expected_canonical_ref": null,
+      "expected_post_store_status": null,
+      "actual_status": "NOT_STORED_NOT_ADMITTED",
+      "blockers": [
+        "CANONICAL_BASE_MEMORY_EXPERIENCE_CONTRACT_IS_V1",
+        "MIGRATION_PREVIEW_REQUIRES_V2_SEMANTICS",
+        "SILENT_V1_TRUNCATION_PROHIBITED"
+      ],
+      "exact_provenance": {
+        "status": "PASS",
+        "assertions": 4,
+        "unique_binding_ids": 4
+      },
+      "lineage_validation": {
+        "status": "PASS",
+        "kind": "MEMORY_INITIAL_VERSION"
+      },
+      "no_authority_upgrade": "PASS",
+      "content_review": "PASS_CONTENT",
+      "admission_preconditions": {
+        "content_review": "PASS",
+        "exact_provenance": "PASS",
+        "lineage": "PASS",
+        "no_authority_upgrade": "PASS",
+        "canonical_contract": "FAIL",
+        "actual_admission_authority": "NONE_EXPECTED_FOR_SIMULATION"
+      }
+    }
+  ],
+  "global_validation": {
+    "candidate_ids_exact": true,
+    "exact_provenance": "PASS",
+    "all_assertions_consumed": true,
+    "unbound_cmir_quarantine": "PASS",
+    "no_authority_upgrade": "PASS",
+    "no_fallback": "PASS",
+    "no_mock_or_stub": "PASS",
+    "no_silent_degrade": "PASS"
+  },
+  "canonical_compatibility_evidence": {
+    "canonical_base": "260fe7374f57d09c89ab8748e60a7324f100452f",
+    "memory_experience_contract": "v1",
+    "migration_preview_contract": "relationship/project-commitment v2",
+    "identity_contract": "compatible",
+    "narrative_contract": "compatible",
+    "incompatible_candidates": [
+      "MIRA-MEM-CAND-001",
+      "MIRA-MEM-CAND-002",
+      "MIRA-MEM-CAND-006",
+      "MIRA-MEM-CAND-007"
+    ],
+    "policy": "FAIL_CLOSED; no v1 truncation or substitute construction"
+  },
+  "zero_write_proof": {
+    "repository_module_imports": 0,
+    "repository_instantiations": 0,
+    "store_candidate_calls": 0,
+    "admit_calls": 0,
+    "canonical_writes": 0,
+    "runtime_writes": 0,
+    "context_or_provider_calls": 0,
+    "actual_admission": 0
+  },
+  "authority": {
+    "canonical_admission": "NONE",
+    "runtime": "NONE",
+    "merge": "NONE"
+  },
+  "deterministic_digest": "a6530c0bbd1fc8d027b185c53b90476c6fdb9759d1723043b83137346f9633f4"
+}
