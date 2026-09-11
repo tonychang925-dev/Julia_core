@@ -1,0 +1,65 @@
+{
+  "schema": "julia_core.migration.schema_canonical_alignment.v0.1",
+  "task_id": "MIG-SCHEMA-CANONICAL-ALIGNMENT-V0.1",
+  "executor": "AGENT_A",
+  "status": "COMPLETE_WAITING_REVIEW_NO_MERGE",
+  "canonical_base_sha": "260fe7374f57d09c89ab8748e60a7324f100452f",
+  "reviewed_v2_schema_sha": "1a630c2ac8809c5b064991dfcd87bebcd07d58ac",
+  "candidate_implementation_sha": "9e3dcf283a4a2d1c9221f27d27a7cf4f4e0d4e8f",
+  "parent_sha": "260fe7374f57d09c89ab8748e60a7324f100452f",
+  "changed_files": [
+    "julia_core/memory_experience/__init__.py",
+    "julia_core/memory_experience/contracts.py",
+    "julia_core/memory_experience/repository.py",
+    "tests/memory_experience/test_mira_migration_schema_canonical_alignment_v0_1.py"
+  ],
+  "results": {
+    "legacy_v1_compatibility": "PASS",
+    "relationship_v2_alignment": "PASS",
+    "project_commitment_v2_alignment": "PASS",
+    "active_7_lossless_fixtures": "PASS",
+    "current_canonical_hardening_preserved": "PASS",
+    "no_fallback_mock_stub_shadow_degrade": "PASS",
+    "missing_exact_authority_fail_closed": "PASS"
+  },
+  "golden_mira_compatibility": {
+    "candidate_ids": [
+      "MIRA-MEM-CAND-001",
+      "MIRA-MEM-CAND-002",
+      "MIRA-MEM-CAND-003",
+      "MIRA-MEM-CAND-004",
+      "MIRA-MEM-CAND-005",
+      "MIRA-MEM-CAND-006",
+      "MIRA-MEM-CAND-007"
+    ],
+    "record_count": 8,
+    "previously_blocked_now_representable": [
+      "MIRA-MEM-CAND-001",
+      "MIRA-MEM-CAND-002",
+      "MIRA-MEM-CAND-006",
+      "MIRA-MEM-CAND-007"
+    ],
+    "canonical_admission_writes": 0,
+    "golden_repository_population": 0
+  },
+  "validation": {
+    "targeted_v2_schema_tests": "7 passed",
+    "memory_experience_suite": "117 passed",
+    "projection_suite": "35 passed",
+    "canonical_rail_tests": "223 passed",
+    "full_regression_candidate": "48 failed, 1406 passed, 6 skipped, 26 xfailed, 3 errors",
+    "full_regression_base": "48 failed, 1399 passed, 6 skipped, 26 xfailed, 3 errors",
+    "full_regression_failure_error_id_diff": "EMPTY",
+    "full_regression_disposition": "BASELINE_EQUIVALENT_PLUS_7_TARGETED_PASSES",
+    "git_diff_check": "PASS"
+  },
+  "authority": {
+    "canonical_admission": "NONE",
+    "runtime": "NONE",
+    "c03": "NONE",
+    "c06": "NONE",
+    "merge": "NONE",
+    "runtime_writes": 0
+  },
+  "remaining_blockers": []
+}
