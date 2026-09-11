@@ -51,6 +51,118 @@ class CommitmentTransferSemantics(str, Enum):
     EXPLICIT_REAUTHORIZATION_REQUIRED = "EXPLICIT_REAUTHORIZATION_REQUIRED"
 
 
+class CausalStatus(str, Enum):
+    DIRECT_RAW_SUPPORTED = "DIRECT_RAW_SUPPORTED"
+    INFERRED_CROSS_RECORD = "INFERRED_CROSS_RECORD"
+    MIXED_DIRECT_AND_INFERRED = "MIXED_DIRECT_AND_INFERRED"
+
+
+class PolicyTransferApplicability(str, Enum):
+    HISTORICAL_EXPLANATION = "HISTORICAL_EXPLANATION"
+    FUTURE_POLICY_CANDIDATE = "FUTURE_POLICY_CANDIDATE"
+
+
+class SubjectIdentity(str, Enum):
+    MIRA = "MIRA"
+    TONY = "TONY"
+    OTHER_EXACT_ID = "OTHER_EXACT_ID"
+
+
+class AutobiographicalOwner(str, Enum):
+    MIRA = "MIRA"
+    TONY = "TONY"
+    NONE = "NONE"
+
+
+class CommitmentStage(str, Enum):
+    FORMATION_DRAFT = "FORMATION_DRAFT"
+    FROZEN_FINAL = "FROZEN_FINAL"
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceBindingRef:
+    binding_id: str
+    evidence_role: str
+
+    def __post_init__(self) -> None:
+        _require_id(self.binding_id, "binding_id")
+        _require_id(self.evidence_role, "evidence_role")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"binding_id": self.binding_id, "evidence_role": self.evidence_role}
+
+
+@dataclass(frozen=True, slots=True)
+class PolicyTransferSemantics:
+    observed_scope: str
+    applicability_scope: PolicyTransferApplicability
+    future_behavior_proof: bool = False
+    binding_role_refs: tuple[EvidenceBindingRef, ...] = ()
+
+    def __post_init__(self) -> None:
+        _require_text(self.observed_scope, "observed_scope", max_length=2_048)
+        _require_enum(
+            self.applicability_scope,
+            PolicyTransferApplicability,
+            "applicability_scope",
+        )
+        if self.future_behavior_proof is not False:
+            raise ValueError("future_behavior_proof must remain false")
+        _require_binding_refs(self.binding_role_refs)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "coverage": "PRESENT",
+            "observed_scope": self.observed_scope,
+            "applicability_scope": self.applicability_scope.value,
+            "future_behavior_proof": False,
+            "binding_role_refs": [item.to_dict() for item in self.binding_role_refs],
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PolicyTransferNotApplicable:
+    reason: str
+
+    def __post_init__(self) -> None:
+        _require_text(self.reason, "reason", max_length=2_048)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"coverage": "NOT_APPLICABLE", "reason": self.reason}
+
+
+@dataclass(frozen=True, slots=True)
+class SubjectBoundary:
+    semantic_subject: SubjectIdentity
+    observed_subject: SubjectIdentity
+    autobiographical_owner: AutobiographicalOwner
+
+    def __post_init__(self) -> None:
+        _require_enum(
+            self.semantic_subject, SubjectIdentity, "semantic_subject"
+        )
+        _require_enum(
+            self.observed_subject, SubjectIdentity, "observed_subject"
+        )
+        _require_enum(
+            self.autobiographical_owner,
+            AutobiographicalOwner,
+            "autobiographical_owner",
+        )
+        if (
+            self.observed_subject is SubjectIdentity.TONY
+            and self.autobiographical_owner is AutobiographicalOwner.MIRA
+        ):
+            raise ValueError("observed Tony history cannot become Mira autobiography")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "semantic_subject": self.semantic_subject.value,
+            "observed_subject": self.observed_subject.value,
+            "autobiographical_owner": self.autobiographical_owner.value,
+        }
+
+
 @dataclass(frozen=True, slots=True)
 class NarrativeExperienceContent:
     event: str
@@ -81,15 +193,103 @@ class RelationshipExperienceContent:
     event: str
     interpretation: str
     occurred_at: str
+    schema_version: str = "v1"
+    significance: str = ""
+    prior_judgment: str = ""
+    corrected_judgment: str = ""
+    later_reinterpretation: str = ""
+    policy_transfer: PolicyTransferSemantics | PolicyTransferNotApplicable | None = None
+    causal_status: CausalStatus | None = None
+    subject_boundary: SubjectBoundary | None = None
+    judgment_binding_role_refs: tuple[EvidenceBindingRef, ...] = ()
 
     def __post_init__(self) -> None:
         _require_id(self.relationship_id, "relationship_id")
         _require_text(self.event, "event")
         _require_text(self.interpretation, "interpretation")
         _require_text(self.occurred_at, "occurred_at", max_length=128)
+        _require_schema_version(self.schema_version)
+        if self.schema_version == "v1":
+            if any(
+                (
+                    self.significance,
+                    self.prior_judgment,
+                    self.corrected_judgment,
+                    self.later_reinterpretation,
+                    self.policy_transfer,
+                    self.causal_status,
+                    self.subject_boundary,
+                    self.judgment_binding_role_refs,
+                )
+            ):
+                raise ValueError("RelationshipExperience v1 cannot carry v2 trajectory fields")
+            return
+
+        _require_text(self.significance, "significance")
+        if bool(self.prior_judgment) != bool(self.corrected_judgment):
+            raise ValueError(
+                "prior_judgment and corrected_judgment must be supplied together"
+            )
+        if self.prior_judgment:
+            _require_text(self.prior_judgment, "prior_judgment")
+            _require_text(self.corrected_judgment, "corrected_judgment")
+            _require_binding_refs(self.judgment_binding_role_refs)
+        elif self.judgment_binding_role_refs:
+            raise ValueError(
+                "judgment_binding_role_refs require a prior/corrected judgment pair"
+            )
+        if type(self.later_reinterpretation) is not str:
+            raise ValueError("later_reinterpretation must be an exact built-in string")
+        if self.later_reinterpretation:
+            _require_text(self.later_reinterpretation, "later_reinterpretation")
+        if type(self.policy_transfer) not in (
+            PolicyTransferSemantics,
+            PolicyTransferNotApplicable,
+        ):
+            raise ValueError(
+                "policy_transfer must explicitly be present or NOT_APPLICABLE for v2"
+            )
+        _require_enum(self.causal_status, CausalStatus, "causal_status")
+        if (
+            self.subject_boundary is not None
+            and type(self.subject_boundary) is not SubjectBoundary
+        ):
+            raise ValueError("subject_boundary must be an exact SubjectBoundary")
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        data = asdict(self)
+        v1_fields = ("relationship_id", "event", "interpretation", "occurred_at")
+        if self.schema_version == "v1":
+            return {field: data[field] for field in v1_fields}
+        result = {field: data[field] for field in v1_fields}
+        result.update(
+            {
+                "significance": self.significance,
+                "prior_judgment": self.prior_judgment,
+                "corrected_judgment": self.corrected_judgment,
+                "later_reinterpretation": self.later_reinterpretation,
+                "policy_transfer": self.policy_transfer.to_dict(),
+                "causal_status": self.causal_status.value,
+                "judgment_binding_role_refs": [
+                    item.to_dict() for item in self.judgment_binding_role_refs
+                ],
+            }
+        )
+        if self.subject_boundary is not None:
+            result["subject_boundary"] = self.subject_boundary.to_dict()
+        return result
+
+    @property
+    def payload_schema_version(self) -> str:
+        return self.schema_version
+
+    def binding_role_refs(self) -> tuple[EvidenceBindingRef, ...]:
+        policy_refs = (
+            self.policy_transfer.binding_role_refs
+            if type(self.policy_transfer) is PolicyTransferSemantics
+            else ()
+        )
+        return self.judgment_binding_role_refs + policy_refs
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +317,14 @@ class ProjectCommitmentExperienceContent:
     commitment: str
     transfer_semantics: CommitmentTransferSemantics
     occurred_at: str
+    schema_version: str = "v1"
+    trigger_event: str = ""
+    interpretation: str = ""
+    significance: str = ""
+    commitment_stage: CommitmentStage | None = None
+    revision: CommitmentRevision | None = None
+    binding_role_refs: tuple[EvidenceBindingRef, ...] = ()
+    applicability: CommitmentApplicability | None = None
 
     def __post_init__(self) -> None:
         _require_id(self.subject, "subject")
@@ -128,11 +336,71 @@ class ProjectCommitmentExperienceContent:
                 "transfer_semantics must be an explicit commitment transfer enum"
             )
         _require_text(self.occurred_at, "occurred_at", max_length=128)
+        _require_schema_version(self.schema_version)
+        if self.schema_version == "v1":
+            if any(
+                (
+                    self.trigger_event,
+                    self.interpretation,
+                    self.significance,
+                    self.commitment_stage,
+                    self.revision,
+                    self.binding_role_refs,
+                    self.applicability,
+                )
+            ):
+                raise ValueError(
+                    "ProjectCommitmentExperience v1 cannot carry v2 stage fields"
+                )
+            return
+
+        _require_text(self.trigger_event, "trigger_event")
+        _require_text(self.interpretation, "interpretation")
+        _require_text(self.significance, "significance")
+        _require_enum(
+            self.commitment_stage, CommitmentStage, "commitment_stage"
+        )
+        _require_binding_refs(self.binding_role_refs)
+        if type(self.applicability) is not CommitmentApplicability:
+            raise ValueError("applicability must be an exact CommitmentApplicability")
+        if self.commitment_stage is CommitmentStage.FORMATION_DRAFT:
+            if self.revision is not None:
+                raise ValueError("FORMATION_DRAFT cannot carry a revision")
+        elif type(self.revision) is not CommitmentRevision:
+            raise ValueError("FROZEN_FINAL requires an exact CommitmentRevision")
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["transfer_semantics"] = self.transfer_semantics.value
-        return data
+        v1_fields = (
+            "subject",
+            "counterparty",
+            "scope",
+            "commitment",
+            "transfer_semantics",
+            "occurred_at",
+        )
+        if self.schema_version == "v1":
+            return {field: data[field] for field in v1_fields}
+        result = {field: data[field] for field in v1_fields}
+        result.update(
+            {
+                "trigger_event": self.trigger_event,
+                "interpretation": self.interpretation,
+                "significance": self.significance,
+                "commitment_stage": self.commitment_stage.value,
+                "revision": self.revision.to_dict() if self.revision else None,
+                "binding_role_refs": [
+                    item.to_dict() for item in self.binding_role_refs
+                ],
+                "applicability": self.applicability.to_dict(),
+            }
+        )
+        return result
+
+    @property
+    def payload_schema_version(self) -> str:
+        return self.schema_version
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,6 +427,65 @@ MemoryExperienceContent = (
     | ProjectCommitmentExperienceContent
     | EpisodicExperienceContent
 )
+
+
+@dataclass(frozen=True, slots=True)
+class CommitmentRevision:
+    predecessor_ref: MemoryExperienceRef
+    supersession_scope: str
+    supersession_reason: str
+    rewrite_history: bool = False
+
+    def __post_init__(self) -> None:
+        if type(self.predecessor_ref) is not MemoryExperienceRef:
+            raise ValueError("predecessor_ref must be an exact MemoryExperienceRef")
+        _require_text(self.supersession_scope, "supersession_scope", max_length=2_048)
+        _require_text(
+            self.supersession_reason, "supersession_reason", max_length=2_048
+        )
+        if self.rewrite_history is not False:
+            raise ValueError("rewrite_history must remain false")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "predecessor_ref": self.predecessor_ref.to_dict(),
+            "supersession_scope": self.supersession_scope,
+            "supersession_reason": self.supersession_reason,
+            "rewrite_history": False,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class CommitmentApplicability:
+    scope: str
+    inheritance: CommitmentTransferSemantics
+    current_authorization: bool = False
+    standing_consent: bool = False
+    runtime_authority: bool = False
+
+    def __post_init__(self) -> None:
+        _require_id(self.scope, "applicability scope")
+        if self.inheritance is not CommitmentTransferSemantics.EXPLICIT_REAUTHORIZATION_REQUIRED:
+            raise ValueError(
+                "commitment applicability requires explicit reauthorization"
+            )
+        if any(
+            (
+                self.current_authorization,
+                self.standing_consent,
+                self.runtime_authority,
+            )
+        ):
+            raise ValueError("commitment history cannot encode current authority")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "scope": self.scope,
+            "inheritance": self.inheritance.value,
+            "current_authorization": False,
+            "standing_consent": False,
+            "runtime_authority": False,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,14 +582,22 @@ class MemoryExperienceRecord:
         _require_text(self.created_at, "created_at", max_length=128)
         if self.predecessor_version_id is not None:
             _require_id(self.predecessor_version_id, "predecessor_version_id")
+        payload_schema_version = getattr(
+            self.content, "payload_schema_version", "v1"
+        )
+        if payload_schema_version not in {"v1", "v2"}:
+            raise ValueError("MemoryExperience payload schema must be v1 or v2")
+        if payload_schema_version == "v2":
+            _validate_binding_role_refs(self)
 
     @property
     def ref(self) -> MemoryExperienceRef:
         return MemoryExperienceRef(self.experience_id, self.version_id)
 
     def canonical_payload(self) -> dict[str, Any]:
+        schema_version = getattr(self.content, "payload_schema_version", "v1")
         return {
-            "schema": "julia_core.memory_experience.record.v1",
+            "schema": f"julia_core.memory_experience.record.{schema_version}",
             "experience_id": self.experience_id,
             "version_id": self.version_id,
             "experience_type": self.experience_type.value,
@@ -378,6 +713,52 @@ def _require_text(
         )
 
 
+def _require_enum(value: Any, enum_type: type[Enum], field_name: str) -> None:
+    if type(value) is not enum_type:
+        raise ValueError(f"{field_name} must be an explicit {enum_type.__name__}")
+
+
+def _require_schema_version(value: str) -> None:
+    if type(value) is not str or value not in {"v1", "v2"}:
+        raise ValueError("schema_version must be exactly v1 or v2")
+
+
+def _require_binding_refs(value: tuple[EvidenceBindingRef, ...]) -> None:
+    if type(value) is not tuple:
+        raise ValueError("binding role references must be an exact tuple")
+    if not value:
+        raise ValueError("binding role references are required")
+    if any(type(item) is not EvidenceBindingRef for item in value):
+        raise ValueError("binding role references must be EvidenceBindingRef objects")
+
+
+def _semantic_binding_refs(content: Any) -> tuple[EvidenceBindingRef, ...]:
+    if type(content) is RelationshipExperienceContent:
+        return content.binding_role_refs()
+    if type(content) is ProjectCommitmentExperienceContent:
+        return content.binding_role_refs
+    return ()
+
+
+def _validate_binding_role_refs(record: MemoryExperienceRecord) -> None:
+    semantic_refs = _semantic_binding_refs(record.content)
+    if not semantic_refs:
+        return
+    available_bindings: set[tuple[str, str]] = set()
+    for provenance in record.provenance_refs:
+        metadata = dict(provenance.admission_metadata)
+        binding_id = metadata.get("binding_id")
+        evidence_role = metadata.get("causal_role")
+        if type(binding_id) is str and type(evidence_role) is str:
+            available_bindings.add((binding_id, evidence_role))
+    for semantic_ref in semantic_refs:
+        pair = (semantic_ref.binding_id, semantic_ref.evidence_role)
+        if pair not in available_bindings:
+            raise ValueError(
+                "semantic binding role references must resolve in the same record provenance"
+            )
+
+
 def _require_ref(value: str) -> None:
     if type(value) is not str:
         raise ValueError("experience source references must be exact built-in strings")
@@ -393,7 +774,13 @@ def _require_ref(value: str) -> None:
 
 
 __all__ = [
+    "AutobiographicalOwner",
+    "CausalStatus",
+    "CommitmentApplicability",
+    "CommitmentRevision",
+    "CommitmentStage",
     "CommitmentTransferSemantics",
+    "EvidenceBindingRef",
     "EpisodicExperienceContent",
     "GovernedMemoryExperience",
     "MemoryExperienceAdmission",
@@ -405,7 +792,12 @@ __all__ = [
     "MemoryExperienceStatus",
     "MemoryExperienceType",
     "NarrativeExperienceContent",
+    "PolicyTransferApplicability",
+    "PolicyTransferNotApplicable",
+    "PolicyTransferSemantics",
     "PreferenceExperienceContent",
     "ProjectCommitmentExperienceContent",
     "RelationshipExperienceContent",
+    "SubjectBoundary",
+    "SubjectIdentity",
 ]

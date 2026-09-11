@@ -5,6 +5,7 @@ import threading
 from collections import defaultdict
 
 from .contracts import (
+    CommitmentStage,
     GovernedMemoryExperience,
     MemoryExperienceAdmission,
     MemoryExperienceCandidate,
@@ -14,6 +15,7 @@ from .contracts import (
     MemoryExperienceRefNotFoundError,
     MemoryExperienceRef,
     MemoryExperienceStatus,
+    MemoryExperienceType,
 )
 
 
@@ -139,12 +141,57 @@ class MemoryExperienceRepository:
             raise MemoryExperienceConflictError(
                 f"experience {record.experience_id} cannot change canonical type across versions"
             )
+        self._validate_project_commitment_stage(record, lineage)
         if record.predecessor_version_id is None:
             return
         predecessor = MemoryExperienceRef(record.experience_id, record.predecessor_version_id)
         if predecessor not in self._records:
             raise MemoryExperienceRefNotFoundError(
                 f"unknown predecessor MemoryExperience ref: {predecessor.uri}"
+            )
+
+    def _validate_project_commitment_stage(
+        self,
+        record: MemoryExperienceRecord,
+        lineage: tuple[MemoryExperienceRecord, ...],
+    ) -> None:
+        content = record.content
+        if (
+            record.experience_type is not MemoryExperienceType.PROJECT_COMMITMENT
+            or getattr(content, "payload_schema_version", "v1") != "v2"
+        ):
+            return
+        if content.commitment_stage is CommitmentStage.FORMATION_DRAFT:
+            if record.predecessor_version_id is not None:
+                raise MemoryExperienceLifecycleError(
+                    "FORMATION_DRAFT must be the exact initial commitment stage"
+                )
+            return
+        if record.predecessor_version_id is None or content.revision is None:
+            raise MemoryExperienceLifecycleError(
+                "FROZEN_FINAL requires an exact predecessor revision"
+            )
+        expected_predecessor = MemoryExperienceRef(
+            record.experience_id, record.predecessor_version_id
+        )
+        if content.revision.predecessor_ref != expected_predecessor:
+            raise MemoryExperienceLifecycleError(
+                "commitment revision predecessor must match the record predecessor"
+            )
+        predecessor = next(
+            (
+                item
+                for item in lineage
+                if item.ref == expected_predecessor
+            ),
+            None,
+        )
+        if (
+            predecessor is None
+            or predecessor.content.commitment_stage is not CommitmentStage.FORMATION_DRAFT
+        ):
+            raise MemoryExperienceRefNotFoundError(
+                f"unknown FORMATION_DRAFT predecessor: {expected_predecessor.uri}"
             )
 
     def _transition(

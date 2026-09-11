@@ -1,0 +1,43 @@
+{
+  "task_id": "MIG-SCHEMA-IMPL-V0.1",
+  "agent_id": "agent-b",
+  "status": "COMPLETE_NO_ADMISSION",
+  "reference_canonical_sha": "5ae1f92b0f15220e534fa8e177c91b732f458390",
+  "frozen_contract_issue": 40,
+  "frozen_owner_comment": 5633138500,
+  "branch": "mira/mig-schema-v0.1-agent-b",
+  "changed_files": [
+    "julia_core/memory_experience/__init__.py",
+    "julia_core/memory_experience/contracts.py",
+    "julia_core/memory_experience/repository.py",
+    "tests/memory_experience/test_mira_migration_schema_v0_1.py"
+  ],
+  "schema_result": {
+    "memory_experience_type_count": 5,
+    "legacy_v1_compatibility": "PASS",
+    "relationship_v2": "PASS",
+    "project_commitment_v2": "PASS",
+    "active_memory_candidate_count": 7,
+    "active_memory_record_preview_count": 8,
+    "active_7_lossless_fixtures": "PASS"
+  },
+  "validation": {
+    "targeted_schema_fixture_tests": "8 passed",
+    "memory_projection_targeted": "148 passed",
+    "canonical_rail": "212 passed",
+    "full_regression": "48 failed, 1395 passed, 6 skipped, 26 xfailed, 3 errors",
+    "parent_full_regression": "48 failed, 1387 passed, 6 skipped, 26 xfailed, 3 errors",
+    "full_regression_equivalence": "PASS: failure/error set unchanged; +8 passed from new tests",
+    "git_diff_check": "PASS"
+  },
+  "authority": {
+    "canonical_admission_writes": 0,
+    "runtime_writes": 0,
+    "c03_writes": 0,
+    "c06_writes": 0,
+    "identity_semantic_changes": 0,
+    "merge_authority": "NONE",
+    "golden_mira_store_population": 0,
+    "golden_mira_admission": 0
+  }
+}
