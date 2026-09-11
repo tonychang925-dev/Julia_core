@@ -306,6 +306,8 @@ class GovernedIdentity:
 
 
 def _require_id(value: str, field_name: str) -> None:
+    if type(value) is not str:
+        raise ValueError(f"{field_name} must be an exact built-in string")
     if not value or not value.strip() or len(value) > 256:
         raise ValueError(f"{field_name} is required and must be at most 256 characters")
 

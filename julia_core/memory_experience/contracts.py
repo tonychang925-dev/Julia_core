@@ -121,7 +121,7 @@ class ProjectCommitmentExperienceContent:
         _require_id(self.counterparty, "counterparty")
         _require_text(self.scope, "scope")
         _require_text(self.commitment, "commitment")
-        if not isinstance(self.transfer_semantics, CommitmentTransferSemantics):
+        if type(self.transfer_semantics) is not CommitmentTransferSemantics:
             raise ValueError(
                 "transfer_semantics must be an explicit commitment transfer enum"
             )
@@ -188,7 +188,11 @@ class MemoryExperienceProvenance:
         metadata_keys = [key for key, _ in self.admission_metadata]
         if len(metadata_keys) != len(set(metadata_keys)):
             raise ValueError("admission_metadata keys must be unique")
-        object.__setattr__(self, "admission_metadata", self.admission_metadata)
+        object.__setattr__(
+            self,
+            "admission_metadata",
+            tuple((key, value) for key, value in self.admission_metadata),
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -353,6 +357,8 @@ _CONTENT_TYPE_BY_EXPERIENCE_TYPE = {
 
 
 def _require_id(value: str, field_name: str) -> None:
+    if type(value) is not str:
+        raise ValueError(f"{field_name} must be an exact built-in string")
     if not value or not value.strip() or len(value) > MAX_ID_LENGTH:
         raise ValueError(
             f"{field_name} is required and must be at most {MAX_ID_LENGTH} characters"
