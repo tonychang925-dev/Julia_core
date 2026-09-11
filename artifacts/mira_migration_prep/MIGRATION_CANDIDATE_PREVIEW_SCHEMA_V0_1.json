@@ -1,0 +1,434 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tonychang925.dev/schemas/julia-core/mira-migration/candidate-preview-v0.1.json",
+  "title": "Golden Mira Migration Candidate Preview v0.1",
+  "description": "Deterministic, no-write construction-plan preview. This is not a canonical candidate, repository request, admission request, prompt, or persona projection.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "artifact_id",
+    "task_id",
+    "agent_id",
+    "status",
+    "deterministic",
+    "input_contract",
+    "compilation_phases",
+    "summary",
+    "candidate_previews",
+    "deferred_record_previews",
+    "preview_digest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "julia_core.mira_migration.candidate_preview.v0.1"
+    },
+    "artifact_id": {
+      "const": "MIGRATION_CANDIDATE_PREVIEW_V0_1"
+    },
+    "task_id": {
+      "const": "MIG-COMPILER-PREP-01"
+    },
+    "agent_id": {
+      "const": "agent-c"
+    },
+    "status": {
+      "enum": [
+        "PREVIEW_READY",
+        "WAITING_ON_MIG_CONTRACT",
+        "FAIL_CLOSED_INVALID_INPUT"
+      ]
+    },
+    "deterministic": {
+      "const": true
+    },
+    "input_contract": {
+      "$ref": "#/$defs/InputContract"
+    },
+    "compilation_phases": {
+      "$ref": "#/$defs/CompilationPhases"
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity_preview_count",
+        "memory_preview_count",
+        "deferred_count",
+        "preview_ready_count",
+        "partial_waiting_count",
+        "blocked_waiting_count",
+        "repository_calls",
+        "admission_calls",
+        "runtime_calls"
+      ],
+      "properties": {
+        "identity_preview_count": {
+          "const": 3
+        },
+        "memory_preview_count": {
+          "const": 7
+        },
+        "deferred_count": {
+          "const": 6
+        },
+        "preview_ready_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "partial_waiting_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7
+        },
+        "blocked_waiting_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7
+        },
+        "repository_calls": {
+          "const": 0
+        },
+        "admission_calls": {
+          "const": 0
+        },
+        "runtime_calls": {
+          "const": 0
+        }
+      }
+    },
+    "candidate_previews": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "items": {
+        "$ref": "#/$defs/CandidatePreview"
+      }
+    },
+    "deferred_record_previews": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "$ref": "#/$defs/DeferredRecordPreview"
+      }
+    },
+    "preview_digest": {
+      "$ref": "#/$defs/Sha256"
+    }
+  },
+  "$defs": {
+    "Sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "GitSha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "NonemptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "InputContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "migration_prep_commit",
+        "migration_dry_run_commit",
+        "reference_canonical_commit",
+        "migration_package",
+        "dry_run_result",
+        "evidence_ledger",
+        "exact_raw_export",
+        "causal_goldset",
+        "minimal_migration_contract",
+        "preview_schema"
+      ],
+      "properties": {
+        "repository": {
+          "const": "tonychang925-dev/Julia_core"
+        },
+        "migration_prep_commit": {
+          "$ref": "#/$defs/GitSha"
+        },
+        "migration_dry_run_commit": {
+          "$ref": "#/$defs/GitSha"
+        },
+        "reference_canonical_commit": {
+          "$ref": "#/$defs/GitSha"
+        },
+        "migration_package": {
+          "$ref": "#/$defs/ArtifactBinding"
+        },
+        "dry_run_result": {
+          "$ref": "#/$defs/ArtifactBinding"
+        },
+        "evidence_ledger": {
+          "$ref": "#/$defs/ArtifactBinding"
+        },
+        "exact_raw_export": {
+          "$ref": "#/$defs/ArtifactBinding"
+        },
+        "causal_goldset": {
+          "$ref": "#/$defs/ArtifactBinding"
+        },
+        "minimal_migration_contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "issue",
+            "version",
+            "state",
+            "field_contract_digest"
+          ],
+          "properties": {
+            "issue": {
+              "const": 40
+            },
+            "version": {
+              "enum": [
+                "v0.1"
+              ]
+            },
+            "state": {
+              "enum": [
+                "OPEN_WAITING_FOR_PROPOSAL",
+                "PROPOSED_NOT_REVIEWED",
+                "REVIEWED_NOT_AUTHORIZED",
+                "AUTHORIZED"
+              ]
+            },
+            "field_contract_digest": {
+              "anyOf": [
+                {
+                  "const": "WAITING_ON_CONTRACT"
+                },
+                {
+                  "$ref": "#/$defs/Sha256"
+                }
+              ]
+            }
+          }
+        },
+        "preview_schema": {
+          "$ref": "#/$defs/ArtifactBinding"
+        }
+      }
+    },
+    "ArtifactBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "sha256"
+      ],
+      "properties": {
+        "artifact_id": {
+          "$ref": "#/$defs/NonemptyString"
+        },
+        "sha256": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    },
+    "CompilationPhases": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": {
+        "type": "string",
+        "enum": [
+          "VALIDATE_INPUTS",
+          "CLASSIFY_CANDIDATE",
+          "MAP_SEMANTIC_FIELDS",
+          "BIND_PROVENANCE",
+          "ENFORCE_SUBJECT_BOUNDARY",
+          "ENFORCE_NO_AUTHORITY_UPGRADE",
+          "VALIDATE_CAUSAL_FIDELITY",
+          "EMIT_CANDIDATE_PREVIEW"
+        ]
+      }
+    },
+    "CandidateClass": {
+      "enum": [
+        "IdentityBoundary",
+        "IdentityValue",
+        "NarrativeExperience",
+        "RelationshipExperience",
+        "PreferenceExperience",
+        "ProjectCommitmentExperience",
+        "EpisodicExperience"
+      ]
+    },
+    "CandidatePreview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "chain_id",
+        "candidate_class",
+        "construction_state",
+        "payload_preview",
+        "provenance",
+        "contract_dependencies",
+        "blockers",
+        "repository_calls",
+        "admission_calls",
+        "runtime_authority",
+        "admission_readiness"
+      ],
+      "properties": {
+        "candidate_id": {
+          "$ref": "#/$defs/NonemptyString"
+        },
+        "chain_id": {
+          "$ref": "#/$defs/NonemptyString"
+        },
+        "candidate_class": {
+          "$ref": "#/$defs/CandidateClass"
+        },
+        "construction_state": {
+          "enum": [
+            "PREVIEW_READY_PENDING_CONTENT_REVIEW",
+            "PREVIEW_PARTIAL_WAITING_ON_CONTRACT",
+            "BLOCKED_WAITING_ON_CONTRACT",
+            "REJECTED_FAIL_CLOSED"
+          ]
+        },
+        "payload_preview": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": [
+              "string",
+              "boolean"
+            ]
+          }
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "contract_dependencies": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "MIG-CONTRACT-V0.1",
+              "MIRA-DEFER-007",
+              "MIRA-DEFER-008",
+              "CANONICAL_RAIL_CLEAN_GATE"
+            ]
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/NonemptyString"
+          }
+        },
+        "repository_calls": {
+          "const": 0
+        },
+        "admission_calls": {
+          "const": 0
+        },
+        "runtime_authority": {
+          "const": false
+        },
+        "admission_readiness": {
+          "enum": [
+            "NOT_READY",
+            "INVALID"
+          ]
+        }
+      }
+    },
+    "DeferredRecordPreview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_id",
+        "construction_state",
+        "source_ref",
+        "source_digest",
+        "blockers",
+        "repository_calls",
+        "admission_calls"
+      ],
+      "properties": {
+        "record_id": {
+          "$ref": "#/$defs/NonemptyString"
+        },
+        "construction_state": {
+          "const": "DEFER_UNBOUND"
+        },
+        "source_ref": {
+          "$ref": "#/$defs/NonemptyString"
+        },
+        "source_digest": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "blockers": {
+          "const": [
+            "EXACT_RAW_BINDING_MISSING",
+            "QUARANTINED_FROM_ADMISSION_READY_SET"
+          ]
+        },
+        "repository_calls": {
+          "const": 0
+        },
+        "admission_calls": {
+          "const": 0
+        }
+      }
+    },
+    "Provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_chain",
+        "raw_binding_ids",
+        "source_refs",
+        "exact_binding_coverage",
+        "package_sha256",
+        "dry_run_digest"
+      ],
+      "properties": {
+        "source_chain": {
+          "$ref": "#/$defs/NonemptyString"
+        },
+        "raw_binding_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/NonemptyString"
+          }
+        },
+        "source_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/NonemptyString"
+          }
+        },
+        "exact_binding_coverage": {
+          "type": "string",
+          "pattern": "^(PASS|FAIL): [0-9]+/[0-9]+ assertions; [0-9]+/[0-9]+ unique bindings$"
+        },
+        "package_sha256": {
+          "$ref": "#/$defs/Sha256"
+        },
+        "dry_run_digest": {
+          "$ref": "#/$defs/Sha256"
+        }
+      }
+    }
+  }
+}
