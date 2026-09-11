@@ -1,0 +1,107 @@
+{
+  "task_id": "MIG-CONTENT-DELTA-REVIEW-V0.1",
+  "agent_id": "agent-b",
+  "status": "DELTA_CONTENT_REVIEW_COMPLETE_NO_IMPLEMENTATION",
+  "base_content_review_issue": 46,
+  "rework_issue": 47,
+  "rework_head_sha": "4514eb1e52aa8bc3f2ebac20dba3d000ddb83e14",
+  "rework_preview_digest": "ca9ae995fef04577fa9600875ffa163d2ca0dde74c18e19f4ad592e2ecf6f4c0",
+  "rework_artifact_sha256": "3a041d616e36bf3322c1be10473f46fee8db8ada134361c0fd2f08f541d124c9",
+  "reviewed_schema_sha": "1a630c2ac8809c5b064991dfcd87bebcd07d58ac",
+  "r1": {
+    "candidate_id": "MIRA-MEM-CAND-001",
+    "chain_id": "GM-CMIR-001",
+    "disposition": "PASS_DELTA",
+    "subject_boundary": {
+      "semantic_subject": "MIRA",
+      "observed_subject": "TONY",
+      "autobiographical_owner": "TONY"
+    },
+    "normalized_unchanged_except_subject_boundary": true,
+    "provenance_unchanged": true,
+    "coverage": "7 assertions / 7 unique bindings",
+    "record_digest": "4e29eb74de7f29bbf8d69485a7c18b5dceb06486d7e1d986d668a30c85fb7228"
+  },
+  "r2": {
+    "candidate_id": "MIRA-MEM-CAND-002",
+    "chain_id": "GM-CMIR-002",
+    "disposition": "PASS_DELTA",
+    "policy_transfer": "NOT_APPLICABLE",
+    "later_reinterpretation_retained": true,
+    "future_policy_upgrade": false,
+    "future_behavior_proof": false,
+    "normalized_unchanged_except_policy_transfer": true,
+    "provenance_unchanged": true,
+    "coverage": "9 assertions / 7 unique bindings",
+    "record_digest": "e4374452173b144ce48dbefa5299f1ac3dc15cec3615b8e7d528176293536f93"
+  },
+  "r3": {
+    "candidate_id": "MIRA-MEM-CAND-006",
+    "chain_id": "GM-CMIR-011",
+    "disposition": "PASS_DELTA",
+    "logical_candidate_count": 1,
+    "record_count": 2,
+    "formation": {
+      "version_id": "formation-draft-preview",
+      "commitment_stage": "FORMATION_DRAFT",
+      "predecessor": null,
+      "revision": null,
+      "binding": "GM-CMIR-011.EB-004",
+      "raw_time": 1786851334.945,
+      "record_digest": "3107a3ab38d0fc0d2446752f48bedebf2ee336e3cb8b22811bf3c156247a4ae9"
+    },
+    "frozen_final": {
+      "version_id": "frozen-final-preview",
+      "commitment_stage": "FROZEN_FINAL",
+      "exact_predecessor": "formation-draft-preview",
+      "bindings": [
+        "GM-CMIR-011.EB-001",
+        "GM-CMIR-011.EB-002",
+        "GM-CMIR-011.EB-003"
+      ],
+      "record_time": 1787118449.26614,
+      "record_time_at_or_after_consumed_evidence": true,
+      "record_digest": "3c31de4d62ecfd5d7857a5a4df85725affa0862d0055b5527d7d80f27fcc8ad8"
+    },
+    "scope": "relationship_instance",
+    "inheritance": "EXPLICIT_REAUTHORIZATION_REQUIRED",
+    "current_authorization": false,
+    "standing_consent": false,
+    "runtime_authority": false
+  },
+  "stability": {
+    "identity_pass": "3/3",
+    "memory_pass": "7/7",
+    "unchanged_identity_candidates": [
+      "MIRA-ID-CAND-001",
+      "MIRA-ID-CAND-002",
+      "MIRA-ID-CAND-003"
+    ],
+    "unchanged_memory_candidates": [
+      "MIRA-MEM-CAND-003",
+      "MIRA-MEM-CAND-004",
+      "MIRA-MEM-CAND-005",
+      "MIRA-MEM-CAND-007"
+    ],
+    "raw_assertions": "42/42",
+    "unique_binding_ids": "40/40",
+    "unbound_quarantine": "PASS",
+    "quarantined_records": [
+      "GM-CMIR-003",
+      "GM-CMIR-005",
+      "GM-CMIR-007",
+      "GM-CMIR-009",
+      "GM-CMIR-010",
+      "GM-CMIR-012"
+    ],
+    "canonical_schema_drift": "NONE"
+  },
+  "cross_candidate_consistency": "PASS",
+  "recommendation": "READY_FOR_ADMISSION_SIMULATION",
+  "authority": {
+    "implementation": "NONE",
+    "canonical_admission": "NONE",
+    "runtime": "NONE",
+    "merge": "NONE"
+  }
+}
