@@ -1,0 +1,40 @@
+{
+  "schema": "mira.persona.architecture.eng10r8.result.v1",
+  "agent_id": "Agent A",
+  "task_id": "ENG-10R8",
+  "delegation_base_sha": "0bfe89905c309cd981d4585142abb6c728718417",
+  "status": "IMPLEMENTATION_COMPLETE_WAITING_FRESH_REVIEW",
+  "merge_authority": "NONE",
+  "repairs": {
+    "R1_NO_CLOSURE_RECOVERABLE_AUTHORITY": "PASS",
+    "R2_NO_CALLER_INVOKABLE_RAW_MUTATION_BYPASS": "PASS",
+    "R3_INTROSPECTION_REPLAY_FAIL_CLOSED": "PASS",
+    "R4_NO_FALLBACK_MOCK_STUB_SHADOW_DEGRADE": "PASS",
+    "R5_MISSING_EXACT_AUTHORITY_FAIL_CLOSED": "PASS"
+  },
+  "changed_paths": [
+    "julia_core/identity/repository.py",
+    "julia_core/memory_experience/repository.py",
+    "tests/identity/test_exact_identifier_inputs.py",
+    "tests/memory_experience/test_canonical_input_exactness.py",
+    "docs/mira_persona_architecture/ENG_10R8_NO_REPLAYABLE_LIFECYCLE_AUTHORITY_V1.md",
+    "artifacts/mira_persona_architecture/ENG_10R8_RESULT_V1.json"
+  ],
+  "verification": {
+    "targeted_test_result": "97 passed",
+    "canonical_rail_test_result": "216 passed",
+    "full_regression_result": "1399 passed, 48 failed, 6 skipped, 26 xfailed, 3 errors",
+    "eng10r7_base_full_regression_result": "1399 passed, 48 failed, 6 skipped, 26 xfailed, 3 errors",
+    "failure_error_id_diff": "EMPTY / BASELINE_EQUIVALENT",
+    "no_fallback_mock_stub_shadow_degrade_gate": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "scope_controls": {
+    "c03_authority": "NONE",
+    "c06_authority": "NONE",
+    "migration_authority": "NONE",
+    "schema_expansion": false,
+    "second_authority_introduced": false,
+    "p2_backlog_modified": false
+  }
+}

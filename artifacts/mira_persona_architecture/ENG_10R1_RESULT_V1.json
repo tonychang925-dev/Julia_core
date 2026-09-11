@@ -1,0 +1,82 @@
+{
+  "task_id": "ENG-10R1",
+  "repository": "tonychang925-dev/Julia_core",
+  "branch": "mira/persona-architecture-v1",
+  "base_sha": "73b4a35863173378752b958590908d10596bc7e4",
+  "result": "PASS_PENDING_INDEPENDENT_MIRA_REVIEW",
+  "implementation_status": "branch-only canonical input exactness closure candidate",
+  "head_sha_note": "exact remote HEAD is recorded in the delivery comment because a commit artifact cannot embed its own final hash",
+  "changed_files": [
+    "julia_core/identity/contracts.py",
+    "julia_core/memory_experience/contracts.py",
+    "tests/identity/test_exact_identifier_inputs.py",
+    "tests/memory_experience/test_canonical_input_exactness.py",
+    "docs/mira_persona_architecture/ENG_10R1_CANONICAL_INPUT_EXACTNESS_CLOSURE_V1.md",
+    "artifacts/mira_persona_architecture/ENG_10R1_RESULT_V1.json"
+  ],
+  "exact_plain_string_ids": true,
+  "provenance_metadata_detached": true,
+  "exact_commitment_transfer_enum": true,
+  "eng10_projection_changed": false,
+  "tests": {
+    "eng10r1": {
+      "command": "/opt/miniconda3/bin/pytest tests/identity/test_exact_identifier_inputs.py tests/memory_experience/test_canonical_input_exactness.py -q",
+      "result": "PASS",
+      "passed": 9
+    },
+    "eng10": {
+      "command": "/opt/miniconda3/bin/pytest tests/projection/test_memory_experience_to_experience_frame.py -q",
+      "result": "PASS",
+      "passed": 20
+    },
+    "canonical_rail_combined": {
+      "command": "/opt/miniconda3/bin/pytest tests/identity tests/projection tests/memory_experience -q",
+      "result": "PASS",
+      "passed": 128
+    },
+    "full_applicable_regression": {
+      "command": "tracked tests plus both ENG-10R1 tests via pytest -q",
+      "result": "BASELINE_EQUIVALENT_NO_NEW_FAILURES",
+      "passed": 1311,
+      "failed": 48,
+      "skipped": 6,
+      "xfailed": 26,
+      "errors": 3,
+      "exact_failure_set_equivalent": true
+    },
+    "git_diff_check": "PASS"
+  },
+  "scope_audit": {
+    "authorized_paths_only": true,
+    "eng10_projection_changed": false,
+    "continuity_changed": false,
+    "context_os_changed": false,
+    "context_assembly_changed": false,
+    "runtime_changed": false,
+    "provider_changed": false,
+    "persona_changed": false,
+    "self_model_changed": false,
+    "memory_changed": false,
+    "experience_changed": false,
+    "narrative_changed": false,
+    "relationship_changed": false,
+    "alignment_changed": false,
+    "voice_changed": false,
+    "voice_os_changed": false,
+    "deploy_changed": false,
+    "main_changed": false
+  },
+  "contract_frozen": false,
+  "schema_expansion_performed": false,
+  "mira_data_migrated": false,
+  "continuity_changed": false,
+  "context_os_changed": false,
+  "runtime_changed": false,
+  "provider_changed": false,
+  "eng11_authorized": false,
+  "no_critical_fallback_review": {
+    "gate_script_available": false,
+    "manual_review_result": "APPROVE",
+    "risk": "NONE"
+  }
+}

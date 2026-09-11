@@ -1,0 +1,41 @@
+{
+  "schema": "mira.persona.architecture.eng10r2.result.v1",
+  "agent_id": "Agent A",
+  "task_id": "ENG-10R2",
+  "delegation_base_sha": "03460b191eac37c53dbbb2201beb6029e3ef288f",
+  "status": "IMPLEMENTATION_COMPLETE_WAITING_FRESH_REVIEW",
+  "merge_authority": "NONE",
+  "repairs": {
+    "R1_EXACT_IDENTITY_TEXT": "PASS",
+    "R2_EXACT_MEMORY_TEXT": "PASS",
+    "R3_EXACT_EXPERIENCE_TYPE_ENUM": "PASS"
+  },
+  "changed_paths": [
+    "julia_core/identity/contracts.py",
+    "julia_core/memory_experience/contracts.py",
+    "tests/identity/test_exact_identifier_inputs.py",
+    "tests/memory_experience/test_canonical_input_exactness.py",
+    "docs/mira_persona_architecture/ENG_10R2_CANONICAL_TYPE_EXACTNESS_CLOSURE_V1.md",
+    "artifacts/mira_persona_architecture/ENG_10R2_RESULT_V1.json"
+  ],
+  "verification": {
+    "targeted_test_result": "76 passed",
+    "canonical_rail_test_result": "195 passed",
+    "full_regression_result": "1378 passed, 48 failed, 6 skipped, 26 xfailed, 3 errors",
+    "clean_base_full_regression_result": "1311 passed, 48 failed, 6 skipped, 26 xfailed, 3 errors",
+    "failure_error_id_diff": "EMPTY / BASELINE_EQUIVALENT",
+    "git_diff_check": "PASS"
+  },
+  "scope_controls": {
+    "c03_authority": "NONE",
+    "c06_authority": "NONE",
+    "migration_authority": "NONE",
+    "schema_expansion": false,
+    "second_lineage_root_modified": false,
+    "timestamp_policy_modified": false,
+    "uri_encoding_modified": false,
+    "event_id_policy_modified": false,
+    "idempotency_modified": false,
+    "p2_backlog_modified": false
+  }
+}

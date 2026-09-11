@@ -1,0 +1,37 @@
+{
+  "schema": "mira.persona.architecture.eng10r4.result.v1",
+  "agent_id": "Agent A",
+  "task_id": "ENG-10R4",
+  "delegation_base_sha": "5ae1f92b0f15220e534fa8e177c91b732f458390",
+  "status": "IMPLEMENTATION_COMPLETE_WAITING_FRESH_REVIEW",
+  "merge_authority": "NONE",
+  "repairs": {
+    "R1_UNSHADOWABLE_REPOSITORY_DISPATCH": "PASS",
+    "R2_EXACT_IDENTITY_SOURCE_REF": "PASS"
+  },
+  "changed_paths": [
+    "julia_core/identity/resolver.py",
+    "julia_core/identity/contracts.py",
+    "julia_core/memory_experience/resolver.py",
+    "tests/identity/test_exact_identifier_inputs.py",
+    "tests/memory_experience/test_canonical_input_exactness.py",
+    "docs/mira_persona_architecture/ENG_10R4_REPOSITORY_DISPATCH_EXACTNESS_CLOSURE_V1.md",
+    "artifacts/mira_persona_architecture/ENG_10R4_RESULT_V1.json"
+  ],
+  "verification": {
+    "targeted_test_result": "92 passed",
+    "canonical_rail_test_result": "211 passed",
+    "full_regression_result": "1394 passed, 48 failed, 6 skipped, 26 xfailed, 3 errors",
+    "eng10r3_base_full_regression_result": "1387 passed, 48 failed, 6 skipped, 26 xfailed, 3 errors",
+    "failure_error_id_diff": "EMPTY / BASELINE_EQUIVALENT",
+    "git_diff_check": "PASS"
+  },
+  "scope_controls": {
+    "c03_authority": "NONE",
+    "c06_authority": "NONE",
+    "migration_authority": "NONE",
+    "schema_expansion": false,
+    "second_authority_introduced": false,
+    "p2_backlog_modified": false
+  }
+}

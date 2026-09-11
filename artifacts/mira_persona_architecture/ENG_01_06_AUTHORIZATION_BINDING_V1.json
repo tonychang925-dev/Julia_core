@@ -1,0 +1,39 @@
+{
+  "task_range": ["ENG-01", "ENG-02", "ENG-03", "ENG-04", "ENG-05", "ENG-06"],
+  "repository_full_name": "tonychang925-dev/Julia_core",
+  "working_branch": "mira/persona-architecture-v1",
+  "base_sha": "e2edba9dfff460e3769f93b58491afaf644e6da5",
+  "owner_authorization_date": "2026-09-10",
+  "authorization_scope": "convergence evidence, exact implementation inventory, contract/status binding, branch governance, retrofit conformance matrix and non-semantic scaffolding only",
+  "allowed_paths": [
+    "docs/mira_persona_architecture/**",
+    "artifacts/mira_persona_architecture/**"
+  ],
+  "forbidden_paths_this_wave": [
+    "julia_core/**",
+    "tests/**",
+    "data/**",
+    "deploy/**",
+    "main"
+  ],
+  "forbidden_behavior": [
+    "implement ENG-07 or later semantic-authority changes",
+    "mutate Julia_core main",
+    "treat C0-03..C0-08 draft contracts as frozen",
+    "create a second parallel identity/memory/context core",
+    "retire or delete legacy authority paths",
+    "perform production cutover"
+  ],
+  "contract_status_binding": {
+    "C0-03": "CONTRACT DRAFT / NOT FROZEN / NO IMPLEMENTATION AUTHORITY",
+    "C0-04": "CONTRACT DRAFT / NOT FROZEN / NO IMPLEMENTATION AUTHORITY",
+    "C0-05": "CONTRACT DRAFT / NOT FROZEN / NO IMPLEMENTATION AUTHORITY",
+    "C0-06": "CONTRACT DRAFT / NOT FROZEN / NO IMPLEMENTATION AUTHORITY",
+    "C0-07": "CONTRACT DRAFT / NOT FROZEN / NO IMPLEMENTATION AUTHORITY",
+    "C0-08": "CONTRACT DRAFT / NOT FROZEN / NO IMPLEMENTATION AUTHORITY"
+  },
+  "main_cutover_authorized": false,
+  "eng_07_authorized": false,
+  "local_only_completion_acceptable": false,
+  "remote_sha_verification_required": true
+}
