@@ -254,6 +254,23 @@ def test_identity_governance_containers_reject_direct_mutation() -> None:
     with pytest.raises(AttributeError):
         repository._events[candidate.ref].append(object())
 
+    assert not hasattr(repository, "_replace_events")
+    assert not hasattr(repository, "_replace_version")
+    with pytest.raises(AttributeError):
+        repository._replace_events(candidate.ref, object())
+    with pytest.raises(AttributeError):
+        repository._replace_version(candidate.ref, version)
+    with pytest.raises(AttributeError):
+        repository._append_event(
+            candidate.ref,
+            IdentityStatus.ADMITTED,
+            actor="synthetic-governance-test",
+            reason="Synthetic admission",
+            occurred_at="2026-09-11T00:01:00Z",
+            allowed_from={IdentityStatus.CANDIDATE},
+            event_kind="admission",
+        )
+
     assert repository.resolve(candidate.ref).to_dict() == before
     assert repository.resolve(candidate.ref).status is IdentityStatus.CANDIDATE
 

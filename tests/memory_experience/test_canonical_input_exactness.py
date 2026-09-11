@@ -587,6 +587,27 @@ def test_memory_governance_containers_reject_direct_mutation() -> None:
     with pytest.raises(AttributeError):
         repository._events[candidate.ref].append(object())
 
+    assert not hasattr(repository, "_replace_state")
+    assert not hasattr(repository, "_replace_events")
+    assert not hasattr(repository, "_replace_record")
+    with pytest.raises(AttributeError):
+        repository._replace_state(candidate.ref, MemoryExperienceStatus.RETIRED)
+    with pytest.raises(AttributeError):
+        repository._replace_events(
+            candidate.ref, (MemoryExperienceStatus.RETIRED, None)
+        )
+    with pytest.raises(AttributeError):
+        repository._replace_record(candidate.ref, candidate.record)
+    with pytest.raises(AttributeError):
+        repository._transition(
+            candidate.ref,
+            MemoryExperienceStatus.RETIRED,
+            allowed_from={MemoryExperienceStatus.CANDIDATE},
+            actor="synthetic-governance-test",
+            reason="Synthetic retirement",
+            occurred_at="2026-09-11T00:01:00Z",
+        )
+
     assert repository.resolve(candidate.ref).to_dict() == before
     assert repository.resolve(candidate.ref).status is MemoryExperienceStatus.CANDIDATE
 

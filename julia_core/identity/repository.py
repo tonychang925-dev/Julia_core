@@ -73,15 +73,15 @@ class IdentityRepository:
                 reason="Candidate stored; existence does not establish canonical authority.",
                 occurred_at=version.created_at,
             )
-            self._replace_version(version.ref, version)
-            self._replace_events(version.ref, event)
+            self.__replace_version(version.ref, version)
+            self.__replace_events(version.ref, event)
             return self.resolve(version.ref)
 
     def admit(
         self, ref: IdentityRef, *, actor: str, reason: str, occurred_at: str
     ) -> GovernedIdentity:
         _require_exact_ref(ref)
-        return self._append_event(
+        return self.__append_event(
             ref,
             IdentityStatus.ADMITTED,
             actor=actor,
@@ -95,7 +95,7 @@ class IdentityRepository:
         self, ref: IdentityRef, *, actor: str, reason: str, occurred_at: str
     ) -> GovernedIdentity:
         _require_exact_ref(ref)
-        return self._append_event(
+        return self.__append_event(
             ref,
             IdentityStatus.SUPERSEDED,
             actor=actor,
@@ -109,7 +109,7 @@ class IdentityRepository:
         self, ref: IdentityRef, *, actor: str, reason: str, occurred_at: str
     ) -> GovernedIdentity:
         _require_exact_ref(ref)
-        return self._append_event(
+        return self.__append_event(
             ref,
             IdentityStatus.RETIRED,
             actor=actor,
@@ -165,7 +165,7 @@ class IdentityRepository:
                 f"unknown predecessor identity ref: {predecessor_ref.uri}"
             )
 
-    def _append_event(
+    def __append_event(
         self,
         ref: IdentityRef,
         status: IdentityStatus,
@@ -191,15 +191,17 @@ class IdentityRepository:
                 reason=reason,
                 occurred_at=occurred_at,
             )
-            self._replace_events(ref, event)
+            self.__replace_events(ref, event)
             return self.resolve(ref)
 
-    def _replace_events(self, ref: IdentityRef, event: IdentityGovernanceEvent) -> None:
+    def __replace_events(
+        self, ref: IdentityRef, event: IdentityGovernanceEvent
+    ) -> None:
         events = dict(self._events)
         events[ref] = (*events.get(ref, ()), event)
         object.__setattr__(self, "_events", MappingProxyType(events))
 
-    def _replace_version(self, ref: IdentityRef, version: IdentityVersion) -> None:
+    def __replace_version(self, ref: IdentityRef, version: IdentityVersion) -> None:
         versions = dict(self._versions)
         versions[ref] = version
         object.__setattr__(self, "_versions", MappingProxyType(versions))

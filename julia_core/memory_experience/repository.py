@@ -57,9 +57,9 @@ class MemoryExperienceRepository:
                 return self.resolve(record.ref)
 
             self._validate_lineage(record)
-            self._replace_record(record.ref, record)
-            self._replace_state(record.ref, MemoryExperienceStatus.CANDIDATE)
-            self._replace_events(record.ref, (MemoryExperienceStatus.CANDIDATE, None))
+            self.__replace_record(record.ref, record)
+            self.__replace_state(record.ref, MemoryExperienceStatus.CANDIDATE)
+            self.__replace_events(record.ref, (MemoryExperienceStatus.CANDIDATE, None))
             return self.resolve(record.ref)
 
     def admit(
@@ -84,8 +84,8 @@ class MemoryExperienceRepository:
                 reason=reason,
                 occurred_at=occurred_at,
             )
-            self._replace_state(ref, MemoryExperienceStatus.ADMITTED)
-            self._replace_events(ref, (MemoryExperienceStatus.ADMITTED, admission))
+            self.__replace_state(ref, MemoryExperienceStatus.ADMITTED)
+            self.__replace_events(ref, (MemoryExperienceStatus.ADMITTED, admission))
             return self.resolve(ref)
 
     def supersede(
@@ -97,7 +97,7 @@ class MemoryExperienceRepository:
         occurred_at: str,
     ) -> GovernedMemoryExperience:
         _require_exact_ref(ref)
-        return self._transition(
+        return self.__transition(
             ref,
             MemoryExperienceStatus.SUPERSEDED,
             allowed_from={
@@ -118,7 +118,7 @@ class MemoryExperienceRepository:
         occurred_at: str,
     ) -> GovernedMemoryExperience:
         _require_exact_ref(ref)
-        return self._transition(
+        return self.__transition(
             ref,
             MemoryExperienceStatus.RETIRED,
             allowed_from={
@@ -170,7 +170,7 @@ class MemoryExperienceRepository:
                 f"unknown predecessor MemoryExperience ref: {predecessor.uri}"
             )
 
-    def _transition(
+    def __transition(
         self,
         ref: MemoryExperienceRef,
         status: MemoryExperienceStatus,
@@ -194,25 +194,25 @@ class MemoryExperienceRepository:
                 reason=reason,
                 occurred_at=occurred_at,
             )
-            self._replace_state(ref, status)
-            self._replace_events(ref, (status, admission))
+            self.__replace_state(ref, status)
+            self.__replace_events(ref, (status, admission))
             return self.resolve(ref)
 
-    def _replace_state(
+    def __replace_state(
         self, ref: MemoryExperienceRef, status: MemoryExperienceStatus
     ) -> None:
         states = dict(self._states)
         states[ref] = status
         object.__setattr__(self, "_states", MappingProxyType(states))
 
-    def _replace_record(
+    def __replace_record(
         self, ref: MemoryExperienceRef, record: MemoryExperienceRecord
     ) -> None:
         records = dict(self._records)
         records[ref] = record
         object.__setattr__(self, "_records", MappingProxyType(records))
 
-    def _replace_events(
+    def __replace_events(
         self,
         ref: MemoryExperienceRef,
         event: tuple[MemoryExperienceStatus, MemoryExperienceAdmission | None],
