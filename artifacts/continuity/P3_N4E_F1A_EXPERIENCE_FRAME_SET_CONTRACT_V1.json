@@ -1,0 +1,184 @@
+{
+  "task_id": "P3-N4E-F1A-EXPERIENCE-FRAME-SET-CONTRACT",
+  "base_sha": "5b5155ac507ea036f05e36836f97bce8bf0e4093",
+  "candidate_sha": "101927f86a1f0c9a5be68dfbcd215d819d2c0a91",
+  "contract": {
+    "symbol": "ExperienceFrameSet",
+    "path": "julia_core/projection/contracts.py",
+    "shape": {
+      "schema_version": "str",
+      "frames": "tuple[ExperienceFrame, ...]"
+    },
+    "authority": "Immutable non-authoritative ordered carrier only"
+  },
+  "schema": {
+    "version": "1.0.0",
+    "identity": "julia_core.projection.experience_frame_set.v1",
+    "stored_digest_field": false
+  },
+  "invariants": {
+    "frames_type_is_exact_tuple": true,
+    "cardinality": "1..N",
+    "every_frame_type_is_exact": true,
+    "experience_frame_subclass_rejected": true,
+    "frame_order_preserved": true,
+    "duplicate_source_ref_rejected": true,
+    "immutable": true,
+    "mutation_api": false,
+    "selection_api": false,
+    "semantic_aggregation_api": false,
+    "synthetic_frame_or_ref_api": false,
+    "singular_compatibility_path": false
+  },
+  "serialization": {
+    "shape": {
+      "schema": "julia_core.projection.experience_frame_set.v1",
+      "schema_version": "1.0.0",
+      "frames": "ordered list of ExperienceFrame.to_dict() values"
+    },
+    "ensure_ascii_false": true,
+    "sort_keys_true": true,
+    "separators": [
+      ",",
+      ":"
+    ],
+    "frame_array_sorted": false,
+    "deterministic": true
+  },
+  "digest": {
+    "algorithm": "SHA-256",
+    "input": "ExperienceFrameSet.canonical_serialization().encode('utf-8')",
+    "stored": false,
+    "order_sensitive": true,
+    "content_sensitive": true,
+    "independent_semantic_hash": false
+  },
+  "order_evidence": {
+    "source": "Already-projected ExperienceFrame tuple supplied by the caller",
+    "law": "Carrier frames order equals the supplied tuple order",
+    "tests": [
+      "F1A-03",
+      "F1A-08"
+    ],
+    "serialization_order_changed_when_frames_swapped": true,
+    "digest_changed_when_frames_swapped": true
+  },
+  "duplicate_evidence": {
+    "basis": "Exact ExperienceFrame.source_ref equality",
+    "behavior": "Reject the carrier",
+    "dedupe": false,
+    "collapse": false,
+    "keep_first": false,
+    "keep_last": false,
+    "merge": false,
+    "test": "F1A-16"
+  },
+  "immutability_evidence": {
+    "frozen_dataclass": true,
+    "exact_tuple_frames": true,
+    "contained_experience_frames_are_frozen": true,
+    "schema_version_assignment_rejected": true,
+    "frames_assignment_rejected": true,
+    "tests": [
+      "F1A-04",
+      "F1A-18"
+    ]
+  },
+  "positive_tests": {
+    "command": "/opt/miniconda3/bin/pytest -q tests/projection/test_experience_frame_set.py",
+    "result": "19 passed in 0.10s",
+    "matrix": [
+      "F1A-01 one exact ExperienceFrame accepted",
+      "F1A-02 two exact frames accepted",
+      "F1A-03 N frames preserve order",
+      "F1A-04 tuple retained immutably",
+      "F1A-05 exact source refs preserved",
+      "F1A-06 canonical serialization deterministic",
+      "F1A-07 same carrier gives same digest",
+      "F1A-08 order change changes digest",
+      "F1A-09 frame content change changes digest",
+      "F1A-10 one-frame carrier uses the same contract as N-frame carrier"
+    ]
+  },
+  "negative_tests": {
+    "matrix": [
+      "F1A-11 empty tuple rejected",
+      "F1A-12 list rejected",
+      "F1A-13 None rejected",
+      "F1A-14 raw dict frame rejected",
+      "F1A-15 subclassed ExperienceFrame rejected",
+      "F1A-16 duplicate source_ref rejected",
+      "F1A-17 wrong schema_version rejected",
+      "F1A-18 mutation rejected",
+      "F1A-19 no selection API",
+      "F1A-20 no semantic aggregation API"
+    ]
+  },
+  "base_regression": {
+    "baseline_comparison": "BASE-EXISTING TEST SURFACE ONLY",
+    "feature_acceptance": "CANDIDATE-ONLY NEW TEST SURFACE",
+    "base_command": "/opt/miniconda3/bin/pytest -q tests/projection",
+    "base_result": "1 failed, 34 passed in 0.68s",
+    "candidate_command": "/opt/miniconda3/bin/pytest -q tests/projection",
+    "candidate_result": "1 failed, 53 passed in 0.29s",
+    "parity": "PASS: the sole base failure is unchanged and pre-existing",
+    "pre_existing_failure": "tests/projection/test_identity_only_persona_projection.py::test_changed_scope_is_limited_to_authorized_eng08_paths compares the current long history to an obsolete ENG-08 effective base and rejects later authorized continuity artifacts",
+    "candidate_delta": "19 new tests passed; no baseline test transitioned from pass to fail"
+  },
+  "static_gate": {
+    "scope": "Production diff for julia_core/projection/contracts.py and julia_core/projection/__init__.py",
+    "keywords_flagged": [
+      "sort_keys=True"
+    ],
+    "classification": "Canonical JSON object-key ordering only; it does not sort, rank, or reorder the frames list",
+    "active_multi_experience_selection_bypass": 0,
+    "result": "PASS"
+  },
+  "changed_paths": [
+    "julia_core/projection/contracts.py",
+    "julia_core/projection/__init__.py",
+    "tests/projection/test_experience_frame_set.py",
+    "artifacts/continuity/P3_N4E_F1A_EXPERIENCE_FRAME_SET_CONTRACT_V1.json"
+  ],
+  "diff_stat": {
+    "implementation_commit": "101927f86a1f0c9a5be68dfbcd215d819d2c0a91",
+    "files": 3,
+    "insertions": 250,
+    "deletions": 0
+  },
+  "authority_delta": {
+    "new_memory_experience_authority": 0,
+    "new_projection_authority": 0,
+    "new_selection_authority": 0,
+    "new_aggregation_authority": 0,
+    "new_canonical_ref_authority": 0,
+    "carrier_owns": [
+      "typed carrying",
+      "ordering integrity",
+      "carrier digest"
+    ]
+  },
+  "production_code_scope": {
+    "experience_frame_unchanged": true,
+    "experience_projection_policy_unchanged": true,
+    "exports_added": [
+      "EXPERIENCE_FRAME_SET_SCHEMA_VERSION",
+      "ExperienceFrameSet"
+    ]
+  },
+  "c03_changed": 0,
+  "binder_changed": 0,
+  "runtime_changed": 0,
+  "provider_changed": 0,
+  "production_ready": "NO",
+  "proof_start_boundary": "Exact already-projected ExperienceFrame tuple supplied",
+  "proof_end_boundary": "Exact immutable deterministic ExperienceFrameSet preserves every frame and order",
+  "unproven_dependencies": [
+    "C03 admission",
+    "sealed manifest",
+    "binder",
+    "runtime",
+    "provider encoding",
+    "production composition"
+  ]
+}
