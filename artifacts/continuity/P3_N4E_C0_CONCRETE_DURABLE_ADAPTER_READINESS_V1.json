@@ -1,0 +1,344 @@
+{
+  "task_id": "P3-N4E-C0-CONCRETE-DURABLE-ADAPTER-READINESS",
+  "lane": "A",
+  "audit_repo": "tonychang925-dev/Julia_core",
+  "audit_sha": "2c09246d9bc66848b6866321df35b0b5951f1484",
+  "accepted_dependencies": {
+    "N4E_A_contract_sha": "78f18fe0b64c5bdfa9fbd9f11a691a95aca0693e",
+    "N4E_B0": "PASS",
+    "N4E_B_owner_architecture": "PRODUCTION_RUNTIME_BINDING_PROVISIONING_ARCHITECTURE=APPROVED"
+  },
+  "audit_boundary": {
+    "production_implementation": "FORBIDDEN",
+    "production_wiring": "FORBIDDEN",
+    "production_canonical_data": "FORBIDDEN",
+    "legacy_migration": "FORBIDDEN",
+    "backend_product_policy_selection": "FORBIDDEN"
+  },
+  "N4EC0_RESULT": "READY_FOR_BOUNDED_ADAPTER_IMPLEMENTATION",
+  "audit_answers": {
+    "1_minimum_legal_concrete_adapter": "One explicitly injected, non-default local exact-blob filesystem adapter implementing only DurableAuthorityReader and DurableAuthorityWriter. It stores one canonical envelope byte sequence at one deterministic family+exact-ref address, performs exact read-back, delegates all authority validation to N4E-A, and is not mounted by startup or selected as product backend policy.",
+    "2_does_implementation_require_Owner_backend_selection": "NO for the bounded candidate adapter. The local filesystem mechanism can remain an implementation detail because it is explicitly named, injectable, non-default, has no startup binding, and does not prevent another adapter from being added. A future production mount/deployment still requires its own Owner gate.",
+    "3_can_existing_low_level_filesystem_storage_primitive_be_reused_mechanically": "YES. Python/POSIX primitives already available to the repository can be composed: os.open with O_CREAT|O_EXCL, exact writes, file fsync, atomic no-overwrite hard-link publication, directory fsync, regular-file no-symlink reads, and SHA-256 path derivation. No repository-owned generic durable helper is ready for direct reuse.",
+    "4_exact_durability_integrity_guarantees": "Write only a complete pre-validated canonical envelope byte sequence; fsync the temporary file before publication; publish with no-overwrite hard link; fsync the family directory; read exact bytes without semantic transformation; reject all missing/malformed/corrupt/nonregular/symlink/path-collision states; reject every corrupt record during reconstruction enumeration; preserve identical bytes and reject conflicting duplicates.",
+    "5_is_one_bounded_adapter_node_READY_now": "YES, subject to the exact allowed paths, inputs, failure behavior, and test surface in this artifact."
+  },
+  "candidate_infrastructure_audit": {
+    "search_patterns": [
+      "os.replace",
+      "fsync",
+      "fcntl",
+      "flock",
+      "lockf",
+      "FileLock",
+      "rename",
+      "mkdir(parents=True",
+      "write_bytes",
+      "read_bytes",
+      "sha256",
+      "checksum",
+      "atomic",
+      "append",
+      "jsonl",
+      "blob",
+      "bytes",
+      "Protocol"
+    ],
+    "classification_legend": [
+      "PURE_PRIMITIVE_REUSABLE",
+      "BOUNDED_ADAPTER_REUSABLE",
+      "SEMANTIC_STORE_NOT_REUSABLE",
+      "BACKEND_POLICY_REQUIRED",
+      "TEST_ONLY",
+      "DEAD",
+      "OTHER"
+    ],
+    "primitives": [
+      {
+        "path": "julia_core/durable_authority/adapters.py",
+        "symbol": "DurableAuthorityReader; DurableAuthorityWriter",
+        "evidence": "The exact backend-neutral ports require read_exact, list_exact_refs for restoration mechanics, and write_exact with fail-closed semantics (lines 16-33).",
+        "classification": "PURE_PRIMITIVE_REUSABLE",
+        "reuse": "Adapter implementation target; no concrete backend or selection semantics are embedded."
+      },
+      {
+        "path": "julia_core/durable_authority/contracts.py; julia_core/durable_authority/serialization.py",
+        "symbol": "DurableAuthorityEnvelope; canonical_json; digest_payload; envelope_from_dict; validate_envelope_semantics",
+        "evidence": "The envelope validates its digest (contracts.py lines 59-92), canonical JSON and payload digest are deterministic (contracts.py lines 135-167), exact fields are required by envelope_from_dict (serialization.py lines 187-219), and payload/family/ref/lifecycle consistency is validated (serialization.py lines 222-274).",
+        "classification": "PURE_PRIMITIVE_REUSABLE",
+        "reuse": "Adapter delegates all semantic validation to these accepted N4E-A functions and adds no interpretation."
+      },
+      {
+        "path": "Python standard library / POSIX interfaces available to repository code",
+        "symbol": "os.open(O_CREAT|O_EXCL); os.write; os.fsync; os.link; os.unlink; os.open(O_RDONLY|O_NOFOLLOW); os.fstat; hashlib.sha256",
+        "evidence": "Static search found no safe generic wrapper, but these low-level interfaces mechanically provide exclusive temporary creation, durable file flush, atomic no-overwrite publication by hard link, regular-file reads, and deterministic exact-ref path derivation.",
+        "classification": "PURE_PRIMITIVE_REUSABLE",
+        "reuse": "Compose inside one bounded adapter; do not expose as general storage authority."
+      },
+      {
+        "path": "julia_core/conversation_state/repository.py",
+        "symbol": "SessionRepository._save",
+        "evidence": "The only repository-owned atomic-write helper creates parents, serializes ConversationSession objects, fsyncs a temp file, and uses overwriting os.replace (lines 72-81).",
+        "classification": "SEMANTIC_STORE_NOT_REUSABLE",
+        "reuse": "No. It interprets conversation JSON and can overwrite the final object; both violate exact N4E envelope immutability. Only the underlying stdlib fsync/rename concept is informative."
+      },
+      {
+        "path": "julia_core/conversation_state/storage_v2_repository.py",
+        "symbol": "StorageV2ConversationRepository._write_canonical_message",
+        "evidence": "Appends ConversationMessage JSONL, selects/rotates segments, and fsyncs the append (lines 170-240).",
+        "classification": "SEMANTIC_STORE_NOT_REUSABLE",
+        "reuse": "No. Segment selection, domain schema, append semantics, and derived catalog behavior are outside N4E authority persistence."
+      },
+      {
+        "path": "julia_core/events/store.py",
+        "symbol": "EventStore._persist",
+        "evidence": "Interprets RuntimeEvent, appends JSONL, and catches every persistence exception (lines 28-51).",
+        "classification": "SEMANTIC_STORE_NOT_REUSABLE",
+        "reuse": "No. It is neither opaque nor fail-closed and has no exact durable read-back."
+      },
+      {
+        "path": "tests/durable_authority/test_durable_authority_contract.py",
+        "symbol": "InMemoryDurableAuthorityAdapter",
+        "evidence": "Test adapter stores envelopes in a dictionary, detects conflicting duplicates, and supports removal (lines 46-90).",
+        "classification": "TEST_ONLY",
+        "reuse": "No production reuse. It proves contract behavior only and is not durable."
+      },
+      {
+        "path": "julia_core/capability/filesystem.py",
+        "symbol": "filesystem capability tools",
+        "evidence": "User/tool filesystem operations create parent paths and write text (lines 144-145); they are governed by capability/security semantics rather than exact immutable durable authority storage.",
+        "classification": "SEMANTIC_STORE_NOT_REUSABLE",
+        "reuse": "No."
+      },
+      {
+        "path": "threading locks found in conversation/runtime modules",
+        "symbol": "threading.RLock / threading.Lock",
+        "evidence": "Search found process-local locks, but no fcntl/flock/lockf production wrapper and no cross-process durable authority lock.",
+        "classification": "OTHER",
+        "reuse": "Not sufficient for cross-process immutable publication. The bounded adapter should use exclusive no-overwrite publication instead of relying on a lock."
+      },
+      {
+        "path": "stdlib json loads/dumps as used throughout semantic stores",
+        "symbol": "json.loads/json.dumps",
+        "evidence": "The primitives can encode/decode bytes only under an exact adapter policy; existing callers apply domain defaults, skip corrupt lines, merge, or overwrite.",
+        "classification": "BOUNDED_ADAPTER_REUSABLE",
+        "reuse": "Only through strict UTF-8, exact terminal-newline policy, exact envelope fields, and accepted N4E validation with no repair."
+      }
+    ],
+    "semantic_stores_excluded": [
+      "SessionRepository/LegacyJsonConversationRepository",
+      "StorageV2ConversationRepository",
+      "MemoryStore/MemoryWriter/MemoryPersistenceAdapter",
+      "EventStore",
+      "DiaryRepository implementations",
+      "SessionStore",
+      "PersonaFeatureStore",
+      "narrative/startup/profile stores",
+      "Evidence/experience/research domain artifacts"
+    ]
+  },
+  "minimum_concrete_adapter": {
+    "name": "Exact Local Filesystem Durable Authority Adapter",
+    "backend_role": "NON_AUTHORITY_PHYSICAL_IMPLEMENTATION_DETAIL",
+    "constructor_inputs": [
+      "explicit existing root Path",
+      "all three existing family directories",
+      "no environment fallback",
+      "no default path",
+      "no startup mount"
+    ],
+    "addressing_model": "root / AuthorityFamily.value / SHA-256(UTF-8 exact authority_object_ref URI) hex + fixed envelope suffix",
+    "physical_encoding": "UTF-8 canonical JSON of envelope.to_dict() followed by exactly one LF byte",
+    "validation_ownership": "All envelope and governed-object validation remains in julia_core.durable_authority accepted N4E-A functions; adapter adds only physical/path/encoding validation.",
+    "authority_delta": 0,
+    "semantic_interpretation": 0,
+    "selection_algorithm": 0,
+    "fallback": 0,
+    "auto_repair": 0
+  },
+  "exact_write_model": {
+    "input": "exact in-memory DurableAuthorityEnvelope",
+    "precondition": [
+      "exact AuthorityFamily enum",
+      "nonempty canonical authority_object_ref",
+      "validate_envelope_semantics succeeds"
+    ],
+    "steps": [
+      "derive final exact-ref path without interpreting payload",
+      "reject missing root/family directory rather than creating state",
+      "create a unique temporary regular file in the same family directory with O_CREAT|O_EXCL",
+      "write the complete canonical envelope bytes and exactly one LF",
+      "flush and fsync the temporary file",
+      "atomically publish using hard-link creation, which fails if final path already exists",
+      "fsync the family directory",
+      "remove the temporary file and fsync the directory again if cleanup succeeds",
+      "on existing final path, read and compare exact bytes"
+    ],
+    "idempotent_duplicate_policy": "Exact byte-for-byte duplicate may return success only after full validation and byte equality.",
+    "conflict_policy": "Any different byte sequence, digest, family, ref, or filename collision fails closed and leaves no authority substitution.",
+    "partial_success_policy": "A call that cannot prove durability returns failure. A crash-published final object must still be exact or all later reads fail closed; identical-byte retry is the only permitted success path.",
+    "no_overwrite": true,
+    "no_append": true,
+    "no_rewrite": true,
+    "no_merge": true,
+    "no_dedupe": true
+  },
+  "exact_read_model": {
+    "input": "exact AuthorityFamily + exact typed ref supplied by caller",
+    "steps": [
+      "derive the deterministic final path",
+      "reject missing root/family/path",
+      "open with O_RDONLY|O_NOFOLLOW and require a regular file",
+      "read all bytes exactly",
+      "require exactly one terminal LF and no extra terminal blank data",
+      "strict UTF-8 decode and strict JSON object decode",
+      "construct through envelope_from_dict",
+      "run accepted validate_envelope_semantics",
+      "require family, exact ref URI, and path digest to agree"
+    ],
+    "enumeration_or_search": "FORBIDDEN",
+    "selection": "FORBIDDEN",
+    "missing_ref_behavior": "FAIL_CLOSED with exact unavailable-ref error",
+    "success": "Return the already-valid exact envelope object while tests separately verify raw stored-byte preservation."
+  },
+  "corruption_model": {
+    "failure_cases": [
+      "missing root/family/object",
+      "symlink or nonregular object",
+      "unexpected directory entry or filename",
+      "zero/truncated/partial file",
+      "invalid UTF-8",
+      "invalid JSON",
+      "wrong field set",
+      "wrong family/ref/path digest",
+      "wrong payload digest",
+      "wrong envelope digest",
+      "governance/lifecycle/provenance validation failure"
+    ],
+    "policy": "Every case fails closed. read_exact and list_exact_refs must not skip an corrupt record, continue past it, select another record, repair it, or return partial success.",
+    "temporary_file_policy": "A failed or crashed temporary file must never be treated as an authority object. Unexpected temp files must make reconstruction enumeration fail until explicitly handled by a separately authorized non-semantic recovery procedure; no such recovery is authorized in the next node."
+  },
+  "reconstruction_enumeration_model": {
+    "purpose": "list_exact_refs(family) for N4E restoration mechanics only",
+    "steps": [
+      "enumerate only the exact expected envelope filename pattern in the one requested family directory",
+      "reject unexpected entries",
+      "read and fully validate every object using exact-read rules",
+      "verify each object's family and authority_object_ref and deterministic filename digest",
+      "return sorted exact ref URIs solely for deterministic repository reconstruction"
+    ],
+    "selection_authority": 0,
+    "ordering_semantics": "Sorting is mechanical determinism only. Governance order remains inside each validated envelope; predecessor closure remains owned by N4E reconstruction.",
+    "corrupt_record_behavior": "FAIL_CLOSED for the entire enumeration",
+    "repository_scan_for_runtime_binding_selection": "FORBIDDEN"
+  },
+  "physical_backend_policy": {
+    "PHYSICAL_BACKEND_POLICY_REQUIRED": "NO_FOR_BOUNDED_CANDIDATE_IMPLEMENTATION",
+    "PHYSICAL_STORAGE_SELECTION": "DEFERRED_FOR_PRODUCTION_MOUNT",
+    "reason": "An explicitly injected local filesystem adapter does not establish PostgreSQL/SQLite/JSONL/filesystem/object-store product architecture, cannot be discovered by runtime, and does not preclude additional adapters. Promoting or mounting any adapter as production storage remains an Owner gate."
+  },
+  "next_implementation_node": {
+    "NEXT_IMPLEMENTATION_NODE": "EXACT_LOCAL_FILESYSTEM_DURABLE_AUTHORITY_ADAPTER",
+    "ALLOWED_PATHS": [
+      "julia_core/durable_authority/filesystem_adapter.py",
+      "tests/durable_authority/test_filesystem_adapter.py",
+      "artifacts/continuity/P3_N4E_C1_EXACT_LOCAL_FILESYSTEM_DURABLE_ADAPTER_V1.json"
+    ],
+    "REQUIRED_INPUTS": [
+      "explicit pre-existing temporary root created by test/setup",
+      "explicit pre-existing IDENTITY family directory",
+      "explicit pre-existing MEMORY_EXPERIENCE family directory",
+      "explicit pre-existing RUNTIME_BINDING family directory",
+      "already-governed exact DurableAuthorityEnvelope objects from N4E-A tests",
+      "no production canonical state",
+      "no startup dependency injection",
+      "no deployment configuration"
+    ],
+    "FORBIDDEN_PATHS": [
+      "julia_core/runtime/**",
+      "julia_core/runtime_canonical_binding/** except read-only imports if strictly needed",
+      "deploy/**",
+      "legacy conversation/memory/diary stores",
+      "production fixtures/data"
+    ],
+    "FAIL_CLOSED_BEHAVIOR": [
+      "missing explicit root/family/object",
+      "malformed path/bytes/JSON/envelope",
+      "payload or envelope digest mismatch",
+      "family/ref/path mismatch",
+      "nonregular file or symlink",
+      "conflicting duplicate",
+      "unexpected enumeration entry",
+      "file or directory fsync failure",
+      "any exception during complete validation"
+    ],
+    "EXPECTED_TEST_SURFACE": [
+      "all three authority families round-trip exact envelope objects",
+      "raw physical bytes hash identically before and after read",
+      "read_exact uses deterministic exact address without repository selection",
+      "identical duplicate is byte-verified and non-mutating",
+      "different duplicate fails closed",
+      "truncated/extra-LF/invalid-UTF8/invalid-JSON/wrong-field files fail closed",
+      "payload/envelope digest corruption fails closed",
+      "family/ref/path collision fails closed",
+      "symlink/nonregular file fails closed",
+      "missing root/family/object fails closed and creates nothing",
+      "list_exact_refs is deterministic and validates every record",
+      "unexpected/corrupt enumeration entry fails entire list",
+      "concurrent same-object writers produce one exact object and reject conflict",
+      "fsync/link failure paths fail closed",
+      "restore_* repository reconstruction composes with adapter",
+      "no latest/current/default/active/best/first selection strings or behavior",
+      "no fixture promotion, startup wiring, production writes, or semantic interpretation"
+    ]
+  },
+  "readiness_evaluation": {
+    "A_persist_DurableAuthorityEnvelope_exactly": "YES by canonical envelope byte encoding and raw-byte verification",
+    "B_read_one_exact_family_ref_without_scanning_or_selecting": "YES by deterministic SHA-256 exact-ref path",
+    "C_enumerate_refs_only_for_reconstruction_mechanics": "YES with full per-record validation and no runtime selection",
+    "D_detect_corruption_fail_closed": "YES through strict physical decoding plus accepted envelope validation",
+    "E_immutable_conflict_detecting_writes": "YES through fsynced temporary file plus atomic no-overwrite hard-link publication",
+    "F_avoid_Identity_Memory_Binding_semantics": "YES by delegating all semantic validation to accepted N4E-A code",
+    "G_avoid_merge_dedupe_rewrite_heuristics": "YES; only exact-byte idempotence is permitted",
+    "H_avoid_silently_skipping_corrupt_records": "YES; any corrupt record fails the operation/enumeration",
+    "I_avoid_implicit_directory_state_authority_bootstrap": "YES; all root/family directories must already exist",
+    "J_backend_choice_remain_implementation_detail": "YES until a production mount/deployment Owner gate"
+  },
+  "owner_gate_required": "NO_FOR_BOUNDED_ADAPTER_IMPLEMENTATION; YES_FOR_FUTURE_PRODUCTION_MOUNT",
+  "blockers": [],
+  "production_code_changed": "NO",
+  "acceptance_matrix": {
+    "C0-01_exact_audit_SHA": "PASS",
+    "C0-02_existing_primitives_inventoried": "PASS",
+    "C0-03_semantic_stores_excluded": "PASS",
+    "C0-04_exact_envelope_preservation_proven": "PASS_AT_REQUIRED_MODEL_LEVEL",
+    "C0-05_fail_closed_corruption_behavior_specified": "PASS",
+    "C0-06_immutable_conflict_write_semantics_specified": "PASS",
+    "C0-07_no_semantic_interpretation": "PASS",
+    "C0-08_no_selection_discovery": "PASS",
+    "C0-09_backend_policy_need_explicitly_answered": "PASS",
+    "C0-10_exactly_one_next_node_or_blocker": "PASS",
+    "C0-11_production_code_changed": "PASS: 0"
+  },
+  "proof_start_boundary": "Accepted N4E-A backend-neutral envelope/reader/writer and reconstruction contracts at SHA 78f18fe.",
+  "proof_end_boundary": "A bounded, injectable, non-default local exact-blob adapter is mechanically implementable without semantic authority, selection, fallback, repair, or product-wide backend policy; production mounting remains gated.",
+  "unproven_dependencies": [
+    "implemented adapter behavior",
+    "operating-system/filesystem durability under real deployment hardware",
+    "multi-host storage semantics",
+    "backup/restore policy",
+    "production mount selection",
+    "production startup composition",
+    "production canonical data population"
+  ],
+  "authority_boundary_compliance": {
+    "production_code_changed": "NO",
+    "startup_wired": "NO",
+    "production_canonical_data_loaded": "NO",
+    "production_canonical_state_written": "NO",
+    "legacy_store_migrated": "NO",
+    "N4E_A_contract_changed": "NO",
+    "Runtime_Assistant_Provider_touched": "NO",
+    "physical_product_backend_selected": "NO"
+  }
+}
