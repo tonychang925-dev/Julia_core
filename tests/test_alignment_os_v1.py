@@ -2,7 +2,7 @@
 
 TC-ALIGN-001: DeepSeek private voice resolves identity-anchored L4 profile.
 TC-ALIGN-002: Codex/OpenAI private voice resolves warm-boundary L3 profile.
-TC-ALIGN-003: Adapter appends contract before provider adaptation.
+TC-ALIGN-003: Legacy arbitrary-message adapter fails closed.
 TC-ALIGN-004: Technical mode resolves provider-neutral precision profile.
 TC-ALIGN-005: Core alignment source does not import product/domain packages.
 """
@@ -10,6 +10,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from julia_core.context_admission import C03AdmissionRejected
 from julia_core.alignment_os import AlignmentRequest, AlignmentResolver, ProviderBehaviorAdapter, resolve_alignment
 
 
@@ -32,21 +35,14 @@ def test_tc_align_002_codex_private_voice_resolves_l3_warm_boundary() -> None:
     assert profile.max_intimacy_level == "L3"
 
 
-def test_tc_align_003_adapter_appends_contract_before_provider_profile() -> None:
-    messages, profile = ProviderBehaviorAdapter().adapt_messages(
+def test_tc_align_003_adapter_rejects_arbitrary_messages_and_persona() -> None:
+    with pytest.raises(C03AdmissionRejected, match="cannot adapt arbitrary messages"):
+        ProviderBehaviorAdapter().adapt_messages(
         [{"role": "system", "content": "PERSONA"}, {"role": "user", "content": "hi"}],
         provider="deepseek",
         persona="julia",
         mode="private_voice_continuity",
     )
-
-    content = messages[0]["content"]
-    assert profile.max_intimacy_level == "L4"
-    assert content.index("Provider-Neutral Behavior Contract") < content.index("Provider Behavioral Alignment")
-    assert "Provider-Neutral Behavior Contract: julia.private_voice.provider_neutral.v1" in content
-    assert "Provider Behavioral Alignment: julia.deepseek.private_voice.identity_anchored.v1" in content
-    assert "dimension=intimacy, max=L4" in content
-    assert messages[1] == {"role": "user", "content": "hi"}
 
 
 def test_tc_align_004_technical_mode_resolves_precision_profile() -> None:

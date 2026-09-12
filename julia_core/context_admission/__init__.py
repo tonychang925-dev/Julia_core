@@ -10,16 +10,26 @@ from .contracts import (
     SealedCognitiveContextPackage,
 )
 from .gate import ExclusiveAdmissionGate, ModelVisibilityTransport
+from .semantic_binding import (
+    AdmittedSemanticBundle,
+    AdmittedSemanticUnit,
+    ExactAdmittedSemanticBinder,
+    SemanticBindingRequest,
+)
 
 __all__ = [
     "ADMISSION_CURRENT_TASK_SCHEMA_VERSION",
     "AdmissionRejection",
+    "AdmittedSemanticBundle",
+    "AdmittedSemanticUnit",
     "C03AdmissionRejected",
     "CanonicalConversationProvenance",
     "CanonicalConversationSource",
     "CurrentConversationalTaskContext",
     "ExclusiveAdmissionGate",
     "ExclusiveAdmissionRequest",
+    "ExactAdmittedSemanticBinder",
     "ModelVisibilityTransport",
     "SealedCognitiveContextPackage",
+    "SemanticBindingRequest",
 ]

@@ -6,8 +6,11 @@ It stores structured alignment metadata, not product-private persona or memory d
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from hashlib import sha256
 from types import MappingProxyType
-from typing import Mapping
+from typing import Literal, Mapping
+
+from julia_core.context_admission.contracts import canonical_json
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,3 +195,99 @@ class AlignmentProfile:
             "contract": self.contract.to_dict(),
             "provider_profile": self.provider_profile.to_dict(),
         }
+
+
+@dataclass(frozen=True, slots=True)
+class AlignmentExecutionMetadata:
+    """Mechanically enforceable, non-semantic provider execution controls."""
+
+    provider_id: str
+    cognitive_mode: str
+    modality: Literal["text"]
+    response_format: Literal["default", "json_object"]
+    max_output_tokens: int
+    temperature: float | None
+
+    def __post_init__(self) -> None:
+        if type(self.provider_id) is not str or not self.provider_id:
+            raise TypeError("alignment execution provider_id is inexact")
+        if type(self.cognitive_mode) is not str or not self.cognitive_mode:
+            raise TypeError("alignment execution cognitive_mode is inexact")
+        if self.modality != "text":
+            raise TypeError("alignment execution modality is unsupported")
+        if self.response_format not in {"default", "json_object"}:
+            raise TypeError("alignment execution response_format is unsupported")
+        if type(self.max_output_tokens) is not int or not 1 <= self.max_output_tokens <= 32768:
+            raise TypeError("alignment execution max_output_tokens is inexact")
+        if self.temperature is not None and type(self.temperature) not in (int, float):
+            raise TypeError("alignment execution temperature is inexact")
+        if self.temperature is not None and not 0 <= self.temperature <= 2:
+            raise TypeError("alignment execution temperature is out of bounds")
+        object.__setattr__(self, "provider_id", self.provider_id.lower())
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "provider_id": self.provider_id,
+            "cognitive_mode": self.cognitive_mode,
+            "modality": self.modality,
+            "response_format": self.response_format,
+            "max_output_tokens": self.max_output_tokens,
+            "temperature": self.temperature,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderExecutionEnvelope:
+    """Exact Provider ingress; semantic bytes are immutable after C03."""
+
+    conversation_id: str
+    turn_id: str
+    gate_receipt: str
+    semantic_fingerprint: str
+    messages: tuple[dict[str, str], ...]
+    alignment: AlignmentExecutionMetadata
+    issued_by: object = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if self.issued_by is not _ALIGNMENT_ISSUER:
+            raise TypeError("only ProviderAlignmentBoundary constructs execution envelopes")
+        for field_name in (
+            "conversation_id",
+            "turn_id",
+            "gate_receipt",
+            "semantic_fingerprint",
+        ):
+            if type(getattr(self, field_name)) is not str or not getattr(self, field_name):
+                raise TypeError(f"provider execution envelope {field_name} is inexact")
+        if type(self.messages) is not tuple or len(self.messages) != 3:
+            raise TypeError("provider execution messages are partial or ambiguous")
+        if [message.get("role") for message in self.messages] != ["system", "system", "user"]:
+            raise TypeError("provider execution message roles are inexact")
+        if any(set(message) != {"role", "content"} for message in self.messages):
+            raise TypeError("provider execution message shape is inexact")
+        if type(self.alignment) is not AlignmentExecutionMetadata:
+            raise TypeError("provider execution alignment metadata is inexact")
+        self.alignment.__post_init__()
+        actual_fingerprint = sha256(
+            canonical_json(list(self.messages)).encode("utf-8")
+        ).hexdigest()
+        if self.semantic_fingerprint != actual_fingerprint:
+            raise TypeError("provider execution semantic fingerprint is forged")
+
+    def verify(self) -> ProviderExecutionEnvelope:
+        self.__post_init__()
+        return self
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema": "julia_core.alignment_os.provider_execution_envelope.v1",
+            "conversation_id": self.conversation_id,
+            "turn_id": self.turn_id,
+            "gate_receipt": self.gate_receipt,
+            "semantic_fingerprint": self.semantic_fingerprint,
+            "messages": [dict(message) for message in self.messages],
+            "alignment": self.alignment.to_dict(),
+        }
+
+
+_ALIGNMENT_ISSUER = object()
