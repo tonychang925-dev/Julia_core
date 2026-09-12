@@ -23,31 +23,48 @@ from julia_core.identity.contracts import (
     RelationshipRoleAnchor,
 )
 from julia_core.memory_experience.contracts import (
+    AutobiographicalOwner,
+    CausalStatus,
+    CommitmentApplicability,
+    CommitmentRevision,
+    CommitmentStage,
+    CommitmentTransferSemantics,
+    EvidenceBindingRef,
     MemoryExperienceCandidate,
     MemoryExperienceProvenance,
     MemoryExperienceRecord,
+    MemoryExperienceRef,
     MemoryExperienceType,
     NarrativeExperienceContent,
+    PolicyTransferApplicability,
+    PolicyTransferNotApplicable,
+    PolicyTransferSemantics,
+    ProjectCommitmentExperienceContent,
+    RelationshipExperienceContent,
+    SubjectBoundary,
+    SubjectIdentity,
 )
 
 
 TASK_ID = "MIG-ADMISSION-SIM-V0.1"
 AGENT_ID = "agent-c"
-CANONICAL_BASE_SHA = "260fe7374f57d09c89ab8748e60a7324f100452f"
+CANONICAL_BASE_SHA = "9e3dcf283a4a2d1c9221f27d27a7cf4f4e0d4e8f"
 PREVIEW_HEAD_SHA = "4514eb1e52aa8bc3f2ebac20dba3d000ddb83e14"
 CONTENT_DELTA_REVIEW_SHA = "9ad6b83778383c345f1a42c1cc7dc9a39984df3b"
 PREVIEW_DIGEST = "ca9ae995fef04577fa9600875ffa163d2ca0dde74c18e19f4ad592e2ecf6f4c0"
-PREVIEW_ARTIFACT_SHA256 = "3a041d616e36bf3322c1be10473f46fee8db8ada134361c0fd2f08f541d124c9"
-REVIEW_ARTIFACT_SHA256 = "56c35addf3c2d5ac35e9cc7b4b87f81981163a571f55378ee4da6d897aa95a0e"
+PREVIEW_ARTIFACT_SHA256 = (
+    "3a041d616e36bf3322c1be10473f46fee8db8ada134361c0fd2f08f541d124c9"
+)
+REVIEW_ARTIFACT_SHA256 = (
+    "56c35addf3c2d5ac35e9cc7b4b87f81981163a571f55378ee4da6d897aa95a0e"
+)
 LEDGER_SHA256 = "8c4d886fe81dc76ed998caf705ac590567891c41014dcbe72b9eedcbccd6c3b3"
 GOLDSET_SHA256 = "8234045ba1b2f08e182f57279bffafa3e4e910ecd0e21287c3d2dc5c02bc63fc"
 
 PREVIEW_PATH = (
     "artifacts/mira_migration_prep/MIGRATION_TYPED_CANDIDATE_PREVIEW_V0_1_REWORK.json"
 )
-REVIEW_PATH = (
-    "artifacts/mira_migration_prep/MIGRATION_TYPED_CANDIDATE_CONTENT_DELTA_REVIEW_V0_1.json"
-)
+REVIEW_PATH = "artifacts/mira_migration_prep/MIGRATION_TYPED_CANDIDATE_CONTENT_DELTA_REVIEW_V0_1.json"
 LEDGER_PATH = "artifacts/mira_migration_prep/MIRA_MIGRATION_EVIDENCE_LEDGER_V1.json"
 
 CANONICAL_CONTRACT_PATHS = (
@@ -56,20 +73,6 @@ CANONICAL_CONTRACT_PATHS = (
     "julia_core/memory_experience/contracts.py",
     "julia_core/memory_experience/repository.py",
 )
-RELATIONSHIP_ALLOWED_FIELDS = {
-    "relationship_id",
-    "event",
-    "interpretation",
-    "occurred_at",
-}
-PROJECT_ALLOWED_FIELDS = {
-    "subject",
-    "counterparty",
-    "scope",
-    "commitment",
-    "transfer_semantics",
-    "occurred_at",
-}
 EXPECTED_CANDIDATES = tuple(
     [
         "MIRA-ID-CAND-001",
@@ -137,7 +140,14 @@ def verify_canonical_base(repository: Path) -> None:
         "simulation HEAD does not descend from the exact canonical base",
     )
     drift = subprocess.run(
-        ["git", "diff", "--exit-code", CANONICAL_BASE_SHA, "--", *CANONICAL_CONTRACT_PATHS],
+        [
+            "git",
+            "diff",
+            "--exit-code",
+            CANONICAL_BASE_SHA,
+            "--",
+            *CANONICAL_CONTRACT_PATHS,
+        ],
         cwd=repository,
         capture_output=True,
         text=True,
@@ -154,29 +164,70 @@ def _parse_json(blob: bytes, path: str) -> dict[str, Any]:
     return value
 
 
-def _load_bound_inputs(repository: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+def _load_bound_inputs(
+    repository: Path,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     preview_blob = _git_show(repository, PREVIEW_HEAD_SHA, PREVIEW_PATH)
     review_blob = _git_show(repository, CONTENT_DELTA_REVIEW_SHA, REVIEW_PATH)
     ledger_blob = _git_show(repository, PREVIEW_HEAD_SHA, LEDGER_PATH)
-    _require(_sha256_bytes(preview_blob) == PREVIEW_ARTIFACT_SHA256, "preview artifact hash mismatch")
-    _require(_sha256_bytes(review_blob) == REVIEW_ARTIFACT_SHA256, "content review artifact hash mismatch")
-    _require(_sha256_bytes(ledger_blob) == LEDGER_SHA256, "evidence ledger hash mismatch")
+    _require(
+        _sha256_bytes(preview_blob) == PREVIEW_ARTIFACT_SHA256,
+        "preview artifact hash mismatch",
+    )
+    _require(
+        _sha256_bytes(review_blob) == REVIEW_ARTIFACT_SHA256,
+        "content review artifact hash mismatch",
+    )
+    _require(
+        _sha256_bytes(ledger_blob) == LEDGER_SHA256, "evidence ledger hash mismatch"
+    )
 
     preview = _parse_json(preview_blob, PREVIEW_PATH)
     review = _parse_json(review_blob, REVIEW_PATH)
     ledger = _parse_json(ledger_blob, LEDGER_PATH)
-    preview_without_digest = {key: value for key, value in preview.items() if key != "deterministic_digest"}
-    _require(preview.get("artifact_id") == "MIGRATION_TYPED_CANDIDATE_PREVIEW_V0_1_REWORK", "wrong preview artifact")
+    preview_without_digest = {
+        key: value for key, value in preview.items() if key != "deterministic_digest"
+    }
+    _require(
+        preview.get("artifact_id") == "MIGRATION_TYPED_CANDIDATE_PREVIEW_V0_1_REWORK",
+        "wrong preview artifact",
+    )
     _require(preview.get("task_id") == "MIG-PREVIEW-REWORK-V0.1", "wrong preview task")
-    _require(preview.get("status") == "PREVIEW_REWORK_COMPLETE_NO_ADMISSION", "preview is not rework-complete")
-    _require(preview.get("deterministic_digest") == PREVIEW_DIGEST, "preview semantic digest mismatch")
-    _require(_canonical_digest(preview_without_digest) == PREVIEW_DIGEST, "preview semantic digest does not recompute")
-    _require(review.get("rework_head_sha") == PREVIEW_HEAD_SHA, "review is not bound to preview head")
-    _require(review.get("rework_preview_digest") == PREVIEW_DIGEST, "review digest mismatch")
-    _require(review.get("recommendation") == "READY_FOR_ADMISSION_SIMULATION", "content review is not ready")
-    _require(review.get("cross_candidate_consistency") == "PASS", "content review cross-candidate failure")
-    _require(review.get("stability", {}).get("identity_pass") == "3/3", "Identity content review mismatch")
-    _require(review.get("stability", {}).get("memory_pass") == "7/7", "Memory content review mismatch")
+    _require(
+        preview.get("status") == "PREVIEW_REWORK_COMPLETE_NO_ADMISSION",
+        "preview is not rework-complete",
+    )
+    _require(
+        preview.get("deterministic_digest") == PREVIEW_DIGEST,
+        "preview semantic digest mismatch",
+    )
+    _require(
+        _canonical_digest(preview_without_digest) == PREVIEW_DIGEST,
+        "preview semantic digest does not recompute",
+    )
+    _require(
+        review.get("rework_head_sha") == PREVIEW_HEAD_SHA,
+        "review is not bound to preview head",
+    )
+    _require(
+        review.get("rework_preview_digest") == PREVIEW_DIGEST, "review digest mismatch"
+    )
+    _require(
+        review.get("recommendation") == "READY_FOR_ADMISSION_SIMULATION",
+        "content review is not ready",
+    )
+    _require(
+        review.get("cross_candidate_consistency") == "PASS",
+        "content review cross-candidate failure",
+    )
+    _require(
+        review.get("stability", {}).get("identity_pass") == "3/3",
+        "Identity content review mismatch",
+    )
+    _require(
+        review.get("stability", {}).get("memory_pass") == "7/7",
+        "Memory content review mismatch",
+    )
     return preview, review, ledger
 
 
@@ -227,7 +278,9 @@ def _identity_objects(payload: dict[str, Any]) -> IdentityVersion:
     )
 
 
-def _memory_provenance(payload: dict[str, Any]) -> tuple[MemoryExperienceProvenance, ...]:
+def _memory_provenance(
+    payload: dict[str, Any],
+) -> tuple[MemoryExperienceProvenance, ...]:
     return tuple(
         MemoryExperienceProvenance(
             source_type=item["source_type"],
@@ -259,6 +312,132 @@ def _narrative_record(payload: dict[str, Any]) -> MemoryExperienceRecord:
     )
 
 
+def _binding_refs(value: list[dict[str, str]]) -> tuple[EvidenceBindingRef, ...]:
+    return tuple(
+        EvidenceBindingRef(
+            binding_id=item["binding_id"], evidence_role=item["evidence_role"]
+        )
+        for item in value
+    )
+
+
+def _relationship_record(payload: dict[str, Any]) -> MemoryExperienceRecord:
+    content = payload["content"]
+    policy_data = content["policy_transfer"]
+    if policy_data["coverage"] == "PRESENT":
+        policy_transfer = PolicyTransferSemantics(
+            observed_scope=policy_data["observed_scope"],
+            applicability_scope=PolicyTransferApplicability(
+                policy_data["applicability_scope"]
+            ),
+            future_behavior_proof=False,
+            binding_role_refs=_binding_refs(policy_data["binding_role_refs"]),
+        )
+    else:
+        policy_transfer = PolicyTransferNotApplicable(reason=policy_data["reason"])
+    subject_data = content.get("subject_boundary")
+    subject_boundary = (
+        SubjectBoundary(
+            semantic_subject=SubjectIdentity(subject_data["semantic_subject"]),
+            observed_subject=SubjectIdentity(subject_data["observed_subject"]),
+            autobiographical_owner=AutobiographicalOwner(
+                subject_data["autobiographical_owner"]
+            ),
+        )
+        if subject_data is not None
+        else None
+    )
+    relationship = RelationshipExperienceContent(
+        relationship_id=content["relationship_id"],
+        event=content["event"],
+        interpretation=content["interpretation"],
+        occurred_at=content["occurred_at"],
+        schema_version=content.get("schema_version", "v2"),
+        significance=content["significance"],
+        prior_judgment=content["prior_judgment"],
+        corrected_judgment=content["corrected_judgment"],
+        later_reinterpretation=content["later_reinterpretation"],
+        policy_transfer=policy_transfer,
+        causal_status=CausalStatus(content["causal_status"]),
+        subject_boundary=subject_boundary,
+        judgment_binding_role_refs=_binding_refs(content["judgment_binding_role_refs"]),
+    )
+    return MemoryExperienceRecord(
+        experience_id=payload["experience_id"],
+        version_id=payload["version_id"],
+        experience_type=MemoryExperienceType(payload["experience_type"]),
+        content=relationship,
+        provenance_refs=_memory_provenance(payload),
+        created_at=payload["created_at"],
+        predecessor_version_id=payload["predecessor_version_id"],
+    )
+
+
+def _commitment_revision(value: dict[str, Any]) -> CommitmentRevision:
+    predecessor = value["predecessor_ref"]
+    return CommitmentRevision(
+        predecessor_ref=MemoryExperienceRef(
+            experience_id=predecessor["experience_id"],
+            version_id=predecessor["version_id"],
+        ),
+        supersession_scope=value["supersession_scope"],
+        supersession_reason=value["supersession_reason"],
+        rewrite_history=False,
+    )
+
+
+def _project_commitment_record(payload: dict[str, Any]) -> MemoryExperienceRecord:
+    content = payload["content"]
+    applicability_data = content["applicability"]
+    revision_data = content["revision"]
+    project = ProjectCommitmentExperienceContent(
+        subject=content["subject"],
+        counterparty=content["counterparty"],
+        scope=content["scope"],
+        commitment=content["commitment"],
+        transfer_semantics=CommitmentTransferSemantics(content["transfer_semantics"]),
+        occurred_at=content["occurred_at"],
+        schema_version=content.get("schema_version", "v2"),
+        trigger_event=content["trigger_event"],
+        interpretation=content["interpretation"],
+        significance=content["significance"],
+        commitment_stage=CommitmentStage(content["commitment_stage"]),
+        revision=(
+            _commitment_revision(revision_data) if revision_data is not None else None
+        ),
+        binding_role_refs=_binding_refs(content["binding_role_refs"]),
+        applicability=CommitmentApplicability(
+            scope=applicability_data["scope"],
+            inheritance=CommitmentTransferSemantics(applicability_data["inheritance"]),
+            current_authorization=False,
+            standing_consent=False,
+            runtime_authority=False,
+        ),
+    )
+    return MemoryExperienceRecord(
+        experience_id=payload["experience_id"],
+        version_id=payload["version_id"],
+        experience_type=MemoryExperienceType(payload["experience_type"]),
+        content=project,
+        provenance_refs=_memory_provenance(payload),
+        created_at=payload["created_at"],
+        predecessor_version_id=payload["predecessor_version_id"],
+    )
+
+
+def _memory_record(payload: dict[str, Any]) -> MemoryExperienceRecord:
+    experience_type = payload["experience_type"]
+    if experience_type == MemoryExperienceType.NARRATIVE.value:
+        return _narrative_record(payload)
+    if experience_type == MemoryExperienceType.RELATIONSHIP.value:
+        return _relationship_record(payload)
+    if experience_type == MemoryExperienceType.PROJECT_COMMITMENT.value:
+        return _project_commitment_record(payload)
+    raise AdmissionSimulationError(
+        f"unsupported reviewed MemoryExperience type: {experience_type}"
+    )
+
+
 def _memory_records(item: dict[str, Any]) -> list[dict[str, Any]]:
     preview = item["canonical_preview"]
     if preview.get("type") == "MemoryExperienceRecordLineage":
@@ -285,22 +464,44 @@ def _validate_record_provenance(
     actual_keys: set[tuple[str, str]] = set()
     for row in record["provenance_refs"]:
         key = _assertion_key(row)
-        _require(key not in actual_keys, f"duplicate provenance assertion in {chain_id}")
+        _require(
+            key not in actual_keys, f"duplicate provenance assertion in {chain_id}"
+        )
         actual_keys.add(key)
         evidence = expected.get(key)
-        _require(evidence is not None, f"provenance assertion outside ledger chain {chain_id}")
+        _require(
+            evidence is not None,
+            f"provenance assertion outside ledger chain {chain_id}",
+        )
         metadata = row["admission_metadata"]
-        _require(metadata["message_id"] == evidence["message_id"], "provenance message mismatch")
-        _require(row["source_type"] == "auditable-causal-goldset", "wrong provenance source type")
-        _require(row["source_digest"] == GOLDSET_SHA256, "wrong goldset provenance digest")
+        _require(
+            metadata["message_id"] == evidence["message_id"],
+            "provenance message mismatch",
+        )
+        _require(
+            row["source_type"] == "auditable-causal-goldset",
+            "wrong provenance source type",
+        )
+        _require(
+            row["source_digest"] == GOLDSET_SHA256, "wrong goldset provenance digest"
+        )
         _require(
             row["source_ref"]
             == f"auditable-causal-goldset-v1://assertions/{key[0]}/{key[1]}",
             "wrong exact assertion source ref",
         )
-        _require(evidence["evidence_grade"] == "RAW_DIRECT", "non-RAW evidence entered provenance")
-        _require(evidence["support_scope"] == "exact", "non-exact evidence support entered provenance")
-        _require(evidence["temporal_verified"] is True, "temporally unverified evidence entered provenance")
+        _require(
+            evidence["evidence_grade"] == "RAW_DIRECT",
+            "non-RAW evidence entered provenance",
+        )
+        _require(
+            evidence["support_scope"] == "exact",
+            "non-exact evidence support entered provenance",
+        )
+        _require(
+            evidence["temporal_verified"] is True,
+            "temporally unverified evidence entered provenance",
+        )
     return actual_keys
 
 
@@ -321,11 +522,16 @@ def _validate_all_provenance(
         chain_assertions: set[tuple[str, str]] = set()
         for record in records:
             chain_assertions.update(
-                _validate_record_provenance(record, rows_by_chain[item["chain_id"]], item["chain_id"])
+                _validate_record_provenance(
+                    record, rows_by_chain[item["chain_id"]], item["chain_id"]
+                )
             )
         _require(
             chain_assertions
-            == {(row["binding_id"], row["causal_role"]) for row in rows_by_chain[item["chain_id"]]},
+            == {
+                (row["binding_id"], row["causal_role"])
+                for row in rows_by_chain[item["chain_id"]]
+            },
             f"candidate provenance does not cover exact chain {item['chain_id']}",
         )
         all_assertions.update(chain_assertions)
@@ -334,8 +540,13 @@ def _validate_all_provenance(
             "assertions": len(chain_assertions),
             "unique_binding_ids": len({binding for binding, _ in chain_assertions}),
         }
-    _require(len(all_assertions) == 42, "simulation did not consume all 42 RAW assertions")
-    _require(len({binding for binding, _ in all_assertions}) == 40, "unique binding count mismatch")
+    _require(
+        len(all_assertions) == 42, "simulation did not consume all 42 RAW assertions"
+    )
+    _require(
+        len({binding for binding, _ in all_assertions}) == 40,
+        "unique binding count mismatch",
+    )
     return results, all_assertions
 
 
@@ -360,7 +571,10 @@ def _validate_lineage(item: dict[str, Any]) -> dict[str, Any]:
         and formation["content"]["revision"] is None
         and final["predecessor_version_id"] == formation["version_id"]
         and final["content"]["revision"]["predecessor_ref"]
-        == {"experience_id": formation["experience_id"], "version_id": formation["version_id"]}
+        == {
+            "experience_id": formation["experience_id"],
+            "version_id": formation["version_id"],
+        }
         and formation["experience_id"] == final["experience_id"]
         and formation["experience_type"] == final["experience_type"]
     )
@@ -389,32 +603,30 @@ def _validate_authority(item: dict[str, Any]) -> bool:
     )
     if not authority_exact:
         return False
-    return item.get("authority", {}).get("repository_calls") == 0 and item.get("authority", {}).get(
-        "admission_calls"
-    ) == 0 and item.get("authority", {}).get("runtime_calls") == 0
-
-
-def _unsupported_fields(record: dict[str, Any]) -> list[str]:
-    content = record["content"]
-    if record["experience_type"] == "RelationshipExperience":
-        allowed = RELATIONSHIP_ALLOWED_FIELDS
-    elif record["experience_type"] == "ProjectCommitmentExperience":
-        allowed = PROJECT_ALLOWED_FIELDS
-    else:
-        return []
-    return sorted(set(content) - allowed)
+    return (
+        item.get("authority", {}).get("repository_calls") == 0
+        and item.get("authority", {}).get("admission_calls") == 0
+        and item.get("authority", {}).get("runtime_calls") == 0
+    )
 
 
 def _identity_result(item: dict[str, Any]) -> dict[str, Any]:
     preview = item["canonical_preview"]
     payload = preview["payload"]
     constructed = _identity_objects(payload)
-    exact = constructed.canonical_payload() == payload and constructed.digest() == preview["digest"]
+    exact = (
+        constructed.canonical_payload() == payload
+        and constructed.digest() == preview["digest"]
+    )
     return {
         "candidate_id": item["candidate_id"],
         "chain_id": item["chain_id"],
         "candidate_class": "IdentityVersion",
-        "disposition": "PASS_CANONICAL_SIMULATION_NO_ADMISSION" if exact else "FAIL_CANONICAL_CONSTRUCTION",
+        "disposition": (
+            "PASS_CANONICAL_SIMULATION_NO_ADMISSION"
+            if exact
+            else "FAIL_CANONICAL_CONSTRUCTION"
+        ),
         "record_count": 1,
         "canonical_construction": "PASS" if exact else "FAIL",
         "canonical_validation": "PASS" if exact else "FAIL",
@@ -424,47 +636,29 @@ def _identity_result(item: dict[str, Any]) -> dict[str, Any]:
         "expected_canonical_ref": constructed.ref.uri if exact else None,
         "expected_post_store_status": "CANDIDATE" if exact else None,
         "expected_candidate_governance_event": (
-            f"identity-candidate:{constructed.lineage_id}:{constructed.version_id}" if exact else None
+            f"identity-candidate:{constructed.lineage_id}:{constructed.version_id}"
+            if exact
+            else None
         ),
         "actual_status": "NOT_STORED_NOT_ADMITTED",
+        "blocker": "NONE",
     }
 
 
 def _memory_result(item: dict[str, Any]) -> dict[str, Any]:
     record_wrappers = _memory_records(item)
     records = _memory_payloads(item)
-    unsupported = {record["version_id"]: _unsupported_fields(record) for record in records}
-    if any(unsupported.values()):
-        preview_refs = [
-            f"memory-experience://{record['experience_id']}/{record['version_id']}"
-            for record in records
-        ]
-        return {
-            "candidate_id": item["candidate_id"],
-            "chain_id": item["chain_id"],
-            "candidate_class": item["candidate_class"],
-            "disposition": "FAIL_CANONICAL_CONTRACT_INCOMPATIBLE",
-            "record_count": len(records),
-            "canonical_construction": "BLOCKED_NO_SUBSTITUTE",
-            "canonical_validation": "FAIL",
-            "unsupported_fields_by_record": unsupported,
-        "preview_digests": [record["digest"] for record in record_wrappers],
-            "preview_refs": preview_refs,
-            "expected_canonical_ref": None,
-            "expected_post_store_status": None,
-            "actual_status": "NOT_STORED_NOT_ADMITTED",
-            "blockers": [
-                "CANONICAL_BASE_MEMORY_EXPERIENCE_CONTRACT_IS_V1",
-                "MIGRATION_PREVIEW_REQUIRES_V2_SEMANTICS",
-                "SILENT_V1_TRUNCATION_PROHIBITED",
-            ],
-        }
-
     constructed_records = []
     for payload, wrapper in zip(records, record_wrappers, strict=True):
-        constructed = _narrative_record(payload)
-        exact = constructed.canonical_payload() == payload and constructed.digest() == wrapper["digest"]
-        _require(exact, f"canonical Narrative construction mismatch for {item['candidate_id']}")
+        constructed = _memory_record(payload)
+        exact = (
+            constructed.canonical_payload() == payload
+            and constructed.digest() == wrapper["digest"]
+        )
+        _require(
+            exact,
+            f"canonical MemoryExperience construction mismatch for {item['candidate_id']}",
+        )
         constructed_records.append(constructed)
     expected_refs = []
     expected_events = []
@@ -493,6 +687,7 @@ def _memory_result(item: dict[str, Any]) -> dict[str, Any]:
         "expected_post_store_status": "CANDIDATE",
         "expected_candidate_governance_events": expected_events,
         "actual_status": "NOT_STORED_NOT_ADMITTED",
+        "blocker": "NONE",
     }
 
 
@@ -509,7 +704,9 @@ def simulate_admission(repository: Path) -> dict[str, Any]:
         for item in preview["identity_previews"] + preview["memory_experience_previews"]
     }
     candidates = [_identity_result(item) for item in preview["identity_previews"]]
-    candidates.extend(_memory_result(item) for item in preview["memory_experience_previews"])
+    candidates.extend(
+        _memory_result(item) for item in preview["memory_experience_previews"]
+    )
     for result in candidates:
         candidate_id = result["candidate_id"]
         result["exact_provenance"] = provenance[candidate_id]
@@ -542,10 +739,10 @@ def simulate_admission(repository: Path) -> dict[str, Any]:
     failed = len(candidates) - passed
     payload = {
         "schema": "julia_core.migration.admission_simulation.v0.1",
-        "artifact_id": "MIGRATION_ADMISSION_SIMULATION_V0_1_RESULT",
+        "artifact_id": ("MIGRATION_ADMISSION_SIMULATION_V0_1_CANONICAL_ALIGNED_RESULT"),
         "task_id": TASK_ID,
         "agent_id": AGENT_ID,
-        "status": "SIMULATION_COMPLETE_FAIL_CLOSED_NO_ADMISSION",
+        "status": "SIMULATION_COMPLETE_PASS_NO_ADMISSION",
         "simulation_phases": [
             "BIND_EXACT_INPUTS",
             "CONSTRUCT_CANDIDATE",
@@ -579,11 +776,11 @@ def simulate_admission(repository: Path) -> dict[str, Any]:
             "canonical_incompatible": failed,
             "identity_compatible": 3,
             "narrative_compatible": 3,
-            "relationship_incompatible": 3,
-            "project_commitment_incompatible": 1,
+            "relationship_compatible": 3,
+            "project_commitment_compatible": 1,
             "raw_assertions": 42,
             "unique_binding_ids": 40,
-            "global_disposition": "BLOCKED_CANONICAL_V2_ALIGNMENT_REQUIRED",
+            "global_disposition": "PASS_CANONICAL_SIMULATION_NO_ADMISSION",
             "actual_admission": 0,
         },
         "candidates": candidates,
@@ -599,17 +796,13 @@ def simulate_admission(repository: Path) -> dict[str, Any]:
         },
         "canonical_compatibility_evidence": {
             "canonical_base": CANONICAL_BASE_SHA,
-            "memory_experience_contract": "v1",
-            "migration_preview_contract": "relationship/project-commitment v2",
+            "memory_experience_contract": "relationship/project-commitment v2",
             "identity_contract": "compatible",
             "narrative_contract": "compatible",
-            "incompatible_candidates": [
-                "MIRA-MEM-CAND-001",
-                "MIRA-MEM-CAND-002",
-                "MIRA-MEM-CAND-006",
-                "MIRA-MEM-CAND-007",
-            ],
-            "policy": "FAIL_CLOSED; no v1 truncation or substitute construction",
+            "relationship_contract": "v2 exact semantics",
+            "project_commitment_contract": "v2 exact lineage semantics",
+            "incompatible_candidates": [],
+            "policy": "EXACT_TYPED_CONSTRUCTION; no fallback or substitute construction",
         },
         "zero_write_proof": {
             "repository_module_imports": 0,
@@ -629,6 +822,6 @@ def simulate_admission(repository: Path) -> dict[str, Any]:
     }
     _require(candidate_ids == EXPECTED_CANDIDATES, "candidate set mismatch")
     _require(all(authority.values()), "authority upgrade detected")
-    _require(failed == 4, "expected exact v2 incompatibility count changed")
+    _require(failed == 0, "canonical simulation produced incompatible candidates")
     payload["deterministic_digest"] = _canonical_digest(payload)
     return payload

@@ -11,23 +11,28 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 
 def test_simulation_has_exact_ten_candidate_dispositions() -> None:
     result = simulate_admission(REPOSITORY)
-    dispositions = {item["candidate_id"]: item["disposition"] for item in result["candidates"]}
+    dispositions = {
+        item["candidate_id"]: item["disposition"] for item in result["candidates"]
+    }
 
-    assert result["status"] == "SIMULATION_COMPLETE_FAIL_CLOSED_NO_ADMISSION"
+    assert result["artifact_id"] == (
+        "MIGRATION_ADMISSION_SIMULATION_V0_1_CANONICAL_ALIGNED_RESULT"
+    )
+    assert result["status"] == "SIMULATION_COMPLETE_PASS_NO_ADMISSION"
     assert result["summary"] == {
         "candidate_count": 10,
         "identity_candidates": 3,
         "memory_candidates": 7,
         "memory_record_count": 8,
-        "canonical_compatible": 6,
-        "canonical_incompatible": 4,
+        "canonical_compatible": 10,
+        "canonical_incompatible": 0,
         "identity_compatible": 3,
         "narrative_compatible": 3,
-        "relationship_incompatible": 3,
-        "project_commitment_incompatible": 1,
+        "relationship_compatible": 3,
+        "project_commitment_compatible": 1,
         "raw_assertions": 42,
         "unique_binding_ids": 40,
-        "global_disposition": "BLOCKED_CANONICAL_V2_ALIGNMENT_REQUIRED",
+        "global_disposition": "PASS_CANONICAL_SIMULATION_NO_ADMISSION",
         "actual_admission": 0,
     }
     assert {
@@ -37,54 +42,56 @@ def test_simulation_has_exact_ten_candidate_dispositions() -> None:
         "MIRA-ID-CAND-001": True,
         "MIRA-ID-CAND-002": True,
         "MIRA-ID-CAND-003": True,
-        "MIRA-MEM-CAND-001": False,
-        "MIRA-MEM-CAND-002": False,
+        "MIRA-MEM-CAND-001": True,
+        "MIRA-MEM-CAND-002": True,
         "MIRA-MEM-CAND-003": True,
         "MIRA-MEM-CAND-004": True,
         "MIRA-MEM-CAND-005": True,
-        "MIRA-MEM-CAND-006": False,
-        "MIRA-MEM-CAND-007": False,
+        "MIRA-MEM-CAND-006": True,
+        "MIRA-MEM-CAND-007": True,
     }
 
 
-def test_v2_memory_candidates_fail_closed_without_v1_truncation() -> None:
+def test_v2_memory_candidates_construct_exact_canonical_semantics() -> None:
     result = simulate_admission(REPOSITORY)
     by_candidate = {item["candidate_id"]: item for item in result["candidates"]}
-    relationship_fields = [
-        "causal_status",
-        "corrected_judgment",
-        "judgment_binding_role_refs",
-        "later_reinterpretation",
-        "policy_transfer",
-        "prior_judgment",
-        "significance",
-        "subject_boundary",
-    ]
-    project_fields = [
-        "applicability",
-        "binding_role_refs",
-        "commitment_stage",
-        "interpretation",
-        "revision",
-        "significance",
-        "trigger_event",
-    ]
+    relationship_refs = {
+        "MIRA-MEM-CAND-001": "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+        "MIRA-MEM-CAND-002": "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+        "MIRA-MEM-CAND-007": "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview",
+    }
 
-    for candidate_id in ("MIRA-MEM-CAND-001", "MIRA-MEM-CAND-002", "MIRA-MEM-CAND-007"):
+    for candidate_id, expected_ref in relationship_refs.items():
         item = by_candidate[candidate_id]
-        assert item["canonical_construction"] == "BLOCKED_NO_SUBSTITUTE"
-        assert item["unsupported_fields_by_record"] == {"v0.2-preview": relationship_fields}
-        assert item["expected_canonical_ref"] is None
-        assert item["expected_post_store_status"] is None
+        assert item["canonical_construction"] == "PASS"
+        assert item["canonical_validation"] == "PASS"
+        assert item["expected_canonical_refs"] == [expected_ref]
+        assert item["expected_post_store_status"] == "CANDIDATE"
         assert item["exact_provenance"]["status"] == "PASS"
         assert item["lineage_validation"]["status"] == "PASS"
 
     commitment = by_candidate["MIRA-MEM-CAND-006"]
+    expected_commitment_refs = [
+        "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+        "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+    ]
     assert commitment["record_count"] == 2
-    assert commitment["unsupported_fields_by_record"] == {
-        "formation-draft-preview": project_fields,
-        "frozen-final-preview": project_fields,
-    }
+    assert commitment["canonical_construction"] == "PASS"
+    assert commitment["canonical_validation"] == "PASS"
+    assert commitment["preview_digests"] == commitment["constructed_digests"]
+    assert commitment["expected_canonical_refs"] == expected_commitment_refs
+    assert commitment["expected_candidate_governance_events"] == [
+        {
+            "version_id": "formation-draft-preview",
+            "candidate_status": "CANDIDATE",
+            "candidate_governance_tuple": ["CANDIDATE", None],
+        },
+        {
+            "version_id": "frozen-final-preview",
+            "candidate_status": "CANDIDATE",
+            "candidate_governance_tuple": ["CANDIDATE", None],
+        },
+    ]
     assert commitment["lineage_validation"] == {
         "status": "PASS",
         "kind": "PROJECT_COMMITMENT_TWO_RECORD_LINEAGE",
@@ -137,8 +144,11 @@ def test_exact_provenance_authority_and_zero_write_gates() -> None:
         REPOSITORY / "julia_core/memory_experience/contracts.py"
     ).read_text(encoding="utf-8")
 
-    assert all(item["exact_provenance"]["status"] == "PASS" for item in result["candidates"])
+    assert all(
+        item["exact_provenance"]["status"] == "PASS" for item in result["candidates"]
+    )
     assert all(item["no_authority_upgrade"] == "PASS" for item in result["candidates"])
+    assert all(item["blocker"] == "NONE" for item in result["candidates"])
     assert result["global_validation"] == {
         "candidate_ids_exact": True,
         "exact_provenance": "PASS",
@@ -158,9 +168,9 @@ def test_exact_provenance_authority_and_zero_write_gates() -> None:
     assert "store_candidate(" not in source
     assert ".admit(" not in source
     assert "except " not in source
-    assert "class CausalStatus" not in canonical_memory
-    assert "class CommitmentStage" not in canonical_memory
-    assert "class SubjectBoundary" not in canonical_memory
+    assert "class CausalStatus" in canonical_memory
+    assert "class CommitmentStage" in canonical_memory
+    assert "class SubjectBoundary" in canonical_memory
 
 
 def test_simulation_is_deterministic() -> None:
