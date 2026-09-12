@@ -27,6 +27,7 @@ IDENTITY_FRAME_SCHEMA_VERSION = "1.0.0"
 EXPERIENCE_PROJECTION_POLICY_ID = "experience_projection.memory_experience_only"
 EXPERIENCE_PROJECTION_POLICY_VERSION = "1.0.0"
 EXPERIENCE_FRAME_SCHEMA_VERSION = "1.0.0"
+EXPERIENCE_FRAME_SET_SCHEMA_VERSION = "1.0.0"
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,6 +181,45 @@ class ExperienceFrame:
         return hashlib.sha256(self.canonical_serialization().encode("utf-8")).hexdigest()
 
 
+@dataclass(frozen=True, slots=True)
+class ExperienceFrameSet:
+    """Exact immutable typed carrier for projected ExperienceFrame values."""
+
+    schema_version: str
+    frames: tuple[ExperienceFrame, ...]
+
+    def __post_init__(self) -> None:
+        if self.schema_version != EXPERIENCE_FRAME_SET_SCHEMA_VERSION:
+            raise ValueError("ExperienceFrameSet schema_version is unsupported")
+        if type(self.frames) is not tuple:
+            raise TypeError("ExperienceFrameSet frames must be an exact tuple")
+        if not self.frames:
+            raise ValueError("ExperienceFrameSet requires at least one ExperienceFrame")
+        if any(type(frame) is not ExperienceFrame for frame in self.frames):
+            raise TypeError("ExperienceFrameSet frames must contain exact ExperienceFrame values")
+        source_refs = [frame.source_ref for frame in self.frames]
+        if len(source_refs) != len(set(source_refs)):
+            raise ValueError("ExperienceFrameSet source_ref values must be unique")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": "julia_core.projection.experience_frame_set.v1",
+            "schema_version": self.schema_version,
+            "frames": [frame.to_dict() for frame in self.frames],
+        }
+
+    def canonical_serialization(self) -> str:
+        return json.dumps(
+            self.to_dict(),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+    def digest(self) -> str:
+        return hashlib.sha256(self.canonical_serialization().encode("utf-8")).hexdigest()
+
+
 def _deep_freeze(value: Any) -> Any:
     if isinstance(value, Mapping):
         return MappingProxyType({key: _deep_freeze(item) for key, item in value.items()})
@@ -198,10 +238,12 @@ def _deep_unfreeze(value: Any) -> Any:
 
 __all__ = [
     "EXPERIENCE_FRAME_SCHEMA_VERSION",
+    "EXPERIENCE_FRAME_SET_SCHEMA_VERSION",
     "EXPERIENCE_PROJECTION_POLICY_ID",
     "EXPERIENCE_PROJECTION_POLICY_VERSION",
     "IDENTITY_FRAME_SCHEMA_VERSION",
     "ExperienceFrame",
+    "ExperienceFrameSet",
     "IdentityFrame",
     "PERSONA_PROJECTION_POLICY_ID",
     "PERSONA_PROJECTION_POLICY_VERSION",
