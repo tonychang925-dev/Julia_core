@@ -1,0 +1,131 @@
+{
+  "task_id": "P3-FINAL-GATE",
+  "roadmap_authority": "Julia_Mira_Continuity_Parallel_Development_Plan_v0.2_2026-09-12",
+  "task_type": "FINAL_EXIT_AUDIT_ONLY",
+  "audited_repositories": {
+    "Julia_core": "tonychang925-dev/Julia_core",
+    "Julia-AI-Assistant": "tonychang925-dev/Julia-AI-Assistant"
+  },
+  "audited_shas": {
+    "Julia_core_f1c": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+    "Julia_core_f1d0_audit": "6a74b54d0d5c63d59b714eaf3e7bebce87310960",
+    "assistant_p3_n4_canonical_head": "475704d527f16b10360e598e355c98da13a9f18d",
+    "assistant_declared_core_dependency": "f3bcd9b3f591728ee8fbf7faea7b20e6d0c19cd2"
+  },
+  "gate_a_assistant_local_semantic_authority": {
+    "value": "BLOCKED",
+    "core_runtime_chain": "PASS: Runtime transports the exact opaque AdmittedSemanticBundle and does not reconstruct semantics",
+    "assistant_blocker": "runtime/canonical_turn.py constructs synthetic null IdentityFrame and ExperienceFrame values before C03",
+    "evidence": [
+      "runtime/canonical_turn.py defines assistant://request-adaptation/identity/null.v1 and memory_experience://request-adaptation/null.v1",
+      "runtime/canonical_turn.py constructs _null_identity_frame() and _null_experience_frame()",
+      "those locally minted frames are passed to ExclusiveAdmissionRequest and SemanticBindingRequest"
+    ],
+    "local_identity_authority": "BLOCKED",
+    "local_relationship_authority": 0,
+    "local_experience_authority": "BLOCKED",
+    "assistant_self_observation_canonical": "BLOCKED"
+  },
+  "gate_b_provider_independent_semantic_authority": {
+    "value": 0,
+    "provider_persona_minting": 0,
+    "provider_identity_prepend": 0,
+    "provider_relationship_prepend": 0,
+    "provider_experience_prepend": 0,
+    "alignment_rewrite": 0,
+    "admitted_bundle_order_and_content_preserved": true,
+    "arbitrary_provider_messages_accepted": false,
+    "evidence": "DeepSeek and Codex require exact ProviderExecutionEnvelope, verify its fingerprint, and transport only envelope messages; ProviderAlignmentBoundary resolves transport alignment without semantic rewriting"
+  },
+  "gate_c_legacy_shadow_fallback_bypass": {
+    "active_legacy_semantic_bypass": 0,
+    "active_shadow_semantic_authority": 0,
+    "active_fallback_semantic_authority": 0,
+    "post_c03_semantic_reconstruction": 0,
+    "silent_degrade_default_latest_first_best_selection": 0,
+    "notes": [
+      "The audited Core Runtime and Provider path has no fallback or legacy semantic route.",
+      "Assistant N4 production entrypoints route through prepare_canonical_turn rather than raw provider semantic construction.",
+      "The canonical Assistant adapter is blocked by stale singular-contract use before C03; it does not silently fall back to a legacy semantic path."
+    ]
+  },
+  "gate_d_provenance_completeness": {
+    "value": "BLOCKED",
+    "core_chain": "PASS: C03 binds carrier digest, ordered individual frame digests, frame count, gate receipt, and semantic fingerprint; Binder and Runtime preserve them into ProviderExecutionEnvelope",
+    "assistant_chain": "BLOCKED: accepted Assistant canonical head invokes the retired singular C03/Binder surface and cannot construct provenance against F1C",
+    "canonical_source_refs_and_digests_traceable": "YES within Julia_core",
+    "ordered_experience_frame_digests_bound": "YES within Julia_core; BLOCKED at Assistant ingress",
+    "frame_count_and_order_preserved": "YES within Julia_core",
+    "gate_receipt_preserved": "YES within Julia_core",
+    "semantic_fingerprint_preserved_and_verified": "YES within Julia_core",
+    "downstream_provenance_synthesis": 0
+  },
+  "gate_e_multi_experience_escaped_defect": {
+    "value": "BLOCKED",
+    "core_path": "CLOSED: RuntimeCanonicalAuthorityBinding 1..N -> ExperienceFrameSet -> C03 -> Binder -> Runtime -> ProviderExecutionEnvelope",
+    "assistant_path": "BLOCKED: accepted Assistant canonical head is pinned to Core f3bcd9b and still constructs one singular ExperienceFrame",
+    "contract_mismatch": [
+      "Julia_core ExclusiveAdmissionRequest requires experience_frames: ExperienceFrameSet",
+      "Assistant passes experience_frame=_null_experience_frame()",
+      "Julia_core SemanticBindingRequest requires experience_frames: ExperienceFrameSet",
+      "Assistant passes request.experience_frame"
+    ]
+  },
+  "assistant_local_semantic_authority": "BLOCKED",
+  "provider_independent_semantic_authority": 0,
+  "active_legacy_semantic_bypass": 0,
+  "active_shadow_semantic_authority": 0,
+  "active_fallback_semantic_authority": 0,
+  "post_c03_semantic_reconstruction": 0,
+  "provenance_complete": "BLOCKED",
+  "multi_experience_defect_status": "BLOCKED",
+  "relevant_tests": {
+    "commands": [
+      "pytest tests/context_admission -q",
+      "pytest tests/runtime/test_p3_n0_runtime_envelope.py tests/context_admission/test_binder_experience_frame_set_migration.py tests/context_admission/test_p3_n0_alignment_boundary.py -q"
+    ],
+    "results": [
+      "104 passed",
+      "40 passed"
+    ],
+    "interpretation": "Tests prove the F1C/F1D0 Core chain. They cannot make the stale Assistant adapter compatible with the evolved contracts."
+  },
+  "blocker_inventory": [
+    {
+      "blocker_id": "P3-FINAL-B01",
+      "directly_prevents_v0_2_p3_integration_gate": "YES",
+      "repository": "Julia-AI-Assistant",
+      "canonical_head": "475704d527f16b10360e598e355c98da13a9f18d",
+      "surface": "runtime/canonical_turn.py::prepare_canonical_turn",
+      "defect": "Pre-C03 ingress synthesizes null identity/experience authority and invokes retired singular ExperienceFrame C03/Binder fields",
+      "effect": "The accepted Assistant canonical path cannot consume the F1C ExperienceFrameSet chain; local semantic authority remains model-visible in the stale dependency lineage"
+    }
+  ],
+  "deferred_out_of_p3": [
+    "production durable backend selection",
+    "full production persistence deployment",
+    "final physical config transport",
+    "backup and disaster recovery",
+    "multi-host durability",
+    "Golden Mira canonical admission",
+    "real canonical data population",
+    "shadow and canary execution",
+    "cutover",
+    "merge to main",
+    "release and deployment",
+    "post-cutover operations"
+  ],
+  "p3_scope_gate": {
+    "question": "DOES_THIS_DIRECTLY_PREVENT_V0_2_P3_INTEGRATION_GATE",
+    "blocking_issues": 1,
+    "deferred_issues": 12,
+    "production_implementation_performed_in_this_task": 0
+  },
+  "production_code_changed": 0,
+  "final_result": "P3_FINAL_RESULT = BLOCKED_BY_BOUNDED_P3_DEFECT",
+  "next_implementation_node": "Julia-AI-Assistant runtime/canonical_turn.py::prepare_canonical_turn pre-C03 ingress migration: require caller-supplied exact IdentityFrame and ExperienceFrameSet, remove synthetic null frames and singular fields, then pass experience_frames through C03 and Binder; production entrypoint rebinding is included in that same bounded caller-supply migration boundary",
+  "proof_boundary": {
+    "start": "Accepted F1C/F1D0 Core runtime convergence lineage and accepted Assistant P3 N4 canonical head",
+    "end": "Final v0.2 P3 integration disposition with one bounded blocker and no implementation"
+  }
+}
