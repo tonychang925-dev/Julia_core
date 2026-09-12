@@ -2,12 +2,18 @@
   "task_id": "P3-F1B-C03-EXPERIENCE-FRAME-SET-ADMISSION",
   "task_class": "P2_ESCAPED_CONTRACT_DEFECT_REPAIR",
   "base_sha": "cd7b2d7a63465bbeb44fc14526472c1d8f125eaa",
-  "candidate_sha": "3479eb939bad59a7c46e249377cc47fe83c1c586",
+  "candidate_sha": "8b0bf54072c7239c4b112f40b06b32c9390b42ad",
+  "remote_head": "8b0bf54072c7239c4b112f40b06b32c9390b42ad",
   "changed_paths": [
     "julia_core/context_admission/contracts.py",
     "julia_core/context_admission/gate.py",
     "tests/context_admission/test_c03_experience_frame_set_admission.py",
-    "artifacts/continuity/P3_F1B_C03_EXPERIENCE_FRAME_SET_ADMISSION_V1.json"
+    "artifacts/continuity/P3_F1B_C03_EXPERIENCE_FRAME_SET_ADMISSION_V1.json",
+    "tests/context_admission/c03_contract.py",
+    "tests/context_admission/production_fixtures.py",
+    "tests/context_admission/test_c03_executable_conformance.py",
+    "tests/context_admission/test_c03_production_hardening.py",
+    "tests/fixtures/c03/canonical_source_contract.json"
   ],
   "request_contract": {
     "field": "experience_frames",
@@ -69,7 +75,12 @@
       "command": "pytest tests/context_admission --ignore=tests/context_admission/test_c03_executable_conformance.py",
       "result": "36 passed; 30 failed; all 30 failures use the removed singular fixture surface"
     },
-    "comparison": "Failure delta is confined to base-existing tests coupled to the removed singular request; no compatibility branch was added"
+    "candidate_r1": {
+      "command": "pytest tests/context_admission",
+      "result": "69 passed; 14 failed; no collection error"
+    },
+    "parity": false,
+    "comparison": "R1 migrated the C03 conformance surface; remaining failures are downstream semantic-binding tests requiring the still-singular production Binder contract"
   },
   "static_gate": {
     "result": "PASS",
@@ -79,6 +90,12 @@
     "singular_compatibility_path": 0
   },
   "git_diff_check": "PASS",
+  "fixture_migration": {
+    "c03_fixture_surface": true,
+    "downstream_semantic_binding_surface": false
+  },
+  "historical_test_meaning_preserved": true,
+  "production_code_changed_in_r1": 0,
   "authority_delta": {
     "new_identity_authority": 0,
     "new_memory_authority": 0,
