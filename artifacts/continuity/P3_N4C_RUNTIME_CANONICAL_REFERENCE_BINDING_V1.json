@@ -1,0 +1,240 @@
+{
+  "schema": "julia_core.p3_n4c.runtime_canonical_reference_binding.v1",
+  "status": "IMPLEMENTATION_COMPLETE_PENDING_REVIEW",
+  "task_id": "P3-N4C-RUNTIME-CANONICAL-REFERENCE-BINDING",
+  "agent_id": "codex-gpt-5.2",
+  "generated_at": "2026-09-12T09:30:11Z",
+  "repo": "tonychang925-dev/Julia_core",
+  "branch": "mira/p3-n4c-runtime-canonical-reference-binding",
+  "base_sha": "6cf87a81b092f3557fcd055265154b563bf9c525",
+  "parent_sha": "6cf87a81b092f3557fcd055265154b563bf9c525",
+  "remote_head_sha": null,
+  "owner_decision": "RUNTIME_CANONICAL_REFERENCE_BINDING_POLICY=APPROVED",
+  "NO_CODE_BEFORE_AUTHORITY_MAP": "ACKNOWLEDGED",
+  "architecture_authority_map": [
+    {
+      "object": "Identity canonical truth",
+      "owner": "Julia_core Identity authority",
+      "n4c_role": "exact reference storage and validation only"
+    },
+    {
+      "object": "Experience canonical truth",
+      "owner": "Julia_core MemoryExperience authority",
+      "n4c_role": "exact reference tuple storage and validation only"
+    },
+    {
+      "object": "Runtime reference binding truth",
+      "owner": "Julia_core governed runtime-binding authority",
+      "n4c_role": "governance lifecycle and exact binding resolution"
+    },
+    {
+      "object": "CanonicalSemanticAuthoritySource",
+      "owner": "Julia_core N4B projection authority",
+      "n4c_role": "downstream consumer handoff; projection is not duplicated"
+    },
+    {
+      "object": "Assistant/Runtime/Provider",
+      "owner": "consumers",
+      "n4c_role": "resolve owner-provided exact binding refs; no selection or mutation"
+    }
+  ],
+  "production_input_source_map": {
+    "binding_ref": {
+      "required_source": "Owner-provided or exactly governed-configured exact ref",
+      "implementation": null,
+      "status": "UNPROVEN_UPSTREAM_DEPENDENCY"
+    },
+    "binding_candidate_refs": {
+      "required_source": "Governance-selected exact IdentityRef and exact MemoryExperienceRef tuple",
+      "implementation": "RuntimeCanonicalAuthorityBinding validates and stores supplied refs",
+      "selection_authority": "GOVERNANCE_ONLY"
+    },
+    "canonical_frames": {
+      "required_source": "CanonicalSemanticAuthoritySource bound to exact canonical resolvers",
+      "implementation": "N4B accepted source is consumed by candidate-only interoperability test",
+      "production_binding": "OUTSIDE_N4C_PROOF_BOUNDARY"
+    }
+  },
+  "binding_lifecycle_map": {
+    "states": [
+      "CANDIDATE",
+      "ADMITTED",
+      "SUPERSEDED",
+      "RETIRED"
+    ],
+    "production_consumable": "ADMITTED only",
+    "mutation_owner": "RuntimeCanonicalAuthorityBindingRepository governance lane",
+    "consumer_api": "RuntimeCanonicalAuthorityBindingResolver.resolve_exact",
+    "consumer_mutation_authority": 0,
+    "unknown_or_forged_ref": "TYPE_MISMATCH or REF_NOT_FOUND fail-closed error",
+    "nonadmitted_or_superseded": "REF_NOT_ADMITTED fail-closed error",
+    "retired": "REF_RETIRED fail-closed error"
+  },
+  "binding_dag": [
+    "exact RuntimeCanonicalAuthorityBindingRef supplied by upstream owner",
+    "RuntimeCanonicalAuthorityBindingResolver.resolve_exact",
+    "exact ADMITTED RuntimeCanonicalAuthorityBinding",
+    "exact IdentityRef",
+    "exact ordered nonempty unique MemoryExperienceRef tuple",
+    "CanonicalSemanticAuthoritySource.resolve_identity_frame",
+    "CanonicalSemanticAuthoritySource.resolve_experience_frame",
+    "exact IdentityFrame and ExperienceFrame tuple"
+  ],
+  "forbidden_selection_map": {
+    "latest": "UNAVAILABLE",
+    "current_or_active": "UNAVAILABLE",
+    "default": "UNAVAILABLE",
+    "first_available": "UNAVAILABLE",
+    "alias": "OUT_OF_SCOPE_AND_UNAVAILABLE",
+    "repository_scan": "FORBIDDEN",
+    "semantic_search": "FORBIDDEN",
+    "environment_fallback": "FORBIDDEN",
+    "conversation_or_persona_inference": "FORBIDDEN",
+    "auto_admission": "FORBIDDEN",
+    "auto_bootstrap": "FORBIDDEN",
+    "fixture_promotion": "FORBIDDEN"
+  },
+  "exact_public_api": {
+    "governance_module": "julia_core.runtime_canonical_binding.repository.RuntimeCanonicalAuthorityBindingRepository",
+    "consumer_module": "julia_core.runtime_canonical_binding.resolver.RuntimeCanonicalAuthorityBindingResolver",
+    "consumer_method": "resolve_exact(RuntimeCanonicalAuthorityBindingRef)",
+    "governance_methods": [
+      "store_candidate",
+      "admit",
+      "supersede",
+      "retire",
+      "resolve"
+    ]
+  },
+  "error_taxonomy": [
+    "SOURCE_NOT_BOUND",
+    "REF_NOT_FOUND",
+    "REF_NOT_ADMITTED",
+    "REF_RETIRED",
+    "TYPE_MISMATCH"
+  ],
+  "proof_start_boundary": "exact RuntimeCanonicalAuthorityBindingRef supplied",
+  "proof_end_boundary": "exact canonical IdentityRef / ExperienceRef tuple resolved and accepted by N4B authority-source seam",
+  "fixture_supplied_dependencies": [
+    "test RuntimeCanonicalAuthorityBindingRef",
+    "test RuntimeCanonicalAuthorityBindingRepository",
+    "test admitted IdentityRepository/IdentityRef",
+    "test admitted MemoryExperienceRepository/MemoryExperienceRef tuple",
+    "test CanonicalSemanticAuthoritySource resolver bindings"
+  ],
+  "unproven_upstream_dependencies": [
+    "production binding_ref provisioning",
+    "durable production runtime-binding repository/config loading",
+    "durable production canonical authority repository loading"
+  ],
+  "production_binding_ref_source_status": "UNPROVEN_UPSTREAM_DEPENDENCY",
+  "production_readiness": {
+    "PRODUCTION_READY": false,
+    "INTERFACE_READY": true,
+    "EVERY_REQUIRED_INPUT_HAS_EXACT_PRODUCTION_SOURCE": "NO",
+    "EVERY_CANONICAL_REF_HAS_EXACT_SELECTION_AND_BINDING_OWNER": "YES_AT_CONTRACT_LEVEL",
+    "FIXTURE_SUPPLIED_HIDDEN_DEPENDENCY": 0,
+    "fixture_dependency_disclosure": "test fixtures prove seam behavior only and are not production authority"
+  },
+  "authority_delta": {
+    "new_semantic_owner": 0,
+    "new_identity_owner": 0,
+    "new_experience_owner": 0,
+    "new_ref_selection_authority": 0,
+    "new_fallback_authority": 0,
+    "new_alias_authority": 0,
+    "new_post_c03_mutation": 0,
+    "consumer_binding_mutation_authority": 0,
+    "new_runtime_binding_authority": 1,
+    "new_runtime_binding_authority_type": "REFERENCE-BINDING_AUTHORITY_NOT_SEMANTIC_AUTHORITY"
+  },
+  "semantic_payload": {
+    "persona_prose": 0,
+    "identity_anchors": 0,
+    "relationship_prose": 0,
+    "experience_content": 0,
+    "memory_summaries": 0,
+    "system_prompts": 0,
+    "behavior_instructions": 0,
+    "provider_prompts": 0,
+    "current_user_text": 0
+  },
+  "production_canonical_writes": 0,
+  "golden_mira_admission_writes": 0,
+  "changed_paths": [
+    "julia_core/runtime_canonical_binding/__init__.py",
+    "julia_core/runtime_canonical_binding/contracts.py",
+    "julia_core/runtime_canonical_binding/repository.py",
+    "julia_core/runtime_canonical_binding/resolver.py",
+    "tests/runtime_binding/__init__.py",
+    "tests/runtime_binding/test_runtime_canonical_reference_binding.py",
+    "artifacts/continuity/P3_N4C_RUNTIME_CANONICAL_REFERENCE_BINDING_V1.json"
+  ],
+  "verification": {
+    "candidate_only": "/opt/miniconda3/bin/pytest -q tests/runtime_binding => 20 passed",
+    "static_gate": "included in tests/runtime_binding/test_runtime_canonical_reference_binding.py::test_n4c_25_static_constitutional_gate",
+    "base_command": "/opt/miniconda3/bin/pytest -q tests --continue-on-collection-errors",
+    "base_result": "52 failed, 1544 passed, 6 skipped, 26 xfailed, 1 warning, 3 errors in 29.78s",
+    "candidate_result": "52 failed, 1564 passed, 6 skipped, 26 xfailed, 1 warning, 3 errors in 41.89s",
+    "failure_error_id_parity": "PASS: 55 sorted FAILED/ERROR/SUBFAILED IDs are identical",
+    "failure_error_id_digest": "sha256:443e181c41c5b4fa23e153d237e65e7331e01a5016e761ac3ff044e8ef4158cf",
+    "xfail_parity": "PASS: base and candidate each report 26 xfailed",
+    "git_diff_check": "PASS"
+  },
+  "remote_fetch_back": {
+    "status": "NOT_RUN_COMMIT_AND_PUSH_NOT_EXPLICITLY_AUTHORIZED",
+    "remote_head_sha": null
+  },
+  "acceptance_matrix": {
+    "N4C-A01": "PASS",
+    "N4C-A02": "PASS",
+    "N4C-A03": "PASS_WITH_UNPROVEN_UPSTREAM_BINDING_REF_SOURCE",
+    "N4C-A04": "PASS",
+    "N4C-A05": "PASS",
+    "N4C-A06": "PASS",
+    "N4C-A07": "PASS",
+    "N4C-A08": "PASS",
+    "N4C-A09": "PASS",
+    "N4C-A10": "PASS",
+    "N4C-A11": "PASS",
+    "N4C-A12": "PASS",
+    "N4C-A13": "PASS",
+    "N4C-A14": "PASS",
+    "N4C-A15": "PASS",
+    "N4C-A16": "PASS",
+    "N4C-A17": "PASS",
+    "N4C-A18": "PASS",
+    "N4C-A19": "PASS",
+    "N4C-A20": "PASS",
+    "N4C-A21": "PASS",
+    "N4C-A22": "PASS",
+    "N4C-A23": "PASS",
+    "N4C-A24": "PASS",
+    "N4C-A25": "PASS",
+    "N4C-A26": "PASS",
+    "N4C-A27": "PASS",
+    "N4C-A28": "PASS",
+    "N4C-A29": "PASS",
+    "N4C-A30": "PASS",
+    "N4C-A31": "PASS",
+    "N4C-A32": "PASS",
+    "N4C-A33": "PASS",
+    "N4C-A34": "PASS",
+    "N4C-A35": "PASS",
+    "N4C-A36": "PASS",
+    "N4C-A37": "PASS",
+    "N4C-A38": "PASS",
+    "N4C-A39": "PASS",
+    "N4C-A40": "NOT_RUN_COMMIT_AND_PUSH_NOT_EXPLICITLY_AUTHORIZED",
+    "N4C-A41": "PASS",
+    "N4C-A42": "PASS",
+    "N4C-A43": "PASS",
+    "N4C-A44": "PASS"
+  },
+  "review_status": {
+    "N4C": "IMPLEMENTATION_IN_PROGRESS_UNTIL_INDEPENDENT_REVIEW",
+    "N4": "REWORK_IN_PROGRESS",
+    "N5": "BLOCKED",
+    "N6": "BLOCKED"
+  }
+}
