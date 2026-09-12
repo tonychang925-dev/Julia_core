@@ -1,0 +1,176 @@
+{
+  "task_id": "P3-N4E-D0-EXACT-BINDING-REF-TRANSPORT-READINESS",
+  "audit_repo": "tonychang925-dev/Julia_core",
+  "audited_sha": "2c09246d9bc66848b6866321df35b0b5951f1484",
+  "audit_boundary": "READ_ONLY_EXACT_BINDING_REF_TRANSPORT_READINESS_PREFLIGHT",
+  "n4ed0_result": "OWNER_CONFIGURATION_FORMAT_DECISION_REQUIRED",
+  "ready": false,
+  "frozen_owner_architecture": {
+    "binding_object_authority": "Julia_core RuntimeCanonicalAuthorityBinding governance authority",
+    "binding_creation_owner": "Julia_core RuntimeCanonicalAuthorityBinding governance authority",
+    "binding_admission_owner": "Julia_core RuntimeCanonicalAuthorityBinding governance authority",
+    "binding_deployment_selection_owner": "Owner-governed deployment configuration",
+    "binding_ref_transport_owner": "production bootstrap/configuration transport layer",
+    "runtime_assistant_provider_role": "CONSUMER_ONLY"
+  },
+  "required_ownership_trace": {
+    "DEPLOYMENT_CONFIG_OBJECT": "UNRESOLVED: no owner-governed deployment configuration object exists at the audited production entrypoint",
+    "CONFIGURATION_OWNER": "UNRESOLVED: the deployment configuration format and its named owner have not been frozen",
+    "TRANSPORT_ENTRYPOINT": "PROPOSED_ONLY: exact process entry at julia_core/runtime/gateway_server.py:main() before create_app() invokes get_session(); cannot bind to a field until the deployment config object is defined",
+    "TRANSPORT_OBJECT": "PROPOSED_ONLY: one immutable exact RuntimeCanonicalAuthorityBindingRef value; no existing transport object or field crosses this boundary",
+    "RESOLVER_HANDOFF_POINT": "EXISTING_SEAM: RuntimeCanonicalAuthorityBindingResolver.resolve_exact(ref) at julia_core/runtime_canonical_binding/resolver.py:72; startup handoff composition is not present",
+    "FAILURE_BOUNDARY": "TRANSPORT: missing/malformed/competing exact input fails before resolver; RESOLVER: unknown, candidate, superseded, retired, or inexact-type input fails at resolve_exact"
+  },
+  "deliverable_packet": {
+    "TASK_ID": "P3-N4E-D0-EXACT-BINDING-REF-TRANSPORT-READINESS",
+    "AUDITED_SHA": "2c09246d9bc66848b6866321df35b0b5951f1484",
+    "DEPLOYMENT_CONFIG_OBJECT": "UNRESOLVED_NO_EXISTING_OWNER_GOVERNED_OBJECT",
+    "CONFIGURATION_OWNER": "UNRESOLVED_OWNER_CONFIGURATION_FORMAT_DECISION_REQUIRED",
+    "TRANSPORT_ENTRYPOINT": "PROPOSED_AT_gateway_server_main_BEFORE_get_session",
+    "TRANSPORT_OBJECT": "PROPOSED_IMMUTABLE_EXACT_RUNTIME_CANONICAL_AUTHORITY_BINDING_REF",
+    "RESOLVER_HANDOFF_POINT": "RuntimeCanonicalAuthorityBindingResolver.resolve_exact",
+    "EXPLICIT_CONFIG_TRANSPORT_AVAILABLE": false,
+    "ENVIRONMENT_FALLBACK_REQUIRED": false,
+    "NEXT_IMPLEMENTATION_NODE": "OWNER_DECISION: freeze the exact single-value deployment configuration format and its owner; do not implement transport until that format exists",
+    "OWNER_GATE_REQUIRED": true,
+    "BLOCKERS": [
+      "No owner-governed deployment configuration object is present at the audited production process entrypoint.",
+      "No exact binding_ref field exists in CLI arguments, deployment config, config files, environment variables, gateway startup, server entrypoint, JuliaSession construction, runtime constructors, dependency injection, or process bootstrap.",
+      "Selecting an unowned CLI/env/config-file mechanism now would violate ADMISSION != DEPLOYMENT_SELECTION and EXPLICIT_CONFIG_TRANSPORT != ENVIRONMENT_FALLBACK."
+    ],
+    "PRODUCTION_CODE_CHANGED": "NO"
+  },
+  "audit_answers": {
+    "Q1_where_can_mandatory_exact_binding_ref_enter_process": "Mechanically before gateway_server.main() calls create_app(), because create_app() and request paths can reach get_session()/JuliaSession(). No explicit configuration channel currently exists there, so the legal process entry is proposed but not ready.",
+    "Q2_narrowest_transport_contract": "Read exactly one owner-governed deployment input; require exactly one explicit binding_ref object containing exact binding_id and binding_version; construct one frozen RuntimeCanonicalAuthorityBindingRef; preserve it immutably; pass that exact object to resolve_exact(). No other field, discovery result, or semantic payload belongs in this transport.",
+    "Q3_transport_identity_memory_semantics": "NO: transport may know only the exact ref shape and exact type. It must not interpret IdentityRef, MemoryExperienceRef, binding provenance, canonical payload semantics, or lifecycle governance.",
+    "Q4_transport_boundary_validation": "Exact object shape; required exact-type string binding_id and binding_version; nonempty trimmed value, maximum length 256 as enforced by the existing ref constructor; exactly one ref; no duplicate or competing channels; no URI parsing/coercion unless explicitly added to the frozen format contract. Unknown and governance-status checks remain resolver-owned.",
+    "Q5_where_resolution_begins": "At the first RuntimeCanonicalAuthorityBindingResolver.resolve_exact(ref) invocation after transport. Transport construction of the exact ref is not resolution.",
+    "Q6_missing_or_malformed_input": "FAIL_CLOSED during process bootstrap before app creation, repository loading, JuliaSession construction, and request service. No default, env fallback, repository scan, fixture, inference, or partial startup.",
+    "Q7_composition_or_cutover_required": "NO for this bounded preflight. Once the deployment format is owner-frozen, transport can be tested as an isolated fail-closed boundary. Startup repository composition, C03 wiring, legacy replacement, canonical writes, and production cutover remain forbidden/out of scope."
+  },
+  "entrypoint_trace": {
+    "production_gateway": {
+      "path": "julia_core/runtime/gateway_server.py",
+      "evidence": "main() builds create_app() and starts uvicorn at lines 381-387; create_app() imports get_session() at line 23 and first invokes it in _process_speech_reply() at line 78; user-message paths also invoke get_session() at lines 272 and 300.",
+      "classification": "REAL_PRODUCTION_ENTRYPOINT_TRACE"
+    },
+    "session_construction": {
+      "path": "julia_core/runtime/julia_session.py",
+      "evidence": "get_session() lazily constructs JuliaSession() at lines 593-597; JuliaSession.__init__() accepts no binding ref and directly composes providers/bootstrap/capabilities/context.",
+      "classification": "CURRENT_CONSUMER_ONLY; must not become selection or canonicalization authority"
+    },
+    "alternate_gateway_v1": {
+      "path": "julia_core/runtime/gateway.py",
+      "evidence": "create_app() constructs RuntimeGateway() at line 98; GatewaySession() directly constructs JuliaSession() at lines 29-35; CLI startup is lines 166-178.",
+      "classification": "REAL_ENTRYPOINT_NEEDS_FUTURE_CONSOLIDATION_DECISION; no implicit ref may be injected here"
+    },
+    "generic_demo_server": {
+      "path": "server.py",
+      "evidence": "Loads demo persona during import and starts uvicorn at lines 18-66; has no RuntimeCanonicalAuthorityBindingResolver dependency.",
+      "classification": "NOT_A_LEGAL_EXACT_BINDING_PRODUCTION_COMPOSITION_TARGET"
+    },
+    "legacy_sidecar": {
+      "path": "julia_agent_server.py",
+      "evidence": "Builds persona/memory semantics and uses environment defaults at lines 33-46, 50-91, and 278-292.",
+      "classification": "FORBIDDEN_PATH_FOR_BINDING_REF_TRANSPORT"
+    },
+    "core_cli": {
+      "path": "scripts/core_cli.py",
+      "evidence": "Argument parser and CORE_API_URL environment default occupy lines 22-23 and 76-93; no binding_ref exists.",
+      "classification": "CLIENT_NOT_PRODUCTION_STARTUP; its existing env default is not reusable"
+    },
+    "runtime_lifecycle": {
+      "path": "julia_core/runtime/lifecycle.py",
+      "evidence": "Runtime.initialize() only constructs ContextRuntime at lines 47-52 and has no external exact-ref input.",
+      "classification": "NO_EXISTING_EXACT_INJECTION_SEAM"
+    },
+    "startup_profile": {
+      "path": "julia_core/runtime/startup_profile.py",
+      "evidence": "load_startup_profile() reads hardcoded artifact files with defaults at lines 63-93 and owns semantic operating context.",
+      "classification": "FORBIDDEN_REPLACEMENT_FOR_OWNER_GOVERNED_DEPLOYMENT_CONFIG"
+    }
+  },
+  "resolver_boundary_evidence": {
+    "exact_ref_contract": "julia_core/runtime_canonical_binding/contracts.py:25-42 defines the frozen ref and uri; lines 219-223 require exact nonempty strings of at most 256 characters.",
+    "exact_resolver": "julia_core/runtime_canonical_binding/resolver.py:72-103 requires the exact ref type, resolves only that ref, and fails closed for unknown, candidate, superseded, and retired statuses.",
+    "transport_must_not_duplicate": "Governance presence/status and Identity/Memory semantic interpretation remain beyond the transport boundary."
+  },
+  "input_channel_inventory": {
+    "cli_arguments": "ABSENT for binding_ref; gateway_server only parses --port positionally",
+    "deployment_config": "ABSENT; no deployment config object or parser",
+    "config_files": "NO owner-governed production startup config file; startup_profile artifact reads are semantic and forbidden for this channel",
+    "environment_variables": "NO binding_ref variable; existing gateway/env paths use defaults and are fallback patterns, not exact mandatory transport",
+    "gateway_startup": "REAL process entry exists but lacks exact input",
+    "server_entrypoint": "REAL gateway entries traced; demo/legacy entries classified and excluded",
+    "JuliaSession_construction": "NO constructor parameter or transport field",
+    "runtime_constructors": "NO exact-ref constructor parameter",
+    "dependency_injection": "NO startup DI container or exact binding-ref dependency exists",
+    "process_bootstrap": "NO owner-governed bootstrap configuration phase exists"
+  },
+  "authority_delta": {
+    "semantic_authority_delta": 0,
+    "admission_authority_delta": 0,
+    "selection_algorithm_authority_delta": 0,
+    "canonical_mutation_authority_delta": 0,
+    "repository_scan_authority_delta": 0,
+    "implicit_fallback_authority_delta": 0,
+    "production_composition_or_cutover_delta": 0
+  },
+  "failure_semantics": {
+    "missing_binding_ref": "FAIL_CLOSED",
+    "malformed_binding_ref": "FAIL_CLOSED",
+    "unknown_binding_ref": "FAIL_CLOSED_AT_RESOLVER",
+    "candidate_binding": "FAIL_CLOSED_AT_RESOLVER",
+    "superseded_binding": "FAIL_CLOSED_AT_RESOLVER",
+    "retired_binding": "FAIL_CLOSED_AT_RESOLVER",
+    "multiple_competing_refs": "FAIL_CLOSED_AT_TRANSPORT",
+    "duplicate_competing_channels": "FAIL_CLOSED_AT_TRANSPORT"
+  },
+  "forbidden_behavior_audit": {
+    "latest": 0,
+    "current": 0,
+    "default": 0,
+    "active": 0,
+    "best": 0,
+    "first": 0,
+    "repository_scan": 0,
+    "mtime": 0,
+    "persona_name": 0,
+    "golden_mira_name": 0,
+    "checkpoint_latest": 0,
+    "fallback_environment_variable": 0,
+    "hardcoded_fallback_ref": 0,
+    "fixture": 0,
+    "implicit_conversation_inference": 0,
+    "production_binding_admission_or_selection": 0
+  },
+  "scope_boundary": {
+    "binding_creation": 0,
+    "binding_admission": 0,
+    "real_production_binding_selection": 0,
+    "production_canonical_writes": 0,
+    "startup_repository_loading": 0,
+    "c03_wiring": 0,
+    "legacy_runtime_replacement": 0,
+    "production_cutover": 0,
+    "golden_mira_admission": 0,
+    "production_code_changed": 0
+  },
+  "acceptance": {
+    "D0-01_exact_audit_sha": "PASS",
+    "D0-02_real_process_entrypoint_traced": "PASS",
+    "D0-03_exact_config_injection_point_identified": "BLOCKED: proposed injection seam identified, but no owner-governed config object/field exists",
+    "D0-04_exact_ref_transport_boundary_identified": "PASS as architecture; implementation READY=NO",
+    "D0-05_resolver_handoff_identified": "PASS",
+    "D0-06_semantic_authority_delta_zero": "PASS",
+    "D0-07_selection_authority_delta_zero": "PASS",
+    "D0-08_no_implicit_fallback_or_discovery": "PASS",
+    "D0-09_missing_input_fail_closed": "PASS as required contract",
+    "D0-10_malformed_input_fail_closed": "PASS as required contract",
+    "D0-11_one_next_node_or_blocker": "PASS",
+    "D0-12_production_code_changed_zero": "PASS",
+    "OVERALL": "NOT_READY_OWNER_CONFIGURATION_FORMAT_DECISION_REQUIRED"
+  },
+  "completion_marker": "[P3-N4E-D0-EXACT-BINDING-REF-TRANSPORT-READINESS-COMPLETE]"
+}
