@@ -1,0 +1,109 @@
+{
+  "task_id": "P3-F1B-C03-EXPERIENCE-FRAME-SET-ADMISSION",
+  "task_class": "P2_ESCAPED_CONTRACT_DEFECT_REPAIR",
+  "base_sha": "cd7b2d7a63465bbeb44fc14526472c1d8f125eaa",
+  "candidate_sha": "3479eb939bad59a7c46e249377cc47fe83c1c586",
+  "changed_paths": [
+    "julia_core/context_admission/contracts.py",
+    "julia_core/context_admission/gate.py",
+    "tests/context_admission/test_c03_experience_frame_set_admission.py",
+    "artifacts/continuity/P3_F1B_C03_EXPERIENCE_FRAME_SET_ADMISSION_V1.json"
+  ],
+  "request_contract": {
+    "field": "experience_frames",
+    "type": "ExperienceFrameSet",
+    "singular_alternate_field": false
+  },
+  "gate_contract": {
+    "exact_carrier_type": true,
+    "carrier_schema_validated": true,
+    "all_frame_invariants_validated": true,
+    "unique_source_refs": true,
+    "projection_or_resolution_performed": false
+  },
+  "sealed_package_contract": {
+    "contract_version": "julia_core.context_admission.c03.production.v2",
+    "schema": "julia_core.context_admission.sealed_package.v2",
+    "carrier_digest_bound": true,
+    "frame_digest_manifest": true,
+    "frame_count": true
+  },
+  "carrier_digest_binding": "sealed.experience_digest == request.experience_frames.digest()",
+  "individual_digest_manifest": "tuple(frame.digest() for frame in request.experience_frames.frames)",
+  "order_preservation": true,
+  "frame_count_preservation": true,
+  "positive_tests": [
+    "F1B-01",
+    "F1B-02",
+    "F1B-03",
+    "F1B-04",
+    "F1B-05",
+    "F1B-06",
+    "F1B-07",
+    "F1B-08",
+    "F1B-09",
+    "F1B-10"
+  ],
+  "negative_tests": [
+    "F1B-11",
+    "F1B-12",
+    "F1B-13",
+    "F1B-14",
+    "F1B-15",
+    "F1B-16",
+    "F1B-17",
+    "F1B-18",
+    "F1B-19",
+    "F1B-20"
+  ],
+  "base_regression": {
+    "base": {
+      "command": "pytest tests/context_admission",
+      "result": "63 passed"
+    },
+    "candidate_full": {
+      "command": "pytest tests/context_admission",
+      "result": "collection error: base-existing singular fixture passes experience_frame to the evolved request"
+    },
+    "candidate_diagnostic": {
+      "command": "pytest tests/context_admission --ignore=tests/context_admission/test_c03_executable_conformance.py",
+      "result": "36 passed; 30 failed; all 30 failures use the removed singular fixture surface"
+    },
+    "comparison": "Failure delta is confined to base-existing tests coupled to the removed singular request; no compatibility branch was added"
+  },
+  "static_gate": {
+    "result": "PASS",
+    "changed_production_hits": [],
+    "active_selection_bypass": 0,
+    "active_semantic_aggregation": 0,
+    "singular_compatibility_path": 0
+  },
+  "git_diff_check": "PASS",
+  "authority_delta": {
+    "new_identity_authority": 0,
+    "new_memory_authority": 0,
+    "new_selection_authority": 0,
+    "new_projection_authority": 0,
+    "new_aggregation_authority": 0
+  },
+  "binder_changed": 0,
+  "runtime_changed": 0,
+  "provider_changed": 0,
+  "durability_changed": 0,
+  "deployment_changed": 0,
+  "p3_scope_expansion": 0,
+  "production_ready": "NO",
+  "proof_start_boundary": "exact ExperienceFrameSet already exists",
+  "proof_end_boundary": "C03 seals the complete exact ExperienceFrameSet with ordered digest provenance",
+  "unproven_dependencies": [
+    "Binder evolution",
+    "Runtime propagation",
+    "Provider propagation",
+    "durable productionization",
+    "config transport",
+    "Golden Mira admission",
+    "shadow traffic",
+    "canary",
+    "cutover"
+  ]
+}
