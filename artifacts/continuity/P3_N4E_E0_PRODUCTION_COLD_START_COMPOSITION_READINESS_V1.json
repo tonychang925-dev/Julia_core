@@ -1,0 +1,472 @@
+{
+  "task_id": "P3-N4E-E0-PRODUCTION-COLD-START-COMPOSITION-READINESS",
+  "audited_repo": "tonychang925-dev/Julia_core",
+  "lane_a_sha": "ff6c9198d32852ebfc71ed76e141c0ed63357213",
+  "lane_b_sha": "fb2907ba18f2f093ec4f96c75b7050ecec3aa601",
+  "common_ancestor": "2c09246d9bc66848b6866321df35b0b5951f1484",
+  "parallel_lineage_convergence_map": {
+    "lane_a_head": "ff6c9198d32852ebfc71ed76e141c0ed63357213",
+    "lane_b_head": "fb2907ba18f2f093ec4f96c75b7050ecec3aa601",
+    "common_ancestor": "2c09246d9bc66848b6866321df35b0b5951f1484",
+    "lane_a_contains_lane_b": false,
+    "lane_b_contains_lane_a": false,
+    "lane_a_only_paths": [
+      "artifacts/continuity/P3_N4E_C0_CONCRETE_DURABLE_ADAPTER_READINESS_V1.json",
+      "artifacts/continuity/P3_N4E_C1_EXACT_LOCAL_FILESYSTEM_DURABLE_ADAPTER_V1.json",
+      "julia_core/durable_authority/filesystem_adapter.py",
+      "tests/durable_authority/test_filesystem_adapter.py"
+    ],
+    "lane_b_only_paths": [
+      "artifacts/continuity/P3_N4E_D0_EXACT_BINDING_REF_TRANSPORT_READINESS_V1.json",
+      "artifacts/continuity/P3_N4E_D1_RUNTIME_BINDING_DEPLOYMENT_CONFIGURATION_V1.json",
+      "julia_core/runtime_canonical_binding/__init__.py",
+      "julia_core/runtime_canonical_binding/deployment_configuration.py",
+      "tests/runtime_canonical_binding/__init__.py",
+      "tests/runtime_canonical_binding/test_runtime_binding_deployment_configuration.py"
+    ],
+    "path_conflicts": [],
+    "semantic_conflicts": [],
+    "merge_probe": {
+      "command": "git merge-tree --write-tree --name-only LANE_A_SHA LANE_B_SHA",
+      "tree": "63aa2f6ef3f0baf4c0b8d5ac1fd09ae0bd59f04f",
+      "exit_code": 0,
+      "conflicts": false
+    },
+    "convergence_required": "YES",
+    "convergence_plan": "Create an explicit integration branch from the common ancestor only after E0, merge both accepted commits without re-parenting either lane, retain both lane-only test suites, and add composition tests only at the cold-start join. No lane may be silently selected as the new base.",
+    "lane_a_test_evidence": {
+      "command": "/opt/miniconda3/bin/pytest -q tests/durable_authority/test_durable_authority_contract.py tests/durable_authority/test_filesystem_adapter.py",
+      "result": "56 passed in 0.41s"
+    },
+    "lane_b_test_evidence": {
+      "command": "/opt/miniconda3/bin/pytest -q tests/runtime_canonical_binding/test_runtime_binding_deployment_configuration.py tests/runtime_binding/test_runtime_canonical_reference_binding.py tests/canonical_authority/test_canonical_production_authority_source.py tests/context_admission/test_p3_n0_semantic_binding.py",
+      "result": "73 passed in 0.30s"
+    }
+  },
+  "canonical_production_process_entrypoint": {
+    "value": "UNRESOLVED_OWNER_GATE_REQUIRED",
+    "current_operational_candidate": "julia_core/runtime/gateway_server.py::main",
+    "reason": "The repository labels gateway_server.py as production, but its process bootstrap lazily creates the legacy JuliaSession singleton and has no owner-governed cold-start input object. It is not the canonical process entrypoint."
+  },
+  "production_entrypoint_map": [
+    {
+      "path": "julia_core/runtime/gateway_server.py",
+      "symbol": "main",
+      "classification": "PRIMARY_PRODUCTION_ENTRYPOINT",
+      "canonical": false,
+      "evidence": "Lines 381-387 start Uvicorn; create_app/get_session at lines 22-28 and 78-80 lazily construct JuliaSession without durable or deployment inputs."
+    },
+    {
+      "path": "julia_core/runtime/gateway.py",
+      "symbol": "RuntimeGateway/GatewaySession/create_app/__main__",
+      "classification": "SECONDARY_LEGACY_ENTRYPOINT",
+      "canonical": false,
+      "evidence": "GatewaySession.__init__ directly constructs JuliaSession at lines 29-35; create_app creates RuntimeGateway at lines 91-99."
+    },
+    {
+      "path": "julia_core/runtime/julia_session.py",
+      "symbol": "JuliaSession.__init__/_prepare_turn/get_session",
+      "classification": "FORBIDDEN_LEGACY_AUTHORITY_PATH",
+      "canonical": false,
+      "evidence": "__init__ loads provider, narrative bootstrap, persona feature store, and constructs ContextExecutionRuntime at lines 75-118; get_session is a lazy global singleton at lines 590-597."
+    },
+    {
+      "path": "julia_core/runtime/lifecycle.py",
+      "symbol": "Runtime.initialize",
+      "classification": "NOT_RELEVANT",
+      "canonical": false,
+      "evidence": "Lines 23-63 construct only ContextRuntime and state transitions; this Runtime is not the gateway_server production process path."
+    },
+    {
+      "path": "server.py",
+      "symbol": "app/__main__",
+      "classification": "DEMO_ONLY",
+      "canonical": false,
+      "evidence": "Lines 18-24 explicitly load data/examples/demo_persona.json."
+    },
+    {
+      "path": "julia_agent_server.py",
+      "symbol": "app/__main__",
+      "classification": "FORBIDDEN_LEGACY_AUTHORITY_PATH",
+      "canonical": false,
+      "evidence": "Builds identity directly in system prompt and searches a hardcoded memory directory; it does not enter canonical authority or C03."
+    }
+  ],
+  "bootstrap_input_map": {
+    "owner_governed_process_bootstrap_object": "NONE",
+    "durable_authority_root_source": "NONE",
+    "runtime_binding_deployment_configuration_transport": "NONE",
+    "current_inputs": {
+      "gateway_server": "optional --port plus ambient LiveKit/DeepSeek environment; no canonical bootstrap contract",
+      "gateway": "optional --port; no canonical bootstrap contract",
+      "julia_session": "implicit provider, narrative, capability, action, relationship, recorder, persona, workflow, and ContextExecutionRuntime singletons",
+      "server": "hardcoded demo persona path",
+      "julia_agent_server": "environment credentials, hardcoded prompt/memory/mode paths, optional host/port"
+    },
+    "required_missing_inputs": [
+      "absolute durable_authority_root",
+      "RuntimeBindingDeploymentConfiguration carrying one exact RuntimeCanonicalAuthorityBindingRef"
+    ],
+    "ordering_law": {
+      "required": "CONFIG_AVAILABLE_AND_DURABLE_SOURCES_AVAILABLE_BEFORE_SEMANTIC_RUNTIME_CONSTRUCTION",
+      "current": "JULIA_SESSION_CONSTRUCTED_FIRST_THEN_LEGACY_SEMANTICS_LOADED_LAZILY_OR_PER_TURN",
+      "ordering_violation": "YES"
+    }
+  },
+  "durable_mount_map": {
+    "adapter": "julia_core/durable_authority/filesystem_adapter.py::ExactLocalFilesystemDurableAuthorityAdapter",
+    "constructor_contract": "Explicit absolute root string or Path; root and all three AuthorityFamily directories must already exist and are validated with O_NOFOLLOW.",
+    "production_durable_adapter_mount_decision": "READY_WITH_EXPLICIT_PATH_INPUT",
+    "exact_durable_root_source": "NONE",
+    "physical_storage_selection": "DEFERRED",
+    "production_mount_authorized": false,
+    "owner_gate": "Owner must provision and approve the production absolute root; the adapter does not infer cwd, home, environment, or a default root."
+  },
+  "config_transport_map": {
+    "configuration_object": "julia_core/runtime_canonical_binding/deployment_configuration.py::RuntimeBindingDeploymentConfiguration",
+    "physical_binding_config_transport": "OWNER_CHANNEL_DECISION_REQUIRED",
+    "existing_reusable_production_object": "NONE",
+    "documented_but_unimplemented_contract": "docs/authority/STO_D0_DECISION_REGISTER_v1.0.md names JULIA_PRIVATE_DATA_ROOT, but no production bootstrap/configuration object in either accepted lineage constructs or carries RuntimeBindingDeploymentConfiguration.",
+    "constraints": "No env, CLI, file, or other channel may be selected in E0; no fallback or semantic selection may be introduced."
+  },
+  "repository_reconstruction_map": {
+    "available_exact_functions": {
+      "identity": "julia_core/durable_authority/reconstruction.py::restore_identity_repository(reader)",
+      "memory": "julia_core/durable_authority/reconstruction.py::restore_memory_experience_repository(reader)",
+      "runtime_binding": "julia_core/durable_authority/reconstruction.py::restore_runtime_binding_repository(reader)"
+    },
+    "identity_repository_reconstruction_point": "MISSING_COMPOSITION_SEAM; restore_identity_repository must be called before any semantic runtime constructor",
+    "memory_repository_reconstruction_point": "MISSING_COMPOSITION_SEAM; restore_memory_experience_repository must be called before any semantic runtime constructor",
+    "runtime_binding_repository_reconstruction_point": "MISSING_COMPOSITION_SEAM; restore_runtime_binding_repository must be called before any semantic runtime constructor",
+    "required_composition_root": "MISSING CanonicalColdStartComposer/compose seam",
+    "ordering_violation": "YES",
+    "current_order": "gateway get_session -> JuliaSession.__init__ -> provider/bootstrap/persona/ContextExecutionRuntime; canonical repositories are never restored"
+  },
+  "resolver_composition_map": {
+    "identity_resolver": {
+      "constructor": "julia_core/identity/resolver.py::IdentityResolver.__init__(IdentityRepository)",
+      "production_injection_point": "MISSING_COMPOSITION_SEAM"
+    },
+    "memory_resolver": {
+      "constructor": "julia_core/memory_experience/resolver.py::MemoryExperienceResolver.__init__(MemoryExperienceRepository)",
+      "production_injection_point": "MISSING_COMPOSITION_SEAM"
+    },
+    "runtime_binding_resolver": {
+      "constructor": "julia_core/runtime_canonical_binding/resolver.py::RuntimeCanonicalAuthorityBindingResolver.__init__(RuntimeCanonicalAuthorityBindingRepository)",
+      "production_injection_point": "MISSING_COMPOSITION_SEAM"
+    },
+    "canonical_authority_source": {
+      "constructor": "julia_core/canonical_authority_source.py::CanonicalSemanticAuthoritySource.__init__(identity_resolver=..., memory_resolver=...)",
+      "production_injection_point": "MISSING_COMPOSITION_SEAM"
+    },
+    "missing_composition_seams": [
+      "restore repositories before semantic runtime construction",
+      "construct IdentityResolver from restored IdentityRepository",
+      "construct MemoryExperienceResolver from restored MemoryExperienceRepository",
+      "construct RuntimeCanonicalAuthorityBindingResolver from restored RuntimeCanonicalAuthorityBindingRepository",
+      "construct CanonicalSemanticAuthoritySource from exact identity and memory resolvers",
+      "inject the resulting authority objects into a canonical process composition without JuliaSession-first bootstrap"
+    ]
+  },
+  "binding_to_canonical_refs_map": {
+    "chain": [
+      "RuntimeBindingDeploymentConfiguration.runtime_binding_ref",
+      "RuntimeCanonicalAuthorityBindingResolver.resolve_exact(ref)",
+      "GovernedRuntimeCanonicalAuthorityBinding",
+      "binding.binding.identity_ref",
+      "binding.binding.experience_refs"
+    ],
+    "binding_to_canonical_refs_chain": "COMPLETE",
+    "authority_added_by_composition": false,
+    "missing_edges": []
+  },
+  "canonical_frame_production_map": {
+    "identity_chain": [
+      "IdentityRef",
+      "IdentityResolver.resolve",
+      "PersonaProjectionPolicy.project_ref",
+      "IdentityFrame"
+    ],
+    "identity_frame_production_chain": "COMPLETE_PER_EXACT_REF_BUT_NOT_PRODUCTION_WIRED",
+    "experience_chain": [
+      "MemoryExperienceRef",
+      "MemoryExperienceResolver.resolve",
+      "ExperienceProjectionPolicy.project_ref",
+      "ExperienceFrame"
+    ],
+    "experience_frame_production_chain": "INCOMPLETE_FOR_RUNTIME_BINDING",
+    "exact_missing_edge": "GovernedRuntimeCanonicalAuthorityBinding.binding.experience_refs is a tuple, including accepted test cases with two refs, while ExclusiveAdmissionRequest accepts exactly one ExperienceFrame. No deterministic multi-experience projection, aggregation contract, single-ref cardinality restriction, or Owner selection rule exists.",
+    "first_exact_availability": "Only when CanonicalSemanticAuthoritySource.resolve_identity_frame/resolve_experience_frame is explicitly invoked; no production path invokes either method.",
+    "fixture_supplied_frames_accepted": 0
+  },
+  "c03_join_map": {
+    "exact_contracts": {
+      "request": "julia_core/context_admission/contracts.py::ExclusiveAdmissionRequest",
+      "gate": "julia_core/context_admission/gate.py::ExclusiveAdmissionGate.seal",
+      "current_task": "julia_core/context_admission/contracts.py::CurrentConversationalTaskContext",
+      "binder": "julia_core/context_admission/semantic_binding.py::ExactAdmittedSemanticBinder.bind",
+      "runtime": "julia_core/runtime/assistant_runtime.py::JuliaAssistantRuntime.prepare"
+    },
+    "c03_production_join_point": "MISSING",
+    "current_legacy_join": "julia_core/runtime/julia_session.py::_prepare_turn -> ContextExecutionRuntime.prepare",
+    "current_legacy_inputs": "dict-shaped identity_frame and experience_frame assembled from PersonaFeatureStore, narrative bootstrap, SessionStore wake state, and density restorer; these are not exact canonical frame objects",
+    "post_c03_semantic_reconstruction_required": 0,
+    "post_c03_semantic_reconstruction_current": "GREATER_THAN_ZERO",
+    "legacy_semantic_bypass_present": "YES",
+    "missing_provider_edge": "JuliaAssistantRuntime.prepare returns ProviderExecutionEnvelope but has no exact Provider execution binding; no production path connects SealedCognitiveContextPackage -> ExactAdmittedSemanticBinder -> JuliaAssistantRuntime -> Provider."
+  },
+  "legacy_retirement_map": [
+    {
+      "symbol": "julia_core/runtime/context_execution_runtime.py::ContextExecutionRuntime.prepare",
+      "classification": "MUST_RETIRE_AT_CUTOVER",
+      "reason": "Current implementation is a legacy dict-frame semantic authority and bypasses ExclusiveAdmissionGate."
+    },
+    {
+      "symbol": "julia_core/runtime/persona/feature_store.py::PersonaFeatureStore/get_persona_store",
+      "classification": "MUST_RETIRE_AT_CUTOVER",
+      "reason": "Hardcoded persona JSON and in-code defaults currently feed identity semantics."
+    },
+    {
+      "symbol": "julia_core/narrative/bootstrap.py::load_bootstrap*/get_bootstrap",
+      "classification": "MUST_RETIRE_AT_CUTOVER",
+      "reason": "Hardcoded absolute memory directory and file lists currently feed identity, experience, and continuity."
+    },
+    {
+      "symbol": "julia_core/memory/startup_memory_loader.py::StartupMemoryLoader",
+      "classification": "NOT_IN_CANONICAL_PATH",
+      "reason": "No production path from the audited entrypoints composes it into canonical authority."
+    },
+    {
+      "symbol": "julia_core/runtime/startup_profile.py::load_startup_profile",
+      "classification": "REQUIRES_OWNER_DECISION",
+      "reason": "Repo-relative identity/reality/voice artifacts may be non-authoritative metadata, but their future role must be explicitly bounded."
+    },
+    {
+      "symbol": "julia_core/memory/memory_store.py::MemoryStore",
+      "classification": "MAY_REMAIN_NON_AUTHORITATIVE",
+      "reason": "Read-only compatibility loader with legacy fallback normalization; it must not feed canonical C03 semantics."
+    },
+    {
+      "symbol": "julia_core/runtime/julia_session.py::JuliaSession bootstrap/persona composition",
+      "classification": "MUST_RETIRE_AT_CUTOVER",
+      "reason": "Constructor eagerly composes legacy semantic authorities before any canonical repository can exist."
+    }
+  ],
+  "hidden_dependency_scan": {
+    "scope": "Six requested entrypoints plus their direct startup/semantic dependencies at the common ancestor, independently checked against both accepted lineages.",
+    "unclassified_bootstrap_dependency": 0,
+    "production_fixture_assumptions": 0,
+    "implicit_latest_default_selection_accepted": 0,
+    "classifications": [
+      {
+        "dependency": "Missing durable_authority_root",
+        "classification": "OWNER_GATE_REQUIRED"
+      },
+      {
+        "dependency": "Missing RuntimeBindingDeploymentConfiguration transport",
+        "classification": "OWNER_GATE_REQUIRED"
+      },
+      {
+        "dependency": "narrative.bootstrap hardcoded /Users/admin/.claude-dev memory path and file list",
+        "classification": "FORBIDDEN_AT_CANONICAL_CUTOVER"
+      },
+      {
+        "dependency": "PersonaFeatureStore hardcoded /Users/admin/.julia/persona_features.json and default traits",
+        "classification": "FORBIDDEN_AT_CANONICAL_CUTOVER"
+      },
+      {
+        "dependency": "get_session/get_bootstrap/get_persona_store lazy global singletons",
+        "classification": "SESSION_LOCAL_BOOTSTRAP_AND_GLOBAL_SINGLETON_REJECTED_FOR_COLD_START"
+      },
+      {
+        "dependency": "gateway session_id default and default ports",
+        "classification": "TRANSPORT_DEFAULT_ONLY_NOT_SEMANTIC_AUTHORITY"
+      },
+      {
+        "dependency": "gateway_server LiveKit devkey/secret and localhost defaults",
+        "classification": "FORBIDDEN_PRODUCTION_DEFAULT_CREDENTIALS"
+      },
+      {
+        "dependency": "julia_agent_server environment/model/base-url defaults and lazy prompt",
+        "classification": "FORBIDDEN_LEGACY_AUTHORITY_PATH"
+      },
+      {
+        "dependency": "JuliaSession._load_recent_experiences sessions[0] and sessions[:10]",
+        "classification": "IMPLICIT_FIRST_AND_RECENCY_SELECTION_REJECTED"
+      },
+      {
+        "dependency": "ContextExecutionRuntime cached bootstrap and density text",
+        "classification": "SESSION_LOCAL_BOOTSTRAP_REJECTED"
+      },
+      {
+        "dependency": "MemoryStore/StartupMemoryLoader fallback fields and missing-file empty results",
+        "classification": "LEGACY_NON_AUTHORITATIVE_ONLY"
+      },
+      {
+        "dependency": "startup_profile repo-relative artifacts",
+        "classification": "OWNER_DECISION_REQUIRED"
+      }
+    ],
+    "negative_results": [
+      "No production fixture-supplied exact IdentityFrame or ExperienceFrame was found.",
+      "No production path invokes CanonicalSemanticAuthoritySource.",
+      "No production path invokes ExclusiveAdmissionGate.seal.",
+      "No implicit latest/default authority selection is accepted for canonical cutover."
+    ]
+  },
+  "cold_start_dependency_dag": {
+    "nodes": [
+      {
+        "id": "E-A",
+        "name": "durable root provisioning",
+        "status": "OWNER_GATE_REQUIRED",
+        "dependencies": []
+      },
+      {
+        "id": "E-B",
+        "name": "binding deployment configuration transport",
+        "status": "OWNER_GATE_REQUIRED",
+        "dependencies": []
+      },
+      {
+        "id": "E-C",
+        "name": "durable repository reconstruction",
+        "status": "READY",
+        "dependencies": [
+          "E-A"
+        ]
+      },
+      {
+        "id": "E-D",
+        "name": "resolver composition",
+        "status": "READY",
+        "dependencies": [
+          "E-C"
+        ]
+      },
+      {
+        "id": "E-E",
+        "name": "binding resolution",
+        "status": "READY",
+        "dependencies": [
+          "E-B",
+          "E-D"
+        ]
+      },
+      {
+        "id": "E-F",
+        "name": "canonical frame production",
+        "status": "BLOCKED",
+        "dependencies": [
+          "E-E"
+        ],
+        "blocker": "No governed tuple[MemoryExperienceRef] -> one C03 ExperienceFrame cardinality/projection contract."
+      },
+      {
+        "id": "E-G",
+        "name": "C03 production admission",
+        "status": "BLOCKED",
+        "dependencies": [
+          "E-F"
+        ],
+        "blocker": "No production join constructs ExclusiveAdmissionRequest from exact frames and CurrentConversationalTaskContext."
+      },
+      {
+        "id": "E-H",
+        "name": "legacy authority retirement",
+        "status": "OWNER_GATE_REQUIRED",
+        "dependencies": [
+          "E-G"
+        ]
+      },
+      {
+        "id": "E-I",
+        "name": "final startup composition",
+        "status": "BLOCKED",
+        "dependencies": [
+          "E-G",
+          "E-H"
+        ],
+        "blockers": [
+          "canonical process entrypoint unresolved",
+          "missing Binder -> Runtime -> Provider execution edge",
+          "production startup composition requires Owner approval"
+        ]
+      }
+    ]
+  },
+  "parallel_ready_nodes": [
+    "E-A",
+    "E-B"
+  ],
+  "parallel_independence_proof": "E-A has no DAG dependencies and changes only the durable adapter lane; E-B has no DAG dependencies and changes only the deployment configuration lane; their accepted path sets are disjoint with zero path conflicts.",
+  "join_node": "E-E",
+  "readiness_matrix": {
+    "N4EE0-01_exact_lane_a_sha_verified": "PASS",
+    "N4EE0-02_exact_lane_b_sha_verified": "PASS",
+    "N4EE0-03_common_ancestor_verified": "PASS",
+    "N4EE0-04_parallel_branch_delta_inventoried": "PASS",
+    "N4EE0-05_convergence_requirement_explicit": "PASS",
+    "N4EE0-06_canonical_process_entrypoint_exact": "FAIL_OWNER_GATE_REQUIRED",
+    "N4EE0-07_durable_root_source_exact_or_absent": "PASS_ABSENT",
+    "N4EE0-08_config_transport_exact_or_absent": "PASS_ABSENT_OWNER_GATE",
+    "N4EE0-09_repository_reconstruction_point_exact": "FAIL_MISSING_COMPOSITION_SEAM",
+    "N4EE0-10_resolver_injection_points_exact": "FAIL_MISSING_PRODUCTION_INJECTION_SEAMS",
+    "N4EE0-11_canonical_source_injection_point_exact": "FAIL_MISSING_PRODUCTION_INJECTION_SEAM",
+    "N4EE0-12_binding_to_canonical_refs_chain_exact": "PASS",
+    "N4EE0-13_identity_frame_production_exact": "PASS_PER_REF_FAIL_PRODUCTION_WIRING",
+    "N4EE0-14_experience_frame_production_exact": "FAIL_MULTI_REF_CARDINALITY",
+    "N4EE0-15_c03_join_exact": "FAIL_MISSING",
+    "N4EE0-16_legacy_authority_paths_classified": "PASS",
+    "N4EE0-17_hidden_bootstrap_dependencies_classified": "PASS",
+    "N4EE0-18_fixture_assumptions": "PASS_ZERO",
+    "N4EE0-19_implicit_latest_default_selection_accepted": "PASS_ZERO",
+    "N4EE0-20_cold_start_ordering_explicit": "PASS_AUDIT_ONLY",
+    "N4EE0-21_dependency_dag_complete": "PASS",
+    "N4EE0-22_parallel_safe_nodes_identified": "PASS",
+    "N4EE0-23_owner_gates_explicit": "PASS",
+    "N4EE0-24_exactly_one_final_disposition": "PASS",
+    "N4EE0-25_next_implementation_node_evidence_based": "PASS_NONE",
+    "N4EE0-26_production_code_changed": "PASS_NO"
+  },
+  "owner_gates": [
+    "production durable root and mount selection",
+    "physical binding configuration channel selection",
+    "runtime binding experience-ref cardinality or multi-experience projection rule",
+    "production startup composition and canonical process entrypoint",
+    "legacy authority retirement implementation",
+    "final production cutover"
+  ],
+  "blockers": [
+    "tuple[MemoryExperienceRef] -> singular C03 ExperienceFrame has no exact cardinality/projection edge",
+    "no process composition symbol restores all three repositories before semantic runtime construction",
+    "no production C03 join invokes ExclusiveAdmissionGate.seal",
+    "no complete Binder -> Runtime -> Provider execution edge",
+    "no owner-governed physical bootstrap inputs"
+  ],
+  "n4ee0_result": "ARCHITECTURE_BLOCKER",
+  "next_implementation_node": "NONE",
+  "proof_start_boundary": [
+    "COMMON_ANCESTOR=2c09246d9bc66848b6866321df35b0b5951f1484",
+    "LANE_A=ff6c9198d32852ebfc71ed76e141c0ed63357213",
+    "LANE_B=fb2907ba18f2f093ec4f96c75b7050ecec3aa601"
+  ],
+  "proof_end_boundary": [
+    "Lineage ancestry, deltas, merge probe, production symbols, constructors, reconstruction functions, C03 contracts, and hidden dependency terms audited without production edits.",
+    "Lane A targeted durable tests: 56 passed.",
+    "Lane B targeted binding/config/authority/C03 tests: 73 passed."
+  ],
+  "unproven_dependencies": [
+    "production durable root provisioning",
+    "physical RuntimeBindingDeploymentConfiguration transport",
+    "exact multi-experience frame cardinality/projection",
+    "canonical process bootstrap composition",
+    "production CurrentConversationalTaskContext production",
+    "C03 gate production invocation",
+    "Provider execution after sealed semantic binding",
+    "legacy authority retirement",
+    "production canonical cutover"
+  ],
+  "production_code_changed": "NO",
+  "completion_marker": "[P3-N4E-E0-PRODUCTION-COLD-START-COMPOSITION-READINESS-COMPLETE]"
+}
