@@ -1,0 +1,127 @@
+{
+  "task_id": "P3-F1C-BINDER-EXPERIENCE-FRAME-SET-MIGRATION",
+  "phase": "P3",
+  "task_class": "P2_ESCAPED_CONTRACT_DEFECT_REPAIR",
+  "repo": "tonychang925-dev/Julia_core",
+  "branch": "mira/p3-f1c-binder-experience-frame-set-migration",
+  "base_sha": "5d623ef6c5434a326ad92a9d1e98921e850c08ce",
+  "parent_sha": "5d623ef6c5434a326ad92a9d1e98921e850c08ce",
+  "candidate_sha": "9dc4f5f5cd7b3d2ac01d2d3f3b63784f73cc8f59",
+  "remote_head": "9dc4f5f5cd7b3d2ac01d2d3f3b63784f73cc8f59",
+  "changed_paths": [
+    "julia_core/context_admission/semantic_binding.py",
+    "tests/context_admission/test_p3_n0_semantic_binding.py",
+    "tests/context_admission/test_binder_experience_frame_set_migration.py",
+    "artifacts/continuity/P3_F1C_BINDER_EXPERIENCE_FRAME_SET_MIGRATION_V1.json"
+  ],
+  "diff_stat": {
+    "implementation": "3 files changed, 330 insertions(+), 17 deletions(-)",
+    "evidence": "1 file changed by this evidence record"
+  },
+  "binding_request_contract": {
+    "field": "experience_frames",
+    "type": "ExperienceFrameSet",
+    "exact_type_only": true,
+    "singular_field": false
+  },
+  "admitted_frame_order": [
+    "identity_frame",
+    "experience_frame_set",
+    "current_task_context"
+  ],
+  "role_mapping": {
+    "identity_frame": "system",
+    "experience_frame_set": "system",
+    "current_task_context": "user"
+  },
+  "carrier_digest_validation": "ExperienceFrameSet.digest() equals package.admitted_frames[experience_frame_set]",
+  "individual_digest_validation": "ordered per-frame digest tuple equals package.experience_frame_digests",
+  "frame_count_validation": "len(ExperienceFrameSet.frames) equals package.experience_frame_count",
+  "frame_order_validation": "tuple equality preserves exact supplied frame digest order",
+  "semantic_unit_shape": {
+    "unit_count": 3,
+    "frame_flattening": false,
+    "message_splitting": false
+  },
+  "bundle_contract": {
+    "schema": "julia_core.context_admission.admitted_semantic_bundle.v2",
+    "version_evolved": true
+  },
+  "semantic_fingerprint": "SHA-256 over the exact ordered three-message encoding",
+  "positive_tests": [
+    "F1C-01",
+    "F1C-02",
+    "F1C-03",
+    "F1C-04",
+    "F1C-05",
+    "F1C-06",
+    "F1C-07",
+    "F1C-08",
+    "F1C-09",
+    "F1C-10",
+    "F1C-11"
+  ],
+  "negative_tests": [
+    "F1C-12",
+    "F1C-13",
+    "F1C-14",
+    "F1C-15",
+    "F1C-16",
+    "F1C-17",
+    "F1C-18",
+    "F1C-19",
+    "F1C-20",
+    "F1C-21"
+  ],
+  "historical_test_migration": {
+    "status": "PRESERVED",
+    "skips_added": 0,
+    "xfails_added": 0,
+    "assertions_deleted": 0
+  },
+  "base_regression": {
+    "base": {
+      "command": "pytest tests/context_admission",
+      "result": "69 passed; 14 failed"
+    },
+    "candidate": {
+      "command": "pytest tests/context_admission",
+      "result": "104 passed; 0 failed; 0 errors"
+    },
+    "parity": true
+  },
+  "static_gate": {
+    "result": "PASS",
+    "changed_production_hits": [],
+    "active_selection_bypass": 0,
+    "active_semantic_aggregation": 0,
+    "singular_compatibility_path": 0
+  },
+  "git_diff_check": "PASS",
+  "authority_delta": {
+    "new_identity_authority": 0,
+    "new_memory_authority": 0,
+    "new_selection_authority": 0,
+    "new_projection_authority": 0,
+    "new_aggregation_authority": 0,
+    "new_provider_authority": 0
+  },
+  "p3_scope_expansion": 0,
+  "runtime_changed": 0,
+  "provider_changed": 0,
+  "durability_changed": 0,
+  "deployment_changed": 0,
+  "production_ready": "NO",
+  "proof_start_boundary": "exact sealed C03 package plus exact IdentityFrame, ExperienceFrameSet, and CurrentConversationalTaskContext",
+  "proof_end_boundary": "exact AdmittedSemanticBundle with system IdentityFrame JSON, system ExperienceFrameSet JSON, and user CurrentConversationalTaskContext JSON",
+  "unproven_dependencies": [
+    "Runtime propagation",
+    "Provider envelope propagation",
+    "Provider execution",
+    "production bootstrap",
+    "durable productionization",
+    "Golden Mira admission",
+    "canary",
+    "cutover"
+  ]
+}
