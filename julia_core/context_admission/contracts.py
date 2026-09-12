@@ -13,7 +13,10 @@ from collections.abc import Mapping
 
 from julia_core.identity import IdentityStatus
 from julia_core.memory_experience import MemoryExperienceStatus
-from julia_core.projection.contracts import ExperienceFrame, IdentityFrame
+from julia_core.projection.contracts import (
+    ExperienceFrameSet,
+    IdentityFrame,
+)
 
 
 ADMISSION_CURRENT_TASK_SCHEMA_VERSION = "1.0.0"
@@ -148,7 +151,7 @@ class CurrentConversationalTaskContext:
 @dataclass(frozen=True, slots=True)
 class ExclusiveAdmissionRequest:
     identity_frame: IdentityFrame | None = None
-    experience_frame: ExperienceFrame | None = None
+    experience_frames: ExperienceFrameSet | None = None
     current_task_context: CurrentConversationalTaskContext | None = None
 
     def __post_init__(self) -> None:
@@ -159,11 +162,11 @@ class ExclusiveAdmissionRequest:
                     message="C03 admits an exact canonical IdentityFrame only",
                 )
             )
-        if type(self.experience_frame) is not ExperienceFrame:
+        if type(self.experience_frames) is not ExperienceFrameSet:
             raise C03AdmissionRejected(
                 AdmissionRejection(
-                    code="inexact_experience_frame",
-                    message="C03 admits an exact canonical ExperienceFrame only",
+                    code="inexact_experience_frames",
+                    message="C03 admits an exact canonical ExperienceFrameSet only",
                 )
             )
         if type(self.current_task_context) is not CurrentConversationalTaskContext:
@@ -182,6 +185,8 @@ class SealedCognitiveContextPackage:
     turn_id: str
     identity_digest: str
     experience_digest: str
+    experience_frame_digests: tuple[str, ...]
+    experience_frame_count: int
     current_task_digest: str
     gate_receipt: str
     admitted_frames: Mapping[str, str]
@@ -199,15 +204,17 @@ class SealedCognitiveContextPackage:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema": "julia_core.context_admission.sealed_package.v1",
+            "schema": "julia_core.context_admission.sealed_package.v2",
             "contract_version": self.contract_version,
             "conversation_id": self.conversation_id,
             "turn_id": self.turn_id,
             "source_digests": {
                 "identity_frame": self.identity_digest,
-                "experience_frame": self.experience_digest,
+                "experience_frame_set": self.experience_digest,
                 "current_task_context": self.current_task_digest,
             },
+            "experience_frame_digests": list(self.experience_frame_digests),
+            "experience_frame_count": self.experience_frame_count,
             "gate_receipt": self.gate_receipt,
             "admitted_frames": _deep_copy(self.admitted_frames),
             "authority": {
@@ -229,6 +236,8 @@ def package_digest(
     turn_id: str,
     identity_digest: str,
     experience_digest: str,
+    experience_frame_digests: tuple[str, ...],
+    experience_frame_count: int,
     current_task_digest: str,
 ) -> str:
     payload = {
@@ -237,6 +246,8 @@ def package_digest(
         "turn_id": turn_id,
         "identity_digest": identity_digest,
         "experience_digest": experience_digest,
+        "experience_frame_digests": list(experience_frame_digests),
+        "experience_frame_count": experience_frame_count,
         "current_task_digest": current_task_digest,
     }
     return hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
@@ -275,9 +286,32 @@ def _validate_package(package: SealedCognitiveContextPackage) -> None:
         "gate_receipt",
     ):
         _require_digest(getattr(package, field_name), f"package {field_name}")
+    if type(package.experience_frame_count) is not int or package.experience_frame_count < 1:
+        raise C03AdmissionRejected(
+            AdmissionRejection(
+                code="inexact_experience_frame_count",
+                message="package experience frame count is inexact",
+            )
+        )
+    if type(package.experience_frame_digests) is not tuple:
+        raise C03AdmissionRejected(
+            AdmissionRejection(
+                code="inexact_experience_frame_digests",
+                message="package experience frame digest manifest is inexact",
+            )
+        )
+    if len(package.experience_frame_digests) != package.experience_frame_count:
+        raise C03AdmissionRejected(
+            AdmissionRejection(
+                code="experience_frame_count_mismatch",
+                message="package experience frame digest count does not match its frame count",
+            )
+        )
+    for frame_digest in package.experience_frame_digests:
+        _require_digest(frame_digest, "package experience frame digest")
     expected_frames = {
         "identity_frame": package.identity_digest,
-        "experience_frame": package.experience_digest,
+        "experience_frame_set": package.experience_digest,
         "current_task_context": package.current_task_digest,
     }
     if dict(package.admitted_frames) != expected_frames:
@@ -293,6 +327,8 @@ def _validate_package(package: SealedCognitiveContextPackage) -> None:
         package.turn_id,
         package.identity_digest,
         package.experience_digest,
+        package.experience_frame_digests,
+        package.experience_frame_count,
         package.current_task_digest,
     )
     if package.gate_receipt != expected_receipt:
