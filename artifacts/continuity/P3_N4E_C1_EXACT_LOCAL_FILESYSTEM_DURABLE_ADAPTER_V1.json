@@ -1,0 +1,275 @@
+{
+  "task_id": "P3-N4E-C1-EXACT-LOCAL-FILESYSTEM-DURABLE-ADAPTER",
+  "repo": "tonychang925-dev/Julia_core",
+  "branch": "mira/p3-n4e-c1-exact-local-filesystem-durable-adapter",
+  "base_sha": "a46bc7c9a23e336d3d79087f3f3fb90fad0cd418",
+  "parent_sha": "a46bc7c9a23e336d3d79087f3f3fb90fad0cd418",
+  "candidate_sha": "8f6d64d9a5db2797c20ceb0ed7e08372908ee846",
+  "candidate_scope_note": "candidate_sha is the code/test implementation commit; this evidence artifact is published as the subsequent delivery commit.",
+  "changed_paths": [
+    "julia_core/durable_authority/filesystem_adapter.py",
+    "tests/durable_authority/test_filesystem_adapter.py",
+    "artifacts/continuity/P3_N4E_C1_EXACT_LOCAL_FILESYSTEM_DURABLE_ADAPTER_V1.json"
+  ],
+  "diff_stat": {
+    "implementation_commit": "2 files changed, 724 insertions(+) (318 adapter lines, 406 test lines)",
+    "adapter_sha256": "ccbafcd99014c2c9fb4eddcf77c57e98b34b67dcd598c23b053e330f985671e6",
+    "test_sha256": "d463ccffaa15cd683eb50babe0ac69964eb6c26f4e6eba0ae3d1ffcbd46e1e7e"
+  },
+  "adapter_api": {
+    "module": "julia_core.durable_authority.filesystem_adapter",
+    "symbol": "ExactLocalFilesystemDurableAuthorityAdapter",
+    "constructor": "absolute explicit existing root; existing IDENTITY/MEMORY_EXPERIENCE/RUNTIME_BINDING directories",
+    "read": "read_exact(AuthorityFamily, exact typed ref) -> DurableAuthorityEnvelope",
+    "enumerate": "list_exact_refs(AuthorityFamily) -> sorted exact ref URI tuple",
+    "write": "write_exact(DurableAuthorityEnvelope) -> None",
+    "authority_delta": 0,
+    "startup_mount": 0,
+    "production_default": 0
+  },
+  "addressing_model": {
+    "path": "root / AuthorityFamily.value / SHA-256(UTF-8 authority_object_ref URI).hex + .envelope.json",
+    "raw_ref_interpolation": 0,
+    "semantic_filename": 0,
+    "directory_traversal": 0,
+    "path_collision_behavior": "FAIL_CLOSED through family/ref/digest/raw-byte validation"
+  },
+  "write_model": {
+    "pre_validation": "validate_envelope_semantics(envelope)",
+    "physical_encoding": "UTF-8 canonical_json(envelope.to_dict()) + exactly one LF",
+    "temporary_creation": "O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW in the target family directory",
+    "complete_write_check": "os.write loop advances until every exact byte is written",
+    "file_durability": "os.fsync(temporary_fd)",
+    "publication": "os.link(temporary_path, final_path, follow_symlinks=False), providing atomic no-overwrite publication",
+    "directory_durability": "fsync family directory after publication and again after temporary-file cleanup",
+    "overwrite": 0,
+    "merge": 0,
+    "semantic_dedupe": 0,
+    "repair": 0
+  },
+  "read_model": {
+    "open_flags": "O_RDONLY|O_NOFOLLOW",
+    "object_check": "fstat + regular-file requirement",
+    "physical_check": [
+      "complete byte read",
+      "exactly one terminal LF",
+      "strict UTF-8",
+      "strict JSON object",
+      "duplicate JSON field rejection",
+      "non-standard JSON constant rejection"
+    ],
+    "authority_validation": [
+      "envelope_from_dict",
+      "validate_envelope_semantics",
+      "family match",
+      "exact ref URI match",
+      "path digest match",
+      "canonical physical byte round-trip match"
+    ],
+    "alternate_object_selection": 0,
+    "partial_success": 0
+  },
+  "enumeration_model": {
+    "scope": "N4E reconstruction mechanics only",
+    "filename_pattern": "64 lowercase hexadecimal digest characters + .envelope.json",
+    "unexpected_entry_behavior": "FAIL_CLOSED",
+    "member_validation": "full exact-read validation for every member",
+    "member_digest_check": "filename digest must equal SHA-256 of envelope authority_object_ref",
+    "sorting": "sorted ref URIs for mechanical determinism only",
+    "selection": 0,
+    "corrupt_record_skipping": 0,
+    "temporary_file_authority": 0
+  },
+  "durability_evidence": {
+    "source_mechanics": [
+      "exclusive temporary file creation at filesystem_adapter.py:115-125",
+      "temporary file fsync at filesystem_adapter.py:122-123",
+      "atomic no-overwrite hard-link publication at filesystem_adapter.py:134-138",
+      "family-directory fsync helper at filesystem_adapter.py:257-262"
+    ],
+    "test_evidence": "30 candidate tests pass on Darwin 23.0.0 / Python 3.13.5, including raw byte preservation and reconstruction.",
+    "proof_limit": "This is local POSIX filesystem semantics under the test platform; it is not a production hardware, multi-host, backup, or disaster-recovery qualification."
+  },
+  "integrity_evidence": {
+    "positive": [
+      "all three authority families exact object round-trip",
+      "physical bytes deterministic across two roots",
+      "raw bytes preserved exactly",
+      "identical duplicate is byte-equal and idempotent",
+      "deterministic exact-ref enumeration",
+      "IdentityRepository, MemoryExperienceRepository, and RuntimeCanonicalAuthorityBindingRepository reconstruction equivalence"
+    ],
+    "negative": [
+      "truncated bytes rejected",
+      "invalid UTF-8 rejected",
+      "invalid JSON rejected",
+      "extra LF rejected",
+      "payload corruption rejected",
+      "envelope digest corruption rejected",
+      "wrong family/ref/path rejected",
+      "symlink and nonregular object rejected",
+      "corrupt enumeration member fails entire enumeration"
+    ]
+  },
+  "duplicate_evidence": {
+    "identical_bytes": "idempotent success after exact byte and full envelope validation",
+    "different_bytes": "DUPLICATE_CONFLICT fail-closed",
+    "rewrite": 0,
+    "replacement": 0,
+    "reconciliation": 0
+  },
+  "corruption_matrix": {
+    "missing_root": "FAIL_CLOSED",
+    "missing_family": "FAIL_CLOSED",
+    "missing_object": "FAIL_CLOSED",
+    "symlink": "FAIL_CLOSED",
+    "nonregular_file": "FAIL_CLOSED",
+    "truncation": "FAIL_CLOSED",
+    "invalid_UTF_8": "FAIL_CLOSED",
+    "invalid_JSON": "FAIL_CLOSED",
+    "duplicate_JSON_field": "FAIL_CLOSED",
+    "extra_LF": "FAIL_CLOSED",
+    "payload_digest_mismatch": "FAIL_CLOSED",
+    "envelope_digest_mismatch": "FAIL_CLOSED",
+    "family_mismatch": "FAIL_CLOSED",
+    "exact_ref_mismatch": "FAIL_CLOSED",
+    "path_digest_mismatch": "FAIL_CLOSED",
+    "unexpected_enumeration_entry": "FAIL_CLOSED",
+    "temporary_file": "NOT_AUTHORITY and FAIL_CLOSED during enumeration",
+    "conflicting_duplicate": "FAIL_CLOSED",
+    "storage_IO": "FAIL_CLOSED"
+  },
+  "platform_assumptions": {
+    "tested_platform": "Darwin Tony-2.local 23.0.0 Darwin Kernel Version 23.0.0; Python 3.13.5",
+    "required_POSIX_primitives": [
+      "O_NOFOLLOW",
+      "O_DIRECTORY",
+      "O_EXCL",
+      "os.fsync",
+      "os.link with follow_symlinks=False"
+    ],
+    "unsupported_platform_behavior": "import/constructor/test-skip failure with explicit platform classification; no semantic downgrade",
+    "cross_platform_contract_claim": 0
+  },
+  "candidate_tests": {
+    "command": "/opt/miniconda3/bin/pytest -q tests/durable_authority/test_filesystem_adapter.py",
+    "result": "30 passed in 0.27s",
+    "combined_durable_authority_command": "/opt/miniconda3/bin/pytest -q tests/durable_authority",
+    "combined_result": "46 passed in 0.30s",
+    "positive_matrix": {
+      "C1-01_identity_roundtrip": "PASS",
+      "C1-02_memory_experience_roundtrip": "PASS",
+      "C1-03_runtime_binding_roundtrip": "PASS",
+      "C1-04_physical_bytes_deterministic": "PASS",
+      "C1-05_raw_bytes_preserved": "PASS",
+      "C1-06_identical_duplicate_idempotent": "PASS",
+      "C1-07_enumeration_deterministic": "PASS",
+      "C1-08_reconstruction": "PASS",
+      "C1-09_semantic_authority_delta_zero": "PASS"
+    },
+    "negative_matrix": {
+      "C1-10_missing_root": "PASS",
+      "C1-11_missing_family": "PASS",
+      "C1-12_symlink": "PASS",
+      "C1-13_nonregular": "PASS",
+      "C1-14_truncated": "PASS",
+      "C1-15_invalid_UTF_8": "PASS",
+      "C1-16_invalid_JSON": "PASS",
+      "C1-17_extra_LF": "PASS",
+      "C1-18_payload_digest_corruption": "PASS",
+      "C1-19_envelope_digest_corruption": "PASS",
+      "C1-20_wrong_family": "PASS",
+      "C1-21_wrong_exact_ref": "PASS",
+      "C1-22_wrong_path_hash": "PASS",
+      "C1-23_conflicting_duplicate": "PASS",
+      "C1-24_unexpected_enumeration_entry": "PASS",
+      "C1-25_corrupt_enumeration_member": "PASS",
+      "C1-26_temporary_file_not_authority": "PASS",
+      "C1-27_no_auto_directory_creation": "PASS",
+      "C1-28_no_selection_alias_surface": "PASS"
+    },
+    "fixture_boundary": "Synthetic already-governed N4E-A test objects are candidate-test inputs only; no fixture is production reachable or promoted."
+  },
+  "base_regression": {
+    "rule": "base-existing tracked test files only; new C1 test file excluded from comparison set",
+    "base_command": "base tracked tests selected by git ls-tree at a46bc7c, then /opt/miniconda3/bin/pytest -q --continue-on-collection-errors",
+    "base_result": "52 failed, 1580 passed, 6 skipped, 26 xfailed, 1 warning, 3 errors",
+    "candidate_result": "52 failed, 1580 passed, 6 skipped, 26 xfailed, 1 warning, 3 errors",
+    "failure_error_count": 55,
+    "failure_error_id_parity": "PASS",
+    "failure_error_id_sha256": "a4ce797e49d9dd02528e876b70b46e2c1b350535725a18eed02cfc400228166e",
+    "xfail_parity": "PASS",
+    "new_test_base_requirement": 0,
+    "unrelated_failure_disposition": "Pre-existing base failures/errors are unchanged."
+  },
+  "static_gate": {
+    "scope": "julia_core/durable_authority/filesystem_adapter.py",
+    "patterns": [
+      "fallback",
+      "default",
+      "latest",
+      "current",
+      "active",
+      "first",
+      "best",
+      "alias",
+      "repair",
+      "skip",
+      "ignore",
+      "except Exception",
+      "mkdir",
+      "replace",
+      "pickle",
+      "mock",
+      "stub",
+      "shadow"
+    ],
+    "hits": 0,
+    "ACTIVE_SEMANTIC_BYPASS": 0,
+    "status": "PASS"
+  },
+  "git_validation": {
+    "git_diff_check": "PASS",
+    "formatter": "/opt/miniconda3/bin/black on adapter and test file: 2 files reformatted, then unchanged on second run",
+    "working_tree_note": "Pre-existing unrelated untracked workspace files were not staged; full regression mutations to tracked evidence/data files were restored before commit."
+  },
+  "authority_delta": {
+    "new_semantic_owner": 0,
+    "new_identity_owner": 0,
+    "new_memory_experience_owner": 0,
+    "new_runtime_binding_owner": 0,
+    "new_selection_owner": 0,
+    "new_fallback_owner": 0,
+    "new_alias_owner": 0,
+    "new_backend_neutral_contract_change": 0,
+    "new_non_authoritative_physical_adapter": 1
+  },
+  "physical_storage_selection": "DEFERRED",
+  "production_mount": "NOT_AUTHORIZED",
+  "production_canonical_writes": 0,
+  "production_ready": "NO",
+  "proof_start_boundary": "exact already-governed DurableAuthorityEnvelope supplied",
+  "proof_end_boundary": "exact envelope survives durable local-filesystem write/read/reconstruction",
+  "unproven_dependencies": [
+    "production storage backend selection",
+    "production mount",
+    "production canonical data population",
+    "binding_ref provisioning",
+    "startup composition",
+    "legacy cutover",
+    "full cold-start",
+    "production hardware durability",
+    "multi-host filesystem semantics",
+    "backup and disaster recovery policy"
+  ],
+  "acceptance_boundary": {
+    "runtime_files_touched": 0,
+    "continuity_files_touched": 0,
+    "context_admission_files_touched": 0,
+    "runtime_canonical_binding_files_touched": 0,
+    "deployment_files_touched": 0,
+    "legacy_stores_touched": 0,
+    "assistant_repo_touched": 0,
+    "production_data_touched": 0
+  }
+}
