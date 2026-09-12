@@ -1,0 +1,589 @@
+{
+  "task_id": "P3-N4E-B0-DURABLE-BACKEND-BOOTSTRAP-PREFLIGHT",
+  "audit_sha": "78f18fe0b64c5bdfa9fbd9f11a691a95aca0693e",
+  "audit_repo": "tonychang925-dev/Julia_core",
+  "audit_boundary": "READ_ONLY_ARCHITECTURE_AND_REPOSITORY_FACT_AUDIT",
+  "historical_inputs": {
+    "N4B": "6cf87a81b092f3557fcd055265154b563bf9c525",
+    "N4C": "1e1751b340a124498a1a6c5c6301147cecbe990d",
+    "N4E_A": "78f18fe0b64c5bdfa9fbd9f11a691a95aca0693e"
+  },
+  "audit_answers": {
+    "Q1_existing_infrastructure_can_implement_pure_non_authoritative_adapter": "YES_ONLY_THROUGH_A_NEW_BOUNDED_NON_SEMANTIC_ADAPTER; NO_EXISTING_CONCRETE_STORAGE_IMPLEMENTATION_IS_REUSABLE_AS_IS",
+    "Q1_reason": "N4E-A already exposes backend-neutral exact Reader/Writer protocols and exact restoration. A legal physical adapter must persist the already-canonical envelope bytes without interpretation, mutation, synthesis, merge, selection, repair, or fallback. Every inventoried concrete backend currently interprets a different domain schema or performs forbidden semantics.",
+    "Q2_physical_backend_selection_requires_new_owner_decision_now": "NO",
+    "Q3_dependency_relationship": "Durable physical availability is below durable authority loading. Exact binding_ref provisioning is independently below RuntimeCanonicalAuthorityBindingResolver. Production startup composition is the join of loaded authority repositories, an exact admitted binding_ref, resolver resolution, CanonicalSemanticAuthoritySource, Frames, and C03. Neither durable loading nor binding provisioning can substitute for the other.",
+    "Q4_earliest_ready_node": "NONE; binding provisioning creation/admission/deployment-selection/transport owners and production sources are absent, so the earliest gate is an Owner architecture decision rather than implementation."
+  },
+  "static_search_scope": {
+    "production_sources_searched": [
+      "julia_core",
+      "deploy",
+      "scripts",
+      "data",
+      "docs",
+      "artifacts/continuity"
+    ],
+    "patterns": [
+      "persistence",
+      "storage",
+      "repository",
+      "artifact store",
+      "JSON",
+      "JSONL",
+      "SQLite",
+      "database",
+      "filesystem storage",
+      "append-only log",
+      "checkpoint persistence",
+      "event log",
+      "state store",
+      "snapshot",
+      "serialization",
+      "durable configuration",
+      "configuration loading",
+      "startup configuration",
+      "dependency injection",
+      "bootstrap",
+      "latest",
+      "default",
+      "current",
+      "active",
+      "best",
+      "first",
+      "fallback",
+      "mock",
+      "stub",
+      "alias",
+      "environment",
+      "os.getenv",
+      "config",
+      "identity_facts",
+      "persona"
+    ],
+    "binding_ref_exact_symbol_hits_outside_tests_and_artifacts": 0,
+    "production_binding_ref_transport_hits": 0,
+    "fixture_promotion_hits_accepted": 0,
+    "latest_default_current_selection_accepted": 0,
+    "fallback_bootstrap_inference_accepted": 0
+  },
+  "existing_storage_compatibility_matrix": {
+    "classification_legend": [
+      "A_PURE_STORAGE_ADAPTER_REUSABLE",
+      "B_REUSABLE_WITH_BOUNDED_NON_SEMANTIC_ADAPTER",
+      "C_LEGACY_SEMANTIC_STORAGE_NOT_REUSABLE",
+      "D_AUTHORITY_CONFLICT",
+      "E_TEST_ONLY",
+      "F_DEAD_UNREACHABLE",
+      "G_GENERIC_INFRASTRUCTURE_BUT_NOT_PRODUCTION_BOUND",
+      "H_OTHER"
+    ],
+    "compatibility_answers_order": [
+      "persists_opaque_bytes",
+      "mutates_semantic_content",
+      "synthesizes_ids_refs",
+      "merges_compacts_dedupes",
+      "reorders_governance_history",
+      "skips_corrupt_records",
+      "selects_latest_default_active_best",
+      "silently_creates_state",
+      "exact_immutable_write_read",
+      "preserves_N4E_envelope_bytes",
+      "fails_closed_on_corruption",
+      "mountable_without_semantic_ownership"
+    ],
+    "candidates": [
+      {
+        "candidate": "backend-neutral N4E durable authority protocols",
+        "path": "julia_core/durable_authority/adapters.py",
+        "symbol": "DurableAuthorityReader; DurableAuthorityWriter",
+        "evidence": "read_exact returns one exact envelope or fails closed; list_exact_refs is restoration mechanics only; write_exact persists one immutable envelope or fails closed (lines 16-33).",
+        "caller_reachability": "Exported by julia_core/durable_authority/__init__.py; reconstruction and tests consume it; no concrete production implementation is registered.",
+        "classification": "G_GENERIC_INFRASTRUCTURE_BUT_NOT_PRODUCTION_BOUND",
+        "compatibility_answers": [false, false, false, false, false, false, false, false, false, false, false, true]
+      },
+      {
+        "candidate": "N4E exact envelope and restoration layer",
+        "path": "julia_core/durable_authority/reconstruction.py",
+        "symbol": "restore_identity_repository; restore_memory_experience_repository; restore_runtime_binding_repository; DurableAuthorityReconstructor",
+        "evidence": "Reads exact refs, validates every envelope, parses exact governed objects, validates predecessor closure, and directly installs exact snapshots without governance replay (lines 31-80, 83-139, 142-219).",
+        "caller_reachability": "Public exports and tests/durable_authority/test_durable_authority_contract.py; no production startup caller exists.",
+        "classification": "G_GENERIC_INFRASTRUCTURE_BUT_NOT_PRODUCTION_BOUND",
+        "compatibility_answers": [false, false, false, false, false, false, false, false, false, false, true, true]
+      },
+      {
+        "candidate": "legacy atomic conversation JSON repository",
+        "path": "julia_core/conversation_state/repository.py",
+        "symbol": "SessionRepository",
+        "evidence": "Defaults to data/sessions.json, silently resets state after JSON/KeyError corruption, creates parent directories, rewrites a conversation-specific JSON array, applies defaults, and sorts/merges imported messages (lines 46-81, 97-113, 441-480).",
+        "caller_reachability": "ConversationRuntime defaults to LegacyJsonConversationRepository, itself a SessionRepository wrapper (julia_core/runtime/conversation_runtime.py:101-104).",
+        "classification": "C_LEGACY_SEMANTIC_STORAGE_NOT_REUSABLE",
+        "compatibility_answers": [false, true, false, true, true, true, false, true, false, false, false, false]
+      },
+      {
+        "candidate": "legacy conversation JSON facade",
+        "path": "julia_core/conversation_state/legacy_json_repository.py",
+        "symbol": "LegacyJsonConversationRepository",
+        "evidence": "Constructs SessionRepository and delegates conversation lifecycle, message, turn, pagination, and import operations (lines 29-141).",
+        "caller_reachability": "ConversationRuntime default and conversation migration/cutover code.",
+        "classification": "C_LEGACY_SEMANTIC_STORAGE_NOT_REUSABLE",
+        "compatibility_answers": [false, true, false, true, true, true, false, true, false, false, false, false]
+      },
+      {
+        "candidate": "StorageV2 conversation backend",
+        "path": "julia_core/conversation_state/storage_v2_repository.py",
+        "symbol": "StorageV2ConversationRepository",
+        "evidence": "Owns ConversationSession/ConversationMessage JSONL semantics plus a derived SQLite catalog; silently creates base directory, reconciles/mutates derived state, and interprets/reorders conversation records (lines 1-11, 40-58, 91-121).",
+        "caller_reachability": "Legacy migration and cutover create it; tests exercise it; no N4E authority adapter mounts it.",
+        "classification": "C_LEGACY_SEMANTIC_STORAGE_NOT_REUSABLE",
+        "compatibility_answers": [false, true, false, true, true, true, false, true, false, false, false, false]
+      },
+      {
+        "candidate": "append-only runtime event JSONL",
+        "path": "julia_core/events/store.py",
+        "symbol": "EventStore",
+        "evidence": "Creates storage directory, serializes RuntimeEvent fields rather than opaque envelope bytes, and catches every persistence exception then returns success (lines 16-51). Reads query only the process buffer, not durable exact records (lines 55-80).",
+        "caller_reachability": "Event emission path and persisted data/events/*.jsonl; not bound to N4E authority loading.",
+        "classification": "C_LEGACY_SEMANTIC_STORAGE_NOT_REUSABLE",
+        "compatibility_answers": [false, false, false, false, false, true, true, true, false, false, false, false]
+      },
+      {
+        "candidate": "legacy memory read adapter",
+        "path": "julia_core/memory/memory_store.py",
+        "symbol": "MemoryStore",
+        "evidence": "Interprets legacy JSONL/Markdown into MemoryObject values, supplies fallback types/sources/IDs, derives topics, and skips malformed JSONL lines (lines 11-65, 27-43).",
+        "caller_reachability": "MemoryPersistenceAdapter._load_existing and legacy memory runtime paths.",
+        "classification": "C_LEGACY_SEMANTIC_STORAGE_NOT_REUSABLE",
+        "compatibility_answers": [false, true, true, false, false, true, false, false, false, false, false, false]
+      },
+      {
+        "candidate": "legacy memory JSONL writer",
+        "path": "julia_core/memory/persistence/memory_writer.py",
+        "symbol": "MemoryWriter",
+        "evidence": "Creates memory directory, appends MemoryObject JSON, rewrites files to replace records during merge, synthesizes merged semantic content/latest_reason, and skips corrupt lines while loading (lines 10-48, 54-95).",
+        "caller_reachability": "MemoryPersistenceAdapter.persist.",
+        "classification": "C_LEGACY_SEMANTIC_STORAGE_NOT_REUSABLE",
+        "compatibility_answers": [false, true, false, true, true, true, false, true, false, false, false, false]
+      },
+      {
+        "candidate": "legacy gated memory persistence",
+        "path": "julia_core/memory/persistence/persistence_adapter.py",
+        "symbol": "MemoryPersistenceAdapter",
+        "evidence": "Applies consolidation policy, generates a memory ID, mutates normalized content, detects semantic duplicates, and delegates to merge/create writer (lines 16-49).",
+        "caller_reachability": "Legacy memory persistence flow; conflicts with MemoryExperience authority and N4E envelope immutability.",
+        "classification": "D_AUTHORITY_CONFLICT",
+        "compatibility_answers": [false, true, true, true, false, false, false, true, false, false, false, false]
+      },
+      {
+        "candidate": "memory governance audit JSONL",
+        "path": "julia_core/memory/governance/audit/governance_logger.py; julia_core/memory/governance/audit/audit_query.py",
+        "symbol": "GovernanceAuditLogger; GovernanceAuditQuery",
+        "evidence": "Logger creates an audit directory and appends MemoryGovernanceDecision events; query skips malformed lines and defaults missing fields (logger lines 11-31; query lines 9-38).",
+        "caller_reachability": "Memory governance tooling and tests; not N4E authority loading.",
+        "classification": "C_LEGACY_SEMANTIC_STORAGE_NOT_REUSABLE",
+        "compatibility_answers": [false, false, false, false, false, true, false, true, false, false, false, false]
+      },
+      {
+        "candidate": "Diary durable semantic port",
+        "path": "julia_core/diary/repository_protocol.py",
+        "symbol": "DiaryRepository",
+        "evidence": "Protocol accepts AcceptedDiaryEntry and defines durable append/get/list semantics; it is not an opaque envelope byte API (lines 1-44).",
+        "caller_reachability": "Protocol is imported by Diary consumers; no concrete production adapter is present in this repository.",
+        "classification": "G_GENERIC_INFRASTRUCTURE_BUT_NOT_PRODUCTION_BOUND",
+        "compatibility_answers": [false, false, false, false, false, false, false, false, false, false, false, false]
+      },
+      {
+        "candidate": "runtime session metadata JSON",
+        "path": "julia_core/runtime/session_store.py",
+        "symbol": "SessionStore",
+        "evidence": "Creates a fixed parent directory, silently returns empty catalog after read failure, ensures/saves session metadata, and sorts newest first (lines 17-37, 42-67, 78-91).",
+        "caller_reachability": "gateway_server request/session paths and JuliaSession wake-state reads.",
+        "classification": "G_GENERIC_INFRASTRUCTURE_BUT_NOT_PRODUCTION_BOUND",
+        "compatibility_answers": [false, true, false, false, false, true, true, true, false, false, false, false]
+      },
+      {
+        "candidate": "persona feature JSON",
+        "path": "julia_core/runtime/persona/feature_store.py",
+        "symbol": "PersonaFeatureStore",
+        "evidence": "Creates parent directory, reads semantic persona JSON, and silently uses a hardcoded persona template on missing/corrupt input (lines 17-48, 32-78).",
+        "caller_reachability": "JuliaSession constructor directly loads it at julia_core/runtime/julia_session.py:99-101.",
+        "classification": "D_AUTHORITY_CONFLICT",
+        "compatibility_answers": [false, true, true, false, false, true, true, true, false, false, false, false]
+      },
+      {
+        "candidate": "narrative bootstrap filesystem",
+        "path": "julia_core/narrative/bootstrap.py",
+        "symbol": "load_bootstrap_frames; load_bootstrap; get_bootstrap",
+        "evidence": "Reads a fixed external narrative memory directory, classifies semantic files into identity/experience/continuity, silently omits optional files, scans recent memory by mtime, and returns default full bootstrap (lines 16-65, 84-129, 144-186).",
+        "caller_reachability": "JuliaSession constructor and ContextExecutionRuntime bootstrap frame loader.",
+        "classification": "D_AUTHORITY_CONFLICT",
+        "compatibility_answers": [false, true, false, false, false, true, true, false, false, false, false, false]
+      },
+      {
+        "candidate": "startup identity facts JSON",
+        "path": "julia_core/memory/startup_memory_loader.py",
+        "symbol": "StartupMemoryLoader",
+        "evidence": "Reads governed identity_facts.json but returns missing/invalid packs rather than raising, defaults subject Julia, normalizes values, and imposes fixed field order (lines 58-131).",
+        "caller_reachability": "Legacy startup memory/persona paths; not CanonicalSemanticAuthoritySource.",
+        "classification": "D_AUTHORITY_CONFLICT",
+        "compatibility_answers": [false, true, false, false, true, true, false, false, false, false, false, false]
+      },
+      {
+        "candidate": "Julia startup profile artifacts",
+        "path": "julia_core/runtime/startup_profile.py",
+        "symbol": "load_startup_profile",
+        "evidence": "Reads four fixed semantic JSON artifacts, silently maps missing values to hardcoded defaults, and creates operating context (lines 63-93).",
+        "caller_reachability": "Runtime profile recall paths; no exact binding_ref input.",
+        "classification": "D_AUTHORITY_CONFLICT",
+        "compatibility_answers": [false, true, false, false, false, true, true, false, false, false, false, false]
+      },
+      {
+        "candidate": "continuity checkpoint constructor",
+        "path": "julia_core/continuity/checkpoint.py",
+        "symbol": "create_checkpoint",
+        "evidence": "Dedupes protected refs and defaults checkpoint_id to continuity://checkpoint/{agent_id}/latest (lines 34-56); no durable store is implemented here.",
+        "caller_reachability": "Continuity contracts/tests and architecture documents; no production canonical binding provisioning caller.",
+        "classification": "D_AUTHORITY_CONFLICT",
+        "compatibility_answers": [false, true, true, true, false, false, true, false, false, false, false, false]
+      },
+      {
+        "candidate": "local evidence lexical retrieval",
+        "path": "julia_core/evidence/local_retrieval.py",
+        "symbol": "EvidenceScanner; LocalEvidenceRetriever",
+        "evidence": "Discovers files from allowed roots, hashes/interprets content, scores best lexical matches, sorts by descending score, and truncates results (lines 72-139).",
+        "caller_reachability": "Evidence capability/retrieval tooling; not authority storage or binding selection.",
+        "classification": "C_LEGACY_SEMANTIC_STORAGE_NOT_REUSABLE",
+        "compatibility_answers": [false, false, true, false, true, false, true, false, false, false, false, false]
+      },
+      {
+        "candidate": "semantic evidence index",
+        "path": "julia_core/evidence/semantic_index.py",
+        "symbol": "SemanticEvidenceIndex and associated functions",
+        "evidence": "Builds/query a derived semantic index over evidence rather than storing exact opaque authority envelopes; retrieval ranking is semantic selection.",
+        "caller_reachability": "Evidence/research paths; not production canonical startup.",
+        "classification": "C_LEGACY_SEMANTIC_STORAGE_NOT_REUSABLE",
+        "compatibility_answers": [false, false, true, false, true, false, true, true, false, false, false, false]
+      },
+      {
+        "candidate": "governed experience/pattern/calibration artifacts",
+        "path": "julia_core/experience/artifact.py; julia_core/experience/patterns.py; julia_core/experience/calibration.py; julia_core/experience/regression.py",
+        "symbol": "governed artifact save/load functions",
+        "evidence": "Artifact writers create target parents and pretty-print domain semantic JSON, e.g. experience/artifact.py:160-171 and patterns.py:141-146.",
+        "caller_reachability": "Experience benchmark/tooling paths; not N4E authority families.",
+        "classification": "G_GENERIC_INFRASTRUCTURE_BUT_NOT_PRODUCTION_BOUND",
+        "compatibility_answers": [false, false, false, false, false, false, false, true, false, false, false, false]
+      },
+      {
+        "candidate": "generic filesystem capability",
+        "path": "julia_core/capability/filesystem.py",
+        "symbol": "filesystem write/read tools",
+        "evidence": "Exposes user/tool file operations and creates parent directories at lines 144-145; capability security/path policy is not durable authority semantics.",
+        "caller_reachability": "External capability tool surface; no N4E reader/writer mounting or immutable duplicate/ref contract.",
+        "classification": "G_GENERIC_INFRASTRUCTURE_BUT_NOT_PRODUCTION_BOUND",
+        "compatibility_answers": [false, false, false, false, false, false, false, true, false, false, false, false]
+      },
+      {
+        "candidate": "personal operating config JSON",
+        "path": "julia_core/capability/calendar_tool.py; julia_core/capability/contacts.py; julia_core/capability/learning.py",
+        "symbol": "calendar/contact/habit class-backed JSON stores",
+        "evidence": "All create parent directories and rewrite domain-specific JSON state (calendar lines 91-92, contacts lines 92-93, learning lines 91-92).",
+        "caller_reachability": "Personal OS capability tools; no canonical authority or runtime startup binding.",
+        "classification": "G_GENERIC_INFRASTRUCTURE_BUT_NOT_PRODUCTION_BOUND",
+        "compatibility_answers": [false, true, false, false, false, false, false, true, false, false, false, false]
+      },
+      {
+        "candidate": "conversation migration/cutover state",
+        "path": "julia_core/conversation_state/legacy_migration.py; julia_core/conversation_state/cutover.py",
+        "symbol": "migrate_legacy_conversations; CutoverState; cutover_to_storage_v2",
+        "evidence": "Normalizes/sorts legacy conversation data and switches Conversation authority to StorageV2 (legacy_migration lines 18-98; cutover lines 54-158).",
+        "caller_reachability": "Migration/cutover scripts and tests; explicitly outside N4E and not authorized for canonical writes.",
+        "classification": "C_LEGACY_SEMANTIC_STORAGE_NOT_REUSABLE",
+        "compatibility_answers": [false, true, false, false, true, false, false, true, false, false, false, false]
+      }
+    ],
+    "inventory_result": {
+      "A_count": 0,
+      "B_count": 0,
+      "concrete_existing_reusable_backend_count": 0,
+      "reason": "No current concrete implementation provides arbitrary opaque bytes, exact immutable ref-addressed reads/writes, exact byte preservation, and fail-closed corruption behavior behind the N4E protocols."
+    }
+  },
+  "physical_backend_decision": {
+    "PHYSICAL_STORAGE_SELECTION_REQUIRED_NOW": "NO",
+    "PHYSICAL_STORAGE_SELECTION": "STILL_DEFERRED",
+    "reason": "N4E-A's Reader/Writer protocols isolate physical persistence from authority semantics. The next architecture gate is ownership and provisioning of the exact runtime binding_ref, not a PostgreSQL/SQLite/JSONL/filesystem/object-store/append-only choice.",
+    "next_backend_neutral_step_after_owner_gate": "Specify the exact governed binding lifecycle owners and exact explicit config transport, then implement/compose backend-neutral loading and provisioning independently. A concrete backend choice is required only when a production adapter must be deployed or its operational guarantees must be tested.",
+    "backend_preferences_considered": 0
+  },
+  "binding_ref_provisioning_map": {
+    "EXACT_PRODUCTION_BINDING_REF_SOURCE": "NONE",
+    "search_result": {
+      "runtime_canonical_binding_symbols": "Only julia_core/runtime_canonical_binding contracts/repository/resolver and tests/artifacts reference them; no production caller constructs or resolves the ref.",
+      "canonical_authority_source_symbols": "Only tests/artifacts construct CanonicalSemanticAuthoritySource; production runtime has no injection site.",
+      "startup_config_session_gateway_cli_deployment_env_persona_manifest_checkpoint_paths": "No RuntimeCanonicalAuthorityBindingRef field/transport exists.",
+      "repository_enumeration_or_alias_paths": "None exists; N4E list_exact_refs is restoration mechanics only and does not select an active binding.",
+      "environment_result": "No binding-ref environment/config key exists. Deploy script only sets deployment repo authority/root/PYTHONPATH/private provider env (deploy/brain/start-brain-18089:3-15)."
+    },
+    "forbidden_sources_rejected": [
+      "latest",
+      "current",
+      "default",
+      "active",
+      "first available",
+      "best match",
+      "repository enumeration",
+      "persona-name lookup",
+      "Golden Mira name lookup",
+      "conversation inference",
+      "checkpoint /latest alias",
+      "environment fallback",
+      "fixture",
+      "hardcoded production ref"
+    ],
+    "acceptable_future_transport_condition": "An explicit governed deployment input may carry one already-admitted exact ref only after its creation, admission, and deployment-selection owners are constitutionally defined; discovery/fallback remains forbidden."
+  },
+  "binding_authority_owner_map": {
+    "BINDING_CREATION_OWNER": {
+      "value": "UNRESOLVED_PRODUCTION_CALLER",
+      "available_mechanics": "RuntimeCanonicalAuthorityBindingRepository.store_candidate validates/stores an already supplied exact RuntimeCanonicalAuthorityBinding but does not select or create its semantic tuple (julia_core/runtime_canonical_binding/repository.py:43-74).",
+      "ready": "NO"
+    },
+    "BINDING_ADMISSION_OWNER": {
+      "value": "UNRESOLVED_PRODUCTION_ACTOR",
+      "available_mechanics": "RuntimeCanonicalAuthorityBindingRepository.admit requires externally supplied actor/reason/time (repository.py:76-95); no governed production actor/caller exists.",
+      "ready": "NO"
+    },
+    "BINDING_DEPLOYMENT_SELECTION_OWNER": {
+      "value": "NONE",
+      "available_mechanics": "No production selector or exact deployment manifest exists. N4C explicitly leaves this an unproven upstream dependency.",
+      "ready": "NO"
+    },
+    "BINDING_REF_TRANSPORT_OWNER": {
+      "value": "NONE",
+      "available_mechanics": "No production startup/config/environment/deployment transport exists; repository-visible production process sets no such input.",
+      "ready": "NO"
+    },
+    "RUNTIME_CONSUMER": {
+      "value": "RuntimeCanonicalAuthorityBindingResolver.resolve_exact",
+      "available_mechanics": "Resolves only an exact ref, rejects candidate/superseded/retired bindings, and fails when repository is unbound (julia_core/runtime_canonical_binding/resolver.py:72-111).",
+      "production_wired": "NO",
+      "ready": "NO"
+    },
+    "contract_level_authority": "N4C artifact defines RuntimeCanonicalAuthorityBinding authority as governance lifecycle/exact resolution only and downstream consumers as owner-provided exact-ref resolvers with zero mutation authority."
+  },
+  "cold_start_dependency_dag": {
+    "edges": [
+      {
+        "from": "physical durable backend availability",
+        "to": "DurableAuthorityReader/Writer physical adapter",
+        "independence": "Backend decision is deferred; no authority selection occurs here."
+      },
+      {
+        "from": "DurableAuthorityReader/Writer physical adapter",
+        "to": "durable authority state load",
+        "independence": "Loading uses exact refs and fail-closed N4E restoration; it does not admit or select."
+      },
+      {
+        "from": "durable authority state load",
+        "to": "IdentityRepository",
+        "independence": "restore_identity_repository directly reconstructs exact snapshot."
+      },
+      {
+        "from": "durable authority state load",
+        "to": "MemoryExperienceRepository",
+        "independence": "restore_memory_experience_repository directly reconstructs exact snapshot."
+      },
+      {
+        "from": "durable authority state load",
+        "to": "RuntimeCanonicalAuthorityBindingRepository",
+        "independence": "restore_runtime_binding_repository directly reconstructs exact snapshot."
+      },
+      {
+        "from": "exact governed binding creation/admission",
+        "to": "exact admitted RuntimeCanonicalAuthorityBindingRef",
+        "independence": "Does not require physical N4E loading, although durable persistence of the admitted binding can be added in parallel."
+      },
+      {
+        "from": "Owner deployment selection",
+        "to": "exact explicit binding_ref transport",
+        "independence": "This owner/source is currently absent."
+      },
+      {
+        "from": "RuntimeCanonicalAuthorityBindingRepository + exact binding_ref",
+        "to": "RuntimeCanonicalAuthorityBindingResolver.resolve_exact",
+        "independence": "Requires admitted exact ref; repository enumeration cannot replace it."
+      },
+      {
+        "from": "resolved runtime binding",
+        "to": "IdentityRef + ordered MemoryExperienceRef tuple",
+        "independence": "Tuple comes from the binding payload, not search or bootstrap."
+      },
+      {
+        "from": "IdentityRepository + MemoryExperienceRepository",
+        "to": "CanonicalSemanticAuthoritySource exact resolver bindings",
+        "independence": "N4B source is read-only and fails when unbound/unknown/nonadmitted."
+      },
+      {
+        "from": "IdentityRef/MemoryExperienceRef tuple + CanonicalSemanticAuthoritySource",
+        "to": "IdentityFrame + ExperienceFrame tuple",
+        "independence": "Frames are derived projections, never canonical state."
+      },
+      {
+        "from": "Frames",
+        "to": "C03 ContextExecutionRuntime package",
+        "independence": "Current C03 does not inject this source and still loads legacy bootstrap."
+      },
+      {
+        "from": "C03 package",
+        "to": "Runtime/ModelProvider",
+        "independence": "Production cold-start causal closure requires all prior joins."
+      }
+    ],
+    "CAN_DURABLE_LOADING_AND_BINDING_REF_PROVISIONING_BE_IMPLEMENTED_IN_PARALLEL": "YES",
+    "parallel_reason": "Durable loading depends on a physical Reader plus persisted exact envelopes. Binding_ref provisioning depends on governed binding creation/admission and an owner-selected exact deployment transport. The two branches meet only at resolver/startup composition; neither branch can synthesize the other.",
+    "join_node": "PRODUCTION_STARTUP_COMPOSITION",
+    "cold_start_causal_closure_status": "NOT_ESTABLISHED"
+  },
+  "production_entrypoint_trace": {
+    "repository_visible_production_process": {
+      "PROCESS_ENTRYPOINT": "deploy/brain/start-brain-18089:59 exec /opt/miniconda3/bin/python3.13 voice_api/server.py --port 18089",
+      "deployment_integrity": "Script verifies external deployment repo SHA and expected /Users/admin/julia_core import provenance for ConversationRuntime and ContextExecutionRuntime (lines 23-57), but it is not pinned to audited SHA 78f18fe and performs no canonical authority/binding checks.",
+      "SESSION_ENTRYPOINT": "External production conversation route POST /internal/v1/conversations/{conversation_id}/turns gets ConversationRuntime and JuliaSession singletons at voice_api/conversation_routes.py:47-71; voice route reaches JuliaCoreAdapter at voice_api/routes.py:40-71.",
+      "RUNTIME_CONSTRUCTION_POINT": "JuliaSession constructor hardcodes DeepSeek provider, narrative bootstrap, persona store, capability/action/relationship/recorder/workflow services, and ContextExecutionRuntime (julia_core/runtime/julia_session.py:75-109).",
+      "CONFIG_INJECTION_POINT": "NONE_FOR_CANONICAL_AUTHORITY; deployment script injects only repo authority/root/PYTHONPATH/private env and provider secret (deploy/brain/start-brain-18089:3-19). Process host/token env is separate transport configuration.",
+      "CANONICAL_SOURCE_INJECTION_POINT": "NONE; CanonicalSemanticAuthoritySource and RuntimeCanonicalAuthorityBindingResolver are not imported by JuliaSession, ContextExecutionRuntime, gateway, ConversationRuntime, or production deployment route.",
+      "C03_ENTRYPOINT": "ContextExecutionRuntime.prepare at julia_core/runtime/context_execution_runtime.py:212-240 is called through JuliaSession's context_os construction and cognitive path; it loads legacy narrative bootstrap frames rather than N4B canonical frames.",
+      "actual_process_authority_warning": "The live deploy script launches an external deployment repository, while this audit is anchored to Julia_core SHA 78f18fe. Therefore live-runtime exact file parity beyond the two explicitly checked imports is not asserted."
+    },
+    "core_alternate_gateway_trace": {
+      "PROCESS_ENTRYPOINT": "julia_core/runtime/gateway_server.py:381-390 main/create_app/uvicorn.run",
+      "SESSION_ENTRYPOINT": "create_app imports get_session at lines 22-29; speech/user paths call it at lines 71-100 and 362-368.",
+      "RUNTIME_CONSTRUCTION_POINT": "get_session constructs singleton JuliaSession at julia_core/runtime/julia_session.py:590-597.",
+      "CONFIG_INJECTION_POINT": "NONE_FOR_CANONICAL_AUTHORITY",
+      "CANONICAL_SOURCE_INJECTION_POINT": "NONE",
+      "C03_ENTRYPOINT": "JuliaSession constructor creates ContextExecutionRuntime at lines 107-109; ContextExecutionRuntime.prepare is lines 212-240."
+    }
+  },
+  "legacy_runtime_dependency_map": {
+    "WHICH_LEGACY_COMPONENTS_MUST_EVENTUALLY_BE_RETIREED": [
+      "JuliaSession._identity_system static concatenation (julia_session.py:111-118)",
+      "PersonaFeatureStore as identity authority (julia_session.py:99-101; feature_store.py:20-48)",
+      "narrative bootstrap as canonical startup authority (julia_session.py:78-82; bootstrap.py:16-65)",
+      "legacy Memory/MemoryStore/MemoryWriter paths when superseded by MemoryExperience authority",
+      "legacy startup memory/profile identity facts as authority",
+      "Continuity /latest alias and inference-based recovery selection"
+    ],
+    "WHICH_LEGACY_COMPONENTS_MAY_REMAIN_NON_AUTHORITATIVE": [
+      "ConversationRuntime/ConversationRepository: separate conversation authority, if kept read-only relative to Identity/MemoryExperience/RuntimeBinding authority during N4E work",
+      "SessionStore: derived catalog metadata only",
+      "Evidence retrieval/index: derived non-authoritative research capability",
+      "Diary repository: separate Diary authority, if not treated as MemoryExperience or N4E storage",
+      "Provider/action/workflow services: non-identity execution machinery"
+    ],
+    "WHETHER_ANY_LEGACY_COMPONENT_IS_REQUIRED_FOR_NEXT_DURABLE_BINDING_NODE": "NO",
+    "reason": "Durable authority loading, binding governance, exact ref transport, resolver, and CanonicalSemanticAuthoritySource form a separate chain. Legacy runtime may remain active but cannot be used to synthesize or select the first exact binding.",
+    "retirement_performed": "NO",
+    "workaround_performed": "NO"
+  },
+  "readiness_matrix": {
+    "DURABLE_PHYSICAL_ADAPTER": {
+      "classification": "DEFERRED",
+      "reason": "Backend-neutral contracts exist; physical backend is deliberately unspecified and no deployment decision is required before binding ownership gate."
+    },
+    "DURABLE_AUTHORITY_LOADING": {
+      "classification": "ALREADY_EXISTS",
+      "backend_neutral_status": "READY_FOR_ADAPTER_BINDING",
+      "production_status": "NOT_PRODUCTION_BOUND",
+      "reason": "Exact reconstruction functions exist for all three families but no physical Reader or production startup caller exists."
+    },
+    "RUNTIME_BINDING_REF_PROVISIONING": {
+      "classification": "OWNER_GATE_REQUIRED",
+      "reason": "Exact production source, creation caller, admission actor, deployment selector, and transport owner are absent."
+    },
+    "PRODUCTION_STARTUP_COMPOSITION": {
+      "classification": "BLOCKED",
+      "reason": "Requires both durable loading and exact binding provisioning; current startup uses hardcoded legacy provider/persona/bootstrap composition."
+    },
+    "LEGACY_RUNTIME_RETIREMENT": {
+      "classification": "DEFERRED",
+      "reason": "Not required for next durable/binding node; must not be performed during B0."
+    },
+    "N4_FINAL_CUTOVER": {
+      "classification": "DEFERRED",
+      "reason": "Requires full cold-start closure, exact owners, startup wiring, and separate production authorization."
+    }
+  },
+  "next_implementation_node": "NONE",
+  "OWNER_ARCHITECTURE_GATE_REQUIRED": "YES",
+  "owner_gate_questions": [
+    "Name the exact governed actor/process that creates each RuntimeCanonicalAuthorityBinding candidate.",
+    "Name the exact admission actor and lifecycle policy for binding candidates.",
+    "Name the exact deployment-selection owner and explicit exact-ref transport format/source.",
+    "Confirm whether binding creation/admission is provisioned before or during durable state population; no backend choice is requested by this gate."
+  ],
+  "blockers": [
+    "EXACT_PRODUCTION_BINDING_REF_SOURCE = NONE",
+    "BINDING_CREATION_OWNER production caller unresolved",
+    "BINDING_ADMISSION_OWNER production actor unresolved",
+    "BINDING_DEPLOYMENT_SELECTION_OWNER none",
+    "BINDING_REF_TRANSPORT_OWNER none",
+    "Canonical source/runtime resolver production injection gap",
+    "No physical N4E adapter is production-bound",
+    "Full cold-start causal closure unproven"
+  ],
+  "acceptance_matrix": {
+    "N4EB0-01_exact_N4E_A_SHA_audited": "PASS",
+    "N4EB0-02_all_existing_storage_candidates_inventoried": "PASS",
+    "N4EB0-03_semantic_vs_pure_storage_distinguished": "PASS",
+    "N4EB0-04_reusable_adapter_possibility_proven_or_rejected": "PASS",
+    "N4EB0-05_physical_backend_decision_requirement_explicit": "PASS",
+    "N4EB0-06_binding_ref_production_sources_exhaustively_traced": "PASS",
+    "N4EB0-07_no_implicit_binding_selection_accepted": "PASS",
+    "N4EB0-08_creation_owner_exact": "PASS_AS_EXPLICIT_BLOCKER",
+    "N4EB0-09_admission_owner_exact": "PASS_AS_EXPLICIT_BLOCKER",
+    "N4EB0-10_deployment_selection_owner_exact": "PASS_AS_EXPLICIT_BLOCKER",
+    "N4EB0-11_transport_owner_exact_or_explicit_blocker": "PASS",
+    "N4EB0-12_real_process_entrypoint_identified": "PASS",
+    "N4EB0-13_session_runtime_construction_traced": "PASS",
+    "N4EB0-14_canonical_source_injection_gap_identified": "PASS",
+    "N4EB0-15_C03_entrypoint_traced": "PASS",
+    "N4EB0-16_cold_start_DAG_complete": "PASS",
+    "N4EB0-17_parallelizable_nodes_identified_mechanically": "PASS",
+    "N4EB0-18_legacy_dependencies_classified": "PASS",
+    "N4EB0-19_fixture_assumptions": "PASS: 0",
+    "N4EB0-20_latest_default_current_selection_accepted": "PASS: 0",
+    "N4EB0-21_fallback_bootstrap_inference_accepted": "PASS: 0",
+    "N4EB0-22_every_unresolved_node_classified": "PASS",
+    "N4EB0-23_exactly_one_next_node_or_NONE": "PASS: NONE",
+    "N4EB0-24_owner_gate_requirement_explicit": "PASS",
+    "N4EB0-25_production_code_changed": "PASS: 0"
+  },
+  "proof_start_boundary": "Accepted N4E-A exact in-memory governed state to deterministic durable envelope to exact validation/reconstruction and governed equivalence.",
+  "proof_end_boundary": "Repository-fact preflight proves backend selection can remain deferred, existing concrete storage cannot be reused as-is, durable loading and binding provisioning are parallel branches, and production startup lacks both exact binding source/owners and canonical injection.",
+  "unproven_dependencies": [
+    "physical durable backend deployment",
+    "physical non-authoritative adapter implementation",
+    "production durable state population",
+    "production RuntimeCanonicalAuthorityBinding creation",
+    "production binding admission",
+    "production binding deployment selection",
+    "production binding_ref transport",
+    "production startup wiring",
+    "canonical source injection into C03",
+    "legacy runtime replacement",
+    "legacy data migration",
+    "full cold-start chain",
+    "N4 final cutover"
+  ],
+  "authority_boundary_compliance": {
+    "production_code_changed": "NO",
+    "physical_backend_selected": "NO",
+    "runtime_wiring_performed": "NO",
+    "legacy_migration_performed": "NO",
+    "canonical_writes_performed": "NO",
+    "golden_mira_admission_performed": "NO",
+    "production_cutover_performed": "NO",
+    "main_merge_performed": "NO",
+    "release_deploy_performed": "NO"
+  }
+}
