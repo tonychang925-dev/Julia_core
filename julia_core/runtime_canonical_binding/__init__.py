@@ -9,6 +9,7 @@ from .contracts import (
     RuntimeCanonicalAuthorityBindingRef,
     RuntimeCanonicalAuthorityBindingStatus,
 )
+from .deployment_configuration import RuntimeBindingDeploymentConfiguration
 from .repository import (
     InvalidRuntimeCanonicalAuthorityBindingLifecycleError,
     RuntimeCanonicalAuthorityBindingConflictError,
@@ -36,4 +37,5 @@ __all__ = [
     "RuntimeCanonicalAuthorityBindingResolver",
     "RuntimeCanonicalAuthorityBindingResolverError",
     "RuntimeCanonicalAuthorityBindingStatus",
+    "RuntimeBindingDeploymentConfiguration",
 ]
