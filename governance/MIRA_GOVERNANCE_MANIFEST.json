@@ -1,0 +1,28 @@
+{
+  "governance_id": "JULIA_MIRA_GOVERNANCE",
+  "version": "0.1-draft",
+  "status": "DRAFT_BOOTSTRAP_ONLY",
+  "default_execution_mode": "PARALLEL",
+  "invalidation_model": "DELTA_SCOPED",
+  "max_normal_review_depth": 1,
+  "review_of_review": "FORBIDDEN_BY_DEFAULT",
+  "full_rerun": "FORBIDDEN_UNLESS_TRIGGERED",
+  "mandatory_protocols": [
+    {
+      "id": "MULTI_AGENT_PARALLEL_EXECUTION_PROTOCOL",
+      "version": "v0.1",
+      "path": "governance/protocols/MULTI_AGENT_PARALLEL_EXECUTION_PROTOCOL_v0.1.md",
+      "digest": "UNBOUND_DRAFT"
+    }
+  ],
+  "mandatory_for": [
+    "MIRA_ARCHITECT",
+    "MIRA_SIS",
+    "MIRA_LIL",
+    "CODEX_AGENT",
+    "REVIEW_AGENT",
+    "AUTOMATION_TASK"
+  ],
+  "bootstrap_rule": "Before any Julia/Mira engineering action, load this manifest, resolve mandatory protocols, and pass task admission. If governance cannot be resolved exactly, fail closed.",
+  "authority_rule": "Ungated Mira output is non-authoritative for engineering state transitions."
+}
