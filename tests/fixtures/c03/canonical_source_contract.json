@@ -1,0 +1,28 @@
+{
+  "contract_version": "ENG-12A-C03-EXECUTABLE-CONFORMANCE/0.1",
+  "canonical_inputs": [
+    "IdentityFrame",
+    "ExperienceFrame",
+    "CurrentConversationalTaskContext"
+  ],
+  "exclusive_direction": [
+    "IdentityFrame + ExperienceFrame + CurrentConversationalTaskContext",
+    "Exclusive Admission Gate",
+    "sealed CognitiveContextPackage",
+    "STOP"
+  ],
+  "rejected_authority_sources": [
+    "raw_memory",
+    "persona_package",
+    "assistant_self_block",
+    "provider_system_prompt"
+  ],
+  "package_authority": {
+    "canonical": false,
+    "runtime": false,
+    "provider": false,
+    "assistant_self": false
+  },
+  "test_only": true,
+  "production_implementation": false
+}
