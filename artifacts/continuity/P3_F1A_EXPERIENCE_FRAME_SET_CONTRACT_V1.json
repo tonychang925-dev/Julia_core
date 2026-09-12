@@ -1,0 +1,136 @@
+{
+  "task_id": "P3-F1A-EXPERIENCE-FRAME-SET-CONTRACT",
+  "phase": "P3",
+  "task_class": "P2_ESCAPED_CONTRACT_DEFECT_REPAIR",
+  "repo": "tonychang925-dev/Julia_core",
+  "branch": "mira/p3-f1a-experience-frame-set-contract",
+  "base_sha": "5b5155ac507ea036f05e36836f97bce8bf0e4093",
+  "parent_sha": "5b5155ac507ea036f05e36836f97bce8bf0e4093",
+  "candidate_sha": "a9374022aa3b5e681c4985ff8dc6e43e8de45d70",
+  "changed_paths": [
+    "julia_core/projection/contracts.py",
+    "julia_core/projection/__init__.py",
+    "tests/projection/test_experience_frame_set.py",
+    "artifacts/continuity/P3_F1A_EXPERIENCE_FRAME_SET_CONTRACT_V1.json"
+  ],
+  "diff_stat": {
+    "implementation": "3 files changed, 257 insertions(+)",
+    "evidence": "1 file changed, 1 insertion(+)"
+  },
+  "contract": "ExperienceFrameSet",
+  "schema_version": "1.0.0",
+  "canonical_schema": "julia_core.projection.experience_frame_set.v1",
+  "invariants": {
+    "exact_tuple": true,
+    "cardinality_1_to_n": true,
+    "exact_experience_frame_type": true,
+    "subclass_rejected": true,
+    "order_preserved": true,
+    "duplicate_exact_source_ref_rejected": true,
+    "immutable": true,
+    "no_update_api": true
+  },
+  "serialization": {
+    "shape": [
+      "schema",
+      "schema_version",
+      "frames"
+    ],
+    "canonical_json": {
+      "ensure_ascii": false,
+      "sort_keys": true,
+      "separators": [
+        ",",
+        ":"
+      ]
+    },
+    "deterministic": true
+  },
+  "digest": "SHA-256(canonical_serialization().encode(utf-8))",
+  "order_evidence": "F1A-03 and F1A-08 pass; supplied tuple order is retained and reversal changes serialization and digest",
+  "duplicate_evidence": "F1A-16 pass; equal exact source_ref values fail closed without deduplication",
+  "immutability_evidence": "F1A-04 and F1A-18 pass; frozen carrier and exact tuple reject assignment",
+  "positive_tests": [
+    "F1A-01",
+    "F1A-02",
+    "F1A-03",
+    "F1A-04",
+    "F1A-05",
+    "F1A-06",
+    "F1A-07",
+    "F1A-08",
+    "F1A-09",
+    "F1A-10"
+  ],
+  "negative_tests": [
+    "F1A-11",
+    "F1A-12",
+    "F1A-13",
+    "F1A-14",
+    "F1A-15",
+    "F1A-16",
+    "F1A-17",
+    "F1A-18",
+    "F1A-19",
+    "F1A-20"
+  ],
+  "base_regression": {
+    "base": {
+      "command": "pytest tests/projection",
+      "result": "35 collected; 34 passed; 1 pre-existing failure",
+      "failure": "test_changed_scope_is_limited_to_authorized_eng08_paths"
+    },
+    "candidate": {
+      "command": "pytest tests/projection",
+      "result": "56 collected; 55 passed; 1 identical pre-existing failure",
+      "failure": "test_changed_scope_is_limited_to_authorized_eng08_paths"
+    },
+    "parity": true
+  },
+  "static_gate": {
+    "result": "PASS",
+    "changed_production_hits": [
+      {
+        "keyword": "sort",
+        "location": "sort_keys=True in canonical_serialization",
+        "classification": "required JSON key serialization convention; no frame ordering"
+      }
+    ],
+    "active_multi_experience_selection_bypass": 0,
+    "active_semantic_aggregation": 0
+  },
+  "git_diff_check": "PASS",
+  "authority_delta": {
+    "new_memory_authority": 0,
+    "new_identity_authority": 0,
+    "new_projection_authority": 0,
+    "new_selection_authority": 0,
+    "new_aggregation_authority": 0,
+    "new_canonical_ref_authority": 0,
+    "exact_non_authoritative_typed_carrier": 1
+  },
+  "p3_blocker_reason": "RuntimeCanonicalAuthorityBinding requires 1..N experience_refs while the C03 model-visible path represented a singular ExperienceFrame",
+  "p3_scope_gate": "PASS; only the bounded ExperienceFrameSet contract was implemented",
+  "c03_changed": 0,
+  "binder_changed": 0,
+  "runtime_changed": 0,
+  "provider_changed": 0,
+  "durability_changed": 0,
+  "deployment_changed": 0,
+  "production_ready": "NO",
+  "proof_start_boundary": "exact already-projected ExperienceFrame tuple",
+  "proof_end_boundary": "exact immutable deterministic ExperienceFrameSet",
+  "unproven_dependencies": [
+    "C03 multi-experience admission",
+    "sealed package evolution",
+    "Binder evolution",
+    "Runtime propagation",
+    "Provider propagation",
+    "production startup",
+    "durable persistence deployment",
+    "config transport",
+    "Golden Mira admission",
+    "canary",
+    "cutover"
+  ]
+}
