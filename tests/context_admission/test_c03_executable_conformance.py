@@ -10,16 +10,18 @@ from julia_core.identity import IdentityStatus
 from julia_core.memory_experience import MemoryExperienceStatus
 from julia_core.projection.contracts import ExperienceFrame, IdentityFrame
 
-from tests.context_admission.c03_contract import (
+from julia_core.context_admission import (
     C03AdmissionRejected,
-    C03_CONTRACT_VERSION,
     CanonicalConversationProvenance,
     CanonicalConversationSource,
     CurrentConversationalTaskContext,
-    ExclusiveAdmissionProbe,
     ExclusiveAdmissionRequest,
+    ExclusiveAdmissionGate,
     ModelVisibilityTransport,
     SealedCognitiveContextPackage,
+)
+from tests.context_admission.c03_contract import C03_CONTRACT_VERSION
+from tests.context_admission.production_fixtures import (
     canonical_current_task_context,
     canonical_experience_frame,
     canonical_identity_frame,
@@ -55,7 +57,7 @@ def test_c03_01_admits_only_exact_canonical_frames() -> None:
             current_task_context=canonical_current_task_context(),
         )
 
-    package = ExclusiveAdmissionProbe().seal(canonical_request())
+    package = ExclusiveAdmissionGate().seal(canonical_request())
     assert set(package.admitted_frames) == {
         "identity_frame",
         "experience_frame",
@@ -80,7 +82,7 @@ def test_c03_02_rejects_raw_memory_as_admission_authority() -> None:
 
 
 def test_c03_03_persona_package_cannot_mint_authority() -> None:
-    sealed = ExclusiveAdmissionProbe().seal(canonical_request())
+    sealed = ExclusiveAdmissionGate().seal(canonical_request())
     payload = sealed.to_dict()
 
     assert payload["authority"] == {
@@ -137,7 +139,7 @@ def test_c03_06_model_visibility_requires_c03_gate() -> None:
         with pytest.raises(C03AdmissionRejected, match="sealed C03 package"):
             ModelVisibilityTransport().render(bypass)
 
-    sealed = ExclusiveAdmissionProbe().seal(canonical_request())
+    sealed = ExclusiveAdmissionGate().seal(canonical_request())
     rendered = ModelVisibilityTransport().render(sealed)
     assert rendered["gate_receipt"] == sealed.gate_receipt
 
@@ -201,7 +203,7 @@ def test_c03_07_rejects_partial_admission() -> None:
 )
 def test_c03_08_missing_or_inexact_provenance_fails_closed(admission_request, message) -> None:
     with pytest.raises(C03AdmissionRejected, match=message):
-        ExclusiveAdmissionProbe().seal(admission_request)
+        ExclusiveAdmissionGate().seal(admission_request)
 
     with pytest.raises(C03AdmissionRejected, match="digest is absent or inexact"):
         replace(
@@ -252,7 +254,7 @@ def test_c03_10_sealed_package_is_immutable() -> None:
     identity_digest = identity.digest()
     experience_digest = experience.digest()
     current_task_digest = current_task.digest()
-    sealed = ExclusiveAdmissionProbe().seal(request)
+    sealed = ExclusiveAdmissionGate().seal(request)
 
     with pytest.raises(FrozenInstanceError):
         sealed.turn_id = "changed"
@@ -267,9 +269,9 @@ def test_c03_10_sealed_package_is_immutable() -> None:
 
 
 def test_c03_11_gate_receipt_is_deterministic_for_equivalent_input() -> None:
-    first = ExclusiveAdmissionProbe().seal(canonical_request())
-    second = ExclusiveAdmissionProbe().seal(canonical_request())
-    changed_task = ExclusiveAdmissionProbe().seal(
+    first = ExclusiveAdmissionGate().seal(canonical_request())
+    second = ExclusiveAdmissionGate().seal(canonical_request())
+    changed_task = ExclusiveAdmissionGate().seal(
         canonical_request(current_task=canonical_current_task_context(turn_id="turn-2"))
     )
 
@@ -280,7 +282,7 @@ def test_c03_11_gate_receipt_is_deterministic_for_equivalent_input() -> None:
 
 
 def test_c03_12_package_does_not_mint_runtime_authority() -> None:
-    sealed = ExclusiveAdmissionProbe().seal(canonical_request())
+    sealed = ExclusiveAdmissionGate().seal(canonical_request())
     payload = ModelVisibilityTransport().render(sealed)
 
     assert payload["authority"]["runtime"] is False
