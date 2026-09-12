@@ -1,0 +1,254 @@
+{
+  "task_id": "P3-N4E-A-DURABLE-AUTHORITY-PERSISTENCE-CONTRACT",
+  "base_sha": "1e1751b340a124498a1a6c5c6301147cecbe990d",
+  "candidate_sha": "NOT_PUBLISHED",
+  "architecture_authority_map": {
+    "identity_owner": "Identity authority",
+    "memory_experience_owner": "MemoryExperience authority",
+    "runtime_binding_owner": "RuntimeCanonicalAuthorityBinding authority",
+    "persistence_owner": "backend-neutral durable envelope, integrity, and exact restoration only",
+    "selection_owner": "UNCHANGED / OUT_OF_SCOPE"
+  },
+  "persisted_object_map": {
+    "IDENTITY": [
+      "IdentityVersion",
+      "IdentityRef",
+      "IdentityGovernanceEvent",
+      "IdentityStatus",
+      "lineage",
+      "provenance",
+      "digest"
+    ],
+    "MEMORY_EXPERIENCE": [
+      "MemoryExperienceRecord",
+      "MemoryExperienceRef",
+      "MemoryExperienceAdmission",
+      "MemoryExperienceStatus",
+      "lineage",
+      "provenance",
+      "digest"
+    ],
+    "RUNTIME_BINDING": [
+      "RuntimeCanonicalAuthorityBinding",
+      "RuntimeCanonicalAuthorityBindingRef",
+      "RuntimeCanonicalAuthorityBindingGovernanceEvent",
+      "RuntimeCanonicalAuthorityBindingStatus",
+      "lineage",
+      "provenance",
+      "digest"
+    ]
+  },
+  "governance_event_map": {
+    "preserved": [
+      "event identifier where applicable",
+      "target exact ref",
+      "status",
+      "actor",
+      "reason",
+      "occurred_at",
+      "ordering"
+    ],
+    "loader_governance_transitions": 0,
+    "synthesized_events": 0
+  },
+  "cold_load_reconstruction_map": {
+    "input": "read-only exact envelope collection",
+    "validation": [
+      "complete envelope",
+      "supported schemas",
+      "canonical payload",
+      "payload digest",
+      "envelope digest",
+      "family/ref/schema consistency",
+      "governance target and lifecycle",
+      "lineage/predecessor closure",
+      "provenance"
+    ],
+    "repository_methods_invoked_for_governance": [],
+    "output": "exact repository snapshot with identical exact-ref resolution"
+  },
+  "adapter_boundary_map": {
+    "reader": "read_exact(family, exact_ref) -> DurableAuthorityEnvelope",
+    "writer": "write_exact(envelope) -> None",
+    "optional_mechanics": "list_exact_refs(family) for restoration only",
+    "forbidden_operations": [
+      "get_latest",
+      "get_current",
+      "get_default",
+      "find_best",
+      "first_available",
+      "resolve_alias"
+    ],
+    "physical_backend": "UNSPECIFIED / ADAPTER-BOUND"
+  },
+  "forbidden_behavior_map": {
+    "loader_side_repair": "FAIL_CLOSED",
+    "synthetic_refs": "UNAVAILABLE",
+    "synthetic_events": "UNAVAILABLE",
+    "cross_family_coercion": "FAIL_CLOSED",
+    "partial_or_best_effort_reconstruction": "FAIL_CLOSED",
+    "production_runtime_wiring": 0,
+    "legacy_migration": 0,
+    "golden_mira_admission": 0
+  },
+  "durable_envelope_contract": {
+    "envelope_schema": "julia_core.durable_authority.envelope.v1",
+    "serialization": "UTF-8 canonical JSON, sorted keys, compact separators, finite numbers",
+    "payload_digest": "SHA-256 hex over canonical serialized_payload",
+    "envelope_digest": "SHA-256 hex over canonical envelope fields excluding envelope_digest",
+    "fields": [
+      "envelope_schema",
+      "authority_family",
+      "authority_object_ref",
+      "authority_object_schema",
+      "serialized_payload",
+      "payload_digest",
+      "governance_events",
+      "lifecycle_status",
+      "lineage_metadata",
+      "provenance",
+      "envelope_digest"
+    ],
+    "authority_schemas": {
+      "IDENTITY": "julia_core.identity.version.v1",
+      "MEMORY_EXPERIENCE": "julia_core.memory_experience.record.v1",
+      "RUNTIME_BINDING": "julia_core.runtime_canonical_authority.binding.v1"
+    }
+  },
+  "identity_roundtrip_evidence": {
+    "deterministic_serialization": true,
+    "payload_digest_preserved": true,
+    "envelope_digest_deterministic": true,
+    "governance_events_exact": true,
+    "provenance_exact": true,
+    "lineage_predecessor_exact": true,
+    "repository_exact_resolve_equivalence": true
+  },
+  "memory_experience_roundtrip_evidence": {
+    "deterministic_serialization": true,
+    "payload_digest_preserved": true,
+    "envelope_digest_deterministic": true,
+    "governance_events_exact": true,
+    "provenance_exact": true,
+    "lineage_predecessor_exact": true,
+    "repository_exact_resolve_equivalence": true
+  },
+  "runtime_binding_roundtrip_evidence": {
+    "deterministic_serialization": true,
+    "payload_digest_preserved": true,
+    "envelope_digest_deterministic": true,
+    "governance_events_exact": true,
+    "provenance_exact": true,
+    "lineage_predecessor_exact": true,
+    "repository_exact_resolve_equivalence": true
+  },
+  "integrity_failure_matrix": {
+    "payload_digest_mismatch": "FAIL_CLOSED",
+    "envelope_digest_mismatch": "FAIL_CLOSED",
+    "ref_payload_mismatch": "FAIL_CLOSED",
+    "family_mismatch": "FAIL_CLOSED",
+    "schema_mismatch": "FAIL_CLOSED",
+    "event_target_mismatch": "FAIL_CLOSED",
+    "invalid_lifecycle_history": "FAIL_CLOSED",
+    "broken_predecessor": "FAIL_CLOSED",
+    "duplicate_conflicting_exact_ref": "FAIL_CLOSED"
+  },
+  "schema_failure_matrix": {
+    "unknown_schema": "FAIL_CLOSED",
+    "unsupported_schema": "FAIL_CLOSED",
+    "future_schema": "FAIL_CLOSED",
+    "malformed_schema": "FAIL_CLOSED",
+    "silent_conversion": "FORBIDDEN"
+  },
+  "static_constitutional_gate": {
+    "scope": "julia_core/durable_authority",
+    "suspicious_pattern_hits": 0,
+    "active_semantic_bypass": 0,
+    "status": "PASS"
+  },
+  "authority_delta": {
+    "new_semantic_owner": 0,
+    "new_identity_owner": 0,
+    "new_experience_owner": 0,
+    "new_runtime_binding_selection_owner": 0,
+    "new_canonical_ref_selection_owner": 0,
+    "new_fallback_owner": 0,
+    "new_alias_owner": 0,
+    "new_backend_neutral_persistence_contract": 1,
+    "new_exact_reconstruction_seam": 1
+  },
+  "proof_start_boundary": "already-governed exact canonical state exists in memory",
+  "proof_end_boundary": "exact governed state can survive serialize/reconstruct cycle with exact authority equivalence",
+  "unproven_upstream_dependencies": [
+    "physical durable backend",
+    "production data population",
+    "production binding_ref provisioning",
+    "production startup wiring",
+    "legacy runtime replacement",
+    "full cold-start production chain"
+  ],
+  "physical_storage_selection": "UNSPECIFIED / ADAPTER-BOUND",
+  "production_cutover_status": "NOT_AUTHORIZED",
+  "production_canonical_writes": 0,
+  "golden_mira_admission_writes": 0,
+  "acceptance_matrix": {
+    "N4EA-A01_exact_n4c_base_sha": "PASS",
+    "N4EA-A02_authority_maps_before_code": "PASS",
+    "N4EA-A03_three_authority_families_separate": "PASS",
+    "N4EA-A04_backend_neutral_contract": "PASS",
+    "N4EA-A05_physical_backend_not_selected": "PASS",
+    "N4EA-A06_exact_durable_envelope": "PASS",
+    "N4EA-A07_deterministic_payload_digest": "PASS",
+    "N4EA-A08_deterministic_envelope_digest": "PASS",
+    "N4EA-A09_exact_schema_version_law": "PASS",
+    "N4EA-A10_identity_roundtrip_exact": "PASS",
+    "N4EA-A11_memory_experience_roundtrip_exact": "PASS",
+    "N4EA-A12_runtime_binding_roundtrip_exact": "PASS",
+    "N4EA-A13_governance_events_exact": "PASS",
+    "N4EA-A14_provenance_exact": "PASS",
+    "N4EA-A15_lineage_exact": "PASS",
+    "N4EA-A16_status_exact": "PASS",
+    "N4EA-A17_loading_not_admission": "PASS",
+    "N4EA-A18_recovery_not_selection": "PASS",
+    "N4EA-A19_bootstrap_not_canonicalization": "PASS",
+    "N4EA-A20_storage_not_authority": "PASS",
+    "N4EA-A21_malformed_state_fails_closed": "PASS",
+    "N4EA-A22_corrupt_state_fails_closed": "PASS",
+    "N4EA-A23_partial_state_fails_closed": "PASS",
+    "N4EA-A24_unsupported_schema_fails_closed": "PASS",
+    "N4EA-A25_no_loader_side_repair": "PASS",
+    "N4EA-A26_no_synthetic_refs": "PASS",
+    "N4EA-A27_no_latest_default_current_selection": "PASS",
+    "N4EA-A28_no_alias_discovery": "PASS",
+    "N4EA-A29_production_canonical_writes_0": "PASS",
+    "N4EA-A30_golden_mira_admission_writes_0": "PASS",
+    "N4EA-A31_production_runtime_wiring_0": "PASS",
+    "N4EA-A32_legacy_migration_0": "PASS",
+    "N4EA-A33_semantic_authority_delta_0": "PASS",
+    "N4EA-A34_static_constitutional_gate_pass": "PASS",
+    "N4EA-A35_candidate_only_tests_pass": "PASS",
+    "N4EA-A36_base_regression_parity": "PASS",
+    "N4EA-A37_git_diff_check_pass": "PASS",
+    "N4EA-A38_changed_paths_bounded": "PASS",
+    "N4EA-A39_proof_boundary_explicit": "PASS",
+    "N4EA-A40_production_ready_remains_no": "PASS"
+  },
+  "candidate_tests": {
+    "command": "/opt/miniconda3/bin/pytest -q tests/durable_authority",
+    "passed": 16,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "xfailed": 0
+  },
+  "base_regression": {
+    "surface": "base-existing tracked test files at exact N4C SHA",
+    "base_result": "52 failed, 1564 passed, 6 skipped, 26 xfailed, 3 errors",
+    "candidate_result": "52 failed, 1564 passed, 6 skipped, 26 xfailed, 3 errors",
+    "failure_error_id_delta": 0,
+    "xfail_delta": 0,
+    "parity": "PASS"
+  },
+  "production_ready": "NO",
+  "contract_ready": "YES"
+}
