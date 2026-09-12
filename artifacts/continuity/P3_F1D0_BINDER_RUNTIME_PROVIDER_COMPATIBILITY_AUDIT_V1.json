@@ -1,0 +1,74 @@
+{
+  "task_id": "P3-F1D0",
+  "audited_repo": "tonychang925-dev/Julia_core",
+  "audited_sha": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+  "binder_runtime_edge": {
+    "producer": "AdmittedSemanticBundle",
+    "consumer": "RuntimeTurnRequest then JuliaAssistantRuntime.prepare",
+    "input_type": "exact AdmittedSemanticBundle",
+    "experience_cardinality_introspection": false,
+    "experience_field_name_introspection": false,
+    "opaque_bundle_transport": true,
+    "semantic_reconstruction": false,
+    "unit_count_and_order_preserved": true,
+    "independent_semantic_authority": 0,
+    "can_drop_experience_frame_set": false,
+    "can_reorder_experience_frame_set": false,
+    "can_overwrite_experience_frame_set": false,
+    "fallback_or_legacy_semantic_path": false
+  },
+  "runtime_provider_edge": {
+    "producer": "JuliaAssistantRuntime.prepare",
+    "consumer": "ProviderAlignmentBoundary.resolve then ProviderExecutionEnvelope",
+    "input_type": "exact AdmittedSemanticBundle",
+    "experience_cardinality_introspection": false,
+    "experience_field_name_introspection": false,
+    "opaque_bundle_transport": true,
+    "mechanical_message_encoding": true,
+    "semantic_reconstruction": false,
+    "unit_count_and_order_preserved": true,
+    "independent_semantic_authority": 0,
+    "can_drop_experience_frame_set": false,
+    "can_reorder_experience_frame_set": false,
+    "can_overwrite_experience_frame_set_before_verify": true,
+    "fingerprint_verify_rejects_post_construction_content_change": true,
+    "fallback_or_legacy_semantic_path": false
+  },
+  "runtime_compatibility": "PASS",
+  "provider_compatibility": "PASS",
+  "unit_order_preservation": "system IdentityFrame, system ExperienceFrameSet, user CurrentConversationalTaskContext",
+  "semantic_content_preservation": "PASS: canonical unit content and semantic fingerprint remain exact",
+  "experience_frame_set_preservation": "PASS: the complete canonical ExperienceFrameSet JSON remains one system message",
+  "semantic_reconstruction_count": 0,
+  "independent_runtime_semantic_authority_count": 0,
+  "independent_provider_semantic_authority_count": 0,
+  "fallback_or_legacy_semantic_path_count": 0,
+  "provenance_status": "PASS: conversation_id, turn_id, gate_receipt, and semantic_fingerprint remain bound",
+  "relevant_tests": {
+    "exact_chain": "40 passed",
+    "commands": [
+      "pytest tests/context_admission/test_p3_n0_alignment_boundary.py tests/runtime/test_p3_n0_runtime_envelope.py tests/context_admission/test_binder_experience_frame_set_migration.py -q",
+      "pytest tests/context_admission -q"
+    ],
+    "results": [
+      "40 passed",
+      "104 passed"
+    ],
+    "broader_runtime_note": "tests/runtime has 17 failures in legacy JuliaSession surfaces missing context_os; they are outside the audited exact chain and fail closed rather than bypassing C03"
+  },
+  "blockers": [],
+  "deferred_out_of_p3": [
+    "Legacy AlignmentOS persona/profile definitions remain defined but are not consumed by ProviderAlignmentBoundary.resolve or ProviderExecutionEnvelope",
+    "ProviderBehaviorAdapter remains as an explicit fail-closed legacy rejection and is unreachable as a semantic path",
+    "Legacy JuliaSession surfaces fail on missing context_os and are outside the exact JuliaAssistantRuntime chain",
+    "ProviderExecutionEnvelope message dictionaries are shallowly mutable after return, but envelope.verify fails closed on any content change; enforce verify at the future provider execution ingress"
+  ],
+  "p3_scope_gate": {
+    "question": "DOES_THIS_DIRECTLY_PREVENT_V0_2_P3_INTEGRATION_GATE",
+    "blocking_issues": 0,
+    "deferred_issues": 4
+  },
+  "production_code_changed": 0,
+  "next_implementation_node": "NONE",
+  "final_result": "P3_F1D0_RESULT = COMPATIBLE_NO_IMPLEMENTATION_REQUIRED"
+}
