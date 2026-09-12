@@ -6,7 +6,11 @@ from julia_core.memory_experience import (
     MemoryExperienceStatus,
     MemoryExperienceType,
 )
-from julia_core.projection.contracts import ExperienceFrame, IdentityFrame
+from julia_core.projection.contracts import (
+    ExperienceFrame,
+    ExperienceFrameSet,
+    IdentityFrame,
+)
 
 from julia_core.context_admission import (
     CanonicalConversationProvenance,
@@ -58,6 +62,13 @@ def canonical_experience_frame(*, provenance_refs=None) -> ExperienceFrame:
     )
 
 
+def canonical_experience_frame_set() -> ExperienceFrameSet:
+    return ExperienceFrameSet(
+        schema_version="1.0.0",
+        frames=(canonical_experience_frame(),),
+    )
+
+
 def canonical_current_task_context(
     *, bounded_state=None, provenance=None, turn_id="turn-eng12a-1"
 ) -> CurrentConversationalTaskContext:
@@ -82,10 +93,12 @@ def canonical_current_task_context(
 
 
 def canonical_request(
-    *, identity=None, experience=None, current_task=None
+    *, identity=None, experiences=None, current_task=None
 ) -> ExclusiveAdmissionRequest:
     return ExclusiveAdmissionRequest(
         identity_frame=identity or canonical_identity_frame(),
-        experience_frame=experience or canonical_experience_frame(),
+        experience_frames=experiences
+        if experiences is not None
+        else canonical_experience_frame_set(),
         current_task_context=current_task or canonical_current_task_context(),
     )

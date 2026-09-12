@@ -22,10 +22,14 @@ from julia_core.memory_experience import (
     MemoryExperienceStatus,
     MemoryExperienceType,
 )
-from julia_core.projection.contracts import ExperienceFrame, IdentityFrame
+from julia_core.projection.contracts import (
+    ExperienceFrame,
+    ExperienceFrameSet,
+    IdentityFrame,
+)
 
 
-C03_CONTRACT_VERSION = "ENG-12A-C03-EXECUTABLE-CONFORMANCE/0.1"
+C03_CONTRACT_VERSION = "ENG-12A-C03-EXECUTABLE-CONFORMANCE/0.2"
 DIGEST_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
 CURRENT_TASK_MAX_ENCODED_BYTES = 2048
 CURRENT_TASK_MAX_DEPTH = 3
@@ -145,14 +149,14 @@ class CurrentConversationalTaskContext:
 @dataclass(frozen=True, slots=True)
 class ExclusiveAdmissionRequest:
     identity_frame: IdentityFrame | None = None
-    experience_frame: ExperienceFrame | None = None
+    experience_frames: ExperienceFrameSet | None = None
     current_task_context: CurrentConversationalTaskContext | None = None
 
     def __post_init__(self) -> None:
         if type(self.identity_frame) is not IdentityFrame:
             raise C03AdmissionRejected("C03 admits an exact canonical IdentityFrame only")
-        if type(self.experience_frame) is not ExperienceFrame:
-            raise C03AdmissionRejected("C03 admits an exact canonical ExperienceFrame only")
+        if type(self.experience_frames) is not ExperienceFrameSet:
+            raise C03AdmissionRejected("C03 admits an exact canonical ExperienceFrameSet only")
         if type(self.current_task_context) is not CurrentConversationalTaskContext:
             raise C03AdmissionRejected("C03 admits exact canonical current task context only")
 
@@ -164,6 +168,8 @@ class SealedCognitiveContextPackage:
     turn_id: str
     identity_digest: str
     experience_digest: str
+    experience_frame_digests: tuple[str, ...]
+    experience_frame_count: int
     current_task_digest: str
     gate_receipt: str
     admitted_frames: Mapping[str, str]
@@ -180,6 +186,8 @@ class SealedCognitiveContextPackage:
             self.turn_id,
             self.identity_digest,
             self.experience_digest,
+            self.experience_frame_digests,
+            self.experience_frame_count,
             self.current_task_digest,
         )
         if self.gate_receipt != expected:
@@ -188,15 +196,17 @@ class SealedCognitiveContextPackage:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema": "julia_core.context_admission.sealed_package.v1",
+            "schema": "julia_core.context_admission.sealed_package.v2",
             "contract_version": self.contract_version,
             "conversation_id": self.conversation_id,
             "turn_id": self.turn_id,
             "source_digests": {
                 "identity_frame": self.identity_digest,
-                "experience_frame": self.experience_digest,
+                "experience_frame_set": self.experience_digest,
                 "current_task_context": self.current_task_digest,
             },
+            "experience_frame_digests": list(self.experience_frame_digests),
+            "experience_frame_count": self.experience_frame_count,
             "gate_receipt": self.gate_receipt,
             "admitted_frames": _deep_copy(self.admitted_frames),
             "authority": {
@@ -214,6 +224,8 @@ def _package_digest(
     turn_id: str,
     identity_digest: str,
     experience_digest: str,
+    experience_frame_digests: tuple[str, ...],
+    experience_frame_count: int,
     current_task_digest: str,
 ) -> str:
     payload = {
@@ -222,6 +234,8 @@ def _package_digest(
         "turn_id": turn_id,
         "identity_digest": identity_digest,
         "experience_digest": experience_digest,
+        "experience_frame_digests": list(experience_frame_digests),
+        "experience_frame_count": experience_frame_count,
         "current_task_digest": current_task_digest,
     }
     return hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
@@ -245,23 +259,25 @@ class ExclusiveAdmissionProbe:
             raise C03AdmissionRejected("C03 admission request type is inexact")
 
         identity = request.identity_frame
-        experience = request.experience_frame
+        experiences = request.experience_frames
         current_task = request.current_task_context
-        assert identity is not None and experience is not None and current_task is not None
+        assert identity is not None and experiences is not None and current_task is not None
 
         if identity.source_status is not IdentityStatus.ADMITTED:
             raise C03AdmissionRejected("identity source is not admitted")
-        if experience.source_status is not MemoryExperienceStatus.ADMITTED:
-            raise C03AdmissionRejected("experience source is not admitted")
         if DIGEST_PATTERN.fullmatch(identity.source_digest) is None:
             raise C03AdmissionRejected("identity source digest is absent or inexact")
-        if DIGEST_PATTERN.fullmatch(experience.source_digest) is None:
-            raise C03AdmissionRejected("experience source digest is absent or inexact")
         _require_frame_provenance(identity, "identity frame")
-        _require_frame_provenance(experience, "experience frame")
+        for experience in experiences.frames:
+            if experience.source_status is not MemoryExperienceStatus.ADMITTED:
+                raise C03AdmissionRejected("experience source is not admitted")
+            if DIGEST_PATTERN.fullmatch(experience.source_digest) is None:
+                raise C03AdmissionRejected("experience source digest is absent or inexact")
+            _require_frame_provenance(experience, "experience frame")
 
         identity_digest = identity.digest()
-        experience_digest = experience.digest()
+        experience_digest = experiences.digest()
+        experience_frame_digests = tuple(frame.digest() for frame in experiences.frames)
         current_task_digest = current_task.digest()
         receipt = _package_digest(
             C03_CONTRACT_VERSION,
@@ -269,6 +285,8 @@ class ExclusiveAdmissionProbe:
             current_task.turn_id,
             identity_digest,
             experience_digest,
+            experience_frame_digests,
+            len(experiences.frames),
             current_task_digest,
         )
         return SealedCognitiveContextPackage(
@@ -277,11 +295,13 @@ class ExclusiveAdmissionProbe:
             turn_id=current_task.turn_id,
             identity_digest=identity_digest,
             experience_digest=experience_digest,
+            experience_frame_digests=experience_frame_digests,
+            experience_frame_count=len(experiences.frames),
             current_task_digest=current_task_digest,
             gate_receipt=receipt,
             admitted_frames={
                 "identity_frame": identity_digest,
-                "experience_frame": experience_digest,
+                "experience_frame_set": experience_digest,
                 "current_task_context": current_task_digest,
             },
             issued_by=_C03_ADMISSION_MARKER,
@@ -300,6 +320,8 @@ class ModelVisibilityTransport:
             candidate.turn_id,
             candidate.identity_digest,
             candidate.experience_digest,
+            candidate.experience_frame_digests,
+            candidate.experience_frame_count,
             candidate.current_task_digest,
         )
         if candidate.gate_receipt != expected_receipt:
@@ -349,6 +371,13 @@ def canonical_experience_frame(*, provenance_refs=None) -> ExperienceFrame:
     )
 
 
+def canonical_experience_frame_set() -> ExperienceFrameSet:
+    return ExperienceFrameSet(
+        schema_version="1.0.0",
+        frames=(canonical_experience_frame(),),
+    )
+
+
 def canonical_current_task_context(
     *, bounded_state=None, provenance=None, turn_id="turn-eng12a-1"
 ) -> CurrentConversationalTaskContext:
@@ -373,10 +402,12 @@ def canonical_current_task_context(
 
 
 def canonical_request(
-    *, identity=None, experience=None, current_task=None
+    *, identity=None, experiences=None, current_task=None
 ) -> ExclusiveAdmissionRequest:
     return ExclusiveAdmissionRequest(
         identity_frame=identity or canonical_identity_frame(),
-        experience_frame=experience or canonical_experience_frame(),
+        experience_frames=experiences
+        if experiences is not None
+        else canonical_experience_frame_set(),
         current_task_context=current_task or canonical_current_task_context(),
     )

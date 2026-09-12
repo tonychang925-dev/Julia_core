@@ -10,6 +10,7 @@ import pytest
 
 from julia_core.identity import IdentityStatus
 from julia_core.memory_experience import MemoryExperienceStatus
+from julia_core.projection.contracts import ExperienceFrameSet
 
 from julia_core.context_admission import (
     AdmissionRejection,
@@ -26,6 +27,7 @@ from julia_core.context_admission.gate import C03_PRODUCTION_CONTRACT_VERSION
 from .production_fixtures import (
     canonical_current_task_context,
     canonical_experience_frame,
+    canonical_experience_frame_set,
     canonical_identity_frame,
     canonical_request,
 )
@@ -63,7 +65,10 @@ def test_only_exact_admitted_experience_status_can_enter(
     status: MemoryExperienceStatus,
 ) -> None:
     request = canonical_request(
-        experience=replace(canonical_experience_frame(), source_status=status)
+        experiences=ExperienceFrameSet(
+            schema_version="1.0.0",
+            frames=(replace(canonical_experience_frame(), source_status=status),),
+        )
     )
 
     with pytest.raises(C03AdmissionRejected) as error:
@@ -79,22 +84,26 @@ def test_frame_provenance_must_bind_exact_source_digest() -> None:
     experience = canonical_experience_frame(
         provenance_refs=({"source_ref": "fixture://wrong", "source_digest": "e" * 64},)
     )
+    experiences = ExperienceFrameSet(
+        schema_version="1.0.0", frames=(experience,)
+    )
 
     with pytest.raises(C03AdmissionRejected, match="identity frame provenance digest"):
         ExclusiveAdmissionGate().seal(canonical_request(identity=identity))
     with pytest.raises(C03AdmissionRejected, match="experience frame provenance digest"):
-        ExclusiveAdmissionGate().seal(canonical_request(experience=experience))
+        ExclusiveAdmissionGate().seal(canonical_request(experiences=experiences))
 
 
 @pytest.mark.parametrize("field_name", ["policy_id", "policy_version", "schema_version"])
 def test_non_canonical_projection_contracts_fail_closed(field_name: str) -> None:
     identity = replace(canonical_identity_frame(), **{field_name: "forged"})
     experience = replace(canonical_experience_frame(), **{field_name: "forged"})
+    experiences = ExperienceFrameSet(schema_version="1.0.0", frames=(experience,))
 
     with pytest.raises(C03AdmissionRejected, match="identity frame projection contract"):
         ExclusiveAdmissionGate().seal(canonical_request(identity=identity))
     with pytest.raises(C03AdmissionRejected, match="experience frame projection contract"):
-        ExclusiveAdmissionGate().seal(canonical_request(experience=experience))
+        ExclusiveAdmissionGate().seal(canonical_request(experiences=experiences))
 
 
 def test_forged_package_and_receipt_are_rejected() -> None:
@@ -139,13 +148,16 @@ def test_semantic_content_change_changes_package_identity() -> None:
         original_experience,
         content={"commitment": "Changed governed context admission commitment"},
     )
+    changed_experiences = ExperienceFrameSet(
+        schema_version="1.0.0", frames=(changed_experience,)
+    )
 
     baseline = ExclusiveAdmissionGate().seal(canonical_request())
     changed_identity_package = ExclusiveAdmissionGate().seal(
         canonical_request(identity=changed_identity)
     )
     changed_experience_package = ExclusiveAdmissionGate().seal(
-        canonical_request(experience=changed_experience)
+        canonical_request(experiences=changed_experiences)
     )
 
     assert changed_identity.digest() != original_identity.digest()
@@ -224,7 +236,7 @@ def test_request_and_gate_subclasses_cannot_become_admission_authority() -> None
 
     request = RequestSubclass(
         canonical_identity_frame(),
-        canonical_experience_frame(),
+        canonical_experience_frame_set(),
         canonical_current_task_context(),
     )
 

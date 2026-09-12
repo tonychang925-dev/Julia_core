@@ -1,12 +1,12 @@
 {
-  "contract_version": "ENG-12A-C03-EXECUTABLE-CONFORMANCE/0.1",
+  "contract_version": "ENG-12A-C03-EXECUTABLE-CONFORMANCE/0.2",
   "canonical_inputs": [
     "IdentityFrame",
-    "ExperienceFrame",
+    "ExperienceFrameSet",
     "CurrentConversationalTaskContext"
   ],
   "exclusive_direction": [
-    "IdentityFrame + ExperienceFrame + CurrentConversationalTaskContext",
+    "IdentityFrame + ExperienceFrameSet + CurrentConversationalTaskContext",
     "Exclusive Admission Gate",
     "sealed CognitiveContextPackage",
     "STOP"

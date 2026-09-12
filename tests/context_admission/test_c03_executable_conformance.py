@@ -8,7 +8,7 @@ import pytest
 
 from julia_core.identity import IdentityStatus
 from julia_core.memory_experience import MemoryExperienceStatus
-from julia_core.projection.contracts import ExperienceFrame, IdentityFrame
+from julia_core.projection.contracts import ExperienceFrameSet, IdentityFrame
 
 from julia_core.context_admission import (
     C03AdmissionRejected,
@@ -24,6 +24,7 @@ from tests.context_admission.c03_contract import C03_CONTRACT_VERSION
 from tests.context_admission.production_fixtures import (
     canonical_current_task_context,
     canonical_experience_frame,
+    canonical_experience_frame_set,
     canonical_identity_frame,
     canonical_request,
 )
@@ -53,16 +54,20 @@ def test_c03_01_admits_only_exact_canonical_frames() -> None:
     with pytest.raises(C03AdmissionRejected, match="exact canonical IdentityFrame"):
         ExclusiveAdmissionRequest(
             identity_frame=subclassed_identity,
-            experience_frame=canonical_experience_frame(),
+            experience_frames=canonical_experience_frame_set(),
             current_task_context=canonical_current_task_context(),
         )
 
     package = ExclusiveAdmissionGate().seal(canonical_request())
     assert set(package.admitted_frames) == {
         "identity_frame",
-        "experience_frame",
+        "experience_frame_set",
         "current_task_context",
     }
+    assert package.experience_frame_count == 1
+    assert package.experience_frame_digests == (
+        canonical_experience_frame().digest(),
+    )
 
 
 def test_c03_02_rejects_raw_memory_as_admission_authority() -> None:
@@ -71,10 +76,10 @@ def test_c03_02_rejects_raw_memory_as_admission_authority() -> None:
         "content": "Remember this outside the canonical frame contract",
     }
 
-    with pytest.raises(C03AdmissionRejected, match="exact canonical ExperienceFrame"):
+    with pytest.raises(C03AdmissionRejected, match="exact canonical ExperienceFrameSet"):
         ExclusiveAdmissionRequest(
             identity_frame=canonical_identity_frame(),
-            experience_frame=raw_memory,
+            experience_frames=raw_memory,
             current_task_context=canonical_current_task_context(),
         )
     with pytest.raises(C03AdmissionRejected, match="sealed C03 package"):
@@ -106,7 +111,7 @@ def test_c03_04_rejects_assistant_self_block_as_authority() -> None:
     with pytest.raises(C03AdmissionRejected, match="exact canonical IdentityFrame"):
         ExclusiveAdmissionRequest(
             identity_frame=assistant_self_block,
-            experience_frame=canonical_experience_frame(),
+            experience_frames=canonical_experience_frame_set(),
             current_task_context=canonical_current_task_context(),
         )
     with pytest.raises(C03AdmissionRejected, match="sealed C03 package"):
@@ -123,7 +128,7 @@ def test_c03_05_rejects_provider_persona_prompt_as_admission() -> None:
     with pytest.raises(C03AdmissionRejected, match="exact canonical current task context"):
         ExclusiveAdmissionRequest(
             identity_frame=canonical_identity_frame(),
-            experience_frame=canonical_experience_frame(),
+            experience_frames=canonical_experience_frame_set(),
             current_task_context=provider_prompt,
         )
     with pytest.raises(C03AdmissionRejected, match="sealed C03 package"):
@@ -132,10 +137,10 @@ def test_c03_05_rejects_provider_persona_prompt_as_admission() -> None:
 
 def test_c03_06_model_visibility_requires_c03_gate() -> None:
     identity = canonical_identity_frame()
-    experience = canonical_experience_frame()
+    experiences = canonical_experience_frame_set()
     current_task = canonical_current_task_context()
 
-    for bypass in (identity, experience, current_task, canonical_request()):
+    for bypass in (identity, experiences, current_task, canonical_request()):
         with pytest.raises(C03AdmissionRejected, match="sealed C03 package"):
             ModelVisibilityTransport().render(bypass)
 
@@ -148,19 +153,19 @@ def test_c03_07_rejects_partial_admission() -> None:
     with pytest.raises(C03AdmissionRejected, match="exact canonical IdentityFrame"):
         ExclusiveAdmissionRequest(
             identity_frame=None,
-            experience_frame=canonical_experience_frame(),
+            experience_frames=canonical_experience_frame_set(),
             current_task_context=canonical_current_task_context(),
         )
-    with pytest.raises(C03AdmissionRejected, match="exact canonical ExperienceFrame"):
+    with pytest.raises(C03AdmissionRejected, match="exact canonical ExperienceFrameSet"):
         ExclusiveAdmissionRequest(
             identity_frame=canonical_identity_frame(),
-            experience_frame=None,
+            experience_frames=None,
             current_task_context=canonical_current_task_context(),
         )
     with pytest.raises(C03AdmissionRejected, match="exact canonical current task context"):
         ExclusiveAdmissionRequest(
             identity_frame=canonical_identity_frame(),
-            experience_frame=canonical_experience_frame(),
+            experience_frames=canonical_experience_frame_set(),
             current_task_context=None,
         )
 
@@ -187,14 +192,24 @@ def test_c03_07_rejects_partial_admission() -> None:
             "identity source is not admitted",
         ),
         (
-            canonical_request(experience=canonical_experience_frame(provenance_refs=())),
+            canonical_request(
+                experiences=ExperienceFrameSet(
+                    schema_version="1.0.0",
+                    frames=(canonical_experience_frame(provenance_refs=()),),
+                )
+            ),
             "experience frame provenance is absent",
         ),
         (
             canonical_request(
-                experience=replace(
-                    canonical_experience_frame(),
-                    source_status=MemoryExperienceStatus.CANDIDATE,
+                experiences=ExperienceFrameSet(
+                    schema_version="1.0.0",
+                    frames=(
+                        replace(
+                            canonical_experience_frame(),
+                            source_status=MemoryExperienceStatus.CANDIDATE,
+                        ),
+                    ),
                 )
             ),
             "experience source is not admitted",
@@ -248,11 +263,11 @@ def test_c03_09_current_task_context_is_bounded() -> None:
 
 def test_c03_10_sealed_package_is_immutable() -> None:
     identity = canonical_identity_frame()
-    experience = canonical_experience_frame()
+    experiences = canonical_experience_frame_set()
     current_task = canonical_current_task_context()
-    request = ExclusiveAdmissionRequest(identity, experience, current_task)
+    request = ExclusiveAdmissionRequest(identity, experiences, current_task)
     identity_digest = identity.digest()
-    experience_digest = experience.digest()
+    experience_digest = experiences.digest()
     current_task_digest = current_task.digest()
     sealed = ExclusiveAdmissionGate().seal(request)
 
@@ -264,7 +279,7 @@ def test_c03_10_sealed_package_is_immutable() -> None:
         object.__setattr__(sealed, "runtime_authority", True)
 
     assert identity.digest() == identity_digest
-    assert experience.digest() == experience_digest
+    assert experiences.digest() == experience_digest
     assert current_task.digest() == current_task_digest
 
 
@@ -307,11 +322,11 @@ def test_fixture_contract_exactly_names_frozen_direction_and_non_production_stat
     assert fixture["contract_version"] == C03_CONTRACT_VERSION
     assert fixture["canonical_inputs"] == [
         "IdentityFrame",
-        "ExperienceFrame",
+        "ExperienceFrameSet",
         "CurrentConversationalTaskContext",
     ]
     assert fixture["exclusive_direction"] == [
-        "IdentityFrame + ExperienceFrame + CurrentConversationalTaskContext",
+        "IdentityFrame + ExperienceFrameSet + CurrentConversationalTaskContext",
         "Exclusive Admission Gate",
         "sealed CognitiveContextPackage",
         "STOP",
