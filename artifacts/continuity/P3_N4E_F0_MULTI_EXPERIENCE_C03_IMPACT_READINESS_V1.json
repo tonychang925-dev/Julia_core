@@ -1,0 +1,587 @@
+{
+  "task_id": "P3-N4E-F0-MULTI-EXPERIENCE-C03-IMPACT-READINESS",
+  "audited_repo": "tonychang925-dev/Julia_core",
+  "audited_sha": "3f891cf8f7a2c59844f57734b5c21f23e9dff024",
+  "owner_architecture": {
+    "name": "MULTI_EXPERIENCE_MODEL_VISIBLE_CARRIER_ARCHITECTURE",
+    "status": "APPROVED",
+    "laws": [
+      "RuntimeCanonicalAuthorityBinding.experience_refs is tuple[MemoryExperienceRef, ...] with cardinality 1..N",
+      "ExperienceFrameSet is an exact immutable non-authoritative carrier",
+      "frame-set construction is not semantic aggregation",
+      "one experience and N experiences use the same canonical C03 path"
+    ],
+    "primary_inputs": {
+      "n4e_e0": "3f891cf8f7a2c59844f57734b5c21f23e9dff024",
+      "lane_a": "ff6c9198d32852ebfc71ed76e141c0ed63357213",
+      "lane_b": "fb2907ba18f2f093ec4f96c75b7050ecec3aa601",
+      "source_common_ancestor": "2c09246d9bc66848b6866321df35b0b5951f1484"
+    }
+  },
+  "architecture_authority_map": [
+    {
+      "symbol": "RuntimeCanonicalAuthorityBinding",
+      "path": "julia_core/runtime_canonical_binding/contracts.py",
+      "authority": "Owns the exact ordered identity_ref and experience_refs tuple",
+      "model_visible": false
+    },
+    {
+      "symbol": "RuntimeCanonicalAuthorityBindingResolver.resolve_exact",
+      "path": "julia_core/runtime_canonical_binding/resolver.py",
+      "authority": "Returns one exact admitted governed binding without selection",
+      "model_visible": false
+    },
+    {
+      "symbol": "CanonicalSemanticAuthoritySource.resolve_experience_frame",
+      "path": "julia_core/canonical_authority_source.py",
+      "authority": "Resolves and projects one exact admitted MemoryExperienceRef",
+      "model_visible": false
+    },
+    {
+      "symbol": "ExperienceProjectionPolicy.project_ref",
+      "path": "julia_core/projection/policy.py",
+      "authority": "Projects one governed MemoryExperience to one ExperienceFrame",
+      "model_visible": false
+    },
+    {
+      "symbol": "ExperienceFrameSet",
+      "path": "MISSING; required in julia_core/projection/contracts.py",
+      "authority": "Future exact immutable non-authoritative ordered carrier",
+      "model_visible": "only after C03 through the binder"
+    },
+    {
+      "symbol": "ExclusiveAdmissionGate",
+      "path": "julia_core/context_admission/gate.py",
+      "authority": "Sole C03 admission and seal owner",
+      "model_visible": false
+    },
+    {
+      "symbol": "ExactAdmittedSemanticBinder",
+      "path": "julia_core/context_admission/semantic_binding.py",
+      "authority": "Sole post-C03 model-visible semantic serialization owner",
+      "model_visible": true
+    },
+    {
+      "symbol": "JuliaAssistantRuntime",
+      "path": "julia_core/runtime/assistant_runtime.py",
+      "authority": "Non-semantic runtime transport",
+      "model_visible": false
+    },
+    {
+      "symbol": "ProviderAlignmentBoundary and ProviderExecutionEnvelope",
+      "path": "julia_core/alignment_os/adapter.py and julia_core/alignment_os/contracts.py",
+      "authority": "Final exact provider ingress boundary; no semantic transformation",
+      "model_visible": true
+    }
+  ],
+  "current_singular_experience_path_map": {
+    "chain": [
+      "RuntimeCanonicalAuthorityBinding.binding.identity_ref",
+      "RuntimeCanonicalAuthorityBinding.binding.experience_refs tuple",
+      "caller manually invokes CanonicalSemanticAuthoritySource.resolve_experience_frame(ref) for each ref",
+      "each result is one ExperienceFrame",
+      "current C03 accepts only one request.experience_frame",
+      "ExclusiveAdmissionGate.seal stores one experience_digest",
+      "SemanticBindingRequest carries one experience_frame",
+      "ExactAdmittedSemanticBinder emits one experience AdmittedSemanticUnit",
+      "ProviderExecutionEnvelope carries exactly three messages: system, system, user"
+    ],
+    "composition_gap": "No production composer enforces the binding tuple order or constructs an exact multi-frame carrier.",
+    "current_cardinality": "C03/binder/provider path is singular even though the governed binding is 1..N"
+  },
+  "target_multi_experience_path_map": {
+    "chain": [
+      "RuntimeCanonicalAuthorityBinding.binding.experience_refs",
+      "iterate refs in exact tuple order",
+      "CanonicalSemanticAuthoritySource.resolve_experience_frame(ref_i) for every i",
+      "ExperienceFrameSet(schema_version=EXPERIENCE_FRAME_SET_SCHEMA_VERSION, frames=tuple(projected frames))",
+      "ExclusiveAdmissionRequest.experience_frames = ExperienceFrameSet",
+      "ExclusiveAdmissionGate.seal validates every frame and the complete carrier",
+      "SealedCognitiveContextPackage carries carrier digest plus every ordered frame digest",
+      "SemanticBindingRequest.experience_frames = the same exact ExperienceFrameSet",
+      "ExactAdmittedSemanticBinder emits one ordered deterministic experience-frame-set semantic unit",
+      "JuliaAssistantRuntime transports the resulting exact bundle",
+      "ProviderAlignmentBoundary emits the same exact semantic bytes in ProviderExecutionEnvelope"
+    ],
+    "single_experience_law": "ExperienceFrameSet(frames=(frame,)); no alternate singular branch",
+    "selection": "NONE",
+    "semantic_aggregation": "NONE"
+  },
+  "contract_impact_map": [
+    {
+      "path": "julia_core/projection/contracts.py",
+      "symbol": "ExperienceFrame",
+      "current_experience_cardinality": 1,
+      "current_type": "frozen slots dataclass",
+      "current_digest_behavior": "SHA-256 over its canonical JSON serialization",
+      "current_serialization_behavior": "to_dict plus canonical JSON with sort_keys=True and compact separators",
+      "current_authority_role": "Non-authoritative deterministic projection of one MemoryExperience",
+      "change_required": "NO"
+    },
+    {
+      "path": "julia_core/projection/policy.py",
+      "symbol": "ExperienceProjectionPolicy",
+      "current_experience_cardinality": "1 per project_ref call",
+      "current_type": "exact projection policy",
+      "current_digest_behavior": "Delegates digest to the returned ExperienceFrame",
+      "current_serialization_behavior": "Does not serialize; constructs one exact typed frame",
+      "current_authority_role": "One-ref governed projection without selection or semantic transformation",
+      "change_required": "NO"
+    },
+    {
+      "path": "julia_core/context_admission/contracts.py",
+      "symbol": "ExclusiveAdmissionRequest",
+      "current_experience_cardinality": 1,
+      "current_type": "experience_frame: ExperienceFrame | None",
+      "current_digest_behavior": "No request-level digest; gate computes one frame digest",
+      "current_serialization_behavior": "No request serialization method",
+      "current_authority_role": "Exact C03 ingress contract",
+      "change_required": "YES",
+      "target": "experience_frames: ExperienceFrameSet"
+    },
+    {
+      "path": "julia_core/context_admission/gate.py",
+      "symbol": "ExclusiveAdmissionGate.seal",
+      "current_experience_cardinality": 1,
+      "current_type": "Callable returning SealedCognitiveContextPackage",
+      "current_digest_behavior": "One ExperienceFrame.digest and one package experience_digest",
+      "current_serialization_behavior": "Does not serialize frame content",
+      "current_authority_role": "Sole exclusive fail-closed C03 admission gate",
+      "change_required": "YES",
+      "target": "Validate the complete nonempty exact carrier, every frame, duplicate source refs, carrier digest, and ordered frame-digest manifest"
+    },
+    {
+      "path": "julia_core/context_admission/contracts.py",
+      "symbol": "SealedCognitiveContextPackage",
+      "current_experience_cardinality": 1,
+      "current_type": "frozen sealed package with singular experience_digest and admitted_frames manifest",
+      "current_digest_behavior": "package_digest includes one experience_digest",
+      "current_serialization_behavior": "to_dict names one experience_frame source digest and one manifest entry",
+      "current_authority_role": "Non-semantic C03 admission receipt and traceability manifest",
+      "change_required": "YES",
+      "target": "Carrier digest, ordered tuple of every frame digest, plural manifest entry, and evolved production contract/schema versions"
+    },
+    {
+      "path": "julia_core/context_admission/semantic_binding.py",
+      "symbol": "ExactAdmittedSemanticBinder",
+      "current_experience_cardinality": 1,
+      "current_type": "Sole binder callable",
+      "current_digest_behavior": "Requires source.digest to equal canonical payload digest and sealed manifest digest",
+      "current_serialization_behavior": "Serializes one ExperienceFrame.to_dict to canonical JSON",
+      "current_authority_role": "Sole post-C03 semantic bundle constructor; no admission authority",
+      "change_required": "YES",
+      "target": "Validate and serialize the complete ordered ExperienceFrameSet without transforming its frames"
+    },
+    {
+      "path": "julia_core/context_admission/semantic_binding.py",
+      "symbol": "AdmittedSemanticBundle",
+      "current_experience_cardinality": "1 experience semantic unit",
+      "current_type": "Frozen bundle with exactly three AdmittedSemanticUnit objects",
+      "current_digest_behavior": "SHA-256 over canonical JSON list of the three unit messages",
+      "current_serialization_behavior": "to_dict exposes manifest and fingerprint but not semantic content",
+      "current_authority_role": "Exact post-C03 model-visible semantic view",
+      "change_required": "YES",
+      "target": "Retain three unit roles while the experience unit carries the ordered complete frame-set serialization and manifest"
+    },
+    {
+      "path": "julia_core/runtime/assistant_runtime.py",
+      "symbol": "JuliaAssistantRuntime",
+      "current_experience_cardinality": "Opaque; bundle currently contains one experience unit",
+      "current_type": "RuntimeTurnRequest -> ProviderExecutionEnvelope transport",
+      "current_digest_behavior": "Propagates binding.semantic_fingerprint",
+      "current_serialization_behavior": "Does not serialize or inspect experience fields",
+      "current_authority_role": "Non-semantic runtime transport",
+      "change_required": "NO",
+      "test_extension_required": "YES"
+    },
+    {
+      "path": "julia_core/alignment_os/contracts.py",
+      "symbol": "ProviderExecutionEnvelope",
+      "current_experience_cardinality": "Opaque; one system experience message in current bundle",
+      "current_type": "Frozen exact provider ingress with three role-constrained messages",
+      "current_digest_behavior": "SHA-256 over canonical JSON list of messages",
+      "current_serialization_behavior": "Preserves each unit's exact canonical content string",
+      "current_authority_role": "Final non-semantic provider boundary",
+      "change_required": "NO",
+      "encoding_contract_extension_required": "YES"
+    },
+    {
+      "path": "julia_core/context_admission/semantic_binding.py plus julia_core/alignment_os/adapter.py",
+      "symbol": "ModelProvider-facing semantic serialization",
+      "current_experience_cardinality": 1,
+      "current_type": "AdmittedSemanticUnit.canonical_content transported as message content",
+      "current_digest_behavior": "Unit digest and bundle/provider fingerprints chain to exact canonical bytes",
+      "current_serialization_behavior": "One system message contains one ExperienceFrame canonical JSON object",
+      "current_authority_role": "Post-C03 model-visible serialization only",
+      "change_required": "YES",
+      "target": "One system message contains the exact canonical ExperienceFrameSet JSON array carrier, preserving every frame object and order"
+    }
+  ],
+  "forbidden_construction_map": {
+    "forbidden": [
+      "experience_refs[0]",
+      "latest",
+      "best",
+      "default",
+      "active",
+      "ranking",
+      "truncation",
+      "semantic merge",
+      "synthetic ExperienceFrame",
+      "synthetic MemoryExperienceRef",
+      "post-C03 reconstruction",
+      "singular compatibility branch"
+    ],
+    "approved_construction": "For every ref in the immutable binding tuple order, invoke the unchanged exact one-ref projection and append the resulting exact frame to the carrier tuple.",
+    "active_multi_experience_selection_bypass": 0
+  },
+  "experience_frame_set_contract": {
+    "result": "EXACTLY_SPECIFIABLE",
+    "minimum_fields": [
+      "schema_version: str",
+      "frames: tuple[ExperienceFrame, ...]"
+    ],
+    "schema_version": "1.0.0",
+    "schema_serialization_name": "julia_core.projection.experience_frame_set.v1",
+    "carrier_digest_field_required": false,
+    "carrier_digest_method_required": true,
+    "invariants": [
+      "type(frames) is tuple",
+      "len(frames) >= 1",
+      "every type(frame) is ExperienceFrame",
+      "frame order is preserved exactly",
+      "no duplicate exact source_ref",
+      "dataclass is frozen and immutable",
+      "no selection",
+      "no semantic transformation"
+    ],
+    "duplicate_check": "Ordered scan of source_ref values with fail-closed rejection; do not dedupe or collapse",
+    "metadata_decision": "No speculative metadata beyond the schema discriminator/version and ordered frames is required."
+  },
+  "projection_impact": {
+    "single_ref_projection_policy": "UNCHANGED",
+    "construction": "A higher-level exact carrier constructor invokes project_ref(ref_1), project_ref(ref_2), through project_ref(ref_n) in binding order.",
+    "aggregation_moved_into_policy": false,
+    "reason": "ExperienceProjectionPolicy owns one exact governed projection. ExperienceFrameSet owns only ordered typed carrying and carrier integrity."
+  },
+  "c03_impact": {
+    "c03_target_field": "experience_frames: ExperienceFrameSet",
+    "singular_compatibility_bypass_required": "NO",
+    "single_experience_path": "ExperienceFrameSet(frames=(frame,))",
+    "exclusive_admission_request": "Replace experience_frame with exact experience_frames field and exact-type validation.",
+    "exclusive_admission_gate": "Validate the exact carrier, cardinality, every frame, source-ref uniqueness, and each frame with the existing admitted-frame checks; derive carrier and per-frame digests.",
+    "sealed_package": "Use an explicit experience frame-set carrier digest, retain an ordered tuple containing every individual frame digest, and evolve the plural admitted-frame manifest.",
+    "contract_version_change_required": "YES",
+    "target_c03_contract_version": "julia_core.context_admission.c03.production.v2",
+    "target_sealed_package_schema": "julia_core.context_admission.sealed_package.v2",
+    "one_canonical_path": true
+  },
+  "digest_impact": {
+    "frame_set_digest_input": "The complete ordered ExperienceFrameSet.to_dict carrier, including its schema discriminator/version and every complete frame.to_dict in order",
+    "frame_set_digest_order": "ExperienceFrameSet.frames order, inherited exactly from RuntimeCanonicalAuthorityBinding.experience_refs",
+    "frame_set_digest_canonical_serialization": "UTF-8 JSON with ensure_ascii=False, sort_keys=True, and separators=(',', ':'), matching existing projection/C03 conventions",
+    "frame_set_digest_formula": "SHA-256(ExperienceFrameSet.canonical_serialization().encode('utf-8'))",
+    "frame_set_digest_owner": "ExperienceFrameSet exact carrier contract",
+    "carrier_digest_stored_field": false,
+    "package_binding": "C03 uses the carrier digest as the experience component of package_digest and separately manifests every ordered individual frame digest.",
+    "semantic_aggregation": "NONE",
+    "order_sensitivity": "YES",
+    "content_sensitivity": "YES"
+  },
+  "sealed_manifest_impact": {
+    "admitted_frames_shape": "Three semantic-unit keys: identity_frame, experience_frames, current_task_context; the experience value is the frame-set carrier digest.",
+    "individual_manifest": "Add an ordered tuple of every exact ExperienceFrame.digest in carrier order.",
+    "every_admitted_experience_traceable": "YES",
+    "first_only": false,
+    "aggregate_semantic_frame": false,
+    "individual_provenance_lost": false
+  },
+  "binder_impact": {
+    "semantic_binding_request": "Replace experience_frame with experience_frames: ExperienceFrameSet.",
+    "binder_target_experience_carrier": "Exact ordered ExperienceFrameSet serialized as one deterministic system AdmittedSemanticUnit",
+    "validation": "Require ExperienceFrameSet.digest to match the sealed carrier digest and every individual frame.digest to match the sealed ordered tuple.",
+    "bundle_manifest": "Retain the three semantic-unit digest manifest and add the ordered individual experience-frame digest tuple.",
+    "preservation": "All frames remain complete and in exact order.",
+    "semantic_merge": "NONE",
+    "summary": "NONE",
+    "ranking": "NONE",
+    "selection": "NONE",
+    "drop": "NONE",
+    "post_c03_reconstruction": "NONE"
+  },
+  "runtime_impact": {
+    "runtime_contract_change_required": "NO",
+    "reason": "RuntimeTurnRequest and JuliaAssistantRuntime.prepare transport the exact AdmittedSemanticBundle without experience cardinality fields or semantic inspection.",
+    "regression_extension_required": "YES",
+    "runtime_carrier": "AdmittedSemanticBundle with the evolved exact frame-set semantic unit and manifest"
+  },
+  "provider_impact": {
+    "model_visible_multi_experience_encoding": "READY",
+    "encoding": "One deterministic system semantic unit whose canonical_content is the complete canonical ExperienceFrameSet JSON carrier; identity remains one system unit and current task remains one user unit.",
+    "preserves_individual_frame_identity": true,
+    "preserves_individual_source_ref": true,
+    "preserves_individual_provenance": true,
+    "preserves_exact_order": true,
+    "provider_envelope_change_required": "NO",
+    "provider_encoding_contract_change_required": "YES",
+    "provider_multi_experience_path": "INCOMPLETE",
+    "missing_contract": "The future binder/provider tests must prove that the second system message remains the exact ExperienceFrameSet canonical serialization, that no frame is flattened/merged/overwritten, and that a real ModelProvider transport forwards those exact envelope messages."
+  },
+  "model_visible_multi_experience_encoding": {
+    "value": "READY",
+    "decision_basis": "The approved carrier architecture names ExperienceFrameSet as the model-visible carrier. The existing binder already owns deterministic canonical JSON, and the provider envelope already transports opaque exact semantic bytes. A single ordered frame-set system unit preserves every individual frame more exactly than splitting into provider-specific messages.",
+    "message_roles_after_change": [
+      "system: IdentityFrame canonical semantic unit",
+      "system: ExperienceFrameSet canonical semantic unit",
+      "user: CurrentConversationalTaskContext canonical semantic unit"
+    ]
+  },
+  "source_ordering_audit": {
+    "law": "ExperienceFrameSet.frames order equals RuntimeCanonicalAuthorityBinding.experience_refs order",
+    "order_preservation_violation_count": 0,
+    "hits": [
+      {
+        "path": "julia_core/runtime_canonical_binding/contracts.py",
+        "hit": "experience_refs tuple and duplicate exact-ref check",
+        "classification": "AUTHORITY_PRESERVES_ORDER; duplicate validation does not select or dedupe"
+      },
+      {
+        "path": "julia_core/projection/contracts.py",
+        "hit": "sort_keys=True in canonical JSON",
+        "classification": "OBJECT_KEY_CANONICALIZATION_ONLY; list/frame order remains unchanged"
+      },
+      {
+        "path": "julia_core/context_admission/semantic_binding.py",
+        "hit": "set of three current unit digests for ambiguity validation",
+        "classification": "EXISTING_SINGULAR_VALIDATION; must not be applied across N experience frames"
+      },
+      {
+        "path": "julia_core/alignment_os/contracts.py",
+        "hit": "message shape set comparison",
+        "classification": "FIELD_NAME_VALIDATION; does not alter message order"
+      },
+      {
+        "path": "legacy ContextExecutionRuntime",
+        "hit": "capability/evidence sorting, dedupe, and first-reference behavior",
+        "classification": "OUTSIDE_CANONICAL_MULTI_EXPERIENCE_PATH; forbidden for canonical cutover"
+      }
+    ]
+  },
+  "static_constitutional_audit": {
+    "scope": "Exact projection, C03, binder, runtime, alignment/provider, and runtime-binding contract paths",
+    "active_multi_experience_selection_bypass": 0,
+    "relevant_findings": [
+      "runtime binding [metadata_keys][0] is metadata parsing, not experience selection",
+      "runtime binding set(...) checks reject duplicates without dropping them",
+      "canonical JSON sort_keys sorts object keys only and preserves list order",
+      "provider response_format=default is non-semantic execution metadata",
+      "legacy ProviderBehaviorAdapter is explicitly fail-closed and outside the canonical path",
+      "alignment fallback_style fields are legacy profile contracts not consumed by ProviderExecutionEnvelope"
+    ]
+  },
+  "backward_compatibility_law": {
+    "legacy_singular_internal_callers": "Migrate to ExperienceFrameSet(frames=(frame,))",
+    "conditional_singular_bypass": "FORBIDDEN",
+    "one_canonical_path": true,
+    "old_request_field_retained": false
+  },
+  "test_impact_map": [
+    {
+      "category": "projection tests",
+      "paths": [
+        "tests/projection/test_memory_experience_to_experience_frame.py"
+      ],
+      "classification": "UNCHANGED",
+      "additional": "NEW_TEST_REQUIRED for ExperienceFrameSet invariants and digest behavior"
+    },
+    {
+      "category": "canonical authority source tests",
+      "paths": [
+        "tests/canonical_authority/test_canonical_production_authority_source.py"
+      ],
+      "classification": "EXTEND",
+      "additional": "NEW_TEST_REQUIRED for ordered repeated one-ref resolution into a carrier"
+    },
+    {
+      "category": "runtime binding tests",
+      "paths": [
+        "tests/runtime_binding/test_runtime_canonical_reference_binding.py"
+      ],
+      "classification": "EXTEND",
+      "additional": "Existing two-ref fixture must become a frame-set order-preservation test"
+    },
+    {
+      "category": "C03 admission and digest tests",
+      "paths": [
+        "tests/context_admission/test_c03_executable_conformance.py",
+        "tests/context_admission/test_c03_production_hardening.py"
+      ],
+      "classification": "REWRITE_EXPECTATION",
+      "additional": "NEW_TEST_REQUIRED for one/N frame admission, manifest completeness, and order-sensitive digest"
+    },
+    {
+      "category": "binder tests",
+      "paths": [
+        "tests/context_admission/test_p3_n0_semantic_binding.py"
+      ],
+      "classification": "REWRITE_EXPECTATION",
+      "additional": "NEW_TEST_REQUIRED for every-frame preservation and frame-loss failure"
+    },
+    {
+      "category": "runtime tests",
+      "paths": [
+        "tests/runtime/test_p3_n0_runtime_envelope.py"
+      ],
+      "classification": "EXTEND",
+      "additional": "NEW_TEST_REQUIRED to prove opaque runtime transport preserves the richer exact bundle"
+    },
+    {
+      "category": "provider envelope/boundary tests",
+      "paths": [
+        "tests/context_admission/test_p3_n0_alignment_boundary.py",
+        "tests/test_alignment_os_v1.py"
+      ],
+      "classification": "EXTEND",
+      "additional": "NEW_TEST_REQUIRED for exact frame-set bytes, no flatten/merge/overwrite, and frame-loss failure"
+    },
+    {
+      "category": "N2 seam tests",
+      "paths": [],
+      "classification": "NEW_TEST_REQUIRED",
+      "additional": "Add an explicit ordered multi-experience seam test because no exact N2-named test exists in the audited snapshot"
+    },
+    {
+      "category": "P2/P3 regression tests",
+      "paths": [
+        "tests/runtime/test_c1_rev2_context_os_projection.py",
+        "tests/runtime/test_r2_p3_context_os_typed_projection.py",
+        "tests/runtime/test_r2_p3_2_3a_control_projection.py",
+        "tests/runtime/test_r2_p3_3a_retry_control_projection.py"
+      ],
+      "classification": "UNCHANGED",
+      "additional": "These cover legacy ContextExecutionRuntime projections, not the exact canonical C03 path; keep them as non-authoritative regression meaning"
+    }
+  ],
+  "future_positive_matrix": [
+    "F1-01 one experience produces ExperienceFrameSet(frames=(frame,))",
+    "F1-02 two experiences preserve binding order",
+    "F1-03 N experiences preserve exact order",
+    "F1-04 carrier accepts exact ExperienceFrame types only",
+    "F1-05 carrier is immutable",
+    "F1-06 duplicate exact source_ref is rejected",
+    "F1-07 carrier digest is deterministic",
+    "F1-08 carrier digest changes when frame order changes",
+    "F1-09 carrier digest changes when one frame changes",
+    "F1-10 C03 admits a one-frame set",
+    "F1-11 C03 admits a multi-frame set",
+    "F1-12 C03 manifest traces every frame",
+    "F1-13 binder preserves every frame",
+    "F1-14 binder preserves exact order",
+    "F1-15 runtime preserves exact carrier",
+    "F1-16 provider boundary preserves every frame",
+    "F1-17 no frame selection exists",
+    "F1-18 no semantic aggregation exists",
+    "F1-19 no synthetic ExperienceFrame exists",
+    "F1-20 no post-C03 reconstruction exists"
+  ],
+  "future_negative_matrix": [
+    "F1-21 empty ExperienceFrameSet rejected",
+    "F1-22 list instead of tuple rejected",
+    "F1-23 inexact ExperienceFrame rejected",
+    "F1-24 ExperienceFrame subclass rejected under exact-type law",
+    "F1-25 duplicate source_ref rejected",
+    "F1-26 reordered carrier detected by digest",
+    "F1-27 missing admitted frame fails closed",
+    "F1-28 binder frame loss fails",
+    "F1-29 provider frame loss fails",
+    "F1-30 singular bypass surface absent"
+  ],
+  "dependency_dag": [
+    {
+      "id": "F-A",
+      "name": "ExperienceFrameSet contract",
+      "status": "READY",
+      "dependencies": []
+    },
+    {
+      "id": "F-B",
+      "name": "deterministic frame-set digest",
+      "status": "READY",
+      "dependencies": [
+        "F-A"
+      ]
+    },
+    {
+      "id": "F-C",
+      "name": "C03 request/gate/package evolution",
+      "status": "READY_AFTER_F_A_F_B",
+      "dependencies": [
+        "F-A",
+        "F-B"
+      ]
+    },
+    {
+      "id": "F-D",
+      "name": "binder/bundle evolution",
+      "status": "READY_AFTER_F_C",
+      "dependencies": [
+        "F-C"
+      ]
+    },
+    {
+      "id": "F-E",
+      "name": "runtime carrier evolution",
+      "status": "READY_AFTER_F_D",
+      "dependencies": [
+        "F-D"
+      ]
+    },
+    {
+      "id": "F-F",
+      "name": "provider-facing exact encoding",
+      "status": "READY_AFTER_F_D",
+      "dependencies": [
+        "F-D"
+      ]
+    },
+    {
+      "id": "F-G",
+      "name": "integration regression",
+      "status": "READY_AFTER_ALL",
+      "dependencies": [
+        "F-E",
+        "F-F"
+      ]
+    }
+  ],
+  "parallel_ready_nodes": [
+    "F-E",
+    "F-F"
+  ],
+  "parallel_independence_proof": "After F-D, F-E validates non-semantic runtime transport in julia_core/runtime/assistant_runtime.py while F-F validates provider-boundary bytes in julia_core/alignment_os; neither consumes a value produced by the other, and both read the same already-frozen AdmittedSemanticBundle.",
+  "join_node": "F-G",
+  "owner_gates": [
+    "No additional gate is required for bounded contract implementation because the Owner approved the multi-experience carrier architecture.",
+    "Production startup wiring, physical transport, provider deployment, legacy retirement, canonical writes, Golden Mira admission, merge/main mutation, release, and final cutover remain separately Owner-gated."
+  ],
+  "blockers": [],
+  "n4ef0_result": "READY_FOR_BOUNDED_MULTI_EXPERIENCE_CONTRACT_IMPLEMENTATION",
+  "next_implementation_node": "F-A",
+  "proof_start_boundary": [
+    "Audited from accepted E0 candidate 3f891cf8f7a2c59844f57734b5c21f23e9dff024",
+    "Source contracts read from the common ancestor shared by accepted Lane A ff6c9198d32852ebfc71ed76e141c0ed63357213 and Lane B fb2907ba18f2f093ec4f96c75b7050ecec3aa601"
+  ],
+  "proof_end_boundary": [
+    "All ten required current symbols mapped with cardinality, type, digest, serialization, authority role, and change decision.",
+    "Static ordering/selection scan completed with zero active canonical bypasses.",
+    "Targeted current contract tests: 128 passed in 0.36s.",
+    "No implementation merge or production wiring performed."
+  ],
+  "unproven_dependencies": [
+    "F1 implementation has not yet been performed",
+    "real ModelProvider execution transport remains outside this contract-only audit",
+    "production cold-start composition remains blocked by the separate E0 gates"
+  ],
+  "production_code_changed": "NO",
+  "completion_marker": "[P3-N4E-F0-MULTI-EXPERIENCE-C03-IMPACT-READINESS-COMPLETE]"
+}
