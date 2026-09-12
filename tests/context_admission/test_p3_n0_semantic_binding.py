@@ -15,7 +15,7 @@ from julia_core.context_admission import (
     SemanticBindingRequest,
 )
 from julia_core.context_admission.contracts import canonical_json
-from julia_core.projection.contracts import ExperienceFrame, IdentityFrame
+from julia_core.projection.contracts import ExperienceFrameSet, IdentityFrame
 from tests.context_admission.production_fixtures import (
     canonical_current_task_context,
     canonical_experience_frame,
@@ -33,7 +33,7 @@ def bound_inputs(*, turn_id: str = "turn-eng12a-1"):
     return (
         package,
         request.identity_frame,
-        request.experience_frame,
+        request.experience_frames,
         request.current_task_context,
     )
 
@@ -47,13 +47,13 @@ def test_binder_produces_exact_ordered_units_and_roles():
 
     assert [unit.frame_name for unit in binding.units] == [
         "identity_frame",
-        "experience_frame",
+        "experience_frame_set",
         "current_task_context",
     ]
     assert [unit.role for unit in binding.units] == ["system", "system", "user"]
     assert tuple(binding.package_digest_manifest) == (
         "identity_frame",
-        "experience_frame",
+        "experience_frame_set",
         "current_task_context",
     )
     assert binding.conversation_id == "conversation-eng12a"
@@ -106,18 +106,23 @@ def test_package_is_verified_before_semantic_content_is_bound():
     ("frame_name", "frame_type"),
     [
         ("identity_frame", IdentityFrame),
-        ("experience_frame", ExperienceFrame),
+        ("experience_frame_set", ExperienceFrameSet),
         ("current_task_context", CurrentConversationalTaskContext),
     ],
 )
 def test_exact_frame_types_are_required(frame_name, frame_type):
     values = bound_inputs()
     arguments = list(values)
-    arguments[1 + ("identity_frame", "experience_frame", "current_task_context").index(frame_name)] = object()
+    arguments[
+        1
+        + ("identity_frame", "experience_frame_set", "current_task_context").index(
+            frame_name
+        )
+    ] = object()
 
     expected_message = {
         "identity_frame": "exact canonical IdentityFrame",
-        "experience_frame": "exact canonical ExperienceFrame",
+        "experience_frame_set": "exact canonical ExperienceFrameSet",
         "current_task_context": "exact canonical current task context",
     }[frame_name]
     with pytest.raises(C03AdmissionRejected, match=expected_message):
@@ -128,7 +133,7 @@ def test_exact_frame_types_are_required(frame_name, frame_type):
 def test_changed_admitted_frame_fails_against_package_manifest():
     package, identity, experience, current_task = bound_inputs()
     object.__setattr__(
-        experience,
+        experience.frames[0],
         "content",
         {"commitment": "post-seal semantic mutation"},
     )

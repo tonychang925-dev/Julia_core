@@ -6,7 +6,7 @@ from hashlib import sha256
 from types import MappingProxyType
 from typing import Any, Mapping
 
-from julia_core.projection.contracts import ExperienceFrame, IdentityFrame
+from julia_core.projection.contracts import ExperienceFrameSet, IdentityFrame
 
 from .contracts import (
     AdmissionRejection,
@@ -19,13 +19,13 @@ from .contracts import (
 
 ADMITTED_FRAME_ORDER = (
     "identity_frame",
-    "experience_frame",
+    "experience_frame_set",
     "current_task_context",
 )
 ADMITTED_FRAME_ROLES = MappingProxyType(
     {
         "identity_frame": "system",
-        "experience_frame": "system",
+        "experience_frame_set": "system",
         "current_task_context": "user",
     }
 )
@@ -46,7 +46,7 @@ class SemanticBindingRequest:
 
     package: SealedCognitiveContextPackage
     identity_frame: IdentityFrame
-    experience_frame: ExperienceFrame
+    experience_frames: ExperienceFrameSet
     current_task_context: CurrentConversationalTaskContext
 
     def __post_init__(self) -> None:
@@ -61,10 +61,10 @@ class SemanticBindingRequest:
                 "inexact_identity_frame",
                 "semantic binding requires an exact canonical IdentityFrame",
             )
-        if type(self.experience_frame) is not ExperienceFrame:
+        if type(self.experience_frames) is not ExperienceFrameSet:
             raise _rejection(
-                "inexact_experience_frame",
-                "semantic binding requires an exact canonical ExperienceFrame",
+                "inexact_experience_frames",
+                "semantic binding requires an exact canonical ExperienceFrameSet",
             )
         if type(self.current_task_context) is not CurrentConversationalTaskContext:
             raise _rejection(
@@ -185,7 +185,7 @@ class AdmittedSemanticBundle:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema": "julia_core.context_admission.admitted_semantic_bundle.v1",
+            "schema": "julia_core.context_admission.admitted_semantic_bundle.v2",
             "contract_version": self.contract_version,
             "conversation_id": self.conversation_id,
             "turn_id": self.turn_id,
@@ -229,9 +229,22 @@ class ExactAdmittedSemanticBinder:
 
         sources = (
             request.identity_frame,
-            request.experience_frame,
+            request.experience_frames,
             request.current_task_context,
         )
+        frame_digests = tuple(
+            frame.digest() for frame in request.experience_frames.frames
+        )
+        if frame_digests != package.experience_frame_digests:
+            raise _rejection(
+                "mismatched_experience_frame_manifest",
+                "experience frame digest manifest does not match the sealed package",
+            )
+        if len(request.experience_frames.frames) != package.experience_frame_count:
+            raise _rejection(
+                "mismatched_experience_frame_count",
+                "experience frame count does not match the sealed package",
+            )
         units: list[AdmittedSemanticUnit] = []
         for frame_name, source in zip(ADMITTED_FRAME_ORDER, sources, strict=True):
             try:
