@@ -1,0 +1,245 @@
+{
+  "schema": "julia_core.p3_n4b.canonical_production_authority_source_binding.v1",
+  "phase": "FINAL_PRODUCTION_AUTHORITY_SOURCE_BINDING",
+  "base_sha": "f3bcd9b3f591728ee8fbf7faea7b20e6d0c19cd2",
+  "branch": "mira/p3-n4b-canonical-production-authority-source-binding",
+  "NO_CODE_BEFORE_AUTHORITY_MAP": "ACKNOWLEDGED",
+  "architecture_authority_map": [
+    {
+      "capability": "Identity governance and lifecycle",
+      "owner": "julia_core.identity.repository.IdentityRepository",
+      "consumer_role": "read-only resolver input only",
+      "allowed": "exact IdentityResolver resolution",
+      "forbidden": "store_candidate / admit / supersede / retire / mint"
+    },
+    {
+      "capability": "Identity exact-reference resolution",
+      "owner": "julia_core.identity.resolver.IdentityResolver",
+      "consumer_role": "consumer",
+      "allowed": "resolve exact IdentityRef",
+      "forbidden": "substitute repository, mutate binding, latest fallback"
+    },
+    {
+      "capability": "Identity projection",
+      "owner": "julia_core.projection.policy.PersonaProjectionPolicy",
+      "consumer_role": "consumer",
+      "allowed": "project exact governed IdentityRef",
+      "forbidden": "construct or override IdentityFrame fields"
+    },
+    {
+      "capability": "MemoryExperience governance and lifecycle",
+      "owner": "julia_core.memory_experience.repository.MemoryExperienceRepository",
+      "consumer_role": "read-only resolver input only",
+      "allowed": "exact MemoryExperienceResolver resolution",
+      "forbidden": "store_candidate / admit / supersede / retire / mint"
+    },
+    {
+      "capability": "MemoryExperience exact-reference resolution",
+      "owner": "julia_core.memory_experience.resolver.MemoryExperienceResolver",
+      "consumer_role": "consumer",
+      "allowed": "resolve exact MemoryExperienceRef",
+      "forbidden": "substitute repository, mutate binding, latest fallback"
+    },
+    {
+      "capability": "Experience projection",
+      "owner": "julia_core.projection.policy.ExperienceProjectionPolicy",
+      "consumer_role": "consumer",
+      "allowed": "project exact governed MemoryExperienceRef",
+      "forbidden": "construct or override ExperienceFrame fields"
+    },
+    {
+      "capability": "Read-only production frame source",
+      "owner": "new narrow Julia_core authority-source module",
+      "consumer_role": "external consumer",
+      "allowed": "resolve exact admitted frames",
+      "forbidden": "authority population, semantic selection, admission, or mutation"
+    }
+  ],
+  "current_source_lifecycle_map": {
+    "identity": {
+      "authority_store": "IdentityRepository (in-memory exact-version governance ledger)",
+      "population": "owner-controlled store_candidate followed by governed admission",
+      "consumption": "IdentityResolver.resolve(IdentityRef) -> GovernedIdentity",
+      "projection": "PersonaProjectionPolicy.project_ref -> IdentityFrame",
+      "durable_production_loader": null,
+      "canonical_ref_policy": null,
+      "policy": "binding seam must expose absence as SOURCE_NOT_BOUND or REF_NOT_FOUND; it must not bootstrap"
+    },
+    "experience": {
+      "authority_store": "MemoryExperienceRepository (in-memory exact-version governance ledger)",
+      "population": "owner-controlled store_candidate followed by governed admission",
+      "consumption": "MemoryExperienceResolver.resolve(MemoryExperienceRef) -> GovernedMemoryExperience",
+      "projection": "ExperienceProjectionPolicy.project_ref -> ExperienceFrame",
+      "durable_production_loader": null,
+      "canonical_ref_policy": null,
+      "policy": "binding seam must expose absence as SOURCE_NOT_BOUND or REF_NOT_FOUND; it must not bootstrap"
+    },
+    "lifecycle_ambiguity_resolution": "No candidate selection or initial admission decision is made by this seam"
+  },
+  "production_binding_dag": [
+    "owner-populated IdentityRepository",
+    "IdentityResolver",
+    "CanonicalSemanticAuthoritySource.resolve_identity_frame",
+    "PersonaProjectionPolicy.project_ref",
+    "exact admitted IdentityFrame"
+  ],
+  "experience_binding_dag": [
+    "owner-populated MemoryExperienceRepository",
+    "MemoryExperienceResolver",
+    "CanonicalSemanticAuthoritySource.resolve_experience_frame",
+    "ExperienceProjectionPolicy.project_ref",
+    "exact admitted ExperienceFrame"
+  ],
+  "forbidden_authority_mutation_map": {
+    "consumer_visible_mutators": [],
+    "forbidden_operations": [
+      "store_candidate",
+      "admit",
+      "supersede",
+      "retire",
+      "delete",
+      "replace repository",
+      "replace resolver",
+      "select latest",
+      "select default"
+    ],
+    "forbidden_objects": [
+      "null/default/synthetic IdentityFrame",
+      "null/default/synthetic ExperienceFrame",
+      "synthetic admitted record",
+      "promoted test fixture"
+    ],
+    "required_boundary": "CONSUMER_MUTATION_AUTHORITY = 0"
+  },
+  "implementation_plan": [
+    "Add one narrow immutable, injection-bound CanonicalSemanticAuthoritySource module",
+    "Accept exact optional resolver bindings and fail SOURCE_NOT_BOUND when absent",
+    "Resolve exact refs, enforce ADMITTED lifecycle, project through exact policies",
+    "Verify returned exact types, source refs, digests, statuses, and provenance",
+    "Add positive, negative, API-boundary, and AST static-gate tests",
+    "Run base-existing and candidate-only regression surfaces, then publish evidence"
+  ],
+  "production_api": {
+    "module": "julia_core.canonical_authority_source",
+    "symbol": "CanonicalSemanticAuthoritySource",
+    "constructor_dependencies": {
+      "identity_resolver": "exact IdentityResolver | None",
+      "memory_resolver": "exact MemoryExperienceResolver | None"
+    },
+    "identity_lookup_input": "exact IdentityRef",
+    "experience_lookup_input": "exact MemoryExperienceRef",
+    "returns": ["exact IdentityFrame", "exact ExperienceFrame"],
+    "mutability": "immutable source; private resolver and policy bindings",
+    "thread_process_ownership": "caller owns repository lifecycle and concurrency; source performs synchronized read-only resolver calls only",
+    "error_taxonomy": [
+      "SOURCE_NOT_BOUND",
+      "REF_NOT_FOUND",
+      "REF_NOT_ADMITTED",
+      "REF_RETIRED",
+      "TYPE_MISMATCH",
+      "PROJECTION_FAILURE",
+      "PROVENANCE_FAILURE"
+    ],
+    "silent_none_allowed": false,
+    "empty_or_default_frame_allowed": false
+  },
+  "identity_source_contract": {
+    "source_module": "julia_core.canonical_authority_source",
+    "source_symbol": "CanonicalSemanticAuthoritySource.resolve_identity_frame",
+    "binding": "exact IdentityResolver injected by canonical authority owner",
+    "lookup": "exact IdentityRef",
+    "return_type": "julia_core.projection.contracts.IdentityFrame",
+    "admission_requirement": "IdentityStatus.ADMITTED",
+    "provenance": "source_ref/source_digest/source_status/provenance_refs verified against GovernedIdentity.version",
+    "mutation_authority": 0
+  },
+  "experience_source_contract": {
+    "source_module": "julia_core.canonical_authority_source",
+    "source_symbol": "CanonicalSemanticAuthoritySource.resolve_experience_frame",
+    "binding": "exact MemoryExperienceResolver injected by canonical authority owner",
+    "lookup": "exact MemoryExperienceRef",
+    "return_type": "julia_core.projection.contracts.ExperienceFrame",
+    "admission_requirement": "MemoryExperienceStatus.ADMITTED",
+    "provenance": "source_ref/source_digest/source_status/provenance_refs verified against GovernedMemoryExperience.record",
+    "mutation_authority": 0
+  },
+  "positive_tests": {
+    "B01_exact_admitted_identity_ref": "PASS",
+    "B02_exact_admitted_experience_ref": "PASS",
+    "B03_provenance_matches_governed_source": "PASS",
+    "B04_deterministic_resolution": "PASS",
+    "B05_no_authority_mutation": "PASS",
+    "B06_read_only_consumer_interface": "PASS"
+  },
+  "negative_tests": {
+    "B07_missing_source_binding": "PASS",
+    "B08_unknown_identity_ref": "PASS",
+    "B09_unknown_experience_ref": "PASS",
+    "B10_nonadmitted_identity": "PASS",
+    "B11_nonadmitted_experience": "PASS",
+    "B12_retired_identity": "PASS",
+    "B13_retired_experience": "PASS",
+    "B14_forged_subclass_duck_dict_ref": "PASS",
+    "B15_malformed_provenance": "PASS",
+    "B16_no_fallback_frame": "PASS",
+    "B17_no_production_fixture_import": "PASS",
+    "B18_no_network_provider_runtime_call": "PASS"
+  },
+  "verification": {
+    "candidate_only": "/opt/miniconda3/bin/pytest -q tests/canonical_authority/test_canonical_production_authority_source.py => 20 passed",
+    "base_full_regression": "/opt/miniconda3/bin/pytest -q tests --continue-on-collection-errors => 1524 passed, 52 failed, 6 skipped, 26 xfailed, 3 pre-existing setup errors",
+    "candidate_full_regression": "/opt/miniconda3/bin/pytest -q tests --continue-on-collection-errors => 1544 passed, 52 failed, 6 skipped, 26 xfailed, 3 pre-existing setup errors",
+    "failure_error_id_comparison": "PASS: base and candidate failure/error IDs match; candidate adds 20 passing candidate-only tests",
+    "CANONICAL_AUTHORITY_SOURCE_GATE": "PASS",
+    "changed_path_audit": "PASS: only new authority source, its tests, and this artifact",
+    "temporary_regression_side_effects_cleaned": true
+  },
+  "authority_delta": {
+    "new_semantic_owner": 0,
+    "new_admission_owner": 0,
+    "new_identity_minting_path": 0,
+    "new_experience_minting_path": 0,
+    "new_fallback_authority": 0,
+    "consumer_mutation_authority": 0
+  },
+  "consumer_mutation_authority": 0,
+  "canonical_writes": 0,
+  "golden_mira_admission_writes": 0,
+  "acceptance_matrix": {
+    "N4B-01": "PASS",
+    "N4B-02": "PASS",
+    "N4B-03": "PASS",
+    "N4B-04": "PASS",
+    "N4B-05": "PASS",
+    "N4B-06": "PASS",
+    "N4B-07": "PASS",
+    "N4B-08": "PASS",
+    "N4B-09": "PASS",
+    "N4B-10": "PASS",
+    "N4B-11": "PASS",
+    "N4B-12": "PASS",
+    "N4B-13": "PASS",
+    "N4B-14": "PASS",
+    "N4B-15": "PASS",
+    "N4B-16": "PASS",
+    "N4B-17": "PASS",
+    "N4B-18": "PASS",
+    "N4B-19": "PASS",
+    "N4B-20": "PASS",
+    "N4B-21": "PASS",
+    "N4B-22": "PASS",
+    "N4B-23": "PASS",
+    "N4B-24": "PASS",
+    "N4B-25": "PASS",
+    "N4B-26": "PASS",
+    "N4B-27": "PASS",
+    "N4B-28": "PASS",
+    "N4B-29": "PASS",
+    "N4B-30": "PASS",
+    "N4B-31": "PASS",
+    "N4B-32": "PASS",
+    "N4B-33": "PASS",
+    "N4B-34": "PASS",
+    "N4B-35": "PASS"
+  }
+}
