@@ -1,26 +1,49 @@
 {
   "task_id": "P3-N4E-C1-EXACT-LOCAL-FILESYSTEM-DURABLE-ADAPTER",
+  "status": "REWORK_R1_COMPLETE",
   "repo": "tonychang925-dev/Julia_core",
   "branch": "mira/p3-n4e-c1-exact-local-filesystem-durable-adapter",
   "base_sha": "a46bc7c9a23e336d3d79087f3f3fb90fad0cd418",
-  "parent_sha": "a46bc7c9a23e336d3d79087f3f3fb90fad0cd418",
-  "candidate_sha": "8f6d64d9a5db2797c20ceb0ed7e08372908ee846",
-  "candidate_scope_note": "candidate_sha is the code/test implementation commit; this evidence artifact is published as the subsequent delivery commit.",
+  "parent_sha": "7d6eeaa7866434cc636f85502ce20fd6ef974bfe",
+  "candidate_sha": "56109c11befdc07e498042ed43fb617d2699560b",
+  "candidate_scope_note": "candidate_sha is the R1 code/test implementation commit; this evidence artifact is published as the subsequent delivery commit.",
+  "rework": {
+    "rework_id": "P3-N4E-C1-R1",
+    "defect": "EXACT_CANONICAL_REF_TYPE_ENFORCEMENT_FAILURE",
+    "old_remote_head": "7d6eeaa7866434cc636f85502ce20fd6ef974bfe",
+    "new_candidate_sha": "56109c11befdc07e498042ed43fb617d2699560b",
+    "exact_ref_type_matrix": "PASS",
+    "changed_behavior": "read_exact requires type(ref) to equal the exact family-bound canonical ref class before accessing ref.uri",
+    "forbidden_inputs_rejected": [
+      "generic object with matching uri",
+      "raw URI string",
+      "dict",
+      "tuple",
+      "coerced value",
+      "subclass",
+      "cross-family exact ref"
+    ]
+  },
   "changed_paths": [
     "julia_core/durable_authority/filesystem_adapter.py",
     "tests/durable_authority/test_filesystem_adapter.py",
     "artifacts/continuity/P3_N4E_C1_EXACT_LOCAL_FILESYSTEM_DURABLE_ADAPTER_V1.json"
   ],
   "diff_stat": {
-    "implementation_commit": "2 files changed, 724 insertions(+) (318 adapter lines, 406 test lines)",
-    "adapter_sha256": "ccbafcd99014c2c9fb4eddcf77c57e98b34b67dcd598c23b053e330f985671e6",
-    "test_sha256": "d463ccffaa15cd683eb50babe0ac69964eb6c26f4e6eba0ae3d1ffcbd46e1e7e"
+    "implementation_commit": "initial C1: 2 files changed, 724 insertions(+); R1: 2 files changed, 80 insertions(+), 6 deletions(-)",
+    "adapter_sha256": "517d5518ab570646b75eea0ab45f628ac2b1b9653c19044fd3bf4ecf270d0dc1",
+    "test_sha256": "8bbdc9ce98c10ce7e9054d37e8e6794de3559ecc479b1582ba48b005eeec7ca7"
   },
   "adapter_api": {
     "module": "julia_core.durable_authority.filesystem_adapter",
     "symbol": "ExactLocalFilesystemDurableAuthorityAdapter",
     "constructor": "absolute explicit existing root; existing IDENTITY/MEMORY_EXPERIENCE/RUNTIME_BINDING directories",
-    "read": "read_exact(AuthorityFamily, exact typed ref) -> DurableAuthorityEnvelope",
+    "read": "read_exact(AuthorityFamily, exact family-bound typed ref) -> DurableAuthorityEnvelope",
+    "exact_ref_type_map": {
+      "IDENTITY": "type(ref) is IdentityRef",
+      "MEMORY_EXPERIENCE": "type(ref) is MemoryExperienceRef",
+      "RUNTIME_BINDING": "type(ref) is RuntimeCanonicalAuthorityBindingRef"
+    },
     "enumerate": "list_exact_refs(AuthorityFamily) -> sorted exact ref URI tuple",
     "write": "write_exact(DurableAuthorityEnvelope) -> None",
     "authority_delta": 0,
@@ -59,6 +82,7 @@
       "non-standard JSON constant rejection"
     ],
     "authority_validation": [
+      "exact family-bound ref type",
       "envelope_from_dict",
       "validate_envelope_semantics",
       "family match",
@@ -153,9 +177,9 @@
   },
   "candidate_tests": {
     "command": "/opt/miniconda3/bin/pytest -q tests/durable_authority/test_filesystem_adapter.py",
-    "result": "30 passed in 0.27s",
+    "result": "40 passed in 0.34s",
     "combined_durable_authority_command": "/opt/miniconda3/bin/pytest -q tests/durable_authority",
-    "combined_result": "46 passed in 0.30s",
+    "combined_result": "56 passed in 0.33s",
     "positive_matrix": {
       "C1-01_identity_roundtrip": "PASS",
       "C1-02_memory_experience_roundtrip": "PASS",
@@ -188,13 +212,27 @@
       "C1-27_no_auto_directory_creation": "PASS",
       "C1-28_no_selection_alias_surface": "PASS"
     },
+    "rework_matrix": {
+      "R1-01_fake_object_with_matching_uri_rejected": "PASS",
+      "R1-02_raw_uri_string_rejected": "PASS",
+      "R1-03_identity_ref_for_memory_family_rejected": "PASS",
+      "R1-04_identity_ref_for_runtime_binding_family_rejected": "PASS",
+      "R1-05_memory_ref_for_identity_family_rejected": "PASS",
+      "R1-06_runtime_binding_ref_for_identity_family_rejected": "PASS",
+      "R1-07_identity_ref_subclass_rejected": "PASS",
+      "R1-08_valid_identity_ref_succeeds": "PASS",
+      "R1-09_valid_memory_ref_succeeds": "PASS",
+      "R1-10_valid_runtime_binding_ref_succeeds": "PASS"
+    },
     "fixture_boundary": "Synthetic already-governed N4E-A test objects are candidate-test inputs only; no fixture is production reachable or promoted."
   },
   "base_regression": {
     "rule": "base-existing tracked test files only; new C1 test file excluded from comparison set",
     "base_command": "base tracked tests selected by git ls-tree at a46bc7c, then /opt/miniconda3/bin/pytest -q --continue-on-collection-errors",
-    "base_result": "52 failed, 1580 passed, 6 skipped, 26 xfailed, 1 warning, 3 errors",
-    "candidate_result": "52 failed, 1580 passed, 6 skipped, 26 xfailed, 1 warning, 3 errors",
+    "base_result": "52 failed, 1610 passed, 6 skipped, 26 xfailed, 1 warning, 3 errors",
+    "candidate_result": "52 failed, 1620 passed, 6 skipped, 26 xfailed, 1 warning, 3 errors",
+    "candidate_pass_delta": 10,
+    "candidate_pass_delta_reason": "R1 tests were added to the existing candidate test file; all pre-existing failure/error IDs remain identical.",
     "failure_error_count": 55,
     "failure_error_id_parity": "PASS",
     "failure_error_id_sha256": "a4ce797e49d9dd02528e876b70b46e2c1b350535725a18eed02cfc400228166e",
