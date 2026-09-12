@@ -1,0 +1,79 @@
+{
+  "schema": "continuity_checkpoint_envelope_v1",
+  "contract_version": "ENG-11B-C06-RECOVERY-HARDENING/V1",
+  "authority": {
+    "checkpoint_envelope": "continuity_os",
+    "identity_recovery": "IdentityVersion",
+    "memory_recovery": "MemoryExperienceRecord",
+    "recovery_package": "non_authoritative_projection",
+    "provider": "none",
+    "runtime": "none"
+  },
+  "required_preservation": {
+    "checkpoint_fields": [
+      "checkpoint_version",
+      "checkpoint_id",
+      "agent_id",
+      "created_at",
+      "identity_refs",
+      "protected_memory_refs",
+      "relationship_refs",
+      "active_project_refs",
+      "continuity_levels",
+      "integrity"
+    ],
+    "exact_references": [
+      "identity://lineage/version",
+      "memory-experience://experience/version"
+    ],
+    "exact_statuses": [
+      "IDENTITY=ADMITTED",
+      "MEMORY_EXPERIENCE=ADMITTED"
+    ],
+    "digests": [
+      "checkpoint_payload_digest",
+      "canonical_refs_digest",
+      "identity_source_digest",
+      "memory_source_digest",
+      "identity_frame_digest",
+      "experience_frame_digest"
+    ],
+    "provenance": [
+      "checkpoint_id",
+      "agent_id",
+      "created_at",
+      "authority=continuity_os",
+      "canonical_refs_digest"
+    ],
+    "all_or_nothing": true,
+    "partial_success_allowed": false
+  },
+  "recovery_modes": {
+    "normal_resume": "hydrate exact checkpoint refs without adding state",
+    "cold_start": "hydrate only explicitly supplied exact canonical refs; empty refs recover no frames",
+    "compact": "reconstruct from exact canonical refs; preserve no prompt-byte authority",
+    "provider_switch": "same canonical frames and outcomes with no provider identity in package",
+    "model_switch": "same canonical frames and outcomes with no model identity in package"
+  },
+  "rejection_contract": {
+    "digest_or_provenance_mismatch": true,
+    "malformed_uri": true,
+    "unknown_exact_identity": true,
+    "unknown_exact_memory": true,
+    "non_admitted_identity": true,
+    "non_admitted_memory": true,
+    "duplicate_ref": true,
+    "wrong_field_ref": true,
+    "legacy_namespace": true,
+    "latest_successor_or_approximate_ref": true,
+    "partial_package": true
+  },
+  "implementation_boundary": {
+    "production_persistence_implemented": false,
+    "runtime_wiring_implemented": false,
+    "provider_wiring_implemented": false,
+    "model_visible_output": false,
+    "canonical_writes": false,
+    "test_only_contract": true
+  }
+}
