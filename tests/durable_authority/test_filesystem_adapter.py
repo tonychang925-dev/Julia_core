@@ -301,6 +301,68 @@ def test_wrong_exact_ref_rejected(root, adapter, governed):
         adapter.read_exact(AuthorityFamily.IDENTITY, lane["refs"][1])
 
 
+def test_fake_object_with_matching_uri_rejected(adapter, governed):
+    identity_ref = governed[AuthorityFamily.IDENTITY]["refs"][0]
+
+    class FakeRef:
+        uri = identity_ref.uri
+
+    with pytest.raises(DurableAuthorityPersistenceError):
+        adapter.read_exact(AuthorityFamily.IDENTITY, FakeRef())
+
+
+def test_raw_uri_string_rejected(adapter, governed):
+    identity_ref = governed[AuthorityFamily.IDENTITY]["refs"][0]
+    with pytest.raises(DurableAuthorityPersistenceError):
+        adapter.read_exact(AuthorityFamily.IDENTITY, identity_ref.uri)
+
+
+def test_identity_ref_rejected_for_memory_family(adapter, governed):
+    identity_ref = governed[AuthorityFamily.IDENTITY]["refs"][0]
+    with pytest.raises(DurableAuthorityPersistenceError):
+        adapter.read_exact(AuthorityFamily.MEMORY_EXPERIENCE, identity_ref)
+
+
+def test_identity_ref_rejected_for_runtime_binding_family(adapter, governed):
+    identity_ref = governed[AuthorityFamily.IDENTITY]["refs"][0]
+    with pytest.raises(DurableAuthorityPersistenceError):
+        adapter.read_exact(AuthorityFamily.RUNTIME_BINDING, identity_ref)
+
+
+def test_memory_ref_rejected_for_identity_family(adapter, governed):
+    memory_ref = governed[AuthorityFamily.MEMORY_EXPERIENCE]["refs"][0]
+    with pytest.raises(DurableAuthorityPersistenceError):
+        adapter.read_exact(AuthorityFamily.IDENTITY, memory_ref)
+
+
+def test_runtime_binding_ref_rejected_for_identity_family(adapter, governed):
+    binding_ref = governed[AuthorityFamily.RUNTIME_BINDING]["refs"][0]
+    with pytest.raises(DurableAuthorityPersistenceError):
+        adapter.read_exact(AuthorityFamily.IDENTITY, binding_ref)
+
+
+def test_identity_ref_subclass_rejected(adapter, governed):
+    identity_ref = governed[AuthorityFamily.IDENTITY]["refs"][0]
+
+    class SubclassedIdentityRef(type(identity_ref)):
+        pass
+
+    subclass_ref = SubclassedIdentityRef(
+        identity_ref.lineage_id, identity_ref.version_id
+    )
+    with pytest.raises(DurableAuthorityPersistenceError):
+        adapter.read_exact(AuthorityFamily.IDENTITY, subclass_ref)
+
+
+@pytest.mark.parametrize("family", list(AuthorityFamily))
+def test_exact_family_ref_type_still_succeeds(adapter, governed, family):
+    lane = governed[family]
+    ref = lane["refs"][0]
+    envelope = lane["build"](lane["repository"].resolve(ref))
+    adapter.write_exact(envelope)
+    assert adapter.read_exact(family, ref) == envelope
+
+
 def test_wrong_path_hash_rejected(root, adapter, governed):
     family = AuthorityFamily.IDENTITY
     lane = governed[family]

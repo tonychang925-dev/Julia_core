@@ -14,6 +14,12 @@ import secrets
 import stat
 from pathlib import Path
 
+from julia_core.identity import IdentityRef
+from julia_core.memory_experience import MemoryExperienceRef
+from julia_core.runtime_canonical_binding import (
+    RuntimeCanonicalAuthorityBindingRef,
+)
+
 from .contracts import (
     AuthorityFamily,
     DurableAuthorityEnvelope,
@@ -63,7 +69,7 @@ class ExactLocalFilesystemDurableAuthorityAdapter:
         ref: object,
     ) -> DurableAuthorityEnvelope:
         family = _require_family(authority_family)
-        ref_uri = _require_ref_uri(ref)
+        ref_uri = _require_exact_ref_for_family(family, ref)
         expected_digest = _ref_digest(ref_uri)
         path = self._family_paths[family.value] / _object_name(expected_digest)
         envelope = _read_validated(path, family, expected_digest)
@@ -276,11 +282,17 @@ def _require_family(family: object) -> AuthorityFamily:
     return family
 
 
-def _require_ref_uri(ref: object) -> str:
-    ref_uri = getattr(ref, "uri", None)
-    if type(ref_uri) is not str or not ref_uri:
-        raise _storage_failure("durable authority lookup requires an exact typed ref")
-    return ref_uri
+def _require_exact_ref_for_family(family: AuthorityFamily, ref: object) -> str:
+    expected_type = {
+        AuthorityFamily.IDENTITY: IdentityRef,
+        AuthorityFamily.MEMORY_EXPERIENCE: MemoryExperienceRef,
+        AuthorityFamily.RUNTIME_BINDING: RuntimeCanonicalAuthorityBindingRef,
+    }[family]
+    if type(ref) is not expected_type:
+        raise _storage_failure(
+            "durable authority lookup ref type does not match family"
+        )
+    return ref.uri
 
 
 def _path_exists(path: Path) -> bool:
