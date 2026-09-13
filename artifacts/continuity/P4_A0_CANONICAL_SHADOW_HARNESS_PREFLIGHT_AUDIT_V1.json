@@ -1,0 +1,363 @@
+{
+  "task_id": "P4-A0",
+  "issue": "Julia_core#65",
+  "roadmap_authority": "Julia_Mira_Continuity_Parallel_Development_Plan_v0.2_2026-09-12",
+  "phase": "P4",
+  "lane": "P4-A Canonical Runtime Shadow Harness",
+  "task_type": "AUDIT_ONLY",
+  "audited_repositories": {
+    "Julia_core": "tonychang925-dev/Julia_core",
+    "Julia-AI-Assistant": "tonychang925-dev/Julia-AI-Assistant"
+  },
+  "audited_shas": {
+    "Julia_core": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+    "Julia-AI-Assistant_F1E_implementation": "ba0fa19948fba82a22a5cc5ab7d9d3d4af2090b7",
+    "Julia-AI-Assistant_F1E_evidence_head": "d245ae3123427d478f2eb29ae8f730578544f285",
+    "assistant_remote_head_verified": "d245ae3123427d478f2eb29ae8f730578544f285"
+  },
+  "search_scope": {
+    "production_and_test_globs": [
+      "Julia_core/julia_core/**/*.py",
+      "Julia_core/tests/**/*.py",
+      "Julia-AI-Assistant/runtime/**/*.py",
+      "Julia-AI-Assistant/voice_api/**/*.py",
+      "Julia-AI-Assistant/providers/**/*.py",
+      "Julia-AI-Assistant/tests/**/*.py",
+      "Julia-AI-Assistant/server*.py"
+    ],
+    "terms": [
+      "shadow",
+      "canary",
+      "compare",
+      "replay",
+      "simulation",
+      "evaluation",
+      "dry-run",
+      "no-write",
+      "mirror",
+      "reference",
+      "candidate",
+      "dual-run",
+      "provider factory",
+      "correlation",
+      "trace",
+      "AdmittedSemanticBundle",
+      "ProviderExecutionEnvelope",
+      "JuliaAssistantRuntime.prepare"
+    ]
+  },
+  "candidate_seams": [
+    {
+      "repo": "Julia_core",
+      "sha": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+      "path": "julia_core/context_admission/semantic_binding.py",
+      "symbol": "ExactAdmittedSemanticBinder.bind",
+      "input": "SemanticBindingRequest(package, IdentityFrame, ExperienceFrameSet, CurrentConversationalTaskContext)",
+      "output": "AdmittedSemanticBundle",
+      "provider_execution": false,
+      "canonical_writes": 0,
+      "authority_mutation": 0,
+      "production_response_selection": 0,
+      "semantic_authority_risk": 0,
+      "p3_invariants_preserved": true,
+      "classification": "PRODUCTION_EXACT_PREPARATION_SEAM_REUSABLE"
+    },
+    {
+      "repo": "Julia_core",
+      "sha": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+      "path": "julia_core/alignment_os/adapter.py",
+      "symbol": "ProviderAlignmentBoundary.resolve",
+      "input": "exact AdmittedSemanticBundle + provider alignment metadata",
+      "output": "ProviderExecutionEnvelope",
+      "provider_execution": false,
+      "canonical_writes": 0,
+      "authority_mutation": 0,
+      "production_response_selection": 0,
+      "semantic_authority_risk": 0,
+      "p3_invariants_preserved": true,
+      "classification": "PRODUCTION_EXACT_ENVELOPE_PREPARATION_SEAM_REUSABLE"
+    },
+    {
+      "repo": "Julia_core",
+      "sha": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+      "path": "julia_core/runtime/assistant_runtime.py",
+      "symbol": "JuliaAssistantRuntime.prepare",
+      "input": "RuntimeTurnRequest(binding=AdmittedSemanticBundle, provider_id, input_mode)",
+      "output": "ProviderExecutionEnvelope",
+      "provider_execution": false,
+      "canonical_writes": 0,
+      "authority_mutation": 0,
+      "production_response_selection": 0,
+      "semantic_authority_risk": 0,
+      "p3_invariants_preserved": true,
+      "classification": "PRODUCTION_EXACT_RUNTIME_PREPARATION_SEAM_REUSABLE"
+    },
+    {
+      "repo": "Julia_core",
+      "sha": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+      "path": "julia_core/runtime/assistant_runtime.py",
+      "symbol": "JuliaAssistantRuntime.trace / RuntimeBindingTrace",
+      "input": "RuntimeTurnRequest",
+      "output": "conversation_id, turn_id, gate_receipt, semantic_fingerprint, provider_id, input_mode",
+      "provider_execution": false,
+      "canonical_writes": 0,
+      "authority_mutation": 0,
+      "production_response_selection": 0,
+      "semantic_authority_risk": 0,
+      "p3_invariants_preserved": true,
+      "classification": "PRODUCTION_EXACT_CORRELATION_TRACE_SEAM_REUSABLE"
+    },
+    {
+      "repo": "Julia_core",
+      "sha": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+      "path": "julia_core/alignment_os/contracts.py",
+      "symbol": "ProviderExecutionEnvelope.verify / to_dict",
+      "input": "ProviderExecutionEnvelope",
+      "output": "self or deterministic envelope record",
+      "provider_execution": false,
+      "canonical_writes": 0,
+      "authority_mutation": 0,
+      "production_response_selection": 0,
+      "semantic_authority_risk": 0,
+      "p3_invariants_preserved": true,
+      "classification": "PRODUCTION_EXACT_VERIFICATION_AND_EVIDENCE_SEAM_REUSABLE"
+    },
+    {
+      "repo": "Julia-AI-Assistant",
+      "sha": "ba0fa19948fba82a22a5cc5ab7d9d3d4af2090b7",
+      "path": "runtime/canonical_turn.py",
+      "symbol": "prepare_canonical_turn",
+      "input": "exact caller IdentityFrame + ExperienceFrameSet + conversational task inputs",
+      "output": "PreparedCanonicalTurn(package, binding, envelope, runtime, trace)",
+      "provider_execution": false,
+      "canonical_writes": 0,
+      "authority_mutation": 0,
+      "production_response_selection": 0,
+      "semantic_authority_risk": 0,
+      "p3_invariants_preserved": true,
+      "classification": "PRODUCTION_EXACT_F1E_CALLER_INJECTION_SEAM_PRIMARY_REUSE"
+    },
+    {
+      "repo": "Julia-AI-Assistant",
+      "sha": "ba0fa19948fba82a22a5cc5ab7d9d3d4af2090b7",
+      "path": "runtime/canonical_turn.py",
+      "symbol": "execute_canonical_turn",
+      "input": "exact IdentityFrame + ExperienceFrameSet + optional injected provider_factory + task inputs",
+      "output": "provider response string",
+      "provider_execution": true,
+      "canonical_writes": 0,
+      "authority_mutation": 0,
+      "production_response_selection": 0,
+      "semantic_authority_risk": 0,
+      "p3_invariants_preserved": true,
+      "classification": "PRODUCTION_CALLABLE_EXACT_EXECUTION_SEAM_REQUIRES_INJECTED_NON_CANARY_PROVIDER_FOR_P4_A"
+    },
+    {
+      "repo": "Julia-AI-Assistant",
+      "sha": "ba0fa19948fba82a22a5cc5ab7d9d3d4af2090b7",
+      "path": "runtime/canonical_turn.py",
+      "symbol": "stream_canonical_turn",
+      "input": "exact IdentityFrame + ExperienceFrameSet + optional injected provider_factory + task inputs",
+      "output": "AsyncIterator[str]",
+      "provider_execution": true,
+      "canonical_writes": 0,
+      "authority_mutation": 0,
+      "production_response_selection": 0,
+      "semantic_authority_risk": 0,
+      "p3_invariants_preserved": true,
+      "classification": "PRODUCTION_CALLABLE_EXACT_STREAM_EXECUTION_SEAM_REQUIRES_INJECTED_NON_CANARY_PROVIDER_FOR_P4_A"
+    },
+    {
+      "repo": "Julia-AI-Assistant",
+      "sha": "ba0fa19948fba82a22a5cc5ab7d9d3d4af2090b7",
+      "path": "providers/llm/deepseek_provider.py",
+      "symbol": "DeepSeekProvider / CodexProvider / get_llm_provider",
+      "input": "exact ProviderExecutionEnvelope",
+      "output": "provider response or message tuple",
+      "provider_execution": true,
+      "canonical_writes": 0,
+      "authority_mutation": 0,
+      "production_response_selection": 0,
+      "semantic_authority_risk": 0,
+      "p3_invariants_preserved": true,
+      "classification": "PRODUCTION_TRANSPORT_ADAPTERS; P4-A MUST INJECT FAKE/RECORDING PROVIDER RATHER THAN USE REAL TRAFFIC"
+    },
+    {
+      "repo": "Julia-AI-Assistant",
+      "sha": "d245ae3123427d478f2eb29ae8f730578544f285",
+      "path": "tests/p3_f1e_fixtures.py + tests/test_p3_f1e_canonical_turn_authority_rebind.py",
+      "symbol": "canonical_identity_frame / canonical_experience_frame_set / RecordingProvider",
+      "input": "test-only exact projected frame construction inputs",
+      "output": "exact IdentityFrame, ExperienceFrameSet, and captured ProviderExecutionEnvelope calls",
+      "provider_execution": false,
+      "canonical_writes": 0,
+      "authority_mutation": 0,
+      "production_response_selection": 0,
+      "semantic_authority_risk": 0,
+      "p3_invariants_preserved": true,
+      "classification": "TEST_ONLY_SYNTHETIC_EXACT_FRAME_AND_INJECTED_PROVIDER_FIXTURE_REUSABLE"
+    },
+    {
+      "repo": "Julia_core",
+      "sha": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+      "path": "tests/context_admission + tests/runtime exact P3 tests",
+      "symbol": "bound_bundle / runtime_request / ProviderAlignmentBoundary tests",
+      "input": "exact Core production fixtures",
+      "output": "AdmittedSemanticBundle and ProviderExecutionEnvelope",
+      "provider_execution": false,
+      "canonical_writes": 0,
+      "authority_mutation": 0,
+      "production_response_selection": 0,
+      "semantic_authority_risk": 0,
+      "p3_invariants_preserved": true,
+      "classification": "TEST_ONLY_EXACT_CANONICAL_CHAIN_EVIDENCE_REUSABLE"
+    },
+    {
+      "repo": "Julia_core",
+      "sha": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+      "path": "julia_core/conversation_cognition/harness.py",
+      "symbol": "CognitionRuntimeHarness.run / trace",
+      "input": "user_message, optional history/state/context mappings",
+      "output": "CognitionTrace",
+      "provider_execution": false,
+      "canonical_writes": 0,
+      "authority_mutation": 0,
+      "production_response_selection": 0,
+      "semantic_authority_risk": "trace-only, but not C03 canonical semantics",
+      "p3_invariants_preserved": false,
+      "classification": "HISTORICAL_TRACE_ONLY_COGNITION_HARNESS_NOT_SUFFICIENT_FOR_P4_A"
+    },
+    {
+      "repo": "Julia-AI-Assistant",
+      "sha": "475704d527f16b10360e598e355c98da13a9f18d",
+      "path": "runtime/cognition_shadow.py",
+      "symbol": "CognitionShadowAdapter.shadow_turn",
+      "input": "user_input plus already-produced old response and boolean observations",
+      "output": "ShadowComparison",
+      "provider_execution": false,
+      "canonical_writes": 0,
+      "authority_mutation": 0,
+      "production_response_selection": 0,
+      "semantic_authority_risk": "heuristics and synthetic shadow-envelope identifier; no exact C03 provenance",
+      "p3_invariants_preserved": false,
+      "classification": "HISTORICAL_K8_SHADOW_NOT_REUSABLE_FOR_CANONICAL_P4_A"
+    },
+    {
+      "repo": "Julia-AI-Assistant",
+      "sha": "475704d527f16b10360e598e355c98da13a9f18d",
+      "path": "runtime/dual_path.py",
+      "symbol": "DualPathEvaluator.compare / DualPathSessionReport",
+      "input": "already-produced legacy and cognitive response strings",
+      "output": "heuristic winner/report",
+      "provider_execution": false,
+      "canonical_writes": 0,
+      "authority_mutation": 0,
+      "production_response_selection": "contains winner/readiness classification and must not enter production selection",
+      "semantic_authority_risk": "heuristic response scoring without exact C03 correlation",
+      "p3_invariants_preserved": false,
+      "classification": "HISTORICAL_DUAL_PATH_COMPARATOR_EXCLUDED_FROM_P4_A"
+    },
+    {
+      "repo": "Julia-AI-Assistant",
+      "sha": "475704d527f16b10360e598e355c98da13a9f18d",
+      "path": "runtime/e2e_harness.py + tests/e2e/**",
+      "symbol": "E2ETraceBuilder / AlphaFakeProvider / evaluators",
+      "input": "legacy runtime request/trace/response data",
+      "output": "heuristic E2E trace and evaluation records",
+      "provider_execution": "AlphaFakeProvider is fake only; canonical path is absent",
+      "canonical_writes": 0,
+      "authority_mutation": 0,
+      "production_response_selection": 0,
+      "semantic_authority_risk": "evaluation-only heuristics without exact C03 provenance",
+      "p3_invariants_preserved": false,
+      "classification": "HISTORICAL_TEST_ONLY_E2E_HARNESS_EXCLUDED_FROM_P4_A"
+    }
+  ],
+  "sufficient_existing_capabilities": {
+    "exact_frame_ingress": "F1E prepare_canonical_turn requires exact caller IdentityFrame and ExperienceFrameSet",
+    "canonical_execution": "prepare_canonical_turn constructs C03 package, Binder bundle, Runtime envelope, and trace without provider execution",
+    "provider_execution_injection": "execute_canonical_turn/stream_canonical_turn accept provider_factory; tests already inject RecordingProvider",
+    "zero_canonical_writes": "no canonical/admission write or persistence call exists in the exact preparation/execution seams",
+    "authority_mutation": 0,
+    "production_response_selection": 0,
+    "semantic_authority_in_orchestration": 0,
+    "correlation": "caller supplies exact conversation_id and turn_id; package, trace, binding, and envelope preserve them",
+    "fail_closed": "exact-type, C03, Binder, Runtime, envelope, and provider verification errors propagate without fallback",
+    "production_independence": "the exact seam is not wired to select or replace a production response; incomplete current HTTP ingress fails closed",
+    "traceability": "gate receipt, semantic fingerprint, frame manifest, bundle, and envelope remain directly available",
+    "p5_real_traffic": 0
+  },
+  "missing_required_capabilities": [
+    {
+      "capability": "none directly required for the P4-A minimum",
+      "does_this_directly_prevent_p4_a_shadow_harness_gate": "NO",
+      "reason": "A test/evaluation caller can mechanically compose prepare_canonical_turn with an injected provider and capture the returned exact provenance without changing production semantics"
+    }
+  ],
+  "authority_analysis": {
+    "assistant_local_semantic_authority": 0,
+    "shadow_orchestration_semantic_authority": 0,
+    "identity_authority_mutation": 0,
+    "memory_experience_authority_mutation": 0,
+    "provider_independent_semantic_authority": 0,
+    "notes": "Exact frames must remain caller/test-supplied. A P4-A harness must not construct canonical identity/experience values or add fallback/default selection."
+  },
+  "write_isolation_analysis": {
+    "canonical_writes": 0,
+    "admission_writes": 0,
+    "identity_repository_writes": 0,
+    "memory_experience_repository_writes": 0,
+    "filesystem_persistence_in_exact_seam": 0,
+    "provider_network_calls": "only if a real provider_factory is injected; P4-A preflight uses fake/recording provider injection"
+  },
+  "production_response_selection_analysis": {
+    "production_output_dependency_on_shadow_result": 0,
+    "winner_or_selection_api_in_exact_canonical_seam": 0,
+    "historical_dual_path_winner": "EXCLUDED; heuristic historical module must not affect production response",
+    "required_usage": "Capture shadow evidence separately and never feed it to response selection in P4-A"
+  },
+  "provenance_analysis": {
+    "conversation_id_and_turn_id_preserved": true,
+    "gate_receipt_preserved": true,
+    "semantic_fingerprint_preserved_and_verified": true,
+    "experience_carrier_digest_preserved": true,
+    "ordered_individual_frame_digest_manifest_preserved": true,
+    "provider_envelope_record_available": true,
+    "correlation_strategy": "Invoke reference and shadow executions with the same exact conversation_id and turn_id and record both PreparedCanonicalTurn/envelope identities"
+  },
+  "relevant_tests": {
+    "Julia_core": {
+      "command": "pytest tests/context_admission/test_p3_n0_alignment_boundary.py tests/runtime/test_p3_n0_runtime_envelope.py tests/context_admission/test_binder_experience_frame_set_migration.py -q",
+      "result": "40 passed"
+    },
+    "Julia-AI-Assistant": {
+      "command": "pytest tests/test_p3_f1e_canonical_turn_authority_rebind.py -q",
+      "result": "14 passed, 1 unrelated python_multipart deprecation warning"
+    }
+  },
+  "deferred_out_of_scope": [
+    "real Golden Mira admission",
+    "real canonical Identity/MemoryExperience population",
+    "real user/persona canary traffic",
+    "production canonical writes",
+    "durable shadow evidence backend",
+    "production response switching",
+    "cutover",
+    "release/deploy",
+    "P5/P6 work"
+  ],
+  "p4_a_scope_gate": {
+    "question": "DOES_THIS_DIRECTLY_PREVENT_P4_A_SHADOW_HARNESS_GATE",
+    "blocking_gaps": 0,
+    "deferred_gaps": 0,
+    "implementation_required": 0
+  },
+  "production_code_changed": 0,
+  "final_result": "P4_A0_RESULT = EXISTING_SEAM_SUFFICIENT_NO_IMPLEMENTATION",
+  "next_implementation_node": "NONE",
+  "reuse_boundary": "P4-A tests/evaluation callers may compose exact caller-supplied frames -> prepare_canonical_turn -> injected fake/recording provider -> capture PreparedCanonicalTurn and ProviderExecutionEnvelope provenance; do not add semantic, selection, persistence, or production-routing authority",
+  "proof_boundary": {
+    "start": "exact caller-supplied IdentityFrame, ExperienceFrameSet, and conversational task inputs",
+    "end": "exact no-write C03/Binder/Runtime/ProviderExecutionEnvelope preparation plus optionally injected provider execution"
+  }
+}
