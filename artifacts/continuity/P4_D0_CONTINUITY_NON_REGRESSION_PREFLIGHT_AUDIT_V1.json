@@ -1,0 +1,161 @@
+{
+  "task_id": "P4-D0",
+  "issue": "Julia_core#71",
+  "source": "P4-C1 accepted",
+  "phase": "P4",
+  "lane": "P4-D Continuity Non-Regression",
+  "task_type": "AUDIT_ONLY",
+  "base_sha": "5397d75aa1647c9591dba2722edc5bc76e276cc0",
+  "audited_repositories": {
+    "Julia_core": "tonychang925-dev/Julia_core",
+    "Julia-AI-Assistant": "tonychang925-dev/Julia-AI-Assistant"
+  },
+  "audited_shas": {
+    "Julia_core_p4_d0_base": "5397d75aa1647c9591dba2722edc5bc76e276cc0",
+    "Julia_core_p4_c1_implementation": "bfd478ef47df897f0d883a00f544dce560651f7e",
+    "Julia_core_f1c_assistant_dependency": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+    "Julia-AI-Assistant_f1e_implementation": "ba0fa19948fba82a22a5cc5ab7d9d3d4af2090b7",
+    "Julia-AI-Assistant_f1e_evidence_head": "d245ae3123427d478f2eb29ae8f730578544f285",
+    "Julia-AI-Assistant_remote_branch_head_verified": "d245ae3123427d478f2eb29ae8f730578544f285"
+  },
+  "candidate_non_regression_surfaces": [
+    {
+      "repository": "Julia_core",
+      "sha": "5397d75aa1647c9591dba2722edc5bc76e276cc0",
+      "tests": [
+        "tests/context_admission/test_c03_executable_conformance.py",
+        "tests/context_admission/test_c03_experience_frame_set_admission.py",
+        "tests/context_admission/test_c03_production_hardening.py",
+        "tests/context_admission/test_binder_experience_frame_set_migration.py",
+        "tests/context_admission/test_p3_n0_semantic_binding.py",
+        "tests/context_admission/test_p3_n0_alignment_boundary.py",
+        "tests/runtime/test_p3_n0_runtime_envelope.py",
+        "tests/evidence/test_side_by_side_comparison.py",
+        "tests/evidence/test_canonical_execution_observer.py"
+      ]
+    },
+    {
+      "repository": "Julia-AI-Assistant",
+      "sha": "d245ae3123427d478f2eb29ae8f730578544f285",
+      "tests": [
+        "tests/test_p3_f1e_canonical_turn_authority_rebind.py",
+        "tests/test_p3_n1_provider_transport.py",
+        "tests/test_p3_n2_end_to_end_seam.py",
+        "tests/test_p3_n3_legacy_authority_retirement.py",
+        "tests/test_p3_n4_production_canonical_cutover.py"
+      ],
+      "exact_core_dependency": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216"
+    },
+    {
+      "repository": "Julia_core",
+      "sha": "5397d75aa1647c9591dba2722edc5bc76e276cc0",
+      "evidence": [
+        "artifacts/continuity/P4_B1_EVIDENCE_ONLY_SIDE_BY_SIDE_COMPARISON_V1.json",
+        "artifacts/continuity/P4_C0_OBSERVABILITY_PROVENANCE_PREFLIGHT_AUDIT_V1.json",
+        "artifacts/continuity/P4_C1_EVIDENCE_ONLY_CANONICAL_EXECUTION_OBSERVER_V1.json"
+      ]
+    },
+    {
+      "repository": "Julia-AI-Assistant",
+      "sha": "d245ae3123427d478f2eb29ae8f730578544f285",
+      "evidence": [
+        "artifacts/continuity/P3_F1E_ASSISTANT_CANONICAL_TURN_AUTHORITY_REBIND_V1.json"
+      ]
+    }
+  ],
+  "coverage_matrix": [
+    {
+      "requirement": "C03 remains sole model-visible semantic admission path",
+      "status": "PROVEN",
+      "evidence": "Core C03 executable conformance, production hardening, semantic binding, Runtime envelope, and Assistant F1E canonical-turn suites reject raw/persona/provider/assistant authority and partial or unsealed inputs"
+    },
+    {
+      "requirement": "Assistant local semantic authority = 0",
+      "status": "PROVEN",
+      "evidence": "Assistant F1E tests require exact caller IdentityFrame and ExperienceFrameSet, reject synthetic/null/subclassed carriers, and prove missing sources fail before C03/provider; accepted F1E artifact records authority delta zero"
+    },
+    {
+      "requirement": "Provider independent semantic authority = 0",
+      "status": "PROVEN",
+      "evidence": "Core alignment-boundary and Runtime-envelope suites prove exact AdmittedSemanticBundle ingress, immutable ordered messages, and forged fingerprint/mutation rejection; Assistant N1 provider tests require exact ProviderExecutionEnvelope"
+    },
+    {
+      "requirement": "Legacy/fallback/shadow semantic bypass = 0",
+      "status": "PROVEN_ON_CANONICAL_PRODUCTION_PATH",
+      "evidence": "Assistant N3 retirement and N4 cutover suites reject legacy semantic authority and incomplete production ingress; Core C03 and Runtime suites expose no independent history or semantic ingress"
+    },
+    {
+      "requirement": "ExperienceFrameSet 1..N order/digest/cardinality invariants preserved",
+      "status": "PROVEN",
+      "evidence": "Core C03 admission tests cover one/two/N frames, carrier digest, individual ordered manifests, count, loss, reorder, corruption, subclass, and singular-path rejection; P4-C observer repeats manifest and order checks"
+    },
+    {
+      "requirement": "P4-B comparison remains evidence-only",
+      "status": "PROVEN",
+      "evidence": "P4-B1 tests prove immutable pairing, fail-closed correlation, deterministic replay digest, no winner/preferred/selected/switch/routing fields, and no semantic object construction"
+    },
+    {
+      "requirement": "P4-C observer remains evidence-only",
+      "status": "PROVEN",
+      "evidence": "P4-C1 tests prove exact inputs, immutable provenance/outcome records, mechanical disposition, zero authority attestation, deterministic replay digest, and no semantic object construction or production provider attachment"
+    },
+    {
+      "requirement": "Fail-closed behavior remains intact",
+      "status": "PROVEN",
+      "evidence": "Core and Assistant suites cover malformed, missing, mismatched, subclassed, forged, mutable, and incomplete evidence across C03, Binder, Runtime, Provider, P4-B, and P4-C"
+    },
+    {
+      "requirement": "Canonical writes and identity/memory authority mutations remain 0",
+      "status": "PROVEN_FOR_AUDITED_BOUNDARY",
+      "evidence": "C03 hardening and accepted F1E/P4-C artifacts record no canonical write or authority mutation surface; exact observer output carries execution-bound zero counts; static tests reject write/authority/semantic construction surfaces"
+    }
+  ],
+  "sufficient_existing_capabilities": [
+    "Exact C03/Binder/Runtime/Provider chain regression",
+    "Exact Assistant caller-frame and provider-transport regression",
+    "Legacy semantic-authority retirement and production ingress fail-closed regression",
+    "ExperienceFrameSet one-to-N order, digest, and cardinality regression",
+    "Evidence-only P4-B comparison regression",
+    "Evidence-only P4-C execution-observer regression",
+    "Accepted authority and zero-write evidence across F1E and P4-C1",
+    "Deterministic replay and fail-closed evidence across comparison and observer surfaces"
+  ],
+  "missing_required_capabilities": [],
+  "non_blocking_observations": [
+    {
+      "observation": "No single packaged executable combines the Core and Assistant commands into one runner",
+      "does_this_directly_prevent_p4_d_gate": "NO",
+      "disposition": "DEFERRED_OUT_OF_P4_D",
+      "reason": "The exact tests, commands, SHAs, and accepted evidence already prove every P4-D gate requirement; automation packaging is convenience rather than a missing proof capability"
+    }
+  ],
+  "gap_scope_gate": {
+    "rule": "Only YES gaps may become P4-D implementation requirements.",
+    "yes_gap_count": 0,
+    "all_required_coverage": "PASS"
+  },
+  "authority_analysis": {
+    "PRODUCTION_CODE_CHANGED": 0,
+    "P4_SCOPE_EXPANSION": 0,
+    "P5_WORK_PERFORMED": 0,
+    "P6_WORK_PERFORMED": 0,
+    "CANONICAL_WRITES": 0,
+    "IDENTITY_AUTHORITY_MUTATION": 0,
+    "MEMORY_EXPERIENCE_AUTHORITY_MUTATION": 0,
+    "POST_C03_SEMANTIC_RECONSTRUCTION": 0
+  },
+  "validation": {
+    "julia_core": {
+      "command": "pytest tests/context_admission/test_c03_executable_conformance.py tests/context_admission/test_c03_experience_frame_set_admission.py tests/context_admission/test_c03_production_hardening.py tests/context_admission/test_binder_experience_frame_set_migration.py tests/context_admission/test_p3_n0_semantic_binding.py tests/context_admission/test_p3_n0_alignment_boundary.py tests/runtime/test_p3_n0_runtime_envelope.py tests/evidence/test_side_by_side_comparison.py tests/evidence/test_canonical_execution_observer.py -q",
+      "result": "144 passed"
+    },
+    "julia_ai_assistant": {
+      "command": "JULIA_CORE_PATH=<exact F1C worktree> PYTHONPATH=<exact F1C worktree> pytest tests/test_p3_f1e_canonical_turn_authority_rebind.py tests/test_p3_n1_provider_transport.py tests/test_p3_n2_end_to_end_seam.py tests/test_p3_n3_legacy_authority_retirement.py tests/test_p3_n4_production_canonical_cutover.py -q",
+      "result": "79 passed, 1 unrelated python_multipart deprecation warning"
+    },
+    "assistant_remote_head": "VERIFIED",
+    "git_diff_check": "PASS"
+  },
+  "final_result": "P4_D0_RESULT=EXISTING_SURFACE_SUFFICIENT_NO_IMPLEMENTATION",
+  "next_implementation_node": "NONE"
+}
