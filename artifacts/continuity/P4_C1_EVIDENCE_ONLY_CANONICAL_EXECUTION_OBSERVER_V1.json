@@ -1,0 +1,127 @@
+{
+  "task_id": "P4-C1",
+  "issue": "Julia_core#70",
+  "source_audit": "Julia_core#69 / P4-C0",
+  "base_sha": "ff56edd4db5c9fac2197ffbfb1758b8f7ed5f175",
+  "implementation_sha": "bfd478ef47df897f0d883a00f544dce560651f7e",
+  "implementation_boundary": {
+    "module": "julia_core/execution_observer.py",
+    "tests": "tests/evidence/test_canonical_execution_observer.py",
+    "exact_inputs": [
+      "IdentityFrame",
+      "ExperienceFrameSet",
+      "CurrentConversationalTaskContext",
+      "SealedCognitiveContextPackage",
+      "AdmittedSemanticBundle",
+      "ProviderExecutionEnvelope",
+      "injected provider execution callable or exact ProviderExecutionOutcome evidence"
+    ],
+    "output": "immutable CanonicalExecutionObservation",
+    "production_response_path_attachment": 0,
+    "provider_behavior_change": 0
+  },
+  "implemented_capabilities": [
+    {
+      "capability": "UNIFIED_CANONICAL_PROVENANCE_MANIFEST",
+      "coverage": [
+        "IdentityFrame source ref/digest",
+        "each ExperienceFrame source ref/digest",
+        "ExperienceFrameSet carrier digest",
+        "ordered ExperienceFrame digest manifest",
+        "CurrentConversationalTaskContext source provenance",
+        "gate receipt",
+        "semantic fingerprint",
+        "ordered unit digests",
+        "provider identity and alignment identity"
+      ]
+    },
+    {
+      "capability": "MECHANICAL_PROVIDER_EXECUTION_DISPOSITION",
+      "coverage": [
+        "SUCCEEDED for nonempty provider result",
+        "FAILED with EMPTY_OUTPUT for blank provider result",
+        "FAILED with non-semantic class for ProviderExecutionRejected",
+        "ERROR with exception class for unexpected Exception",
+        "NOT_RUN through exact already-produced outcome evidence",
+        "output presence without response content",
+        "post-call envelope integrity check"
+      ]
+    },
+    {
+      "capability": "EXECUTION_BOUND_ZERO_AUTHORITY_ATTESTATION",
+      "coverage": [
+        "observer output authority = 0",
+        "semantic authority = 0",
+        "production response selection authority = 0",
+        "canonical writes = 0",
+        "identity authority mutations = 0",
+        "memory experience authority mutations = 0",
+        "post-C03 semantic reconstruction = 0"
+      ]
+    },
+    {
+      "capability": "PROVENANCE_SENSITIVE_EXECUTION_REPLAY_ID",
+      "coverage": [
+        "canonical JSON body digest",
+        "complete provenance manifest included",
+        "mechanical disposition included",
+        "authority attestation included",
+        "identical evidence produces identical replay digest",
+        "material provenance or disposition change changes replay digest"
+      ]
+    }
+  ],
+  "integrity_validation": {
+    "exact_type_checks": "PASS",
+    "package_binding_envelope_identity_alignment": "PASS",
+    "sealed_source_digest_alignment": "PASS",
+    "experience_carrier_and_frame_manifest_alignment": "PASS",
+    "semantic_unit_and_message_order_alignment": "PASS",
+    "provider_alignment_identity": "PASS",
+    "malformed_or_subclass_evidence_rejection": "PASS",
+    "missing_frame_provenance_rejection": "PASS",
+    "caller_choice_field_rejection": "PASS",
+    "semantic_object_construction": 0,
+    "canonical_write_api": 0,
+    "authority_mutation_api": 0
+  },
+  "authority_analysis": {
+    "OBSERVABILITY_OUTPUT_AUTHORITY": 0,
+    "SEMANTIC_AUTHORITY": 0,
+    "PRODUCTION_RESPONSE_SELECTION_AUTHORITY": 0,
+    "CANONICAL_WRITES": 0,
+    "IDENTITY_AUTHORITY_MUTATION": 0,
+    "MEMORY_EXPERIENCE_AUTHORITY_MUTATION": 0,
+    "POST_C03_SEMANTIC_RECONSTRUCTION": 0,
+    "P4_SCOPE_EXPANSION": 0,
+    "P5_WORK_PERFORMED": 0,
+    "P6_WORK_PERFORMED": 0
+  },
+  "verification": {
+    "focused": {
+      "command": "pytest tests/evidence/test_canonical_execution_observer.py -q",
+      "result": "12 passed"
+    },
+    "canonical_regression": {
+      "command": "pytest tests/evidence/test_canonical_execution_observer.py tests/evidence/test_side_by_side_comparison.py tests/context_admission/test_c03_experience_frame_set_admission.py tests/context_admission/test_p3_n0_semantic_binding.py tests/context_admission/test_p3_n0_alignment_boundary.py tests/runtime/test_p3_n0_runtime_envelope.py tests/context_admission/test_binder_experience_frame_set_migration.py -q",
+      "result": "106 passed"
+    },
+    "static_scope_scan": {
+      "command": "rg -n \"winner|preferred|selected|switch|routing|get_llm_provider|ProviderAlignmentBoundary|IdentityFrame\\(|ExperienceFrameSet\\(|CurrentConversationalTaskContext\\(\" julia_core/execution_observer.py",
+      "result": "PASS: no hits"
+    },
+    "git_diff_check": "PASS"
+  },
+  "forbidden_outcomes": {
+    "winner_or_preference": 0,
+    "selected_or_replaced_response": 0,
+    "readiness_switch_or_routing_signal": 0,
+    "semantic_reconstruction": 0,
+    "canonical_authority_mutation": 0,
+    "provider_behavior_change": 0,
+    "production_response_path_attachment": 0,
+    "fallback_or_default_source_selection": 0
+  },
+  "final_result": "P4_C1_RESULT = EVIDENCE_ONLY_CANONICAL_EXECUTION_OBSERVER_AVAILABLE",
+  "next_implementation_node": "NONE"
+}
