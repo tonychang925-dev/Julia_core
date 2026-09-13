@@ -1,0 +1,148 @@
+{
+  "task_id": "P3-FINAL-R1",
+  "issue": "tonychang925-dev/Julia_core#68",
+  "phase": "P3",
+  "task_type": "AUDIT_ONLY",
+  "roadmap_authority": "Julia_Mira_Continuity_Parallel_Development_Plan_v0.2_2026-09-12",
+  "prior_final_audit_sha": "fdf0f1d7df8bbefd76bf8a41ab23a6e99b20404a",
+  "exact_reaudit_shas": {
+    "julia_core_code_and_evidence": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+    "julia_ai_assistant_f1e_implementation": "ba0fa19948fba82a22a5cc5ab7d9d3d4af2090b7",
+    "julia_ai_assistant_f1e_evidence_head": "d245ae3123427d478f2eb29ae8f730578544f285"
+  },
+  "prior_blocker": {
+    "blocker_id": "P3-FINAL-B01",
+    "old_assistant_sha": "475704d527f16b10360e598e355c98da13a9f18d",
+    "surface": "runtime/canonical_turn.py::prepare_canonical_turn",
+    "prior_defect": "synthetic/null ADMITTED canonical frame construction and singular ExperienceFrame C03/Binder consumption"
+  },
+  "prior_blocker_closed": {
+    "result": "YES",
+    "evidence": [
+      "F1E requires an exact caller-supplied IdentityFrame",
+      "F1E requires an exact caller-supplied ExperienceFrameSet",
+      "missing exact sources fail closed before C03",
+      "synthetic null frame constructors are deleted",
+      "Assistant-local ADMITTED status construction is deleted",
+      "singular experience_frame request surface is absent",
+      "one-frame and N-frame executions use the same C03/Binder path"
+    ],
+    "f1e_evidence": "Julia-AI-Assistant artifacts/continuity/P3_F1E_ASSISTANT_CANONICAL_TURN_AUTHORITY_REBIND_V1.json at d245ae3123427d478f2eb29ae8f730578544f285"
+  },
+  "assistant_local_semantic_authority": {
+    "ASSISTANT_LOCAL_SEMANTIC_AUTHORITY": 0,
+    "assistant_local_identity_authority": 0,
+    "assistant_local_relationship_authority": 0,
+    "assistant_local_experience_authority": 0,
+    "synthetic_or_null_admitted_frame_construction": 0,
+    "post_c03_local_semantic_reconstruction": 0,
+    "result": "PASS"
+  },
+  "provider_independent_semantic_authority": {
+    "PROVIDER_INDEPENDENT_SEMANTIC_AUTHORITY": 0,
+    "provider_persona_minting": 0,
+    "provider_identity_relationship_experience_prepend": 0,
+    "alignment_semantic_rewrite": 0,
+    "exact_admitted_semantics_preserved": "YES",
+    "result": "PASS"
+  },
+  "active_legacy_semantic_bypass": 0,
+  "active_shadow_semantic_authority": 0,
+  "active_fallback_semantic_authority": 0,
+  "post_c03_semantic_reconstruction": 0,
+  "silent_default_latest_first_best_semantic_selection": 0,
+  "gate_c_result": "PASS",
+  "provenance_complete": {
+    "PROVENANCE_COMPLETE": "YES",
+    "chain": [
+      "IdentityFrame",
+      "ExperienceFrameSet",
+      "CurrentConversationalTaskContext",
+      "C03 SealedCognitiveContextPackage",
+      "AdmittedSemanticBundle",
+      "Runtime ProviderExecutionEnvelope preparation",
+      "ProviderExecutionEnvelope"
+    ],
+    "identity_preserved": [
+      "conversation_id",
+      "turn_id",
+      "gate_receipt"
+    ],
+    "semantic_integrity": "Admitted bundle semantic fingerprint equals ProviderExecutionEnvelope semantic fingerprint",
+    "message_integrity": "exact ordered admitted units equal exact ordered envelope messages",
+    "result": "PASS"
+  },
+  "multi_experience_defect_status": {
+    "MULTI_EXPERIENCE_P3_DEFECT": "CLOSED",
+    "chain": "RuntimeCanonicalAuthorityBinding.experience_refs 1..N -> ExperienceFrameSet -> C03 -> Binder -> Runtime -> ProviderExecutionEnvelope",
+    "cardinality": "1..N with one-frame and N-frame canonical representation",
+    "digest_manifest_preserved": "YES",
+    "frame_count_preserved": "YES",
+    "frame_order_preserved": "YES",
+    "frame_loss": 0,
+    "result": "PASS"
+  },
+  "audit_evidence": {
+    "assistant_exact_code": [
+      "runtime/canonical_turn.py requires exact caller-supplied IdentityFrame and ExperienceFrameSet",
+      "voice_api/julia_core_adapter.py requires exact caller sources before canonical execution",
+      "voice_api/openai_compat.py requires exact Python carrier types and returns 400 for incomplete ingress",
+      "runtime/assistant_runtime.py::handle_chat raises before retired legacy semantic orchestration"
+    ],
+    "assistant_static_classification": [
+      "historical runtime/dual_path.py and runtime/cognition_shadow.py remain dormant historical surfaces and are not active canonical ingress",
+      "ReadOnlyMemoryBindingAdapter ranking hits occur before JuliaAssistantRuntime.handle_chat and are unreachable after its unconditional retired-orchestration raise",
+      "no forbidden authority surface exists in runtime/canonical_turn.py or the active voice canonical adapters"
+    ],
+    "core_exact_code": [
+      "ExclusiveAdmissionGate accepts ExperienceFrameSet and preserves complete ordered frame provenance",
+      "ExactAdmittedSemanticBinder validates carrier digest, count, ordered manifest, and exact three-unit order",
+      "JuliaAssistantRuntime requires an exact AdmittedSemanticBundle and performs no provider semantic construction",
+      "ProviderAlignmentBoundary emits an exact immutable ProviderExecutionEnvelope with the admitted semantic fingerprint"
+    ]
+  },
+  "relevant_tests": [
+    {
+      "repository": "Julia_core",
+      "sha": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+      "command": "pytest tests/context_admission -q",
+      "result": "104 passed"
+    },
+    {
+      "repository": "Julia-AI-Assistant",
+      "sha": "ba0fa19948fba82a22a5cc5ab7d9d3d4af2090b7",
+      "command": "JULIA_CORE_PATH=<Core@40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216> PYTHONPATH=<Core@40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216> pytest tests/test_p3_f1e_canonical_turn_authority_rebind.py -q",
+      "result": "14 passed; one unrelated python_multipart PendingDeprecationWarning"
+    }
+  ],
+  "deferred_out_of_p3": [
+    "shadow and canary harnesses",
+    "comparison harnesses",
+    "Golden Mira admission",
+    "real canonical data population",
+    "production durable backend selection",
+    "final transport/config productionization",
+    "backup and disaster recovery",
+    "multi-host durability",
+    "cutover",
+    "merge to main",
+    "release and deployment",
+    "post-cutover operations"
+  ],
+  "scope_gate": {
+    "new_non_p3_requirement_added": 0,
+    "new_architecture_added": 0,
+    "new_n4_or_f_subsystem_added": 0,
+    "p4_work_performed": 0,
+    "p5_work_performed": 0,
+    "p6_work_performed": 0
+  },
+  "production_code_changed": 0,
+  "json_validation": "PASS",
+  "git_diff_check": "PASS",
+  "final_result": {
+    "P3_FINAL_RESULT": "PASS",
+    "P3": "COMPLETE",
+    "P4": "READY"
+  }
+}
