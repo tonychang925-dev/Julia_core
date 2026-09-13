@@ -1,60 +1,783 @@
 {
-  "schema": "julia_core.continuity.p5_c.real_golden_mira_canary_run.v1",
-  "run_id": "P5-LIVE-GOLDEN-MIRA-CANARY-DIRECT-PRECONDITION-BLOCK",
-  "task_id": "P5-LIVE",
-  "issue": "tonychang925-dev/Julia_core#80",
-  "preflight_artifact": "artifacts/continuity/P5_C_REAL_CANARY_PREFLIGHT_V1.json",
-  "preflight_head": "487d3aa436955b4946bb86ef50b3e739c876d291",
-  "preflight_artifact_blob": "7e657b0938d0b105fae4ec75c0d0bf3e3dfb2717",
-  "preflight_result": "PASS_READY_FOR_REAL_GOLDEN_MIRA_CANARY",
-  "p5_b_head": "09f6e753004b4e509a4da217508a8b5e2c7417ee",
-  "p5_b_artifact_blob": "3a81e792949a512ce27359a117e64996a80eac82",
-  "cue": "Hi Mira，还记得我吗？",
-  "pre_provider_gate": {
-    "behavior": "STOP_BEFORE_PROVIDER_CALL",
-    "p5_b_dependency": "PASS",
-    "p5_c_preflight_dependency": "PASS",
-    "identity_count_required": 3,
-    "memory_count_required": 8,
-    "ordered_memory_experience_support": "PASS",
-    "identity_input_support": "FAIL",
-    "failure": {
-      "code": "C03_IDENTITY_FRAME_CARDINALITY_MISMATCH",
-      "message": "ExclusiveAdmissionRequest admits exactly one IdentityFrame and EvidenceOnlyCanonicalExecutionObserver binds exactly one identity_frame, but P5-C requires all three exact admitted Identity refs to pass through the sealed C03 path.",
-      "remaining_positions": 2,
-      "forbidden_repairs": [
-        "select only one admitted Identity and silently discard the other two",
-        "construct an unadmitted composite IdentityFrame",
-        "mutate C03/runtime/provider production semantics during P5-LIVE",
-        "place Identity records outside the sealed C03 path"
-      ]
-    },
-    "checks_executed": 3,
-    "provider_call_started": false
-  },
-  "execution": {
-    "provider_call_count": 0,
-    "provider_id": null,
-    "model": null,
-    "retries": 0,
-    "output_present": false
-  },
-  "evaluation": {
-    "global_disposition": "INCONCLUSIVE",
-    "semantic_rescue": "INCONCLUSIVE_NOT_EVALUATED_NO_PROVIDER_OUTPUT",
-    "autobiographical_intrusion": "INCONCLUSIVE_NOT_EVALUATED_NO_PROVIDER_OUTPUT",
-    "relationship_role_preservation": "INCONCLUSIVE_NOT_EVALUATED_NO_PROVIDER_OUTPUT",
-    "ordered_experience_coverage": "INCONCLUSIVE_NOT_EVALUATED_NO_PROVIDER_OUTPUT",
-    "current_task_preservation": "INCONCLUSIVE_NOT_EVALUATED_NO_PROVIDER_OUTPUT",
-    "consent_authorization_non_upgrade": "INCONCLUSIVE_NOT_EVALUATED_NO_PROVIDER_OUTPUT"
-  },
   "authority": {
     "canary_output_authority": 0,
-    "production_response_selection_authority": 0,
     "canonical_writes": 0,
-    "provider_runtime_semantic_mutation": 0,
+    "main_merge_release_deploy_cutover_p6": 0,
+    "production_response_selection_authority": 0,
     "production_routing_or_switching": 0,
-    "main_merge_release_deploy_cutover_p6": 0
+    "provider_runtime_semantic_mutation": 0
   },
-  "final_result": "BLOCKED_BY_DIRECT_CANARY_PRECONDITION"
+  "c03_provenance": {
+    "contract_version": "julia_core.context_admission.c03.production.v3",
+    "experience_frame_count": 8,
+    "gate_receipt": "b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7",
+    "identity_frame_count": 3,
+    "semantic_fingerprint": "f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+  },
+  "canonical_input": {
+    "experience_frame_set_digest": "1ef2c6d15468c7695530c1a5baa2b123bdde267e0f86d2b6e236dce68b280b77",
+    "identity_carrier": "IdentityFrameSet",
+    "identity_refs": [
+      "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+      "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+      "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview"
+    ],
+    "identity_set_digest": "b9c8f7af16fc7de6210df0833447503f8b3e89dc505746c2c232054f36506c69",
+    "ordered_memory_experience_refs": [
+      "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+      "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+      "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+      "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+      "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+      "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+      "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+      "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+    ]
+  },
+  "comparison_record": {
+    "comparison_provenance": "4d2263b18f3090d32c84b4905a6a0b8b5f1f948a76574660c41361417fb3c14f",
+    "continuity_bindings": [
+      {
+        "comparison_provenance": "4d2263b18f3090d32c84b4905a6a0b8b5f1f948a76574660c41361417fb3c14f",
+        "evidence_side": "reference",
+        "fields_digest": "afe692717a831c871c7e916960a1a25fc5621ef5b541090fc6771196b07040e0",
+        "pair_identity": {
+          "conversation_id": "p5-live-conversation-1",
+          "external_correlation_id": "p5-c-real-canary:p5-live-conversation-1:p5-live-turn-1",
+          "turn_id": "p5-live-turn-1"
+        },
+        "source_ref": "p5-d-evaluation:e381385eae16bd603a95d10ff83a35519d52adfeb37e19886c0bd6373cecc679"
+      },
+      {
+        "comparison_provenance": "4d2263b18f3090d32c84b4905a6a0b8b5f1f948a76574660c41361417fb3c14f",
+        "evidence_side": "canonical",
+        "fields_digest": "afe692717a831c871c7e916960a1a25fc5621ef5b541090fc6771196b07040e0",
+        "pair_identity": {
+          "conversation_id": "p5-live-conversation-1",
+          "external_correlation_id": "p5-c-real-canary:p5-live-conversation-1:p5-live-turn-1",
+          "turn_id": "p5-live-turn-1"
+        },
+        "source_ref": "p5-d-evaluation:e381385eae16bd603a95d10ff83a35519d52adfeb37e19886c0bd6373cecc679"
+      }
+    ],
+    "correlation": {
+      "conversation_id": "p5-live-conversation-1",
+      "external_correlation_id": "p5-c-real-canary:p5-live-conversation-1:p5-live-turn-1",
+      "turn_id": "p5-live-turn-1"
+    },
+    "dimensions": [
+      {
+        "canonical_available": true,
+        "canonical_value": "conversation_id=p5-live-conversation-1;turn_id=p5-live-turn-1",
+        "equal": true,
+        "name": "correlation_identity",
+        "reference_available": true,
+        "reference_value": "conversation_id=p5-live-conversation-1;turn_id=p5-live-turn-1"
+      },
+      {
+        "canonical_available": true,
+        "canonical_value": "f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b",
+        "equal": true,
+        "name": "semantic_fingerprint",
+        "reference_available": true,
+        "reference_value": "f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+      },
+      {
+        "canonical_available": true,
+        "canonical_value": "d897eaaebc1cc10f4907e12cba361873cfec783c08f358c354e118a8d42d0082",
+        "equal": true,
+        "name": "message_unit_order",
+        "reference_available": true,
+        "reference_value": "d897eaaebc1cc10f4907e12cba361873cfec783c08f358c354e118a8d42d0082"
+      },
+      {
+        "canonical_available": true,
+        "canonical_value": "deepseek",
+        "equal": true,
+        "name": "provider_identity",
+        "reference_available": true,
+        "reference_value": "deepseek"
+      },
+      {
+        "canonical_available": true,
+        "canonical_value": "{\"cognitive_mode\":\"conversation\",\"max_output_tokens\":4096,\"modality\":\"text\",\"provider_id\":\"deepseek\",\"response_format\":\"default\",\"temperature\":null}",
+        "equal": true,
+        "name": "alignment_identity",
+        "reference_available": true,
+        "reference_value": "{\"cognitive_mode\":\"conversation\",\"max_output_tokens\":4096,\"modality\":\"text\",\"provider_id\":\"deepseek\",\"response_format\":\"default\",\"temperature\":null}"
+      },
+      {
+        "canonical_available": true,
+        "canonical_value": "b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7",
+        "equal": true,
+        "name": "gate_receipt",
+        "reference_available": true,
+        "reference_value": "b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7"
+      },
+      {
+        "canonical_available": true,
+        "canonical_value": "status=SUCCEEDED;output_present=true",
+        "equal": true,
+        "name": "output_execution",
+        "reference_available": true,
+        "reference_value": "status=SUCCEEDED;output_present=true"
+      }
+    ],
+    "replay_digest": "ce1971c368d1057d07feb10d42fd34d51542cecaad5cc367c0e09ddc5ef1aecf",
+    "schema": "julia_core.evidence.side_by_side.v1",
+    "schema_version": "1.0.0",
+    "sources": {
+      "canonical": "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+      "reference": "p4-reference-binding:b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7"
+    }
+  },
+  "corrected_seam_artifact_blob": "f1b66957814a97a16b332250b1b8bfda2d72e1d2",
+  "corrected_seam_head": "2596ac93c2b5d9b0468136a37cef171a0266fa28",
+  "correlation": {
+    "conversation_id": "p5-live-conversation-1",
+    "gate_receipt": "b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7",
+    "provider_correlation_id": "p5-c-real-canary:p5-live-conversation-1:p5-live-turn-1",
+    "turn_id": "p5-live-turn-1"
+  },
+  "cue": "Hi Mira，还记得我吗？",
+  "execution": {
+    "model": "deepseek-chat",
+    "observer_disposition": "SUCCEEDED",
+    "output_present": true,
+    "provider_call_count": 1,
+    "provider_id": "deepseek",
+    "provider_output_sha256": "27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+    "provider_response_id": "743e3bf9-9a27-4501-9089-82aa81707f15",
+    "retries": 0
+  },
+  "execution_observer_record": {
+    "authority": {
+      "CANONICAL_WRITES": 0,
+      "IDENTITY_AUTHORITY_MUTATION": 0,
+      "MEMORY_EXPERIENCE_AUTHORITY_MUTATION": 0,
+      "OBSERVABILITY_OUTPUT_AUTHORITY": 0,
+      "POST_C03_SEMANTIC_RECONSTRUCTION": 0,
+      "PRODUCTION_RESPONSE_SELECTION_AUTHORITY": 0,
+      "SEMANTIC_AUTHORITY": 0
+    },
+    "execution": {
+      "disposition": "SUCCEEDED",
+      "failure_class": null,
+      "output_present": true
+    },
+    "provenance": {
+      "correlation": {
+        "conversation_id": "p5-live-conversation-1",
+        "turn_id": "p5-live-turn-1"
+      },
+      "current_task_context": {
+        "source_digest": "8cbc81c6256021d69e4722b571126c1a41254322aa945f83b94fddaba286e1a6",
+        "source_ref": {
+          "source_ref": "conversation_runtime://p5-live/current-task"
+        }
+      },
+      "experience_frame_set": {
+        "digest": "1ef2c6d15468c7695530c1a5baa2b123bdde267e0f86d2b6e236dce68b280b77",
+        "ordered_frame_digest_manifest": [
+          "e945d473ddd6e021f20d51af4835783bba40116ded40dff0a359300caafb2c4f",
+          "deba3cfee9d6ca68f9a8263d172a2315b7e53eecaef3981859c3c1dd7cfd75fe",
+          "07599bc64ed34fdb289c0cc804472abccdcf6c614eca2721601bd7639410bb00",
+          "e030ceb8a40b5dc291175740fb3e1722c7ccac9f86559f13063751a989b7d37f",
+          "a7a5d2e806f85c90948f6958d4a64c661a270fae8b4e65f8fb0c6e89bac0373a",
+          "d08cbd711b5e2db874740c0e49a81478a541ec1072ae4d642a761465dc35b633",
+          "80490d0eb9bc795c5165093f7477cf3e5952ec70c39f1381ff4aa1c523dfa60a",
+          "c50d4f28bcea12517f7933566a23da617f7843270466f35199bc5342693feac0"
+        ]
+      },
+      "experience_frames": [
+        {
+          "source_digest": "4e29eb74de7f29bbf8d69485a7c18b5dceb06486d7e1d986d668a30c85fb7228",
+          "source_ref": {
+            "experience_id": "golden-mira:GM-CMIR-001",
+            "version_id": "v0.2-preview"
+          }
+        },
+        {
+          "source_digest": "e4374452173b144ce48dbefa5299f1ac3dc15cec3615b8e7d528176293536f93",
+          "source_ref": {
+            "experience_id": "golden-mira:GM-CMIR-002",
+            "version_id": "v0.2-preview"
+          }
+        },
+        {
+          "source_digest": "ba4edeff89bc8054be19d7a48226fcef74359bc85d17dbd6abea4b754b905f97",
+          "source_ref": {
+            "experience_id": "golden-mira:GM-CMIR-004",
+            "version_id": "v0.1-preview"
+          }
+        },
+        {
+          "source_digest": "47636f46d2934eeb66f91c8202e2245c180b7077fddd04ca6445683308b54f2c",
+          "source_ref": {
+            "experience_id": "golden-mira:GM-CMIR-006",
+            "version_id": "v0.1-preview"
+          }
+        },
+        {
+          "source_digest": "08c95873446b01949b7aec50ad35ebbe36ce8b5b9ad87aca45c51b627f70c408",
+          "source_ref": {
+            "experience_id": "golden-mira:GM-CMIR-008",
+            "version_id": "v0.1-preview"
+          }
+        },
+        {
+          "source_digest": "3107a3ab38d0fc0d2446752f48bedebf2ee336e3cb8b22811bf3c156247a4ae9",
+          "source_ref": {
+            "experience_id": "golden-mira:GM-CMIR-011",
+            "version_id": "formation-draft-preview"
+          }
+        },
+        {
+          "source_digest": "3c31de4d62ecfd5d7857a5a4df85725affa0862d0055b5527d7d80f27fcc8ad8",
+          "source_ref": {
+            "experience_id": "golden-mira:GM-CMIR-011",
+            "version_id": "frozen-final-preview"
+          }
+        },
+        {
+          "source_digest": "8e2d16304357b7fb72b5b6cb53501be5d8743b3c687d2f0aadf3a9e1e132046c",
+          "source_ref": {
+            "experience_id": "golden-mira:GM-CMIR-013",
+            "version_id": "v0.2-preview"
+          }
+        }
+      ],
+      "identity_frame_set": {
+        "digest": "b9c8f7af16fc7de6210df0833447503f8b3e89dc505746c2c232054f36506c69",
+        "ordered_frame_digest_manifest": [
+          "f140cdff26e066197065d10889af0ea577b49d268f57e62c4a7e8cb6e48b533a",
+          "af2bc42efafd580b149de7057f6a7ca966613aad4848b16f7aa37cf2a8d5730f",
+          "867bf9614acac6e955b6cdc42bc3fcb27b064a9caa00a4567386fbbab1496753"
+        ]
+      },
+      "identity_frames": [
+        {
+          "source_digest": "7580e0a930dc7f3d5446da2cdd8d1c23cf251e12929fb2f3baa056bd9739dd44",
+          "source_ref": {
+            "lineage_id": "mira-golden:mira-id-cand-001",
+            "version_id": "mira-id-cand-001-v0.1-preview"
+          }
+        },
+        {
+          "source_digest": "adaa2508c4e475a700c394eb205e278d515dfe014ccdaa4bab3c3e7b7dcd5f3a",
+          "source_ref": {
+            "lineage_id": "mira-golden:mira-id-cand-002",
+            "version_id": "mira-id-cand-002-v0.1-preview"
+          }
+        },
+        {
+          "source_digest": "0008a5e157347ae9b0dd8600d661ec4a0e3fbd1858673cd04dc7c7b812a96c29",
+          "source_ref": {
+            "lineage_id": "mira-golden:mira-id-cand-003",
+            "version_id": "mira-id-cand-003-v0.1-preview"
+          }
+        }
+      ],
+      "provider": {
+        "alignment_identity": "96b4af8f6a7b7df98d3d241fe170e47879e6b56b14e6fa82a7bee7a162d01140",
+        "id": "deepseek"
+      },
+      "schema": "julia_core.evidence.canonical_execution_provenance.v1",
+      "schema_version": "1.0.0",
+      "semantic": {
+        "fingerprint": "f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b",
+        "gate_receipt": "b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7",
+        "ordered_unit_digests": [
+          "b9c8f7af16fc7de6210df0833447503f8b3e89dc505746c2c232054f36506c69",
+          "1ef2c6d15468c7695530c1a5baa2b123bdde267e0f86d2b6e236dce68b280b77",
+          "681f95270a6221f5c59cfcd1817117e1dc4eb1e5958560d1437a79e90aaa6e6d"
+        ]
+      }
+    },
+    "replay_digest": "66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+    "schema": "julia_core.evidence.canonical_execution_observer.v1",
+    "schema_version": "1.0.0"
+  },
+  "final_result": "PASS_REAL_GOLDEN_MIRA_CANARY",
+  "p5_d_evaluation_record": {
+    "dimensions": [
+      {
+        "admitted_refs_observed": [
+          "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+          "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+        ],
+        "dimension_id": "identity_anchor_preservation",
+        "disposition": "PASS",
+        "evidence_refs": {
+          "admitted_canonical_input": [
+            "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+            "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+          ],
+          "grounded_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "identity_anchor_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "provenance_receipt": [
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+            "gate:b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7"
+          ],
+          "semantic_fingerprint": [
+            "semantic:f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+          ]
+        },
+        "grounded_continuity": true,
+        "provenance_receipt": "66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+        "provider_correlation": "p5-c-real-canary:p5-live-conversation-1:p5-live-turn-1",
+        "semantic_fingerprint": "f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+      },
+      {
+        "admitted_refs_observed": [
+          "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+          "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+        ],
+        "dimension_id": "relationship_role_preservation",
+        "disposition": "PASS",
+        "evidence_refs": {
+          "admitted_canonical_input": [
+            "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+            "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+          ],
+          "grounded_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "provenance_receipt": [
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+            "gate:b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7"
+          ],
+          "relationship_role_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "semantic_fingerprint": [
+            "semantic:f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+          ]
+        },
+        "grounded_continuity": true,
+        "provenance_receipt": "66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+        "provider_correlation": "p5-c-real-canary:p5-live-conversation-1:p5-live-turn-1",
+        "semantic_fingerprint": "f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+      },
+      {
+        "admitted_refs_observed": [
+          "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+          "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+        ],
+        "dimension_id": "ordered_experience_coverage",
+        "disposition": "PASS",
+        "evidence_refs": {
+          "admitted_canonical_input": [
+            "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+            "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+          ],
+          "grounded_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "ordered_coverage_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "ordered_unit_digests": [
+            "b9c8f7af16fc7de6210df0833447503f8b3e89dc505746c2c232054f36506c69",
+            "1ef2c6d15468c7695530c1a5baa2b123bdde267e0f86d2b6e236dce68b280b77",
+            "681f95270a6221f5c59cfcd1817117e1dc4eb1e5958560d1437a79e90aaa6e6d"
+          ],
+          "provenance_receipt": [
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+            "gate:b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7"
+          ]
+        },
+        "grounded_continuity": true,
+        "provenance_receipt": "66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+        "provider_correlation": "p5-c-real-canary:p5-live-conversation-1:p5-live-turn-1",
+        "semantic_fingerprint": "f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+      },
+      {
+        "admitted_refs_observed": [
+          "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+          "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+        ],
+        "dimension_id": "current_task_preservation",
+        "disposition": "PASS",
+        "evidence_refs": {
+          "admitted_canonical_input": [
+            "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+            "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+          ],
+          "current_task_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "grounded_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "provenance_receipt": [
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+            "gate:b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7"
+          ],
+          "semantic_fingerprint": [
+            "semantic:f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+          ]
+        },
+        "grounded_continuity": true,
+        "provenance_receipt": "66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+        "provider_correlation": "p5-c-real-canary:p5-live-conversation-1:p5-live-turn-1",
+        "semantic_fingerprint": "f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+      },
+      {
+        "admitted_refs_observed": [
+          "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+          "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+        ],
+        "dimension_id": "semantic_rescue",
+        "disposition": "PASS",
+        "evidence_refs": {
+          "admitted_canonical_input": [
+            "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+            "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+          ],
+          "grounded_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "provenance_receipt": [
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+            "gate:b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7"
+          ],
+          "semantic_fingerprint": [
+            "semantic:f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+          ],
+          "semantic_rescue_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ]
+        },
+        "grounded_continuity": true,
+        "provenance_receipt": "66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+        "provider_correlation": "p5-c-real-canary:p5-live-conversation-1:p5-live-turn-1",
+        "semantic_fingerprint": "f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+      },
+      {
+        "admitted_refs_observed": [
+          "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+          "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+        ],
+        "dimension_id": "autobiographical_intrusion",
+        "disposition": "PASS",
+        "evidence_refs": {
+          "admitted_canonical_input": [
+            "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+            "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+          ],
+          "grounded_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "provenance_receipt": [
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+            "gate:b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7"
+          ],
+          "semantic_fingerprint": [
+            "semantic:f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+          ],
+          "subject_boundary_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ]
+        },
+        "grounded_continuity": true,
+        "provenance_receipt": "66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+        "provider_correlation": "p5-c-real-canary:p5-live-conversation-1:p5-live-turn-1",
+        "semantic_fingerprint": "f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+      },
+      {
+        "admitted_refs_observed": [
+          "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+          "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+        ],
+        "dimension_id": "causal_fidelity_provenance_traceability",
+        "disposition": "PASS",
+        "evidence_refs": {
+          "admitted_canonical_input": [
+            "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+            "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+          ],
+          "causal_fidelity_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "claim_binding_manifest": [
+            "p5-d:dimensions:exact-9",
+            "provider:p5-c-real-canary:p5-live-conversation-1:p5-live-turn-1"
+          ],
+          "grounded_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "provenance_receipt": [
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+            "gate:b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7"
+          ]
+        },
+        "grounded_continuity": true,
+        "provenance_receipt": "66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+        "provider_correlation": "p5-c-real-canary:p5-live-conversation-1:p5-live-turn-1",
+        "semantic_fingerprint": "f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+      },
+      {
+        "admitted_refs_observed": [
+          "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+          "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+        ],
+        "dimension_id": "consent_authorization_non_upgrade",
+        "disposition": "PASS",
+        "evidence_refs": {
+          "admitted_canonical_input": [
+            "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+            "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+          ],
+          "authorization_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "gate_receipt": [
+            "gate:b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7"
+          ],
+          "grounded_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "provenance_receipt": [
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+            "gate:b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7"
+          ]
+        },
+        "grounded_continuity": true,
+        "provenance_receipt": "66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+        "provider_correlation": "p5-c-real-canary:p5-live-conversation-1:p5-live-turn-1",
+        "semantic_fingerprint": "f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+      },
+      {
+        "admitted_refs_observed": [
+          "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+          "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+          "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+          "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+          "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+        ],
+        "dimension_id": "deterministic_replay",
+        "disposition": "PASS",
+        "evidence_refs": {
+          "admitted_canonical_input": [
+            "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+            "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+            "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+            "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+            "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+          ],
+          "comparison_or_observer_replay": [
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "grounded_judgment": [
+            "sha256:27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016",
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8"
+          ],
+          "provenance_receipt": [
+            "observer:66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+            "gate:b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7"
+          ]
+        },
+        "grounded_continuity": true,
+        "provenance_receipt": "66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+        "provider_correlation": "p5-c-real-canary:p5-live-conversation-1:p5-live-turn-1",
+        "semantic_fingerprint": "f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b"
+      }
+    ],
+    "evaluator_output_authority": 0,
+    "global_disposition": "PASS",
+    "judgment_basis": {
+      "judgment_type": "HUMAN_SEMANTIC_GROUNDED",
+      "phrase_or_substring_scoring": 0,
+      "provider_call_count": 1,
+      "provider_output_sha256": "27bc46fd0dada7bda70d559c386af9e2ddb634338bc37047c2be560d64cd5016"
+    },
+    "production_response_selection_authority": 0,
+    "replay_digest": "e381385eae16bd603a95d10ff83a35519d52adfeb37e19886c0bd6373cecc679",
+    "schema": "julia_core.tests.continuity_conformance.evaluation.v1"
+  },
+  "preflight_artifact": "artifacts/continuity/P5_C_REAL_CANARY_PREFLIGHT_V1.json",
+  "preflight_artifact_blob": "2f0da6df7560348198b842301bf272e2e033433d",
+  "preflight_digest": "b54a96cb4f385ee42b782d2900274a48211e05662cb5e3c11a7ce2a7f80593ed",
+  "preflight_head": "e2a3a30d56b2c50a35f5498dc9a9ce2ee3a8f5c0",
+  "preflight_result": "PASS_READY_FOR_REAL_GOLDEN_MIRA_CANARY",
+  "run_id": "P5-LIVE-GOLDEN-MIRA-CANARY-RERUN-ONCE-V1",
+  "schema": "julia_core.continuity.p5_c.real_golden_mira_canary_run.v1",
+  "task_id": "P5-LIVE-RERUN-ONCE"
 }
