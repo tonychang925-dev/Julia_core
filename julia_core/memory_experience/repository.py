@@ -6,6 +6,7 @@ import threading
 from types import MappingProxyType
 
 from .contracts import (
+    CommitmentStage,
     GovernedMemoryExperience,
     MemoryExperienceAdmission,
     MemoryExperienceCandidate,
@@ -15,6 +16,8 @@ from .contracts import (
     MemoryExperienceRefNotFoundError,
     MemoryExperienceRef,
     MemoryExperienceStatus,
+    MemoryExperienceType,
+    _payload_schema_version,
 )
 
 
@@ -208,6 +211,8 @@ class MemoryExperienceRepository:
             raise MemoryExperienceConflictError(
                 f"experience {record.experience_id} cannot change canonical type across versions"
             )
+        self._validate_schema_progression(record, lineage)
+        self._validate_project_commitment_stage(record, lineage)
         if record.predecessor_version_id is None:
             return
         predecessor = MemoryExperienceRef(
@@ -216,6 +221,76 @@ class MemoryExperienceRepository:
         if predecessor not in self._records:
             raise MemoryExperienceRefNotFoundError(
                 f"unknown predecessor MemoryExperience ref: {predecessor.uri}"
+            )
+
+    def _validate_schema_progression(
+        self,
+        record: MemoryExperienceRecord,
+        lineage: tuple[MemoryExperienceRecord, ...],
+    ) -> None:
+        if record.predecessor_version_id is None:
+            return
+        predecessor = next(
+            (
+                item
+                for item in lineage
+                if item.version_id == record.predecessor_version_id
+            ),
+            None,
+        )
+        if (
+            predecessor is not None
+            and _payload_schema_version(predecessor.content) == "v2"
+            and _payload_schema_version(record.content) == "v1"
+        ):
+            raise MemoryExperienceLifecycleError(
+                "MemoryExperience lineage cannot downgrade from v2 to v1"
+            )
+
+    def _validate_project_commitment_stage(
+        self,
+        record: MemoryExperienceRecord,
+        lineage: tuple[MemoryExperienceRecord, ...],
+    ) -> None:
+        content = record.content
+        if (
+            record.experience_type is not MemoryExperienceType.PROJECT_COMMITMENT
+            or _payload_schema_version(content) != "v2"
+        ):
+            return
+        if content.commitment_stage is CommitmentStage.FORMATION_DRAFT:
+            if lineage:
+                raise MemoryExperienceLifecycleError(
+                    "FORMATION_DRAFT must be the exact initial commitment stage"
+                )
+            if record.predecessor_version_id is not None:
+                raise MemoryExperienceLifecycleError(
+                    "FORMATION_DRAFT must be the exact initial commitment stage"
+                )
+            return
+
+        if record.predecessor_version_id is None or content.revision is None:
+            raise MemoryExperienceLifecycleError(
+                "FROZEN_FINAL requires an exact predecessor revision"
+            )
+        expected_predecessor = MemoryExperienceRef(
+            record.experience_id, record.predecessor_version_id
+        )
+        if content.revision.predecessor_ref != expected_predecessor:
+            raise MemoryExperienceLifecycleError(
+                "commitment revision predecessor must match the record predecessor"
+            )
+        predecessor = next(
+            (item for item in lineage if item.ref == expected_predecessor), None
+        )
+        if (
+            predecessor is None
+            or _payload_schema_version(predecessor.content) != "v2"
+            or predecessor.content.commitment_stage
+            is not CommitmentStage.FORMATION_DRAFT
+        ):
+            raise MemoryExperienceLifecycleError(
+                f"FROZEN_FINAL requires exact FORMATION_DRAFT predecessor: {expected_predecessor.uri}"
             )
 
 
