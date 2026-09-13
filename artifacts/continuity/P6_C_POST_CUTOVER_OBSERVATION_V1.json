@@ -1,0 +1,142 @@
+{
+  "artifact_id": "P6_C_POST_CUTOVER_OBSERVATION_V1",
+  "authority": {
+    "canonical_writes": 0,
+    "deploys": 0,
+    "identity_admissions": 0,
+    "main_mutations": 0,
+    "memory_experience_mutations": 0,
+    "production_response_selections": 0,
+    "production_routing_or_switching": 0,
+    "provider_runtime_semantic_mutations": 0,
+    "releases": 0,
+    "rollback_executions": 0,
+    "ruleset_mutations": 0
+  },
+  "blockers": [],
+  "continuity_smoke": {
+    "command": "/opt/miniconda3/bin/pytest tests/evidence/test_p5_identity_frame_set_chain.py tests/evidence/test_p5_live_direct_precondition.py tests/context_admission/test_c03_executable_conformance.py -q",
+    "experience_frame_set_digest": "1ef2c6d15468c7695530c1a5baa2b123bdde267e0f86d2b6e236dce68b280b77",
+    "identity_carrier": "IdentityFrameSet",
+    "identity_count": 3,
+    "identity_set_digest": "b9c8f7af16fc7de6210df0833447503f8b3e89dc505746c2c232054f36506c69",
+    "ordered_memory_experience_count": 8,
+    "result": "PASS: 25 passed",
+    "sealed_contract": "julia_core.context_admission.c03.production.v3"
+  },
+  "final_result": "PASS_P6_C_POST_CUTOVER_OBSERVATION",
+  "frozen_regression_subset": {
+    "command": "/opt/miniconda3/bin/pytest tests/context_admission tests/evidence tests/projection tests/continuity_conformance -q",
+    "result": "PASS: 242 passed in 1.80s"
+  },
+  "issue": "tonychang925-dev/Julia_core#82",
+  "no_authority_degradation": {
+    "fallback_provider": 0,
+    "legacy_semantic_bypass": 0,
+    "post_c03_semantic_reconstruction": 0,
+    "result": "PASS",
+    "shadow_authority": 0,
+    "silent_degrade": 0,
+    "static_scan_forbidden_active_hits": 0,
+    "static_scan_observer_counter_definition_hits": 3
+  },
+  "p6_b_binding": {
+    "evidence_blob": "9c3650ec52603c47ee27eac2d756861035e3806a",
+    "evidence_path": "artifacts/continuity/P6_B_CONTROLLED_CUTOVER_EXECUTION_V1.json",
+    "remote_readback_verified": true,
+    "result": "PASS_P6_B_EXACT_CUTOVER_RULESET_RESTORED",
+    "verification_result": "PASS"
+  },
+  "phase": "P6-C",
+  "pinned_inputs": {
+    "main": "28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+    "p6_b_evidence_blob": "9c3650ec52603c47ee27eac2d756861035e3806a",
+    "p6_b_result": "PASS_P6_B_EXACT_CUTOVER_RULESET_RESTORED",
+    "rollback_target": "e2edba9dfff460e3769f93b58491afaf644e6da5",
+    "ruleset_id": 21914907
+  },
+  "provider_observer_provenance": {
+    "comparison_replay_digest": "ce1971c368d1057d07feb10d42fd34d51542cecaad5cc367c0e09ddc5ef1aecf",
+    "comparison_replay_present_and_bound": true,
+    "conversation_id": "p5-live-conversation-1",
+    "correlation_consistent": true,
+    "gate_receipt": "b6825ced3341d3fc37ae5a68f14923535036e31a83ae3af7302ba1358d5a4fc7",
+    "gate_receipt_consistent": true,
+    "observer_replay_digest": "66ab115d8c376721a3fa2d7859608069779b3420c6da519f33ab0ad9247c12b8",
+    "observer_replay_present_and_bound": true,
+    "provider_correlation_id": "p5-c-real-canary:p5-live-conversation-1:p5-live-turn-1",
+    "result": "PASS",
+    "semantic_fingerprint": "f2f3e4f9663212899756ad7b236df20c98ed7797f1ee858f6562018a6ebc455b",
+    "semantic_fingerprint_consistent": true,
+    "turn_id": "p5-live-turn-1"
+  },
+  "remote_main_observation": {
+    "expected": "28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+    "observed_head": "28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+    "result": "PASS"
+  },
+  "rollback_recommendation": "NOT_RECOMMENDED",
+  "rollback_trigger_evaluation": [
+    {
+      "evidence": "Continuity smoke passed 25 focused tests.",
+      "status": "NOT_TRIGGERED",
+      "trigger": "P6-C continuity smoke returns FAIL"
+    },
+    {
+      "evidence": "All pinned provenance identities and replay digests matched.",
+      "status": "NOT_TRIGGERED",
+      "trigger": "provider or observer provenance fails identity, semantic fingerprint, gate receipt, or replay verification"
+    },
+    {
+      "evidence": "Forbidden active hit count is zero.",
+      "status": "NOT_TRIGGERED",
+      "trigger": "no-bypass static or runtime proof fails"
+    },
+    {
+      "evidence": "Frozen regression subset passed 242 tests.",
+      "status": "NOT_TRIGGERED",
+      "trigger": "required regression subset returns FAIL"
+    },
+    {
+      "evidence": "All unauthorized authority/write counters remain zero.",
+      "status": "NOT_TRIGGERED",
+      "trigger": "any post-cutover authority counter becomes nonzero"
+    },
+    {
+      "evidence": "No Owner rollback trigger was received during P6-C.",
+      "status": "NOT_TRIGGERED",
+      "trigger": "rollback condition is explicitly triggered by the Owner"
+    }
+  ],
+  "ruleset_observation": {
+    "bypass_actors": [],
+    "conditions": {
+      "ref_name": {
+        "exclude": [],
+        "include": [
+          "~DEFAULT_BRANCH"
+        ]
+      }
+    },
+    "current_user_can_bypass": "never",
+    "enforcement": "active",
+    "name": "CRB Main Mutation Guard",
+    "required_status_check": "NO_CRITICAL_FALLBACK_GATE",
+    "result": "PASS",
+    "ruleset_id": 21914907,
+    "target": "branch"
+  },
+  "schema": "julia_core.continuity.p6_c.post_cutover_observation.v1",
+  "task_id": "P6-C-POST-CUTOVER-OBSERVATION",
+  "task_type": "POST_CUTOVER_OBSERVATION_ONLY",
+  "validation": {
+    "artifact_test": {
+      "command": "/opt/miniconda3/bin/pytest tests/evidence/test_p6_c_post_cutover_observation.py -q",
+      "result": "PASS: 3 passed"
+    },
+    "git_diff_check": {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  }
+}
