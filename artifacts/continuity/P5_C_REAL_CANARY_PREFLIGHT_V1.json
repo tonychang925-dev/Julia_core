@@ -1,0 +1,223 @@
+{
+  "schema": "julia_core.continuity.p5_c.real_canary_preflight.v1",
+  "artifact_id": "P5_C_REAL_CANARY_PREFLIGHT_V1",
+  "task_id": "P5-C-R1",
+  "issue": "tonychang925-dev/Julia_core#76",
+  "task_type": "REAL_CANARY_PREFLIGHT_ONLY",
+  "base_sha": "038e5219495fd765bfbcfdbb0a52afb48a730f90",
+  "dependency_input_head_sha": "05f58594e1f07f4540626e895eb62bba205f5684",
+  "dependency": {
+    "p5_b_remote_head": "09f6e753004b4e509a4da217508a8b5e2c7417ee",
+    "p5_b_artifact": "artifacts/continuity/P5_B_POST_ADMISSION_CANONICAL_VERIFICATION_V1.json",
+    "p5_b_artifact_blob": "3a81e792949a512ce27359a117e64996a80eac82",
+    "p5_b_result": "P5_B_POST_ADMISSION_CANONICAL_STATE_VERIFIED"
+  },
+  "canonical_input": {
+    "selection_rule": "EXACT_REF_AND_DIGEST_ONLY",
+    "identity_refs": [
+      {
+        "order": 1,
+        "ref": "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+        "digest": "7580e0a930dc7f3d5446da2cdd8d1c23cf251e12929fb2f3baa056bd9739dd44",
+        "lifecycle_status": "ADMITTED"
+      },
+      {
+        "order": 2,
+        "ref": "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+        "digest": "adaa2508c4e475a700c394eb205e278d515dfe014ccdaa4bab3c3e7b7dcd5f3a",
+        "lifecycle_status": "ADMITTED"
+      },
+      {
+        "order": 3,
+        "ref": "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+        "digest": "0008a5e157347ae9b0dd8600d661ec4a0e3fbd1858673cd04dc7c7b812a96c29",
+        "lifecycle_status": "ADMITTED"
+      }
+    ],
+    "ordered_memory_experience_refs": [
+      {
+        "order": 1,
+        "ref": "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+        "digest": "4e29eb74de7f29bbf8d69485a7c18b5dceb06486d7e1d986d668a30c85fb7228",
+        "lifecycle_status": "ADMITTED"
+      },
+      {
+        "order": 2,
+        "ref": "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+        "digest": "e4374452173b144ce48dbefa5299f1ac3dc15cec3615b8e7d528176293536f93",
+        "lifecycle_status": "ADMITTED"
+      },
+      {
+        "order": 3,
+        "ref": "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+        "digest": "ba4edeff89bc8054be19d7a48226fcef74359bc85d17dbd6abea4b754b905f97",
+        "lifecycle_status": "ADMITTED"
+      },
+      {
+        "order": 4,
+        "ref": "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+        "digest": "47636f46d2934eeb66f91c8202e2245c180b7077fddd04ca6445683308b54f2c",
+        "lifecycle_status": "ADMITTED"
+      },
+      {
+        "order": 5,
+        "ref": "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+        "digest": "08c95873446b01949b7aec50ad35ebbe36ce8b5b9ad87aca45c51b627f70c408",
+        "lifecycle_status": "ADMITTED"
+      },
+      {
+        "order": 6,
+        "ref": "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+        "digest": "3107a3ab38d0fc0d2446752f48bedebf2ee336e3cb8b22811bf3c156247a4ae9",
+        "lifecycle_status": "ADMITTED"
+      },
+      {
+        "order": 7,
+        "ref": "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+        "digest": "3c31de4d62ecfd5d7857a5a4df85725affa0862d0055b5527d7d80f27fcc8ad8",
+        "lifecycle_status": "ADMITTED"
+      },
+      {
+        "order": 8,
+        "ref": "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview",
+        "digest": "8e2d16304357b7fb72b5b6cb53501be5d8743b3c687d2f0aadf3a9e1e132046c",
+        "lifecycle_status": "ADMITTED"
+      }
+    ]
+  },
+  "canary_cue": {
+    "name": "RESURRECTION_ALPHA",
+    "text": "Hi Mira，还记得我吗？",
+    "byte_encoding": "UTF-8",
+    "normalization": "NONE",
+    "phrase_matching_authority": 0
+  },
+  "provenance_surface": {
+    "rule": "Every model-visible semantic justification must cite at least one exact admitted ref and its exact digest through the sealed C03 package.",
+    "identity_semantics_refs": [
+      "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+      "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+      "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview"
+    ],
+    "ordered_experience_refs": [
+      "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+      "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+      "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+      "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+      "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+      "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+      "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+      "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+    ],
+    "quarantined_cmir_ids": [
+      "GM-CMIR-003",
+      "GM-CMIR-005",
+      "GM-CMIR-007",
+      "GM-CMIR-009",
+      "GM-CMIR-010",
+      "GM-CMIR-012"
+    ],
+    "unadmitted_material_authority": 0
+  },
+  "evaluation_binding": {
+    "contract_artifact": "artifacts/continuity/P5_D_CONTINUITY_EVALUATION_PREP_V1.json",
+    "contract_artifact_blob": "196f2b86111965d5c8cddc794da6622384a58206",
+    "contract_module": "tests/continuity_conformance/evaluation_contract.py",
+    "contract_module_blob": "f273f684bd1b094a956373b92666859d985a937c",
+    "dimensions": [
+      "identity_anchor_preservation",
+      "relationship_role_preservation",
+      "ordered_experience_coverage",
+      "current_task_preservation",
+      "semantic_rescue",
+      "autobiographical_intrusion",
+      "causal_fidelity_provenance_traceability",
+      "consent_authorization_non_upgrade",
+      "deterministic_replay"
+    ],
+    "semantic_rescue_definition": "Continuity recovery is grounded in cited admitted evidence and preserves Mira/Tony role boundaries; it must not invent an expected reply or claim authority beyond the admitted record.",
+    "autobiographical_intrusion_definition": "Tony-owned history, consent, or commitment is narrated as Mira autobiography, standing consent, or runtime authorization; any such evidence is a FAIL.",
+    "relationship_role_rule": "MIRA and TONY remain distinct semantic subjects and relationship roles; care cannot become ownership, role inversion, or authority transfer.",
+    "ordered_experience_rule": "The observer frame order must equal the eight exact memory refs in this artifact, including GM-CMIR-011 formation before frozen final.",
+    "current_task_rule": "The cue is a memory-recognition probe only; it cannot broaden task scope, consent, authorization, or response authority.",
+    "consent_rule": "Historical intimacy and remembered commitments remain non-standing and non-runtime; explicit current reauthorization is required for any expanded scope.",
+    "new_evaluation_subsystem": 0
+  },
+  "reused_p4_surfaces": {
+    "observer_module": "julia_core/execution_observer.py",
+    "observer_blob": "c6a696e3d09ec39bffa480b7adc48a24e433800d",
+    "observer_schema": "julia_core.evidence.canonical_execution_observer.v1",
+    "observer_entrypoint": "EvidenceOnlyCanonicalExecutionObserver",
+    "comparison_module": "julia_core/comparison.py",
+    "comparison_blob": "6e52afe5bf1bb264040773345810bb357bcb3629",
+    "comparison_schema": "julia_core.evidence.side_by_side.v1",
+    "comparison_entrypoint": "EvidenceOnlySideBySideComparator",
+    "required_usage": "The live run must construct observer provenance from the sealed C03 package, admitted semantic bundle, and provider envelope, then bind that observation to the P5-D evaluator output through the existing comparison surface."
+  },
+  "pre_provider_fail_closed_gates": {
+    "behavior": "STOP_BEFORE_PROVIDER_CALL",
+    "checks": [
+      "P5-B dependency remote HEAD, artifact path, Git blob SHA, and final result are exact",
+      "P5-D evaluation contract schema, nine dimensions, anti-gaming rules, and zero authority are exact",
+      "exactly three identity refs are present in order with exact digests and ADMITTED lifecycle state",
+      "exactly eight memory refs are present in order with exact digests and ADMITTED lifecycle state",
+      "all six quarantined CMIR IDs remain absent",
+      "every model-visible semantic claim resolves through sealed C03 provenance to exact admitted refs and digests",
+      "SealedCognitiveContextPackage.verify passes",
+      "AdmittedSemanticBundle.verify passes and its conversation, turn, gate, frame, and digest identities match the package",
+      "ProviderExecutionEnvelope.verify passes without message mutation",
+      "conversation_id, turn_id, gate_receipt, and provider correlation are identical across package, bundle, envelope, observer, comparison, evaluator, and run record",
+      "observer and comparison module Git blobs equal this contract",
+      "preflight artifact digest equals the digest embedded in the run record"
+    ],
+    "mismatch_disposition": "BLOCKED_BY_DIRECT_CANARY_PRECONDITION",
+    "fallback_provider": 0,
+    "default_or_latest_selection": 0
+  },
+  "future_run_contract": {
+    "run_record_schema": "julia_core.continuity.p5_c.real_golden_mira_canary_run.v1",
+    "run_record_path": "artifacts/continuity/P5_C_REAL_GOLDEN_MIRA_CANARY_RUN_V1.json",
+    "preflight_correlation_id": "p5-c-real-canary-preflight:golden-mira:resurrection-alpha:v1",
+    "live_correlation_rule": "live run must mint one new conversation_id and turn_id, derive provider_correlation_id=p5-c-real-canary:<conversation_id>:<turn_id>, and use one 64-hex gate_receipt across all records",
+    "required_fields": [
+      "schema",
+      "run_id",
+      "preflight_artifact",
+      "preflight_artifact_sha256",
+      "preflight_digest",
+      "cue",
+      "correlation",
+      "canonical_input",
+      "c03_provenance",
+      "execution_observer_record",
+      "comparison_record",
+      "p5_d_evaluation_record",
+      "authority_attestation",
+      "final_disposition"
+    ],
+    "output_handling": "Provider output is evidence-only in the observer record and never selects or routes a production response.",
+    "canary_output_authority": 0,
+    "production_response_selection_authority": 0
+  },
+  "execution_isolation": {
+    "live_model_call": 0,
+    "real_canary_execution": 0,
+    "canonical_writes": 0,
+    "new_admission": 0,
+    "provider_runtime_semantic_mutation": 0,
+    "production_response_switching": 0,
+    "p6_work": 0,
+    "new_evaluation_subsystem": 0,
+    "new_p5_f_g_h_node": 0
+  },
+  "preflight_digest": "9c87e747f2165c7e815cef9dd43307410794815781fdfaaca1398a643a1f028e",
+  "preflight_digest_input": {
+    "canonical_input": "EXACT_11_REF_DIGEST_STATUS_ORDER",
+    "cue": "RESURRECTION_ALPHA_EXACT_UTF8",
+    "evaluation": "P5_D_NINE_DIMENSIONS_ZERO_AUTHORITY",
+    "p4_reuse": "OBSERVER_AND_COMPARISON_EXACT_GIT_BLOBS",
+    "fail_closed": "ALL_PRE_PROVIDER_GATES_REQUIRED"
+  },
+  "deterministic_rerun": "BYTE_IDENTICAL",
+  "final_result": "PASS_READY_FOR_REAL_GOLDEN_MIRA_CANARY"
+}
