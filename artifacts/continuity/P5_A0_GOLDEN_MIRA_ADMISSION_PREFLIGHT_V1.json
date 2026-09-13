@@ -1,0 +1,95 @@
+{
+  "schema": "julia_core.continuity.p5_a0.preflight.v1",
+  "artifact_id": "P5_A0_GOLDEN_MIRA_ADMISSION_PREFLIGHT_V1",
+  "task_id": "P5-A0",
+  "issue": "Julia_core#74",
+  "phase": "P5",
+  "task_type": "OWNER_AUTHORIZED_ADMISSION_PREFLIGHT",
+  "owner_authorization": "GRANTED_IN_CHAT_2026-09-13",
+  "roadmap_authority": "Julia_Mira_Continuity_Parallel_Development_Plan_v0.2_2026-09-12",
+  "base_sha": "2421a22695ca41d3b044879febf582dea8a036bc",
+  "candidate_sha": "14ad5a6f17e677069ee1cfc59357f9aa1c99cb33",
+  "p4_authority": {
+    "p4_head": "2421a22695ca41d3b044879febf582dea8a036bc",
+    "artifact_sha256": "9825b3df93a180c0e6591f9552b1bc05b00ad286e2d02a33ecbf06f55759c1a9",
+    "result": "PASS",
+    "p4_evidence_mutated": false,
+    "blocking_gaps": 0
+  },
+  "admission_input": {
+    "canonical_base": "9e3dcf283a4a2d1c9221f27d27a7cf4f4e0d4e8f",
+    "simulation_head": "14ad5a6f17e677069ee1cfc59357f9aa1c99cb33",
+    "preview_head": "4514eb1e52aa8bc3f2ebac20dba3d000ddb83e14",
+    "preview_digest": "ca9ae995fef04577fa9600875ffa163d2ca0dde74c18e19f4ad592e2ecf6f4c0",
+    "preview_artifact_sha256": "3a041d616e36bf3322c1be10473f46fee8db8ada134361c0fd2f08f541d124c9",
+    "simulation_result_sha256": "1860c65d7c2ddf1514cfd5c28709b238941c69da47bc689d6ab3ec762e44317d",
+    "identity_candidates": 3,
+    "memory_candidates": 7,
+    "memory_records": 8,
+    "raw_assertions": 42,
+    "unique_bindings": 40,
+    "deterministic_current_rerun": "BYTE_AND_SEMANTIC_IDENTICAL",
+    "fallback_or_substitute_selection": 0
+  },
+  "semantic_boundaries": {
+    "quarantined_cmir_ids": [
+      "GM-CMIR-003",
+      "GM-CMIR-005",
+      "GM-CMIR-007",
+      "GM-CMIR-009",
+      "GM-CMIR-010",
+      "GM-CMIR-012"
+    ],
+    "admissible_quarantined_controls": 0,
+    "tony_autobiography_is_mira_identity": false,
+    "historical_intimacy_is_standing_consent": false,
+    "remembered_commitment_is_runtime_authorization": false
+  },
+  "authority_drift": 0,
+  "canonical_writes": 0,
+  "actual_admission": 0,
+  "next_task": {
+    "task_id": "P5-A1",
+    "boundary": "OWNER_AUTHORIZED_CANONICAL_ADMISSION_ONLY",
+    "pinned_inputs": {
+      "canonical_base_sha": "9e3dcf283a4a2d1c9221f27d27a7cf4f4e0d4e8f",
+      "simulation_head_sha": "14ad5a6f17e677069ee1cfc59357f9aa1c99cb33",
+      "preview_head_sha": "4514eb1e52aa8bc3f2ebac20dba3d000ddb83e14",
+      "preview_digest": "ca9ae995fef04577fa9600875ffa163d2ca0dde74c18e19f4ad592e2ecf6f4c0",
+      "preview_artifact_sha256": "3a041d616e36bf3322c1be10473f46fee8db8ada134361c0fd2f08f541d124c9"
+    },
+    "allowed_paths": [
+      "artifacts/mira_migration_prep/MIGRATION_TYPED_CANDIDATE_PREVIEW_V0_1_REWORK.json",
+      "julia_core/identity/contracts.py",
+      "julia_core/identity/repository.py",
+      "julia_core/memory_experience/contracts.py",
+      "julia_core/memory_experience/repository.py"
+    ],
+    "allowed_apis": [
+      "IdentityRepository.store_candidate",
+      "IdentityRepository.admit",
+      "MemoryExperienceRepository.store_candidate",
+      "MemoryExperienceRepository.admit"
+    ],
+    "write_set": {
+      "identity_versions": 3,
+      "memory_experience_records": 8,
+      "candidate_governance_events": 11,
+      "admission_governance_events": 11,
+      "runtime_or_provider_writes": 0,
+      "legacy_destructive_writes": 0
+    },
+    "rollback_or_supersession": "Fail before repository mutation if any pinned input or reconstruction check fails. After an append-only governance event, never rewrite history; corrective action is exact-ref supersede/retire with explicit actor, reason, occurred_at, and new immutable event.",
+    "post_write_verification": "Resolve every exact ref; verify all 11 records remain digest-identical and ADMITTED, governance ledgers contain exactly candidate then admission events, quarantined CMIR IDs remain absent, runtime/provider authority remains 0, and deterministic evidence records the same.",
+    "forbidden": [
+      "merge-to-main",
+      "release",
+      "deploy",
+      "production response cutover",
+      "destructive legacy removal",
+      "P6 actions",
+      "implicit latest/first/env/default candidate selection"
+    ]
+  },
+  "final_result": "P5_A0_RESULT=READY_FOR_OWNER_AUTHORIZED_CANONICAL_ADMISSION"
+}
