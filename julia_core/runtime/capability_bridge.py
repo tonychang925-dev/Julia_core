@@ -18,7 +18,7 @@ ADR-026 P4: Provider supplies capability, not cognition.
 from __future__ import annotations
 
 import json as _json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional
 
 from julia_core.capability.manager import CapabilityExecution, CapabilityManager
@@ -132,6 +132,8 @@ class RuntimeCapabilityBridge:
                     f"manager provider namespace '{provider_name}' is already bound"
                 ) from exc
         self._providers[provider_name] = provider
+        if provider_name == "market" and self._initialized:
+            self._set_market_capability_status(CapabilityStatus.AVAILABLE)
 
     # ── Initialization ──────────────────────────────────────────────────
 
@@ -182,6 +184,8 @@ class RuntimeCapabilityBridge:
         ))
 
         register_market_public_capabilities(self.registry)
+        if "market" in self._providers:
+            self._set_market_capability_status(CapabilityStatus.AVAILABLE)
 
         # External Code Review capability (Core semantic contract).
         # The provider (external_review) is implemented cross-repo in
@@ -199,6 +203,10 @@ class RuntimeCapabilityBridge:
         )
 
         self._initialized = True
+
+    def _set_market_capability_status(self, status: CapabilityStatus) -> None:
+        for definition in self.registry.by_provider("market"):
+            self.registry.register_definition(replace(definition, status=status))
 
     def _flatten_providers(self) -> dict:
         """Flatten nested provider dict into manager-compatible flat dict."""
@@ -243,7 +251,9 @@ class RuntimeCapabilityBridge:
             lines.append(f'- {d.name}: {d.description}。参数: {{{params}}}')
 
         # Market tools
-        for d in self.registry.by_provider("ai_theme_app"):
+        for d in self.registry.by_provider("market"):
+            if d.status != CapabilityStatus.AVAILABLE:
+                continue
             lines.append(f'- {d.name}: {d.description}')
             if d.input_schema:
                 params = ", ".join(f'"{k}": {v}' for k, v in d.input_schema.items())

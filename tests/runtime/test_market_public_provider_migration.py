@@ -57,6 +57,8 @@ def test_initialize_registers_exactly_three_public_market_definitions():
         definition.permission_scope.endswith((".write", ".mutate", ".delete"))
         for definition in bridge.registry.all_definitions()
     )
+    manifest = bridge.tool_manifest()
+    assert not any(name in manifest for name in MARKET_CAPABILITIES)
 
 
 def test_canonical_initialize_has_no_legacy_market_reachability():
@@ -82,6 +84,7 @@ async def test_bound_provider_is_used_by_capability_manager():
     bridge = RuntimeCapabilityBridge()
     bridge.initialize()
     bridge.register_provider("market", provider)
+    definitions = bridge.registry.by_provider("market")
 
     execution = await bridge.manager.execute_typed(
         CapabilityRequest(
@@ -94,6 +97,13 @@ async def test_bound_provider_is_used_by_capability_manager():
     assert provider.execute_calls == 1
     assert provider.requests[0].capability_id == "market.product.read"
     assert bridge.manager.providers["market"] is provider
+    assert len(definitions) == 3
+    assert all(
+        definition.status is CapabilityStatus.AVAILABLE for definition in definitions
+    )
+    manifest = bridge.tool_manifest()
+    assert all(definition.name in manifest for definition in definitions)
+    assert "market.intelligence.observe" not in manifest
 
 
 @pytest.mark.asyncio
