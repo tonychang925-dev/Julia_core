@@ -1,0 +1,266 @@
+{
+  "task_id": "P4-C0",
+  "issue": "Julia_core#69",
+  "roadmap_authority": "Julia_Mira_Continuity_Parallel_Development_Plan_v0.2_2026-09-12",
+  "phase": "P4",
+  "lane": "P4-C Observability / Provenance Surface",
+  "task_type": "AUDIT_ONLY",
+  "audited_repositories": {
+    "Julia_core": "tonychang925-dev/Julia_core",
+    "Julia-AI-Assistant": "tonychang925-dev/Julia-AI-Assistant"
+  },
+  "audited_shas": {
+    "Julia_core_formal_p3_exit": "fdf0f1d7df8bbefd76bf8a41ab23a6e99b20404a",
+    "Julia_core_accepted_p4_b1_lineage": "0f13f0bb2e6d36f544c618c8ad0e96551e1c64a6",
+    "Julia_core_f1c_exact_assistant_dependency": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+    "Julia-AI-Assistant_f1e_implementation": "ba0fa19948fba82a22a5cc5ab7d9d3d4af2090b7",
+    "Julia-AI-Assistant_f1e_evidence_head": "d245ae3123427d478f2eb29ae8f730578544f285"
+  },
+  "candidate_observability_surfaces": [
+    {
+      "repository": "Julia_core",
+      "sha": "0f13f0bb2e6d36f544c618c8ad0e96551e1c64a6",
+      "path": "julia_core/projection/contracts.py",
+      "symbols": [
+        "IdentityFrame",
+        "ExperienceFrame",
+        "ExperienceFrameSet"
+      ],
+      "coverage": "source refs, source digests, frame provenance refs, deterministic frame/carrier digests, and ordered frame carriers",
+      "authority": 0
+    },
+    {
+      "repository": "Julia_core",
+      "sha": "0f13f0bb2e6d36f544c618c8ad0e96551e1c64a6",
+      "path": "julia_core/context_admission/gate.py",
+      "symbol": "ExclusiveAdmissionGate.seal",
+      "coverage": "C03 gate receipt, ExperienceFrameSet carrier digest, ordered ExperienceFrame digest manifest, frame count, and exact admitted-frame digest manifest",
+      "authority": "C03 receipt production only; no semantic mutation"
+    },
+    {
+      "repository": "Julia_core",
+      "sha": "0f13f0bb2e6d36f544c618c8ad0e96551e1c64a6",
+      "path": "julia_core/context_admission/semantic_binding.py",
+      "symbols": [
+        "ExactAdmittedSemanticBinder.bind",
+        "AdmittedSemanticBundle.verify",
+        "AdmittedSemanticBundle.semantic_fingerprint"
+      ],
+      "coverage": "exact ordered three-unit semantic messages, unit digests, package digest manifest, gate receipt, and deterministic semantic fingerprint",
+      "authority": 0
+    },
+    {
+      "repository": "Julia_core",
+      "sha": "0f13f0bb2e6d36f544c618c8ad0e96551e1c64a6",
+      "path": "julia_core/alignment_os/contracts.py",
+      "symbol": "ProviderExecutionEnvelope",
+      "coverage": "conversation/turn identity, gate receipt, semantic fingerprint, exact ordered messages, provider id, and alignment execution metadata",
+      "authority": 0
+    },
+    {
+      "repository": "Julia_core",
+      "sha": "0f13f0bb2e6d36f544c618c8ad0e96551e1c64a6",
+      "path": "julia_core/runtime/assistant_runtime.py",
+      "symbols": [
+        "JuliaAssistantRuntime.prepare",
+        "JuliaAssistantRuntime.trace",
+        "RuntimeBindingTrace"
+      ],
+      "coverage": "pre-provider envelope preparation and non-semantic conversation/turn/gate/fingerprint/provider correlation trace",
+      "authority": 0,
+      "provider_execution_status": "NOT_CAPTURED"
+    },
+    {
+      "repository": "Julia-AI-Assistant",
+      "sha": "ba0fa19948fba82a22a5cc5ab7d9d3d4af2090b7",
+      "path": "runtime/canonical_turn.py",
+      "symbols": [
+        "prepare_canonical_turn",
+        "execute_canonical_turn",
+        "stream_canonical_turn",
+        "PreparedCanonicalTurn"
+      ],
+      "coverage": "exact caller IdentityFrame/ExperienceFrameSet ingress through C03, Binder, Runtime, envelope, and injected provider transport; preparation trace includes canonical_writes=0 and admission_writes=0",
+      "authority": 0,
+      "provider_execution_status": "returned output only; completion/failure disposition and preparation trace are discarded by execute/stream functions"
+    },
+    {
+      "repository": "Julia_core",
+      "sha": "0f13f0bb2e6d36f544c618c8ad0e96551e1c64a6",
+      "path": "julia_core/comparison.py",
+      "symbols": [
+        "CanonicalExecutionEvidence.from_canonical_execution",
+        "ReferenceExecutionEvidence",
+        "EvidenceOnlySideBySideComparator.compare",
+        "SideBySideComparisonRecord"
+      ],
+      "coverage": "exact package/binding/envelope alignment validation, conversation/turn correlation, ordered unit digests, fingerprint, provider and alignment identity, gate receipt, optional status/output presence, reference-canonical linkage, external correlation id, and deterministic replay digest",
+      "authority": 0,
+      "provenance_manifest": "NOT_EMITTED",
+      "execution_status_source": "CALLER_SUPPLIED"
+    }
+  ],
+  "sufficient_existing_capabilities": [
+    "Exact IdentityFrame and ExperienceFrame source refs, source digests, and provenance refs are available on immutable typed inputs.",
+    "Exact ExperienceFrameSet carrier digest and ordered ExperienceFrame digest manifest are sealed by C03.",
+    "Gate receipt, admitted-frame digest manifest, exact ordered semantic units/messages, and semantic fingerprint are mechanically preserved through binding and ProviderExecutionEnvelope.",
+    "conversation_id, turn_id, gate receipt, semantic fingerprint, provider_id, and modality provide deterministic canonical correlation.",
+    "ProviderExecutionEnvelope preserves identity, exact ordered messages, provider_id, and non-semantic alignment execution metadata.",
+    "P4-B1 pairs reference and canonical evidence under exact conversation/turn correlation and emits deterministic comparison and replay digests without selection fields.",
+    "Execution evidence can represent SUCCEEDED, FAILED, ERROR, and NOT_RUN plus output presence.",
+    "Current preparation/comparison seams perform no canonical write, identity mutation, memory-experience mutation, admission write, semantic reconstruction, or production response selection."
+  ],
+  "missing_required_capabilities": [
+    {
+      "capability": "UNIFIED_CANONICAL_PROVENANCE_MANIFEST",
+      "reason": "P4-B1 CanonicalExecutionEvidence accepts the exact package/binding/envelope chain but emits only one evidence source_ref plus aggregate unit digests; it does not emit or digest the IdentityFrame source ref/digest, each ExperienceFrame source ref/digest, ExperienceFrameSet carrier digest and ordered frame manifest, or CurrentConversationalTaskContext provenance.",
+      "does_this_directly_prevent_p4_c_observability_gate": "YES"
+    },
+    {
+      "capability": "MECHANICAL_PROVIDER_EXECUTION_DISPOSITION",
+      "reason": "execution_status and output_present are caller-supplied fields; RuntimeBindingTrace is pre-provider, provider transports return text or raise without a correlated result record, and Assistant execute/stream paths discard the preparation trace. No bounded observer mechanically captures completion, empty/nonempty output, cancellation/failure class, or error disposition against the exact envelope identity.",
+      "does_this_directly_prevent_p4_c_observability_gate": "YES"
+    },
+    {
+      "capability": "EXECUTION_BOUND_ZERO_AUTHORITY_ATTESTATION",
+      "reason": "Existing code and F1E preparation trace establish zero writes for preparation, and P4-B1 declares comparator authority zero, but there is no immutable per-execution observer record mechanically binding canonical_writes=0, identity_authority_mutations=0, and memory_experience_authority_mutations=0 to the same provenance and execution-disposition digest.",
+      "does_this_directly_prevent_p4_c_observability_gate": "YES"
+    },
+    {
+      "capability": "PROVENANCE_SENSITIVE_EXECUTION_REPLAY_ID",
+      "reason": "P4-B1 replay_digest covers the caller-supplied paired evidence body but does not cover the omitted exact canonical source-ref/digest manifest or a mechanically observed provider execution disposition.",
+      "does_this_directly_prevent_p4_c_observability_gate": "YES"
+    }
+  ],
+  "provenance_coverage": {
+    "canonical_source_refs_and_digests": "AVAILABLE_ON_EXACT_INPUTS_AND_PACKAGE_BUT_NOT_IN_P4_B1_OBSERVER_RECORD",
+    "identityframe_provenance": "AVAILABLE",
+    "experienceframeset_carrier_digest": "AVAILABLE_AND_SEALED",
+    "ordered_experience_frame_digest_manifest": "AVAILABLE_AND_SEALED",
+    "c03_gate_receipt": "AVAILABLE_END_TO_END",
+    "admitted_semantic_fingerprint": "AVAILABLE_AND_VERIFIED_END_TO_END",
+    "exact_ordered_units_and_messages": "AVAILABLE_AND_COMPARED_BY_DIGEST_ORDER",
+    "unified_observer_manifest": "MISSING"
+  },
+  "correlation_coverage": {
+    "conversation_id_and_turn_id": "AVAILABLE_AND_FAIL_CLOSED_ON_PAIR_MISMATCH",
+    "gate_receipt_binding": "AVAILABLE",
+    "semantic_fingerprint_binding": "AVAILABLE",
+    "provider_id_and_alignment_identity": "AVAILABLE",
+    "external_reference_canonical_linkage": "AVAILABLE_IN_P4_B1",
+    "provider_execution_completion_or_failure_linkage": "MISSING"
+  },
+  "failure_status_coverage": {
+    "representable_statuses": [
+      "SUCCEEDED",
+      "FAILED",
+      "ERROR",
+      "NOT_RUN"
+    ],
+    "output_presence": "REPRESENTABLE",
+    "source_of_truth": "CALLER_SUPPLIED",
+    "mechanical_capture_from_provider_invocation": "MISSING",
+    "failure_disposition": "MISSING_STRUCTURED_NON_SEMANTIC_ERROR_CLASSIFICATION"
+  },
+  "authority_analysis": {
+    "OBSERVABILITY_OUTPUT_AUTHORITY": 0,
+    "SEMANTIC_AUTHORITY": 0,
+    "PRODUCTION_RESPONSE_SELECTION_AUTHORITY": 0,
+    "CANONICAL_WRITES": 0,
+    "IDENTITY_AUTHORITY_MUTATION": 0,
+    "MEMORY_EXPERIENCE_AUTHORITY_MUTATION": 0,
+    "POST_C03_SEMANTIC_RECONSTRUCTION": 0,
+    "audit_files_changed": 1,
+    "production_files_changed": 0
+  },
+  "deferred_out_of_scope": [
+    {
+      "capability": "GOLDEN_MIRA_ADMISSION",
+      "scope_gate": "NO",
+      "reason": "P5 owner-gated"
+    },
+    {
+      "capability": "REAL_CANONICAL_IDENTITY_OR_MEMORY_POPULATION",
+      "scope_gate": "NO",
+      "reason": "outside P4 evidence observation"
+    },
+    {
+      "capability": "REAL_PERSONA_OR_USER_CANARY_TRAFFIC",
+      "scope_gate": "NO",
+      "reason": "P5 owner-gated"
+    },
+    {
+      "capability": "PRODUCTION_RESPONSE_SWITCHING",
+      "scope_gate": "NO",
+      "reason": "observer output must not select or route responses"
+    },
+    {
+      "capability": "CUTOVER_MERGE_RELEASE_OR_DEPLOY",
+      "scope_gate": "NO",
+      "reason": "P6 owner-gated"
+    },
+    {
+      "capability": "DURABLE_PRODUCTION_OBSERVABILITY_DEPLOYMENT",
+      "scope_gate": "NO",
+      "reason": "P4 requires only bounded evidence surface"
+    }
+  ],
+  "p4_c_scope_gate": {
+    "rule": "Only YES gaps may become P4-C requirements.",
+    "yes_gaps": [
+      "UNIFIED_CANONICAL_PROVENANCE_MANIFEST",
+      "MECHANICAL_PROVIDER_EXECUTION_DISPOSITION",
+      "EXECUTION_BOUND_ZERO_AUTHORITY_ATTESTATION",
+      "PROVENANCE_SENSITIVE_EXECUTION_REPLAY_ID"
+    ],
+    "no_gaps": "All deferred_out_of_scope entries remain outside P4-C."
+  },
+  "next_implementation_node": {
+    "name": "P4-C1 Evidence-Only Canonical Execution Observer",
+    "smallest_boundary": {
+      "inputs": [
+        "exact caller-supplied IdentityFrame",
+        "exact caller-supplied ExperienceFrameSet",
+        "exact SealedCognitiveContextPackage",
+        "exact AdmittedSemanticBundle",
+        "exact ProviderExecutionEnvelope",
+        "injected provider execution callable or exact already-produced execution outcome evidence"
+      ],
+      "outputs": [
+        "immutable canonical source-ref/digest manifest",
+        "ExperienceFrameSet carrier digest and ordered frame digest manifest",
+        "gate receipt, semantic fingerprint, exact ordered unit digests, and provider/alignment identity",
+        "mechanically captured SUCCEEDED/FAILED/ERROR/NOT_RUN disposition and output presence",
+        "non-semantic failure classification",
+        "canonical_writes=0 and identity/memory authority mutation=0 execution-bound attestation",
+        "provenance-and-disposition-sensitive replay digest"
+      ],
+      "forbidden": [
+        "response winner or preference",
+        "selected or preferred response",
+        "production routing or switch signal",
+        "semantic reconstruction",
+        "canonical repository or authority mutation",
+        "provider behavior change",
+        "production response path attachment"
+      ],
+      "implementation_files": "one evidence-only Core contract/harness module plus focused tests; adapt P4-B1 canonical evidence construction without changing comparator authority"
+    }
+  },
+  "verification": {
+    "core": {
+      "command": "pytest tests/evidence/test_side_by_side_comparison.py tests/context_admission/test_p3_n0_alignment_boundary.py tests/runtime/test_p3_n0_runtime_envelope.py tests/context_admission/test_binder_experience_frame_set_migration.py -q",
+      "result": "63 passed"
+    },
+    "assistant": {
+      "command": "JULIA_CORE_PATH=<exact F1C worktree> PYTHONPATH=<exact F1C worktree> pytest tests/test_p3_f1e_canonical_turn_authority_rebind.py tests/test_p3_n1_provider_transport.py -q",
+      "result": "32 passed, 1 unrelated python_multipart deprecation warning"
+    },
+    "remote_sha_verification": "PASS for Julia_core P4-B1 and Julia-AI-Assistant F1E evidence head"
+  },
+  "production_code_changed": 0,
+  "p4_scope_expansion": 0,
+  "p5_work_performed": 0,
+  "p6_work_performed": 0,
+  "final_result": "P4_C0_RESULT = BOUNDED_P4_C_IMPLEMENTATION_REQUIRED"
+}
