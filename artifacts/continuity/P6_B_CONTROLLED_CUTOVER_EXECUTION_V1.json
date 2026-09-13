@@ -1,0 +1,229 @@
+{
+  "artifact_id": "P6_B_CONTROLLED_CUTOVER_EXECUTION_V1",
+  "authority_and_write_counters": {
+    "authorized_main_fast_forwards": 1,
+    "canonical_writes": 0,
+    "deploys": 0,
+    "force_pushes": 0,
+    "identity_admissions": 0,
+    "memory_experience_mutations": 0,
+    "merge_release_or_rebase_commits_created": 0,
+    "p6_c_execution": 0,
+    "production_response_selections": 0,
+    "production_routing_or_switching": 0,
+    "provider_runtime_semantic_mutations": 0,
+    "releases": 0,
+    "ruleset_restorations": 1,
+    "temporary_ruleset_suspensions": 1,
+    "unrelated_ruleset_mutations": 0
+  },
+  "blockers": [],
+  "execution_order": [
+    "capture_exact_ruleset_before_state",
+    "verify_main_before_e2edba9dfff460e3769f93b58491afaf644e6da5",
+    "temporarily_disable_ruleset_21914907",
+    "verify_main_before_remained_e2edba9dfff460e3769f93b58491afaf644e6da5",
+    "exact_non_force_fast_forward_to_28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+    "verify_remote_main_equals_28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+    "restore_ruleset_21914907_exact_semantic_before_state",
+    "re_read_ruleset_and_verify_exact_restoration",
+    "re_read_main_and_candidate_after_restoration"
+  ],
+  "final_result": "PASS_P6_B_EXACT_CUTOVER_RULESET_RESTORED",
+  "issue": "tonychang925-dev/Julia_core#82",
+  "main_cutover": {
+    "after": "28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+    "ahead_by": 72,
+    "ancestry_proof": "PASS_EXACT_FAST_FORWARD_ANCESTRY",
+    "before": "e2edba9dfff460e3769f93b58491afaf644e6da5",
+    "behind_by": 0,
+    "candidate_mutations": 0,
+    "candidate_sha": "28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+    "force_used": false,
+    "merge_commits_created": 0,
+    "method": "EXACT_NON_FORCE_FAST_FORWARD",
+    "push_refspec": "28b502ca4f48e580d4941e095bb8dccc6f3e9682:refs/heads/main",
+    "rebase_commits_created": 0,
+    "remote_main_verified_after": true,
+    "remote_result": "e2edba9..28b502c main",
+    "squash_commits_created": 0
+  },
+  "owner_authorization_comment_id": 5653763724,
+  "owner_authorization_url": "https://github.com/tonychang925-dev/Julia_core/issues/82#issuecomment-5653763724",
+  "phase": "P6-B",
+  "ruleset_control": {
+    "after": {
+      "bypass_actors": [],
+      "conditions": {
+        "ref_name": {
+          "exclude": [],
+          "include": [
+            "~DEFAULT_BRANCH"
+          ]
+        }
+      },
+      "current_user_can_bypass": "never",
+      "enforcement": "active",
+      "id": 21914907,
+      "name": "CRB Main Mutation Guard",
+      "rules": [
+        {
+          "type": "deletion"
+        },
+        {
+          "type": "non_fast_forward"
+        },
+        {
+          "parameters": {
+            "allowed_merge_methods": [
+              "merge",
+              "squash",
+              "rebase"
+            ],
+            "dismiss_stale_reviews_on_push": false,
+            "require_code_owner_review": false,
+            "require_extra_approval_for_unattributed_changes": true,
+            "require_last_push_approval": false,
+            "required_approving_review_count": 0,
+            "required_review_thread_resolution": false,
+            "required_reviewers": []
+          },
+          "type": "pull_request"
+        },
+        {
+          "parameters": {
+            "do_not_enforce_on_create": false,
+            "required_status_checks": [
+              {
+                "context": "NO_CRITICAL_FALLBACK_GATE"
+              }
+            ],
+            "strict_required_status_checks_policy": true
+          },
+          "type": "required_status_checks"
+        }
+      ],
+      "target": "branch"
+    },
+    "after_api_updated_at": "2026-09-13T22:09:51.029+08:00",
+    "after_digest_semantic_fields": "4acdc75a3075f264c91448740da1a4299785ddeb72d0297437b5a35dab1fd374",
+    "before": {
+      "bypass_actors": [],
+      "conditions": {
+        "ref_name": {
+          "exclude": [],
+          "include": [
+            "~DEFAULT_BRANCH"
+          ]
+        }
+      },
+      "current_user_can_bypass": "never",
+      "enforcement": "active",
+      "id": 21914907,
+      "name": "CRB Main Mutation Guard",
+      "rules": [
+        {
+          "type": "deletion"
+        },
+        {
+          "type": "non_fast_forward"
+        },
+        {
+          "parameters": {
+            "allowed_merge_methods": [
+              "merge",
+              "squash",
+              "rebase"
+            ],
+            "dismiss_stale_reviews_on_push": false,
+            "require_code_owner_review": false,
+            "require_extra_approval_for_unattributed_changes": true,
+            "require_last_push_approval": false,
+            "required_approving_review_count": 0,
+            "required_review_thread_resolution": false,
+            "required_reviewers": []
+          },
+          "type": "pull_request"
+        },
+        {
+          "parameters": {
+            "do_not_enforce_on_create": false,
+            "required_status_checks": [
+              {
+                "context": "NO_CRITICAL_FALLBACK_GATE"
+              }
+            ],
+            "strict_required_status_checks_policy": true
+          },
+          "type": "required_status_checks"
+        }
+      ],
+      "target": "branch"
+    },
+    "before_api_updated_at": "2026-09-06T17:13:10.169+08:00",
+    "before_digest_semantic_fields": "4acdc75a3075f264c91448740da1a4299785ddeb72d0297437b5a35dab1fd374",
+    "current_user_can_bypass_after": "never",
+    "permanent_weakening": 0,
+    "required_status_check_after": "NO_CRITICAL_FALLBACK_GATE",
+    "restoration_comparison": "PASS: id, name, target, enforcement, conditions, rules, bypass actors, and current_user_can_bypass are field-equivalent; API updated_at is GitHub-maintained write metadata and is reported separately.",
+    "restored_exactly": true,
+    "ruleset_id": 21914907,
+    "ruleset_name": "CRB Main Mutation Guard",
+    "temporary_state": {
+      "bypass_actors": [],
+      "conditions": {
+        "ref_name": {
+          "exclude": [],
+          "include": [
+            "~DEFAULT_BRANCH"
+          ]
+        }
+      },
+      "current_user_can_bypass": "never",
+      "enforcement": "disabled",
+      "id": 21914907,
+      "name": "CRB Main Mutation Guard",
+      "rules": [
+        {
+          "type": "deletion"
+        },
+        {
+          "type": "non_fast_forward"
+        },
+        {
+          "parameters": {
+            "allowed_merge_methods": [
+              "merge",
+              "squash",
+              "rebase"
+            ],
+            "dismiss_stale_reviews_on_push": false,
+            "require_code_owner_review": false,
+            "require_extra_approval_for_unattributed_changes": true,
+            "require_last_push_approval": false,
+            "required_approving_review_count": 0,
+            "required_review_thread_resolution": false,
+            "required_reviewers": []
+          },
+          "type": "pull_request"
+        },
+        {
+          "parameters": {
+            "do_not_enforce_on_create": false,
+            "required_status_checks": [
+              {
+                "context": "NO_CRITICAL_FALLBACK_GATE"
+              }
+            ],
+            "strict_required_status_checks_policy": true
+          },
+          "type": "required_status_checks"
+        }
+      ],
+      "target": "branch"
+    },
+    "unrelated_rulesets_mutated": 0
+  },
+  "schema": "julia_core.continuity.p6_b.controlled_cutover_execution.v1",
+  "task_id": "P6-B-CONTROLLED-CUTOVER"
+}
