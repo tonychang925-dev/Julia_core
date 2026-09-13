@@ -1,0 +1,194 @@
+{
+  "task_id": "P4-B1",
+  "issue": "tonychang925-dev/Julia_core#67",
+  "phase": "P4",
+  "lane": "P4-B Side-by-Side Comparison Harness",
+  "task_type": "BOUNDED_IMPLEMENTATION",
+  "source_audit": {
+    "issue": "tonychang925-dev/Julia_core#66",
+    "result": "BOUNDED_P4_B_IMPLEMENTATION_REQUIRED",
+    "evidence_head": "51f757deeeabdb06be0dd89d7caf193aa7a3b126"
+  },
+  "base_sha": "51f757deeeabdb06be0dd89d7caf193aa7a3b126",
+  "parent_sha": "51f757deeeabdb06be0dd89d7caf193aa7a3b126",
+  "candidate_sha": "93f5369ddaef3569893bab9fbb6e5a1224ae241b",
+  "remote_head": "PENDING_PUSH",
+  "changed_paths": [
+    "julia_core/comparison.py",
+    "tests/evidence/test_side_by_side_comparison.py",
+    "artifacts/continuity/P4_B1_EVIDENCE_ONLY_SIDE_BY_SIDE_COMPARISON_V1.json"
+  ],
+  "diff_stat": {
+    "implementation_commit": "93f5369ddaef3569893bab9fbb6e5a1224ae241b",
+    "files_changed": 2,
+    "insertions": 1003,
+    "deletions": 0
+  },
+  "input_contracts": {
+    "reference": {
+      "contract": "ReferenceExecutionEvidence",
+      "immutable": true,
+      "required": [
+        "schema_version",
+        "source_ref",
+        "conversation_id",
+        "turn_id",
+        "execution_status",
+        "output_present"
+      ],
+      "optional_comparison_inputs": [
+        "semantic_fingerprint",
+        "ordered_unit_digests",
+        "provider_id",
+        "alignment_identity",
+        "gate_receipt",
+        "continuity_evaluation"
+      ]
+    },
+    "canonical": {
+      "contract": "CanonicalExecutionEvidence",
+      "immutable": true,
+      "derivation": "CanonicalExecutionEvidence.from_canonical_execution",
+      "required_exact_sources": [
+        "SealedCognitiveContextPackage",
+        "AdmittedSemanticBundle",
+        "ProviderExecutionEnvelope"
+      ],
+      "required": [
+        "schema_version",
+        "source_ref",
+        "conversation_id",
+        "turn_id",
+        "semantic_fingerprint",
+        "ordered_unit_digests",
+        "gate_receipt",
+        "provider_id",
+        "alignment_identity"
+      ],
+      "optional_execution_evidence": [
+        "execution_status",
+        "output_present",
+        "continuity_evaluation"
+      ]
+    },
+    "continuity": {
+      "contract": "ContinuityEvaluationEvidence",
+      "immutable": true,
+      "required": [
+        "source_ref",
+        "nonempty scalar evaluation_fields"
+      ]
+    }
+  },
+  "correlation_contract": {
+    "minimum_required_identity": [
+      "conversation_id",
+      "turn_id"
+    ],
+    "external_correlation_id": "optional deterministic evidence-only alias; never replaces canonical identity",
+    "mismatch_behavior": "SideBySideComparisonRejected fail-closed exception",
+    "end_to_end_canonical_derivation": "package, binding, and envelope identities must match exactly before CanonicalExecutionEvidence is constructed"
+  },
+  "comparison_dimensions": {
+    "correlation_identity": "equality evidence",
+    "semantic_fingerprint": "equality or difference evidence",
+    "message_unit_order": "exact ordered digest-list digest comparison",
+    "provider_identity": "provider id comparison where reference evidence is available",
+    "alignment_identity": "canonical alignment metadata identity where reference evidence is available",
+    "gate_receipt": "gate provenance where reference evidence is available",
+    "output_execution": "reference status/presence and optional canonical status/presence",
+    "unavailable_reference_dimension": "availability false and equality null; no inference"
+  },
+  "replay_digest_contract": {
+    "canonical_json": "ensure_ascii=false, sort_keys=true, separators=(\",\", \":\")",
+    "comparison_provenance": "SHA-256 over paired evidence body before continuity binding digests",
+    "replay_digest": "SHA-256 over complete paired comparison record including continuity bindings",
+    "identical_inputs": "identical replay digest",
+    "material_change": "different replay digest",
+    "authority": "EVIDENCE_ONLY"
+  },
+  "continuity_evaluation_binding": {
+    "missing_values": "remain absent; no inference or completion",
+    "bindings": [
+      "evidence side",
+      "exact source_ref",
+      "evaluation fields digest",
+      "pair conversation_id and turn_id",
+      "optional external correlation id",
+      "comparison provenance digest"
+    ],
+    "authority": "EVIDENCE_ONLY"
+  },
+  "authority_analysis": {
+    "COMPARISON_OUTPUT_AUTHORITY": 0,
+    "PRODUCTION_RESPONSE_SELECTION_AUTHORITY": 0,
+    "SEMANTIC_AUTHORITY": 0,
+    "CANONICAL_WRITES": 0,
+    "IDENTITY_AUTHORITY_MUTATION": 0,
+    "MEMORY_EXPERIENCE_AUTHORITY_MUTATION": 0,
+    "POST_C03_SEMANTIC_RECONSTRUCTION": 0,
+    "FALLBACK_OR_DEFAULT_SOURCE_SELECTION": 0,
+    "objects_constructed_by_comparator": [
+      "immutable evidence records",
+      "immutable dimension records",
+      "immutable continuity bindings"
+    ]
+  },
+  "positive_tests": {
+    "command": "pytest tests/evidence/test_side_by_side_comparison.py -q",
+    "collected": 23,
+    "passed": 23,
+    "covered": [
+      "exact pair accepted",
+      "same conversation_id and turn_id accepted",
+      "semantic fingerprint equality and difference evidence",
+      "message/unit order difference evidence",
+      "provider and alignment identity recorded",
+      "gate receipt recorded",
+      "output presence/status for both sides",
+      "continuity provenance preserved",
+      "deterministic replay digest",
+      "material evidence sensitivity"
+    ]
+  },
+  "negative_tests": {
+    "passed": true,
+    "covered": [
+      "conversation_id mismatch rejected",
+      "turn_id mismatch rejected",
+      "malformed reference rejected",
+      "malformed canonical rejected",
+      "missing required correlation identity rejected",
+      "choice or switch fields absent and rejected as unexpected inputs",
+      "mutable or ambiguous evidence types rejected",
+      "subclasses rejected",
+      "no semantic object construction in comparator",
+      "no production response switching surface",
+      "no canonical writes or authority mutation APIs"
+    ]
+  },
+  "regression": {
+    "command": "pytest tests/evidence/test_side_by_side_comparison.py tests/context_admission/test_p3_n0_alignment_boundary.py tests/runtime/test_p3_n0_runtime_envelope.py tests/context_admission/test_binder_experience_frame_set_migration.py -q",
+    "result": "63 passed",
+    "p3_invariant_regression": 0
+  },
+  "static_gate": {
+    "command": "rg -n \"winner|preferred|selected|switch|ready|rank|route|routing|fallback|legacy|mock|stub|shadow|IdentityFrame|ExperienceFrameSet|ProviderAlignmentBoundary|get_llm_provider\" julia_core/comparison.py",
+    "hits": [
+      {
+        "line": 3,
+        "term": "mint",
+        "classification": "docstring negation: comparator never mints canonical identity; not a forbidden capability"
+      }
+    ],
+    "ACTIVE_SELECTION_OR_SWITCH_AUTHORITY": 0,
+    "ACTIVE_SEMANTIC_AUTHORITY": 0,
+    "result": "PASS"
+  },
+  "git_diff_check": "PASS",
+  "p4_scope_expansion": 0,
+  "production_code_changed": 1,
+  "p5_work_performed": 0,
+  "p6_work_performed": 0,
+  "final_result": "P4_B1_EVIDENCE_ONLY_COMPARISON_AVAILABLE"
+}
