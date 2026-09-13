@@ -1,0 +1,185 @@
+{
+  "append_only_proof": {
+    "history_rewrites": 0,
+    "identity_event_appended": 1,
+    "memory_event_appended": 1,
+    "original_digests_unchanged": 11,
+    "original_records_readable": 11,
+    "record_rewrites": 0,
+    "result": "PASS"
+  },
+  "artifact_id": "P5_E_RECOVERY_SUPERSESSION_NO_WRITE_REHEARSAL_V1",
+  "authority": {
+    "actual_admit_or_store_calls": 0,
+    "actual_retire_calls": 0,
+    "actual_supersede_calls": 0,
+    "canonical_writes": 0,
+    "production_response_selection_authority": 0,
+    "provider_writes": 0,
+    "runtime_writes": 0,
+    "semantic_authority": 0
+  },
+  "deterministic_rerun": "BYTE_IDENTICAL",
+  "execution": {
+    "future_action_authorized": 0,
+    "live_canary_or_model_call": 0,
+    "production_response_selection": 0
+  },
+  "fail_closed_checks": {
+    "actual_attempted_writes": 0,
+    "ambiguous_successor": {
+      "reason": "plan exact successor ref",
+      "result": "REJECTED_BEFORE_MUTATION"
+    },
+    "commitment_stage_regression": {
+      "reason": "frozen-final successor cannot regress to formation draft",
+      "result": "REJECTED_BEFORE_MUTATION"
+    },
+    "quarantine_substitution": {
+      "reason": "memory successor preserves exact experience lineage",
+      "result": "REJECTED_BEFORE_MUTATION"
+    },
+    "result": "PASS",
+    "stale_target": {
+      "reason": "fresh target digest: identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+      "result": "REJECTED_BEFORE_MUTATION"
+    }
+  },
+  "final_result": "P5_E_RECOVERY_SUPERSESSION_NO_WRITE_REHEARSAL_PASS",
+  "identity_recovery_rehearsal": {
+    "quarantine_substitution_rejected": true,
+    "result": "PASS",
+    "simulation": {
+      "actual_canonical_writes": 0,
+      "actual_repository_calls": 0,
+      "all_original_refs_readable": true,
+      "append_only_event": {
+        "actor": "owner:tony",
+        "event_id": "identity-supersession-rehearsal:identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview:2",
+        "occurred_at": "rehearsal:2026-09-13T00:00:00Z",
+        "reason": "Rehearsed identity correction; no governance action is authorized here",
+        "status": "SUPERSEDED",
+        "successor_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "successor_ref": "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.2-owner-correction-candidate",
+        "target": "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview"
+      },
+      "history_rewrites": 0,
+      "original_digest_unchanged": true,
+      "original_event_prefix_unchanged": true,
+      "original_record_readable": true,
+      "plan": {
+        "action": "SUPERSEDE",
+        "actor": "owner:tony",
+        "authority": "REHEARSAL_ONLY",
+        "execution": "NOT_EXECUTED",
+        "namespace": "identity",
+        "occurred_at": "rehearsal:2026-09-13T00:00:00Z",
+        "reason": "Rehearsed identity correction; no governance action is authorized here",
+        "successor_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "successor_ref": "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.2-owner-correction-candidate",
+        "target_digest": "7580e0a930dc7f3d5446da2cdd8d1c23cf251e12929fb2f3baa056bd9739dd44",
+        "target_ref": "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview"
+      },
+      "record_rewrites": 0,
+      "simulated_state_sha256": "d36c57e64898d71625d09ba620bb54f580e26549f3b8f9c7cede5ee6ab2cf51c",
+      "source_event_count_after": 3,
+      "source_event_count_before": 2
+    },
+    "successor_unique": true,
+    "target_digest_fresh": true,
+    "target_found": 1,
+    "validation": "PASS"
+  },
+  "memory_recovery_rehearsal": {
+    "quarantine_substitution_rejected": true,
+    "result": "PASS",
+    "simulation": {
+      "actual_canonical_writes": 0,
+      "actual_repository_calls": 0,
+      "all_original_refs_readable": true,
+      "append_only_event": {
+        "actor": "owner:tony",
+        "event_id": "memory_experience-supersession-rehearsal:memory-experience://golden-mira:GM-CMIR-001/v0.2-preview:2",
+        "occurred_at": "rehearsal:2026-09-13T00:00:00Z",
+        "reason": "Rehearsed memory correction; no governance action is authorized here",
+        "status": "SUPERSEDED",
+        "successor_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "successor_ref": "memory-experience://golden-mira:GM-CMIR-001/v0.3-owner-correction-candidate",
+        "target": "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview"
+      },
+      "history_rewrites": 0,
+      "original_digest_unchanged": true,
+      "original_event_prefix_unchanged": true,
+      "original_record_readable": true,
+      "plan": {
+        "action": "SUPERSEDE",
+        "actor": "owner:tony",
+        "authority": "REHEARSAL_ONLY",
+        "execution": "NOT_EXECUTED",
+        "namespace": "memory_experience",
+        "occurred_at": "rehearsal:2026-09-13T00:00:00Z",
+        "reason": "Rehearsed memory correction; no governance action is authorized here",
+        "successor_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "successor_ref": "memory-experience://golden-mira:GM-CMIR-001/v0.3-owner-correction-candidate",
+        "target_digest": "4e29eb74de7f29bbf8d69485a7c18b5dceb06486d7e1d986d668a30c85fb7228",
+        "target_ref": "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview"
+      },
+      "record_rewrites": 0,
+      "simulated_state_sha256": "adeb54ecb7915364257d4cf34ce4f01856cbd43e0f42ca2f3cd15c3621d56496",
+      "source_event_count_after": 3,
+      "source_event_count_before": 2
+    },
+    "successor_unique": true,
+    "target_digest_fresh": true,
+    "target_found": 1,
+    "validation": "PASS"
+  },
+  "operator_checklist": [
+    "Prove owner authorization for the specific corrective action.",
+    "Re-read the accepted P5-A1 artifact and bind all target refs and digests exactly.",
+    "Resolve one exact stale Identity or MemoryExperience target; reject latest/default/fuzzy lookup.",
+    "Require a unique exact replacement ref and digest; reject quarantined CMIR substitutes.",
+    "For ProjectCommitment corrections, preserve formation-draft -> frozen-final order and predecessor semantics.",
+    "Construct an append-only governance event with explicit actor, reason, occurred_at, and successor binding.",
+    "Re-run stale-target and ambiguity checks immediately before the authorized transaction.",
+    "Apply one bounded append-only action only after every gate passes; never rewrite or delete the original record.",
+    "Retain before/after evidence and verify original record readability and digest identity."
+  ],
+  "project_commitment_lineage": {
+    "collapse_or_reorder": false,
+    "formation_draft_ref": "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+    "frozen_final_ref": "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+    "history_rewrite": false,
+    "order": [
+      "FORMATION_DRAFT",
+      "FROZEN_FINAL"
+    ],
+    "predecessor_version_id": "formation-draft-preview",
+    "result": "PASS"
+  },
+  "quarantine_boundary": {
+    "accepted_as_recovery_substitutes": 0,
+    "present_in_admitted_refs": 0,
+    "quarantined_cmir_ids": [
+      "GM-CMIR-003",
+      "GM-CMIR-005",
+      "GM-CMIR-007",
+      "GM-CMIR-009",
+      "GM-CMIR-010",
+      "GM-CMIR-012"
+    ],
+    "result": "PASS"
+  },
+  "schema": "julia_core.continuity.p5_e.recovery_rehearsal.v1",
+  "source": {
+    "artifact_path": "artifacts/continuity/P5_A1_OWNER_AUTHORIZED_GOLDEN_MIRA_CANONICAL_ADMISSION_V1.json",
+    "artifact_sha256": "f10a6d8daa6ed1604c2002254d26016efe31afca2e4dc18c4e1b094a48672110",
+    "base_sha": "038e5219495fd765bfbcfdbb0a52afb48a730f90",
+    "binding_mode": "EXACT_REF_AND_DIGEST",
+    "final_result": "P5_A1_RESULT=OWNER_AUTHORIZED_CANONICAL_ADMISSION_COMPLETE",
+    "identity_refs_bound": 3,
+    "memory_refs_bound": 8,
+    "task_id": "P5-A1"
+  },
+  "task_id": "P5-E"
+}
