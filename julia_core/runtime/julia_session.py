@@ -239,7 +239,7 @@ class JuliaSession:
         All model-visible information flows through Context OS (C-03).
         """
         from julia_core.events.models import (
-            EventCategory, ConversationEventType, CapabilityEventType,
+            EventCategory, ConversationEventType,
             create_event,
         )
         from julia_core.events.store import get_event_store
@@ -274,19 +274,6 @@ class JuliaSession:
             raise ContextNotReady(
                 f"Context OS required frames failed: {', '.join(required_failures)}"
             )
-
-        if pkg.evidence_frame:
-            ev2 = create_event(
-                source="capability",
-                event_type=CapabilityEventType.REQUESTED,
-                category=EventCategory.CAPABILITY,
-                payload={"capability": "market.snapshot.read", "turn": ctx.turn_count,
-                         "context_package_id": pkg.package_id},
-                correlation_id=ctx.correlation_id,
-                causation_id=ctx.last_event_id,
-            )
-            event_store.append(ev2)
-            ctx.last_event_id = ev2.event_id
 
         # Store package provenance for AT-17 trace
         ctx._last_package = pkg

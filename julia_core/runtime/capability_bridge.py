@@ -340,22 +340,10 @@ class RuntimeCapabilityBridge:
     # ── Evidence Gate (backward compat) ─────────────────────────────────
 
     def requires_tool(self, user_text: str) -> bool:
-        """Check if user question needs external evidence (file/market read).
+        """Check if user question needs file evidence.
 
         Backward compatible with old runtime/capability.py requires_tool().
         """
-        lower = user_text.lower()
-
-        # Market intent — needs capability
-        market_triggers = [
-            "今天市场", "市场怎么样", "大盘怎么看", "市场状态",
-            "今天行情", "市场情况", "盘面", "最近什么方向",
-            "风险", "警报", "预警",
-        ]
-        for kw in market_triggers:
-            if kw in user_text:
-                return True
-
         # File access triggers
         file_triggers = [
             "读一下", "读取", "打开", "看看文件", "帮我看看", "查看文件",
@@ -391,18 +379,6 @@ class RuntimeCapabilityBridge:
             key = "path" if name in ("read_file", "list_directory") else "pattern"
             return _json.dumps({"name": name, "arguments": {key: val}})
         return None
-
-    # ── New Path: Intent-based Capability Resolution ─────────────────────
-
-    async def resolve_market_intent(self, user_text: str, session_id: str = None):
-        """Resolve market intent through MarketBriefPipeline.
-
-        This is the R0.3 integration point — called by WorkflowRouter.
-        """
-        from julia_core.reasoning.market_brief_pipeline import MarketBriefPipeline
-        pipeline = MarketBriefPipeline(self.manager)
-        return await pipeline.process(user_text, session_id)
-
 
 # ── Singleton ───────────────────────────────────────────────────────────────
 
