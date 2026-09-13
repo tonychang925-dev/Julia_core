@@ -825,3 +825,41 @@ def simulate_admission(repository: Path) -> dict[str, Any]:
     _require(failed == 0, "canonical simulation produced incompatible candidates")
     payload["deterministic_digest"] = _canonical_digest(payload)
     return payload
+
+
+def construct_admission_inputs(
+    repository: Path,
+) -> tuple[tuple[IdentityVersion, ...], tuple[MemoryExperienceCandidate, ...]]:
+    """Return the exact reviewed typed objects without repository mutation."""
+    repository = repository.resolve()
+    verify_canonical_base(repository)
+    preview, _, _ = _load_bound_inputs(repository)
+    constructed_identities = []
+    for item in preview["identity_previews"]:
+        wrapper = item["canonical_preview"]
+        identity = _identity_objects(wrapper["payload"])
+        _require(
+            identity.canonical_payload() == wrapper["payload"]
+            and identity.digest() == wrapper["digest"],
+            f"canonical IdentityVersion construction mismatch: {item['candidate_id']}",
+        )
+        constructed_identities.append(identity)
+    constructed_memories = []
+    for item in preview["memory_experience_previews"]:
+        for payload, wrapper in zip(
+            _memory_payloads(item), _memory_records(item), strict=True
+        ):
+            record = _memory_record(payload)
+            _require(
+                record.canonical_payload() == payload
+                and record.digest() == wrapper["digest"],
+                f"canonical MemoryExperience construction mismatch: {item['candidate_id']}",
+            )
+            constructed_memories.append(
+                MemoryExperienceCandidate(record=record, submitted_at=record.created_at)
+            )
+    identities = tuple(constructed_identities)
+    memories = tuple(constructed_memories)
+    _require(len(identities) == 3, "exact identity admission set")
+    _require(len(memories) == 8, "exact memory admission set")
+    return identities, memories
