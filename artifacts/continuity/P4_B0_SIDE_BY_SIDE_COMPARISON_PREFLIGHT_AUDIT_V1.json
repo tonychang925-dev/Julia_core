@@ -1,0 +1,308 @@
+{
+  "task_id": "P4-B0",
+  "issue": "tonychang925-dev/Julia_core#66",
+  "phase": "P4",
+  "lane": "P4-B Side-by-Side Comparison Harness",
+  "task_type": "AUDIT_ONLY",
+  "roadmap_authority": "Julia_Mira_Continuity_Parallel_Development_Plan_v0.2_2026-09-12",
+  "phase_contract": "tonychang925-dev/Julia_core#64",
+  "audited_repositories": [
+    "tonychang925-dev/Julia_core",
+    "tonychang925-dev/Julia-AI-Assistant"
+  ],
+  "audited_shas": {
+    "julia_core_canonical_semantics": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+    "julia_core_p4_a0_evidence": "6a5633558fb2c3644bd1f4a3241bbcecaf24d9c5",
+    "julia_ai_assistant_f1e_implementation": "ba0fa19948fba82a22a5cc5ab7d9d3d4af2090b7",
+    "julia_ai_assistant_f1e_evidence_head": "d245ae3123427d478f2eb29ae8f730578544f285"
+  },
+  "search_scope": [
+    "Julia-AI-Assistant runtime/canonical_turn.py",
+    "Julia-AI-Assistant runtime/assistant_runtime.py",
+    "Julia-AI-Assistant runtime/dual_path.py",
+    "Julia-AI-Assistant runtime/cognition_shadow.py",
+    "Julia-AI-Assistant runtime/e2e_harness.py",
+    "Julia-AI-Assistant runtime/provider_switch_readiness.py",
+    "Julia-AI-Assistant tests/e2e/**",
+    "Julia-AI-Assistant tests/test_p3_f1e_canonical_turn_authority_rebind.py",
+    "Julia_core alignment_os/contracts.py",
+    "Julia_core context_admission/semantic_binding.py",
+    "Julia_core runtime/assistant_runtime.py",
+    "Julia_core P3 canonical seam tests"
+  ],
+  "candidate_comparison_seams": [
+    {
+      "name": "Assistant canonical-turn preparation",
+      "location": "Julia-AI-Assistant runtime/canonical_turn.py::prepare_canonical_turn",
+      "classification": "REUSABLE_CANONICAL_EXECUTION_INPUT",
+      "evidence": [
+        "accepts caller-supplied exact IdentityFrame and ExperienceFrameSet",
+        "constructs C03 package, admitted semantic bundle, runtime, and ProviderExecutionEnvelope",
+        "exposes conversation_id, turn_id, gate_receipt, semantic_fingerprint, provider_id, and modality",
+        "performs zero canonical writes and zero admission writes"
+      ]
+    },
+    {
+      "name": "Canonical provider execution injection",
+      "location": "Julia-AI-Assistant runtime/canonical_turn.py::execute_canonical_turn and stream_canonical_turn",
+      "classification": "REUSABLE_NON_AUTHORITATIVE_EXECUTION_SEAM",
+      "evidence": [
+        "optional provider_factory permits recording or fake providers",
+        "candidate output can be observed without production response selection",
+        "stream and non-stream variants consume the same exact ProviderExecutionEnvelope"
+      ]
+    },
+    {
+      "name": "Core exact semantic bundle",
+      "location": "Julia_core context_admission/semantic_binding.py::AdmittedSemanticBundle",
+      "classification": "REUSABLE_COMPARISON_SOURCE",
+      "evidence": [
+        "exposes exact immutable ordered units",
+        "deterministic semantic_fingerprint covers exact ordered messages",
+        "verify() validates the complete sealed relation"
+      ]
+    },
+    {
+      "name": "Core provider execution envelope",
+      "location": "Julia_core alignment_os/contracts.py::ProviderExecutionEnvelope",
+      "classification": "REUSABLE_COMPARISON_SOURCE",
+      "evidence": [
+        "carries conversation_id, turn_id, gate_receipt, semantic_fingerprint, exact messages, and alignment metadata",
+        "verify() proves semantic fingerprint and exact three-message shape",
+        "to_dict() supplies structured evidence without mutation"
+      ]
+    },
+    {
+      "name": "Core runtime provenance trace",
+      "location": "Julia_core runtime/assistant_runtime.py::RuntimeBindingTrace",
+      "classification": "REUSABLE_COMPARISON_SOURCE",
+      "evidence": [
+        "records conversation_id, turn_id, gate_receipt, semantic_fingerprint, provider_id, and input_mode",
+        "declares runtime semantic authority false",
+        "provider transport_called false for preparation-only evidence"
+      ]
+    },
+    {
+      "name": "Historical E2E trace evaluator",
+      "location": "Julia-AI-Assistant tests/e2e/evaluator.py::evaluate_trace",
+      "classification": "PARTIAL_PATTERN_ONLY",
+      "evidence": [
+        "produces structured evidence fields and errors",
+        "evaluates one trace and response rather than pairing reference and canonical executions",
+        "expects retired legacy trace schema 1.2 rather than canonical P3 provenance"
+      ]
+    }
+  ],
+  "historical_comparators": [
+    {
+      "name": "DualPathEvaluator",
+      "location": "Julia-AI-Assistant runtime/dual_path.py",
+      "classification": "NOT_REUSABLE_AS_IS",
+      "reason": "selects winner, exposes cognitive_superior, and computes ready_for_full_switch from heuristic response metrics; this is forbidden response-selection authority if exposed to runtime choice",
+      "additional_defects": [
+        "no conversation_id, turn_id, gate_receipt, semantic fingerprint, or canonical envelope correlation",
+        "heuristics do not compare exact canonical evidence dimensions"
+      ]
+    },
+    {
+      "name": "CognitionShadowAdapter",
+      "location": "Julia-AI-Assistant runtime/cognition_shadow.py",
+      "classification": "NOT_REUSABLE_AS_IS",
+      "reason": "old K8 heuristic shadow lacks exact C03 provenance and exposes ready_for_provider_switch",
+      "additional_defects": [
+        "fixed synthetic shadow-envelope identity",
+        "compares old path response heuristics rather than canonical bundle/envelope fields"
+      ]
+    },
+    {
+      "name": "E2ERuntimeHarness",
+      "location": "Julia-AI-Assistant runtime/e2e_harness.py",
+      "classification": "NOT_REUSABLE_AS_IS",
+      "reason": "accepts manually supplied runtime path facts and computes scores without canonical correlation or ProviderExecutionEnvelope comparison",
+      "additional_defects": [
+        "no reference/candidate pairing contract",
+        "no exact semantic fingerprint or provider identity dimension"
+      ]
+    },
+    {
+      "name": "ProviderSwitchReadiness",
+      "location": "Julia-AI-Assistant runtime/provider_switch_readiness.py",
+      "classification": "NOT_REUSABLE_AS_IS",
+      "reason": "readiness/switch-oriented historical surface; it is not an evidence-only canonical comparison contract"
+    }
+  ],
+  "sufficient_existing_capabilities": [
+    "caller-supplied exact canonical frames can execute through C03, Binder, Runtime, and ProviderExecutionEnvelope",
+    "canonical execution can use injected recording/fake providers without production response selection",
+    "conversation_id and turn_id are preserved end-to-end through package, bundle, envelope, and trace",
+    "gate receipt, semantic fingerprint, exact ordered units/messages, provider_id, and modality are observable",
+    "ProviderExecutionEnvelope.verify() and AdmittedSemanticBundle.verify() provide deterministic integrity checks",
+    "structured single-execution evidence fields can be modeled with immutable to_dict() payloads",
+    "output presence/status can be represented mechanically from exact execution success and nonempty response"
+  ],
+  "missing_required_capabilities": [
+    {
+      "capability": "REFERENCE_TO_CANONICAL_PAIR_CARRIER",
+      "scope_gate": "YES",
+      "reason": "no immutable contract deterministically pairs one caller-supplied reference execution record with one canonical-shadow execution record under the same correlation identity"
+    },
+    {
+      "capability": "EXACT_CORRELATION_VALIDATION",
+      "scope_gate": "YES",
+      "reason": "canonical conversation_id and turn_id are available end-to-end, but no comparator fails closed when reference and candidate identities differ"
+    },
+    {
+      "capability": "STRUCTURED_DIMENSION_COMPARISON",
+      "scope_gate": "YES",
+      "reason": "no evidence-only comparator records semantic fingerprint equality, unit/message order equality, provider/envelope identity, and output presence/status in one deterministic record"
+    },
+    {
+      "capability": "DETERMINISTIC_REPLAY_EVIDENCE",
+      "scope_gate": "YES",
+      "reason": "deterministic canonical digests exist, but there is no replay record proving the same paired inputs and comparison dimensions for repeated harness execution"
+    },
+    {
+      "capability": "CONTINUITY_EVALUATION_EVIDENCE_BINDING",
+      "scope_gate": "YES",
+      "reason": "historical evaluators generate scores, but their outputs are not mechanically bound to the paired canonical provenance and comparison record"
+    }
+  ],
+  "deferred_missing_capabilities": [
+    {
+      "capability": "REAL_GOLDEN_MIRA_ADMISSION",
+      "scope_gate": "NO",
+      "reason": "P5 Owner-gated"
+    },
+    {
+      "capability": "REAL_PERSONA_OR_USER_CANARY_TRAFFIC",
+      "scope_gate": "NO",
+      "reason": "P5 Owner-gated"
+    },
+    {
+      "capability": "PRODUCTION_RESPONSE_SWITCH_OR_ROUTING",
+      "scope_gate": "NO",
+      "reason": "comparison evidence must never select production output"
+    },
+    {
+      "capability": "DURABLE_PERSISTENCE_DEPLOYMENT",
+      "scope_gate": "NO",
+      "reason": "P4 requires bounded evidence only, not durable productionization"
+    },
+    {
+      "capability": "RELEASE_CUTOVER_AND_DEPLOYMENT",
+      "scope_gate": "NO",
+      "reason": "P6 Owner-gated"
+    }
+  ],
+  "correlation_analysis": {
+    "canonical_identity_fields": [
+      "conversation_id",
+      "turn_id",
+      "gate_receipt"
+    ],
+    "end_to_end_preservation": "YES",
+    "explicit_external_correlation_id_carrier": "NO",
+    "pairing_status": "MISSING",
+    "classification": "Canonical identity fields are sufficient for deterministic pairing, but no reference/candidate carrier validates and preserves the relation as evidence."
+  },
+  "comparison_dimensions_supported": {
+    "admitted_semantic_fingerprint": {
+      "available_on_existing_objects": true,
+      "comparison_carrier_available": false
+    },
+    "exact_message_unit_order": {
+      "available_on_existing_objects": true,
+      "comparison_carrier_available": false
+    },
+    "provider_execution_envelope_identity": {
+      "available_on_existing_objects": true,
+      "comparison_carrier_available": false
+    },
+    "provider_metadata": {
+      "available_on_existing_objects": true,
+      "comparison_carrier_available": false
+    },
+    "output_presence_or_status": {
+      "available_by_execution_result": true,
+      "comparison_carrier_available": false
+    },
+    "structured_continuity_evaluation": {
+      "historical_pattern_available": true,
+      "canonical_pair_binding_available": false
+    },
+    "deterministic_replay_evidence": {
+      "canonical_digests_available": true,
+      "replay_record_available": false
+    }
+  },
+  "comparison_output_authority": 0,
+  "production_response_selection_authority": 0,
+  "semantic_authority_analysis": {
+    "result": "NO_NEW_SEMANTIC_AUTHORITY_IN_EXISTING_SEAM",
+    "canonical_sources_are_caller_supplied": true,
+    "reference_result_must_be_caller_supplied_or_external": true,
+    "comparator_must_not_construct_identity_or_experience_frames": true,
+    "comparator_must_not_rewrite_semantics": true,
+    "historical_winner_or_readiness_surfaces_reused": 0
+  },
+  "write_isolation_analysis": {
+    "canonical_writes_required": 0,
+    "authority_mutations_required": 0,
+    "production_response_changes_required": 0,
+    "canonical_writes_current_existing_seam": 0,
+    "authority_mutations_current_existing_seam": 0
+  },
+  "p4_b_scope_gate": {
+    "DOES_THIS_DIRECTLY_PREVENT_P4_B_COMPARISON_GATE": "YES for the five missing evidence-only comparison capabilities listed above",
+    "NO_GAP_DISPOSITION": "All NO gaps remain explicitly deferred outside P4-B."
+  },
+  "minimal_required_boundary": {
+    "name": "P4-B1 Evidence-Only Side-by-Side Comparison Harness",
+    "inputs": [
+      "exact caller-supplied immutable reference execution evidence with correlation identity, status, and output-presence truth",
+      "exact canonical PreparedCanonicalTurn or canonical execution record",
+      "optional injected recording/fake provider for deterministic canonical execution",
+      "optional structured evaluation fields supplied as evidence"
+    ],
+    "outputs": [
+      "one immutable deterministic paired comparison record",
+      "correlation identity and mismatch disposition",
+      "fingerprint, order, provider/envelope identity, and output/status dimension evidence",
+      "continuity evaluation field provenance",
+      "replay/comparison digest"
+    ],
+    "forbidden_outputs": [
+      "winner",
+      "preferred response",
+      "selected response",
+      "readiness-based switch decision",
+      "production routing signal",
+      "synthetic frame or semantic reconstruction"
+    ],
+    "production_authority": 0
+  },
+  "deferred_out_of_scope": [
+    "Golden Mira admission",
+    "real canonical Identity/MemoryExperience population",
+    "real canary traffic",
+    "production response selection or switching",
+    "comparison-driven routing",
+    "semantic mutation or reconstruction",
+    "fallback/default source selection",
+    "durable productionization",
+    "merge, cutover, release, or deployment"
+  ],
+  "relevant_tests": {
+    "julia_core": {
+      "command": "pytest tests/context_admission/test_p3_n0_alignment_boundary.py tests/runtime/test_p3_n0_runtime_envelope.py tests/context_admission/test_binder_experience_frame_set_migration.py -q",
+      "result": "40 passed"
+    },
+    "julia_ai_assistant": {
+      "command": "JULIA_CORE_PATH=<Julia_core@40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216> PYTHONPATH=<Julia_core@40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216> pytest tests/test_p3_f1e_canonical_turn_authority_rebind.py -q",
+      "result": "14 passed; one unrelated python_multipart PendingDeprecationWarning"
+    }
+  },
+  "production_code_changed": 0,
+  "final_result": "BOUNDED_P4_B_IMPLEMENTATION_REQUIRED",
+  "next_implementation_node": "P4-B1 Evidence-Only Side-by-Side Comparison Harness"
+}
