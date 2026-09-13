@@ -30,6 +30,9 @@ from julia_core.capability.models import (
     CapabilityStatus,
 )
 from julia_core.capability.policy import PermissionPolicy
+from julia_core.capability.providers.market_public import (
+    register_market_public_capabilities,
+)
 from julia_core.capability.registry import CapabilityRegistry
 
 
@@ -48,25 +51,6 @@ class CapabilityPreAuthorizationFailure:
 
 class ProviderAlreadyRegisteredError(RuntimeError):
     """A different provider is already bound to a provider namespace."""
-
-
-class _UnavailableAiThemeProvider:
-    """Explicitly-unavailable provider for failed ai_theme initialization.
-
-    Not a fallback/mock: health() reports False and execute() returns an
-    unavailable marker. The manager turns this into a typed
-    ToolResult(UNAVAILABLE) — never a fake market result and never an
-    alternate provider.
-    """
-
-    def __init__(self, reason: str):
-        self.reason = reason
-
-    async def health(self) -> tuple[bool, str]:
-        return False, f"ai_theme_app provider unavailable: {self.reason}"
-
-    async def execute(self, request) -> dict:
-        return {"status": "unavailable", "error": self.reason}
 
 
 class LocalProviderRouter:
@@ -197,25 +181,7 @@ class RuntimeCapabilityBridge:
             status=CapabilityStatus.AVAILABLE,
         ))
 
-        # ai_theme_app provider (M1) — only if not already injected (tests)
-        if "ai_theme_app" not in self._providers:
-            from julia_core.capability.providers.ai_theme import (
-                register_ai_theme_capabilities,
-                create_ai_theme_provider,
-            )
-            try:
-                self._providers["ai_theme_app"] = create_ai_theme_provider()
-                register_ai_theme_capabilities(self.registry, status=CapabilityStatus.AVAILABLE)
-            except Exception as exc:
-                # Explicit degradation, NOT silent disappearance: capability
-                # stays known, provider state is DEGRADED/UNAVAILABLE, and
-                # invocation returns a typed unavailable outcome.
-                register_ai_theme_capabilities(self.registry, status=CapabilityStatus.DEGRADED)
-                self._providers["ai_theme_app"] = _UnavailableAiThemeProvider(str(exc))
-                import logging
-                logging.getLogger("julia.capability").warning(
-                    "ai_theme provider unavailable; market capability DEGRADED: %s", exc
-                )
+        register_market_public_capabilities(self.registry)
 
         # External Code Review capability (Core semantic contract).
         # The provider (external_review) is implemented cross-repo in
@@ -243,9 +209,6 @@ class RuntimeCapabilityBridge:
                     flat[f"{namespace}_{name}"] = provider
             else:
                 flat[namespace] = providers
-        # Override: ai_theme_app → flat key
-        if "ai_theme_app" in self._providers and not isinstance(self._providers["ai_theme_app"], dict):
-            flat["ai_theme_app"] = self._providers["ai_theme_app"]
         return flat
 
     @property
