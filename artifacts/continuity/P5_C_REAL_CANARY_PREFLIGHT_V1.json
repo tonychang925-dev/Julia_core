@@ -1,12 +1,16 @@
 {
   "schema": "julia_core.continuity.p5_c.real_canary_preflight.v1",
   "artifact_id": "P5_C_REAL_CANARY_PREFLIGHT_V1",
-  "task_id": "P5-C-R1",
+  "task_id": "P5-C-R2",
   "issue": "tonychang925-dev/Julia_core#76",
   "task_type": "REAL_CANARY_PREFLIGHT_ONLY",
-  "base_sha": "038e5219495fd765bfbcfdbb0a52afb48a730f90",
-  "dependency_input_head_sha": "05f58594e1f07f4540626e895eb62bba205f5684",
+  "base_sha": "2596ac93c2b5d9b0468136a37cef171a0266fa28",
+  "dependency_input_head_sha": "2596ac93c2b5d9b0468136a37cef171a0266fa28",
   "dependency": {
+    "corrected_seam_head": "2596ac93c2b5d9b0468136a37cef171a0266fa28",
+    "corrected_seam_artifact": "artifacts/continuity/P5_IDENTITY_FRAME_SET_CARDINALITY_FIX_V1.json",
+    "corrected_seam_artifact_blob": "f1b66957814a97a16b332250b1b8bfda2d72e1d2",
+    "corrected_seam_result": "PASS_IDENTITY_CARDINALITY_SEAM_CORRECTED",
     "p5_b_remote_head": "09f6e753004b4e509a4da217508a8b5e2c7417ee",
     "p5_b_artifact": "artifacts/continuity/P5_B_POST_ADMISSION_CANONICAL_VERIFICATION_V1.json",
     "p5_b_artifact_blob": "3a81e792949a512ce27359a117e64996a80eac82",
@@ -94,6 +98,7 @@
   },
   "provenance_surface": {
     "rule": "Every model-visible semantic justification must cite at least one exact admitted ref and its exact digest through the sealed C03 package.",
+    "identity_carrier": "IdentityFrameSet",
     "identity_semantics_refs": [
       "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
       "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
@@ -145,7 +150,7 @@
   },
   "reused_p4_surfaces": {
     "observer_module": "julia_core/execution_observer.py",
-    "observer_blob": "c6a696e3d09ec39bffa480b7adc48a24e433800d",
+    "observer_blob": "e5858af250a48090323a8b40d799ece7b9483a72",
     "observer_schema": "julia_core.evidence.canonical_execution_observer.v1",
     "observer_entrypoint": "EvidenceOnlyCanonicalExecutionObserver",
     "comparison_module": "julia_core/comparison.py",
@@ -158,12 +163,13 @@
     "behavior": "STOP_BEFORE_PROVIDER_CALL",
     "checks": [
       "P5-B dependency remote HEAD, artifact path, Git blob SHA, and final result are exact",
+      "corrected seam HEAD, artifact path, Git blob SHA, C03 v3 contract, and final result are exact",
       "P5-D evaluation contract schema, nine dimensions, anti-gaming rules, and zero authority are exact",
-      "exactly three identity refs are present in order with exact digests and ADMITTED lifecycle state",
+      "exactly three identity refs are present as an ordered IdentityFrameSet with exact digests and ADMITTED lifecycle state",
       "exactly eight memory refs are present in order with exact digests and ADMITTED lifecycle state",
       "all six quarantined CMIR IDs remain absent",
       "every model-visible semantic claim resolves through sealed C03 provenance to exact admitted refs and digests",
-      "SealedCognitiveContextPackage.verify passes",
+      "SealedCognitiveContextPackage.verify passes at C03 v3 with identity_frame_count=3, ordered frame digests, and identity_frame_set digest",
       "AdmittedSemanticBundle.verify passes and its conversation, turn, gate, frame, and digest identities match the package",
       "ProviderExecutionEnvelope.verify passes without message mutation",
       "conversation_id, turn_id, gate_receipt, and provider correlation are identical across package, bundle, envelope, observer, comparison, evaluator, and run record",
@@ -210,12 +216,14 @@
     "new_evaluation_subsystem": 0,
     "new_p5_f_g_h_node": 0
   },
-  "preflight_digest": "9c87e747f2165c7e815cef9dd43307410794815781fdfaaca1398a643a1f028e",
+  "preflight_digest": "b54a96cb4f385ee42b782d2900274a48211e05662cb5e3c11a7ce2a7f80593ed",
   "preflight_digest_input": {
-    "canonical_input": "EXACT_11_REF_DIGEST_STATUS_ORDER",
+    "canonical_input": "EXACT_11_REF_DIGEST_STATUS_ORDER_AS_IDENTITY_AND_EXPERIENCE_FRAME_SETS",
     "cue": "RESURRECTION_ALPHA_EXACT_UTF8",
     "evaluation": "P5_D_NINE_DIMENSIONS_ZERO_AUTHORITY",
     "p4_reuse": "OBSERVER_AND_COMPARISON_EXACT_GIT_BLOBS",
+    "corrected_seam": "EXACT_HEAD_AND_EVIDENCE_BLOB",
+    "c03": "IDENTITY_FRAME_SET_V3_COUNT_DIGEST_ORDER",
     "fail_closed": "ALL_PRE_PROVIDER_GATES_REQUIRED"
   },
   "deterministic_rerun": "BYTE_IDENTICAL",

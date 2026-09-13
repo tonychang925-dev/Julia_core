@@ -12,6 +12,8 @@ from tests.continuity_conformance.evaluation_contract import (
     DIMENSION_IDS,
     ContinuityEvaluationContract,
 )
+from julia_core.context_admission.gate import C03_PRODUCTION_CONTRACT_VERSION
+from julia_core.projection.contracts import IdentityFrameSet
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -21,7 +23,12 @@ P5_B = (
     / "artifacts/continuity/P5_B_POST_ADMISSION_CANONICAL_VERIFICATION_V1.json"
 )
 P5_D = REPOSITORY / "artifacts/continuity/P5_D_CONTINUITY_EVALUATION_PREP_V1.json"
+P5_SEAM_FIX = (
+    REPOSITORY / "artifacts/continuity/P5_IDENTITY_FRAME_SET_CARDINALITY_FIX_V1.json"
+)
 CUE = "Hi Mira，还记得我吗？"
+CORRECTED_SEAM_HEAD = "2596ac93c2b5d9b0468136a37cef171a0266fa28"
+CORRECTED_SEAM_BLOB = "f1b66957814a97a16b332250b1b8bfda2d72e1d2"
 
 
 def artifact() -> dict[str, object]:
@@ -81,6 +88,27 @@ def test_preflight_binds_exact_p5_b_canonical_input() -> None:
     )
 
 
+def test_preflight_rebinds_exact_corrected_identity_frame_set_seam() -> None:
+    active = artifact()
+    seam_fix = json.loads(P5_SEAM_FIX.read_text(encoding="utf-8"))
+
+    assert active["task_id"] == "P5-C-R2"
+    assert active["base_sha"] == CORRECTED_SEAM_HEAD
+    assert active["dependency"]["corrected_seam_head"] == CORRECTED_SEAM_HEAD
+    assert active["dependency"]["corrected_seam_artifact_blob"] == (CORRECTED_SEAM_BLOB)
+    assert (
+        git_blob("artifacts/continuity/P5_IDENTITY_FRAME_SET_CARDINALITY_FIX_V1.json")
+        == active["dependency"]["corrected_seam_artifact_blob"]
+    )
+    assert (
+        seam_fix["c03_contract"]["contract_version"] == C03_PRODUCTION_CONTRACT_VERSION
+    )
+    assert seam_fix["c03_contract"]["request_field"] == "identity_frames"
+    assert active["provenance_surface"]["identity_carrier"] == IdentityFrameSet.__name__
+    assert len(active["canonical_input"]["identity_refs"]) == 3
+    assert len(active["canonical_input"]["ordered_memory_experience_refs"]) == 8
+
+
 def test_preflight_binds_exact_cue_and_no_phrase_authority() -> None:
     cue = artifact()["canary_cue"]
 
@@ -124,7 +152,19 @@ def test_provider_call_never_occurs_before_all_fail_closed_gates() -> None:
     gates = active["pre_provider_fail_closed_gates"]
 
     assert gates["behavior"] == "STOP_BEFORE_PROVIDER_CALL"
-    assert len(gates["checks"]) == 12
+    assert len(gates["checks"]) == 13
+    assert gates["checks"][1] == (
+        "corrected seam HEAD, artifact path, Git blob SHA, C03 v3 contract, "
+        "and final result are exact"
+    )
+    assert gates["checks"][3] == (
+        "exactly three identity refs are present as an ordered IdentityFrameSet "
+        "with exact digests and ADMITTED lifecycle state"
+    )
+    assert gates["checks"][7] == (
+        "SealedCognitiveContextPackage.verify passes at C03 v3 with "
+        "identity_frame_count=3, ordered frame digests, and identity_frame_set digest"
+    )
     assert gates["fallback_provider"] == 0
     assert gates["default_or_latest_selection"] == 0
     assert active["execution_isolation"] == {
@@ -187,6 +227,8 @@ def test_preflight_digest_recomputes_from_exact_bound_surfaces() -> None:
         "dimensions": active["evaluation_binding"]["dimensions"],
         "observer_blob": active["reused_p4_surfaces"]["observer_blob"],
         "comparison_blob": active["reused_p4_surfaces"]["comparison_blob"],
+        "corrected_seam": active["dependency"]["corrected_seam_artifact_blob"],
+        "c03": C03_PRODUCTION_CONTRACT_VERSION,
         "fail_closed_checks": active["pre_provider_fail_closed_gates"]["checks"],
     }
     serialized = json.dumps(
