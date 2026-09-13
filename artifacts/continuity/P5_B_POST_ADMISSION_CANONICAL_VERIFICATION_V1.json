@@ -1,0 +1,132 @@
+{
+  "schema": "julia_core.continuity.p5_b.post_admission_verification.v1",
+  "artifact_id": "P5_B_POST_ADMISSION_CANONICAL_VERIFICATION_V1",
+  "task_id": "P5-B",
+  "issue": "tonychang925-dev/Julia_core#75",
+  "task_type": "READ_ONLY_POST_ADMISSION_VERIFICATION",
+  "base_sha": "038e5219495fd765bfbcfdbb0a52afb48a730f90",
+  "implementation_candidate_sha": "PENDING_IMPLEMENTATION_COMMIT",
+  "pinned_inputs": {
+    "preview_head_sha": "4514eb1e52aa8bc3f2ebac20dba3d000ddb83e14",
+    "preview_artifact_sha256": "3a041d616e36bf3322c1be10473f46fee8db8ada134361c0fd2f08f541d124c9",
+    "admission_base_sha": "038e5219495fd765bfbcfdbb0a52afb48a730f90",
+    "admission_artifact_sha256": "f10a6d8daa6ed1604c2002254d26016efe31afca2e4dc18c4e1b094a48672110"
+  },
+  "canonical_state": {
+    "selection_rule": "EXACT_REF_AND_DIGEST_ONLY",
+    "identity_refs": [
+      {
+        "ref": "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+        "digest": "7580e0a930dc7f3d5446da2cdd8d1c23cf251e12929fb2f3baa056bd9739dd44",
+        "status": "ADMITTED",
+        "governance_order": "CANDIDATE_THEN_ADMITTED",
+        "preview_payload_identical": true
+      },
+      {
+        "ref": "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+        "digest": "adaa2508c4e475a700c394eb205e278d515dfe014ccdaa4bab3c3e7b7dcd5f3a",
+        "status": "ADMITTED",
+        "governance_order": "CANDIDATE_THEN_ADMITTED",
+        "preview_payload_identical": true
+      },
+      {
+        "ref": "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+        "digest": "0008a5e157347ae9b0dd8600d661ec4a0e3fbd1858673cd04dc7c7b812a96c29",
+        "status": "ADMITTED",
+        "governance_order": "CANDIDATE_THEN_ADMITTED",
+        "preview_payload_identical": true
+      }
+    ],
+    "memory_experience_refs": [
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+        "digest": "4e29eb74de7f29bbf8d69485a7c18b5dceb06486d7e1d986d668a30c85fb7228",
+        "status": "ADMITTED",
+        "governance_order": "CANDIDATE_THEN_ADMITTED",
+        "preview_payload_identical": true
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+        "digest": "e4374452173b144ce48dbefa5299f1ac3dc15cec3615b8e7d528176293536f93",
+        "status": "ADMITTED",
+        "governance_order": "CANDIDATE_THEN_ADMITTED",
+        "preview_payload_identical": true
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+        "digest": "ba4edeff89bc8054be19d7a48226fcef74359bc85d17dbd6abea4b754b905f97",
+        "status": "ADMITTED",
+        "governance_order": "CANDIDATE_THEN_ADMITTED",
+        "preview_payload_identical": true
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+        "digest": "47636f46d2934eeb66f91c8202e2245c180b7077fddd04ca6445683308b54f2c",
+        "status": "ADMITTED",
+        "governance_order": "CANDIDATE_THEN_ADMITTED",
+        "preview_payload_identical": true
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+        "digest": "08c95873446b01949b7aec50ad35ebbe36ce8b5b9ad87aca45c51b627f70c408",
+        "status": "ADMITTED",
+        "governance_order": "CANDIDATE_THEN_ADMITTED",
+        "preview_payload_identical": true
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+        "digest": "3107a3ab38d0fc0d2446752f48bedebf2ee336e3cb8b22811bf3c156247a4ae9",
+        "status": "ADMITTED",
+        "governance_order": "CANDIDATE_THEN_ADMITTED",
+        "preview_payload_identical": true
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+        "digest": "3c31de4d62ecfd5d7857a5a4df85725affa0862d0055b5527d7d80f27fcc8ad8",
+        "status": "ADMITTED",
+        "governance_order": "CANDIDATE_THEN_ADMITTED",
+        "preview_payload_identical": true
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview",
+        "digest": "8e2d16304357b7fb72b5b6cb53501be5d8743b3c687d2f0aadf3a9e1e132046c",
+        "status": "ADMITTED",
+        "governance_order": "CANDIDATE_THEN_ADMITTED",
+        "preview_payload_identical": true
+      }
+    ]
+  },
+  "counts": {
+    "identity_refs_verified": "3/3",
+    "memory_refs_verified": "8/8",
+    "exact_ref_resolution": "11/11",
+    "digest_identity": "11/11",
+    "admitted_status": "11/11",
+    "governance_order": "11/11"
+  },
+  "project_commitment_lineage": {
+    "formation_ref": "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+    "final_ref": "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+    "predecessor": "formation-draft-preview",
+    "chronology": "FORMATION_THEN_FROZEN_FINAL",
+    "history_rewrite": false,
+    "result": "PASS"
+  },
+  "semantic_boundaries": {
+    "quarantined_cmir_ids_present": 0,
+    "tony_autobiography_is_mira_identity": false,
+    "historical_intimacy_is_standing_consent": false,
+    "remembered_commitment_is_runtime_authorization": false,
+    "result": "PASS"
+  },
+  "authority_isolation": {
+    "canonical_writes": 0,
+    "runtime_or_provider_writes": 0,
+    "production_response_selection_authority": 0,
+    "legacy_destructive_writes": 0,
+    "implicit_fallback_selection": 0
+  },
+  "verification_digest": "5765b2bffe7cd66fa7d435bda0b7737aaed087019396833813b3660b17bcee81",
+  "deterministic_rerun": "BYTE_IDENTICAL",
+  "final_result": "P5_B_POST_ADMISSION_CANONICAL_STATE_VERIFIED"
+}
