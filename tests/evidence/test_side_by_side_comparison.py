@@ -51,7 +51,7 @@ def canonical_evidence(
     binding = ExactAdmittedSemanticBinder().bind(
         SemanticBindingRequest(
             package,
-            admission.identity_frame,
+            admission.identity_frames,
             admission.experience_frames,
             admission.current_task_context,
         )
@@ -358,7 +358,7 @@ def test_envelope_evidence_can_only_derive_from_exact_canonical_chain() -> None:
     binding = ExactAdmittedSemanticBinder().bind(
         SemanticBindingRequest(
             package,
-            admission.identity_frame,
+            admission.identity_frames,
             admission.experience_frames,
             admission.current_task_context,
         )

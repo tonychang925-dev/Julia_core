@@ -15,12 +15,13 @@ from julia_core.context_admission import (
 )
 from julia_core.context_admission.contracts import canonical_json, package_digest
 from julia_core.memory_experience import MemoryExperienceRef
-from julia_core.projection import ExperienceFrameSet
+from julia_core.projection import ExperienceFrameSet, IdentityFrameSet
 
 from .production_fixtures import (
     canonical_current_task_context,
     canonical_experience_frame,
     canonical_identity_frame,
+    canonical_identity_frame_set,
 )
 
 
@@ -42,14 +43,14 @@ def binding_inputs(
 ) -> tuple[ExclusiveAdmissionRequest, SemanticBindingRequest]:
     values = experiences if experiences is not None else experience_set()
     request = ExclusiveAdmissionRequest(
-        identity_frame=canonical_identity_frame(),
+        identity_frames=canonical_identity_frame_set(),
         experience_frames=values,
         current_task_context=canonical_current_task_context(),
     )
     package = ExclusiveAdmissionGate().seal(request)
     return request, SemanticBindingRequest(
         package,
-        request.identity_frame,
+        request.identity_frames,
         request.experience_frames,
         request.current_task_context,
     )
@@ -76,6 +77,8 @@ def forged_package(binding_request: SemanticBindingRequest, **changes):
         forged.conversation_id,
         forged.turn_id,
         forged.identity_digest,
+        forged.identity_frame_digests,
+        forged.identity_frame_count,
         forged.experience_digest,
         forged.experience_frame_digests,
         forged.experience_frame_count,
@@ -89,7 +92,7 @@ def rebound(binding_request: SemanticBindingRequest, package):
     return ExactAdmittedSemanticBinder().bind(
         SemanticBindingRequest(
             package,
-            binding_request.identity_frame,
+            binding_request.identity_frames,
             binding_request.experience_frames,
             binding_request.current_task_context,
         )
@@ -113,7 +116,9 @@ def test_f1c_04_exact_carrier_digest_matches_sealed_package() -> None:
     _, binding_request = binding_inputs(experiences)
     binding = ExactAdmittedSemanticBinder().bind(binding_request)
 
-    assert binding.package_digest_manifest["experience_frame_set"] == experiences.digest()
+    assert (
+        binding.package_digest_manifest["experience_frame_set"] == experiences.digest()
+    )
 
 
 def test_f1c_05_exact_individual_frame_digest_manifest_matches() -> None:
@@ -157,7 +162,7 @@ def test_f1c_09_exactly_three_semantic_units_remain() -> None:
     binding = bind(4)
 
     assert [unit.frame_name for unit in binding.units] == [
-        "identity_frame",
+        "identity_frame_set",
         "experience_frame_set",
         "current_task_context",
     ]
@@ -190,7 +195,7 @@ def test_f1c_12_singular_experience_frame_rejected() -> None:
     with pytest.raises(C03AdmissionRejected, match="ExperienceFrameSet"):
         SemanticBindingRequest(
             binding_request.package,
-            binding_request.identity_frame,
+            binding_request.identity_frames,
             canonical_experience_frame(),
             binding_request.current_task_context,
         )
@@ -202,7 +207,7 @@ def test_f1c_13_raw_dict_rejected() -> None:
     with pytest.raises(C03AdmissionRejected, match="ExperienceFrameSet"):
         SemanticBindingRequest(
             binding_request.package,
-            binding_request.identity_frame,
+            binding_request.identity_frames,
             {"frames": []},
             binding_request.current_task_context,
         )
@@ -217,7 +222,7 @@ def test_f1c_14_experience_frame_set_subclass_rejected() -> None:
     with pytest.raises(C03AdmissionRejected, match="ExperienceFrameSet"):
         SemanticBindingRequest(
             binding_request.package,
-            binding_request.identity_frame,
+            binding_request.identity_frames,
             SubclassedFrameSet(
                 schema_version="1.0.0",
                 frames=binding_request.experience_frames.frames,
@@ -253,7 +258,7 @@ def test_f1c_17_frame_count_mismatch_rejected() -> None:
     with pytest.raises(C03AdmissionRejected, match="count does not match"):
         SemanticBindingRequest(
             forged,
-            binding_request.identity_frame,
+            binding_request.identity_frames,
             binding_request.experience_frames,
             binding_request.current_task_context,
         )

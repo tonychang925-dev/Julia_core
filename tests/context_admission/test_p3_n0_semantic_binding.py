@@ -15,7 +15,7 @@ from julia_core.context_admission import (
     SemanticBindingRequest,
 )
 from julia_core.context_admission.contracts import canonical_json
-from julia_core.projection.contracts import ExperienceFrameSet, IdentityFrame
+from julia_core.projection.contracts import ExperienceFrameSet, IdentityFrameSet
 from tests.context_admission.production_fixtures import (
     canonical_current_task_context,
     canonical_experience_frame,
@@ -32,7 +32,7 @@ def bound_inputs(*, turn_id: str = "turn-eng12a-1"):
     package = ExclusiveAdmissionGate().seal(request)
     return (
         package,
-        request.identity_frame,
+        request.identity_frames,
         request.experience_frames,
         request.current_task_context,
     )
@@ -46,13 +46,13 @@ def test_binder_produces_exact_ordered_units_and_roles():
     binding = bound_bundle()
 
     assert [unit.frame_name for unit in binding.units] == [
-        "identity_frame",
+        "identity_frame_set",
         "experience_frame_set",
         "current_task_context",
     ]
     assert [unit.role for unit in binding.units] == ["system", "system", "user"]
     assert tuple(binding.package_digest_manifest) == (
-        "identity_frame",
+        "identity_frame_set",
         "experience_frame_set",
         "current_task_context",
     )
@@ -73,25 +73,14 @@ def test_semantic_fingerprint_covers_exact_bound_messages_deterministically():
 
 
 def test_package_is_verified_before_semantic_content_is_bound():
-    class PoisonFrame(IdentityFrame):
+    class PoisonFrameSet(IdentityFrameSet):
         def to_dict(self):
             raise AssertionError("semantic content read before package verification")
 
-    package, identity, experience, current_task = bound_inputs()
-    poison = PoisonFrame(
-        schema_version=identity.schema_version,
-        policy_id=identity.policy_id,
-        policy_version=identity.policy_version,
-        source_ref=identity.source_ref,
-        source_digest=identity.source_digest,
-        source_status=identity.source_status,
-        identity_id=identity.identity_id,
-        predecessor_version_id=identity.predecessor_version_id,
-        anchors=identity.anchors,
-        values=identity.values,
-        boundaries=identity.boundaries,
-        relationship_role_anchors=identity.relationship_role_anchors,
-        provenance_refs=identity.provenance_refs,
+    package, identity_frames, experience, current_task = bound_inputs()
+    poison = PoisonFrameSet(
+        schema_version=identity_frames.schema_version,
+        frames=identity_frames.frames,
     )
     forged = object.__new__(SealedCognitiveContextPackage)
     for field in fields(SealedCognitiveContextPackage):
@@ -105,7 +94,7 @@ def test_package_is_verified_before_semantic_content_is_bound():
 @pytest.mark.parametrize(
     ("frame_name", "frame_type"),
     [
-        ("identity_frame", IdentityFrame),
+        ("identity_frame_set", IdentityFrameSet),
         ("experience_frame_set", ExperienceFrameSet),
         ("current_task_context", CurrentConversationalTaskContext),
     ],
@@ -115,13 +104,13 @@ def test_exact_frame_types_are_required(frame_name, frame_type):
     arguments = list(values)
     arguments[
         1
-        + ("identity_frame", "experience_frame_set", "current_task_context").index(
+        + ("identity_frame_set", "experience_frame_set", "current_task_context").index(
             frame_name
         )
     ] = object()
 
     expected_message = {
-        "identity_frame": "exact canonical IdentityFrame",
+        "identity_frame_set": "exact canonical IdentityFrameSet",
         "experience_frame_set": "exact canonical ExperienceFrameSet",
         "current_task_context": "exact canonical current task context",
     }[frame_name]

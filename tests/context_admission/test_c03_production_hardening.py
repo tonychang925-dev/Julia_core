@@ -29,6 +29,7 @@ from .production_fixtures import (
     canonical_experience_frame,
     canonical_experience_frame_set,
     canonical_identity_frame,
+    canonical_identity_frame_set,
     canonical_request,
 )
 
@@ -84,25 +85,31 @@ def test_frame_provenance_must_bind_exact_source_digest() -> None:
     experience = canonical_experience_frame(
         provenance_refs=({"source_ref": "fixture://wrong", "source_digest": "e" * 64},)
     )
-    experiences = ExperienceFrameSet(
-        schema_version="1.0.0", frames=(experience,)
-    )
+    experiences = ExperienceFrameSet(schema_version="1.0.0", frames=(experience,))
 
     with pytest.raises(C03AdmissionRejected, match="identity frame provenance digest"):
         ExclusiveAdmissionGate().seal(canonical_request(identity=identity))
-    with pytest.raises(C03AdmissionRejected, match="experience frame provenance digest"):
+    with pytest.raises(
+        C03AdmissionRejected, match="experience frame provenance digest"
+    ):
         ExclusiveAdmissionGate().seal(canonical_request(experiences=experiences))
 
 
-@pytest.mark.parametrize("field_name", ["policy_id", "policy_version", "schema_version"])
+@pytest.mark.parametrize(
+    "field_name", ["policy_id", "policy_version", "schema_version"]
+)
 def test_non_canonical_projection_contracts_fail_closed(field_name: str) -> None:
     identity = replace(canonical_identity_frame(), **{field_name: "forged"})
     experience = replace(canonical_experience_frame(), **{field_name: "forged"})
     experiences = ExperienceFrameSet(schema_version="1.0.0", frames=(experience,))
 
-    with pytest.raises(C03AdmissionRejected, match="identity frame projection contract"):
+    with pytest.raises(
+        C03AdmissionRejected, match="identity frame projection contract"
+    ):
         ExclusiveAdmissionGate().seal(canonical_request(identity=identity))
-    with pytest.raises(C03AdmissionRejected, match="experience frame projection contract"):
+    with pytest.raises(
+        C03AdmissionRejected, match="experience frame projection contract"
+    ):
         ExclusiveAdmissionGate().seal(canonical_request(experiences=experiences))
 
 
@@ -124,9 +131,7 @@ def test_forged_package_manifest_is_rejected() -> None:
     forged = object.__new__(type(sealed))
     for name in type(sealed).__dataclass_fields__:
         object.__setattr__(forged, name, getattr(sealed, name))
-    object.__setattr__(
-        forged, "admitted_frames", {"identity_frame": "0" * 64}
-    )
+    object.__setattr__(forged, "admitted_frames", {"identity_frame_set": "0" * 64})
 
     with pytest.raises(C03AdmissionRejected, match="admitted-frame manifest"):
         forged.verify()
@@ -171,7 +176,7 @@ def test_package_serialization_is_deterministic_and_detached() -> None:
     second = ExclusiveAdmissionGate().seal(canonical_request())
     outward = first.to_dict()
     outward["authority"]["runtime"] = True
-    outward["admitted_frames"]["identity_frame"] = "changed"
+    outward["admitted_frames"]["identity_frame_set"] = "changed"
 
     assert first.to_dict() == second.to_dict()
     assert json.dumps(first.to_dict(), sort_keys=True) == json.dumps(
@@ -202,9 +207,7 @@ def test_current_task_state_requires_deterministic_json_shape() -> None:
     with pytest.raises(C03AdmissionRejected, match="unsupported value"):
         canonical_current_task_context(bounded_state={"value": object()})
     with pytest.raises(C03AdmissionRejected, match="deterministically serializable"):
-        canonical_current_task_context(
-            bounded_state={"value": float("nan")}
-        )
+        canonical_current_task_context(bounded_state={"value": float("nan")})
 
 
 def test_runtime_provenance_source_ref_must_be_exact() -> None:
@@ -235,7 +238,7 @@ def test_request_and_gate_subclasses_cannot_become_admission_authority() -> None
         pass
 
     request = RequestSubclass(
-        canonical_identity_frame(),
+        canonical_identity_frame_set(),
         canonical_experience_frame_set(),
         canonical_current_task_context(),
     )

@@ -1,0 +1,118 @@
+{
+  "schema": "julia_core.continuity.p5.identity_frame_set_cardinality_fix.v1",
+  "artifact_id": "P5_IDENTITY_FRAME_SET_CARDINALITY_FIX_V1",
+  "task_id": "P5-BLOCKER-FIX-IDENTITY-CARDINALITY",
+  "issue": "tonychang925-dev/Julia_core#81",
+  "base_sha": "7c1d3d66e382f34db6f59b1f0c354ddd4f5d6579",
+  "source_blocker": {
+    "issue": "tonychang925-dev/Julia_core#80",
+    "code": "C03_IDENTITY_FRAME_CARDINALITY_MISMATCH"
+  },
+  "carrier_contract": {
+    "type": "IdentityFrameSet",
+    "schema": "julia_core.projection.identity_frame_set.v1",
+    "schema_version": "1.0.0",
+    "cardinality": "1..N",
+    "identity_elements_exact": true,
+    "source_refs_unique": true,
+    "ordering_digest_significant": true,
+    "ordered_manifest": "source_refs_and_frame_digests"
+  },
+  "c03_contract": {
+    "request_field": "identity_frames",
+    "sealed_unit": "identity_frame_set",
+    "contract_version": "julia_core.context_admission.c03.production.v3",
+    "identity_digest_binding": true,
+    "ordered_frame_digest_binding": true,
+    "frame_count_binding": true
+  },
+  "golden_mira_vector": {
+    "selection_rule": "EXACT_REF_AND_DIGEST_ONLY",
+    "identity_count": 3,
+    "memory_experience_count": 8,
+    "identity_set_digest": "b9c8f7af16fc7de6210df0833447503f8b3e89dc505746c2c232054f36506c69",
+    "experience_frame_set_digest": "1ef2c6d15468c7695530c1a5baa2b123bdde267e0f86d2b6e236dce68b280b77",
+    "identities": [
+      {
+        "order": 1,
+        "ref": "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+        "source_digest": "7580e0a930dc7f3d5446da2cdd8d1c23cf251e12929fb2f3baa056bd9739dd44",
+        "lifecycle_status": "ADMITTED",
+        "projected_frame_digest": "f140cdff26e066197065d10889af0ea577b49d268f57e62c4a7e8cb6e48b533a"
+      },
+      {
+        "order": 2,
+        "ref": "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+        "source_digest": "adaa2508c4e475a700c394eb205e278d515dfe014ccdaa4bab3c3e7b7dcd5f3a",
+        "lifecycle_status": "ADMITTED",
+        "projected_frame_digest": "af2bc42efafd580b149de7057f6a7ca966613aad4848b16f7aa37cf2a8d5730f"
+      },
+      {
+        "order": 3,
+        "ref": "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+        "source_digest": "0008a5e157347ae9b0dd8600d661ec4a0e3fbd1858673cd04dc7c7b812a96c29",
+        "lifecycle_status": "ADMITTED",
+        "projected_frame_digest": "867bf9614acac6e955b6cdc42bc3fcb27b064a9caa00a4567386fbbab1496753"
+      }
+    ],
+    "ordered_memory_experiences": [
+      "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+      "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+      "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+      "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+      "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+      "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+      "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+      "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview"
+    ],
+    "chain_proof": {
+      "projection_to_c03": "3/3 exact IdentityFrames in order",
+      "c03_to_sealed_package": "identity_frame_count=3 plus ordered frame digests",
+      "sealed_package_to_semantic_binding": "one identity_frame_set canonical unit",
+      "semantic_binding_to_observer": "all three exact source refs/digests and set digest reported",
+      "memory_experience_preservation": "8/8 exact ordered refs/digests unchanged",
+      "identity_merge_or_reconstruction_count": 0
+    }
+  },
+  "fail_closed_proofs": {
+    "empty_set_rejected": true,
+    "non_identity_frame_rejected": true,
+    "duplicate_source_ref_rejected": true,
+    "order_change_changes_digest_and_observer_detects_reorder": true,
+    "missing_golden_identity_rejected_before_provider": true,
+    "wrong_digest_rejected": true,
+    "wrong_lifecycle_status_rejected": true,
+    "wrong_source_ref_rejected": true
+  },
+  "test_evidence": {
+    "focused": {
+      "command": "/opt/miniconda3/bin/python -m pytest tests/projection/test_identity_frame_set.py tests/evidence/test_p5_identity_frame_set_chain.py -q",
+      "result": "10 passed"
+    },
+    "regression": {
+      "command": "/opt/miniconda3/bin/python -m pytest tests/context_admission tests/evidence tests/projection tests/continuity_conformance -q",
+      "result": "235 passed"
+    }
+  },
+  "authority": {
+    "canonical_writes": 0,
+    "new_admissions": 0,
+    "identity_merges": 0,
+    "semantic_reconstructions": 0,
+    "provider_calls": 0,
+    "real_canary_executions": 0,
+    "production_response_selections": 0,
+    "runtime_authorization_upgrades": 0
+  },
+  "execution_isolation": {
+    "live_model_call": 0,
+    "real_canary_execution": 0,
+    "canonical_state_mutation": 0,
+    "provider_runtime_semantic_mutation": 0,
+    "production_response_switching": 0,
+    "p6_work": 0,
+    "new_p5_f_g_h_node": 0
+  },
+  "deterministic_rerun": "BYTE_IDENTICAL",
+  "final_result": "PASS_IDENTITY_CARDINALITY_SEAM_CORRECTED"
+}

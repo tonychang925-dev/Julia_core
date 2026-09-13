@@ -1,4 +1,5 @@
 """Deterministic Identity-only PersonaProjection policy."""
+
 from __future__ import annotations
 
 from julia_core.identity import IdentityRef, IdentityResolver
@@ -27,7 +28,9 @@ class PersonaProjectionPolicy:
     policy_version = PERSONA_PROJECTION_POLICY_VERSION
 
     def project(self, governed: object) -> IdentityFrame:
-        raise TypeError("direct GovernedIdentity projection is forbidden; use project_ref with IdentityResolver")
+        raise TypeError(
+            "direct GovernedIdentity projection is forbidden; use project_ref with IdentityResolver"
+        )
 
     def _project(self, governed) -> IdentityFrame:
         version = governed.version
@@ -50,7 +53,9 @@ class PersonaProjectionPolicy:
             provenance_refs=tuple(item.to_dict() for item in version.provenance_refs),
         )
 
-    def project_ref(self, ref: IdentityRef, resolver: IdentityResolver) -> IdentityFrame:
+    def project_ref(
+        self, ref: IdentityRef, resolver: IdentityResolver
+    ) -> IdentityFrame:
         if type(resolver) is not IdentityResolver:
             raise TypeError("project_ref accepts an exact IdentityResolver only")
         if type(ref) is not IdentityRef:
@@ -69,18 +74,11 @@ class ExperienceProjectionPolicy:
             "direct GovernedMemoryExperience projection is forbidden; use project_ref with MemoryExperienceResolver"
         )
 
-    def project_ref(
-        self,
-        ref: MemoryExperienceRef,
-        resolver: MemoryExperienceResolver,
-    ) -> ExperienceFrame:
-        if type(resolver) is not MemoryExperienceResolver:
-            raise TypeError("project_ref accepts an exact MemoryExperienceResolver only")
-        if type(ref) is not MemoryExperienceRef:
-            raise TypeError("project_ref accepts an exact MemoryExperienceRef only")
-        governed = resolver.resolve(ref)
+    def _project(self, governed) -> ExperienceFrame:
         if type(governed) is not GovernedMemoryExperience:
-            raise TypeError("ExperienceProjectionPolicy requires GovernedMemoryExperience")
+            raise TypeError(
+                "ExperienceProjectionPolicy requires GovernedMemoryExperience"
+            )
         record = governed.record
         return ExperienceFrame(
             schema_version=EXPERIENCE_FRAME_SCHEMA_VERSION,
@@ -97,6 +95,19 @@ class ExperienceProjectionPolicy:
             provenance_refs=tuple(item.to_dict() for item in record.provenance_refs),
             created_at=record.created_at,
         )
+
+    def project_ref(
+        self,
+        ref: MemoryExperienceRef,
+        resolver: MemoryExperienceResolver,
+    ) -> ExperienceFrame:
+        if type(resolver) is not MemoryExperienceResolver:
+            raise TypeError(
+                "project_ref accepts an exact MemoryExperienceResolver only"
+            )
+        if type(ref) is not MemoryExperienceRef:
+            raise TypeError("project_ref accepts an exact MemoryExperienceRef only")
+        return self._project(resolver.resolve(ref))
 
 
 __all__ = ["ExperienceProjectionPolicy", "PersonaProjectionPolicy"]

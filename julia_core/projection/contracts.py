@@ -3,6 +3,7 @@
 Projection is a deterministic view over governed Identity. It has no durable
 semantic authority and does not decide model visibility.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -24,6 +25,7 @@ from julia_core.memory_experience import (
 PERSONA_PROJECTION_POLICY_ID = "persona_projection.identity_only"
 PERSONA_PROJECTION_POLICY_VERSION = "1.0.0"
 IDENTITY_FRAME_SCHEMA_VERSION = "1.0.0"
+IDENTITY_FRAME_SET_SCHEMA_VERSION = "1.0.0"
 EXPERIENCE_PROJECTION_POLICY_ID = "experience_projection.memory_experience_only"
 EXPERIENCE_PROJECTION_POLICY_VERSION = "1.0.0"
 EXPERIENCE_FRAME_SCHEMA_VERSION = "1.0.0"
@@ -49,9 +51,15 @@ class IdentityFrame:
     provenance_refs: tuple[Mapping[str, Any], ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "anchors", tuple(_deep_freeze(item) for item in self.anchors))
-        object.__setattr__(self, "values", tuple(_deep_freeze(item) for item in self.values))
-        object.__setattr__(self, "boundaries", tuple(_deep_freeze(item) for item in self.boundaries))
+        object.__setattr__(
+            self, "anchors", tuple(_deep_freeze(item) for item in self.anchors)
+        )
+        object.__setattr__(
+            self, "values", tuple(_deep_freeze(item) for item in self.values)
+        )
+        object.__setattr__(
+            self, "boundaries", tuple(_deep_freeze(item) for item in self.boundaries)
+        )
         object.__setattr__(
             self,
             "relationship_role_anchors",
@@ -85,7 +93,9 @@ class IdentityFrame:
             "anchors": [_deep_unfreeze(item) for item in self.anchors],
             "values": [_deep_unfreeze(item) for item in self.values],
             "boundaries": [_deep_unfreeze(item) for item in self.boundaries],
-            "relationship_role_anchors": [_deep_unfreeze(item) for item in self.relationship_role_anchors],
+            "relationship_role_anchors": [
+                _deep_unfreeze(item) for item in self.relationship_role_anchors
+            ],
             "provenance_refs": [_deep_unfreeze(item) for item in self.provenance_refs],
         }
 
@@ -98,7 +108,58 @@ class IdentityFrame:
         )
 
     def digest(self) -> str:
-        return hashlib.sha256(self.canonical_serialization().encode("utf-8")).hexdigest()
+        return hashlib.sha256(
+            self.canonical_serialization().encode("utf-8")
+        ).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class IdentityFrameSet:
+    """Exact immutable typed carrier for projected IdentityFrame values."""
+
+    schema_version: str
+    frames: tuple[IdentityFrame, ...]
+
+    def __post_init__(self) -> None:
+        if self.schema_version != IDENTITY_FRAME_SET_SCHEMA_VERSION:
+            raise ValueError("IdentityFrameSet schema_version is unsupported")
+        if type(self.frames) is not tuple:
+            raise TypeError("IdentityFrameSet frames must be an exact tuple")
+        if not self.frames:
+            raise ValueError("IdentityFrameSet requires at least one IdentityFrame")
+        if any(type(frame) is not IdentityFrame for frame in self.frames):
+            raise TypeError(
+                "IdentityFrameSet frames must contain exact IdentityFrame values"
+            )
+        source_refs = [frame.source_ref for frame in self.frames]
+        if len(source_refs) != len(set(source_refs)):
+            raise ValueError("IdentityFrameSet source_ref values must be unique")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": "julia_core.projection.identity_frame_set.v1",
+            "schema_version": self.schema_version,
+            "frames": [frame.to_dict() for frame in self.frames],
+        }
+
+    def canonical_serialization(self) -> str:
+        return json.dumps(
+            self.to_dict(),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
+    def digest(self) -> str:
+        return hashlib.sha256(
+            self.canonical_serialization().encode("utf-8")
+        ).hexdigest()
+
+    def ordered_source_refs(self) -> tuple[IdentityRef, ...]:
+        return tuple(frame.source_ref for frame in self.frames)
+
+    def ordered_frame_digests(self) -> tuple[str, ...]:
+        return tuple(frame.digest() for frame in self.frames)
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,7 +239,9 @@ class ExperienceFrame:
         )
 
     def digest(self) -> str:
-        return hashlib.sha256(self.canonical_serialization().encode("utf-8")).hexdigest()
+        return hashlib.sha256(
+            self.canonical_serialization().encode("utf-8")
+        ).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,7 +259,9 @@ class ExperienceFrameSet:
         if not self.frames:
             raise ValueError("ExperienceFrameSet requires at least one ExperienceFrame")
         if any(type(frame) is not ExperienceFrame for frame in self.frames):
-            raise TypeError("ExperienceFrameSet frames must contain exact ExperienceFrame values")
+            raise TypeError(
+                "ExperienceFrameSet frames must contain exact ExperienceFrame values"
+            )
         source_refs = [frame.source_ref for frame in self.frames]
         if len(source_refs) != len(set(source_refs)):
             raise ValueError("ExperienceFrameSet source_ref values must be unique")
@@ -217,12 +282,16 @@ class ExperienceFrameSet:
         )
 
     def digest(self) -> str:
-        return hashlib.sha256(self.canonical_serialization().encode("utf-8")).hexdigest()
+        return hashlib.sha256(
+            self.canonical_serialization().encode("utf-8")
+        ).hexdigest()
 
 
 def _deep_freeze(value: Any) -> Any:
     if isinstance(value, Mapping):
-        return MappingProxyType({key: _deep_freeze(item) for key, item in value.items()})
+        return MappingProxyType(
+            {key: _deep_freeze(item) for key, item in value.items()}
+        )
     if isinstance(value, (tuple, list)):
         return tuple(_deep_freeze(item) for item in value)
     return value
@@ -242,9 +311,11 @@ __all__ = [
     "EXPERIENCE_PROJECTION_POLICY_ID",
     "EXPERIENCE_PROJECTION_POLICY_VERSION",
     "IDENTITY_FRAME_SCHEMA_VERSION",
+    "IDENTITY_FRAME_SET_SCHEMA_VERSION",
     "ExperienceFrame",
     "ExperienceFrameSet",
     "IdentityFrame",
+    "IdentityFrameSet",
     "PERSONA_PROJECTION_POLICY_ID",
     "PERSONA_PROJECTION_POLICY_VERSION",
 ]

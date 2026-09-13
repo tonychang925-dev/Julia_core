@@ -1,4 +1,5 @@
 """Exact post-C03 semantic binding for model-visible execution."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -6,7 +7,7 @@ from hashlib import sha256
 from types import MappingProxyType
 from typing import Any, Mapping
 
-from julia_core.projection.contracts import ExperienceFrameSet, IdentityFrame
+from julia_core.projection.contracts import ExperienceFrameSet, IdentityFrameSet
 
 from .contracts import (
     AdmissionRejection,
@@ -18,13 +19,13 @@ from .contracts import (
 
 
 ADMITTED_FRAME_ORDER = (
-    "identity_frame",
+    "identity_frame_set",
     "experience_frame_set",
     "current_task_context",
 )
 ADMITTED_FRAME_ROLES = MappingProxyType(
     {
-        "identity_frame": "system",
+        "identity_frame_set": "system",
         "experience_frame_set": "system",
         "current_task_context": "user",
     }
@@ -45,7 +46,7 @@ class SemanticBindingRequest:
     """Exact inputs accepted by the sole semantic binder."""
 
     package: SealedCognitiveContextPackage
-    identity_frame: IdentityFrame
+    identity_frames: IdentityFrameSet
     experience_frames: ExperienceFrameSet
     current_task_context: CurrentConversationalTaskContext
 
@@ -56,10 +57,10 @@ class SemanticBindingRequest:
                 "semantic binding requires an exact sealed C03 package",
             )
         self.package.verify()
-        if type(self.identity_frame) is not IdentityFrame:
+        if type(self.identity_frames) is not IdentityFrameSet:
             raise _rejection(
-                "inexact_identity_frame",
-                "semantic binding requires an exact canonical IdentityFrame",
+                "inexact_identity_frames",
+                "semantic binding requires an exact canonical IdentityFrameSet",
             )
         if type(self.experience_frames) is not ExperienceFrameSet:
             raise _rejection(
@@ -99,9 +100,7 @@ class AdmittedSemanticUnit:
                 "inexact_semantic_role",
                 "semantic binding role does not match the frozen transport contract",
             )
-        actual_digest = sha256(
-            self.canonical_content.encode("utf-8")
-        ).hexdigest()
+        actual_digest = sha256(self.canonical_content.encode("utf-8")).hexdigest()
         if self.semantic_digest != actual_digest:
             raise _rejection(
                 "forged_semantic_unit",
@@ -144,9 +143,8 @@ class AdmittedSemanticBundle:
                 "inexact_semantic_manifest",
                 "semantic bundle manifest is partial, ambiguous, or out of order",
             )
-        if (
-            type(self.units) is not tuple
-            or len(self.units) != len(ADMITTED_FRAME_ORDER)
+        if type(self.units) is not tuple or len(self.units) != len(
+            ADMITTED_FRAME_ORDER
         ):
             raise _rejection(
                 "incomplete_semantic_bundle",
@@ -228,13 +226,26 @@ class ExactAdmittedSemanticBinder:
             )
 
         sources = (
-            request.identity_frame,
+            request.identity_frames,
             request.experience_frames,
             request.current_task_context,
         )
         frame_digests = tuple(
             frame.digest() for frame in request.experience_frames.frames
         )
+        identity_frame_digests = tuple(
+            frame.digest() for frame in request.identity_frames.frames
+        )
+        if identity_frame_digests != package.identity_frame_digests:
+            raise _rejection(
+                "mismatched_identity_frame_manifest",
+                "identity frame digest manifest does not match the sealed package",
+            )
+        if len(request.identity_frames.frames) != package.identity_frame_count:
+            raise _rejection(
+                "mismatched_identity_frame_count",
+                "identity frame count does not match the sealed package",
+            )
         if frame_digests != package.experience_frame_digests:
             raise _rejection(
                 "mismatched_experience_frame_manifest",

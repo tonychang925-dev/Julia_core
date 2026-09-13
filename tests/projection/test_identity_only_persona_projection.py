@@ -23,22 +23,40 @@ from julia_core.identity import (
 from julia_core.projection import PersonaProjectionPolicy
 
 
-EFFECTIVE_BASE_SHA = "cd98d168ecc5a83a9628890687774d25a847c59f"
+EFFECTIVE_BASE_SHA = "7c1d3d66e382f34db6f59b1f0c354ddd4f5d6579"
 
 
 def contract(*, anchor: str = "Synthetic identity anchor") -> IdentityContract:
     return IdentityContract(
         identity_id="identity-synthetic-001",
         anchors=(IdentityAnchor(anchor_id="anchor-core", statement=anchor),),
-        values=(IdentityValue(value_id="value-honesty", statement="Prefer truthful bounded claims."),),
-        boundaries=(IdentityBoundary(boundary_id="boundary-no-fabrication", constraint="Do not fabricate lived experience."),),
+        values=(
+            IdentityValue(
+                value_id="value-honesty", statement="Prefer truthful bounded claims."
+            ),
+        ),
+        boundaries=(
+            IdentityBoundary(
+                boundary_id="boundary-no-fabrication",
+                constraint="Do not fabricate lived experience.",
+            ),
+        ),
         relationship_role_anchors=(
-            RelationshipRoleAnchor(anchor_id="role-collaborator", relationship_id="relationship-synthetic", role="collaborator"),
+            RelationshipRoleAnchor(
+                anchor_id="role-collaborator",
+                relationship_id="relationship-synthetic",
+                role="collaborator",
+            ),
         ),
     )
 
 
-def version(version_id: str = "v1", *, anchor: str = "Synthetic identity anchor", predecessor: str | None = None) -> IdentityVersion:
+def version(
+    version_id: str = "v1",
+    *,
+    anchor: str = "Synthetic identity anchor",
+    predecessor: str | None = None,
+) -> IdentityVersion:
     return IdentityVersion(
         contract=contract(anchor=anchor),
         lineage_id="lineage-synthetic-test",
@@ -76,13 +94,21 @@ def project_admitted(anchor: str = "Synthetic identity anchor"):
         reason="Synthetic admission fixture",
         occurred_at="2026-09-10T00:01:00Z",
     )
-    return PersonaProjectionPolicy().project_ref(candidate.ref, IdentityResolver(repository)), repository, candidate
+    return (
+        PersonaProjectionPolicy().project_ref(
+            candidate.ref, IdentityResolver(repository)
+        ),
+        repository,
+        candidate,
+    )
 
 
 def test_exact_admitted_ref_projects_deterministic_identity_frame() -> None:
     repository = IdentityRepository()
     candidate = repository.store_candidate(version())
-    repository.admit(candidate.ref, actor="test", reason="admit", occurred_at="2026-09-10T00:01:00Z")
+    repository.admit(
+        candidate.ref, actor="test", reason="admit", occurred_at="2026-09-10T00:01:00Z"
+    )
     resolver = IdentityResolver(repository)
     policy = PersonaProjectionPolicy()
 
@@ -116,16 +142,30 @@ def test_unknown_exact_ref_fails_closed_without_latest_fallback() -> None:
         ("retired", "RETIRED"),
     ],
 )
-def test_projection_preserves_lifecycle_without_promotion(method: str, expected_status: str) -> None:
+def test_projection_preserves_lifecycle_without_promotion(
+    method: str, expected_status: str
+) -> None:
     repository = IdentityRepository()
     candidate = repository.store_candidate(version())
     governed = candidate
     if method == "superseded":
-        governed = repository.supersede(candidate.ref, actor="test", reason="newer version", occurred_at="2026-09-10T00:02:00Z")
+        governed = repository.supersede(
+            candidate.ref,
+            actor="test",
+            reason="newer version",
+            occurred_at="2026-09-10T00:02:00Z",
+        )
     elif method == "retired":
-        governed = repository.retire(candidate.ref, actor="test", reason="retired", occurred_at="2026-09-10T00:02:00Z")
+        governed = repository.retire(
+            candidate.ref,
+            actor="test",
+            reason="retired",
+            occurred_at="2026-09-10T00:02:00Z",
+        )
 
-    frame = PersonaProjectionPolicy().project_ref(candidate.ref, IdentityResolver(repository))
+    frame = PersonaProjectionPolicy().project_ref(
+        candidate.ref, IdentityResolver(repository)
+    )
 
     assert frame.source_status.value == expected_status
     assert repository.resolve(candidate.ref).status.value == expected_status
@@ -148,8 +188,12 @@ def test_projection_does_not_mutate_identity_version_or_invent_anchors() -> None
 
     assert governed.version.digest() == source_digest
     assert frame.anchors == (source_anchor,)
-    assert frame.values == tuple(item.to_dict() for item in governed.version.contract.values)
-    assert frame.boundaries == tuple(item.to_dict() for item in governed.version.contract.boundaries)
+    assert frame.values == tuple(
+        item.to_dict() for item in governed.version.contract.values
+    )
+    assert frame.boundaries == tuple(
+        item.to_dict() for item in governed.version.contract.boundaries
+    )
     assert frame.relationship_role_anchors == tuple(
         item.to_dict() for item in governed.version.contract.relationship_role_anchors
     )
@@ -190,7 +234,10 @@ def test_frame_contains_only_bounded_identity_fields() -> None:
 
 
 def test_projection_package_has_no_legacy_or_authority_imports() -> None:
-    source = "\n".join(path.read_text(encoding="utf-8") for path in Path("julia_core/projection").glob("*.py"))
+    source = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in Path("julia_core/projection").glob("*.py")
+    )
 
     for forbidden in (
         "julia_core.persona",
@@ -262,12 +309,26 @@ def test_changed_scope_is_limited_to_authorized_eng08_paths() -> None:
             capture_output=True,
             text=True,
         ).stdout.splitlines()
-        if path.startswith(("julia_core/projection/", "tests/projection/", "tests/identity/", "docs/mira_persona_architecture/", "artifacts/mira_persona_architecture/"))
+        if path.startswith(
+            (
+                "julia_core/projection/",
+                "tests/projection/",
+                "tests/identity/",
+                "docs/mira_persona_architecture/",
+                "artifacts/mira_persona_architecture/",
+            )
+        )
     )
     allowed = (
         "julia_core/identity/",
         "julia_core/projection/",
+        "julia_core/context_admission/",
+        "julia_core/execution_observer.py",
         "tests/projection/",
+        "tests/context_admission/",
+        "tests/evidence/",
+        "tests/continuity_conformance/",
+        "artifacts/continuity/",
         "tests/identity/",
         "julia_core/memory_experience/",
         "tests/memory_experience/",

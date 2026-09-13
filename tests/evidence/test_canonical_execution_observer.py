@@ -22,7 +22,11 @@ from julia_core.execution_observer import (
     ProviderExecutionRejected,
 )
 from julia_core.identity import IdentityRef
-from julia_core.projection.contracts import ExperienceFrameSet, IdentityFrame
+from julia_core.projection.contracts import (
+    ExperienceFrameSet,
+    IdentityFrame,
+    IdentityFrameSet,
+)
 from julia_core.runtime.assistant_runtime import (
     JuliaAssistantRuntime,
     RuntimeTurnRequest,
@@ -39,6 +43,10 @@ SOURCE_PATH = Path("julia_core/execution_observer.py")
 
 
 class IdentityFrameSubclass(IdentityFrame):
+    pass
+
+
+class IdentityFrameSetSubclass(IdentityFrameSet):
     pass
 
 
@@ -63,9 +71,7 @@ def experience_frame_set(count: int = 1) -> ExperienceFrameSet:
                 version_id=source_ref.version_id,
                 provenance_refs=(
                     {
-                        "source_ref": (
-                            f"fixture://eng12a/experience/{index + 1}"
-                        ),
+                        "source_ref": (f"fixture://eng12a/experience/{index + 1}"),
                         "source_digest": base.source_digest,
                     },
                 ),
@@ -87,7 +93,7 @@ def exact_chain(*, identity=None, experiences=None, current_task=None):
     binding = ExactAdmittedSemanticBinder().bind(
         SemanticBindingRequest(
             package,
-            admission.identity_frame,
+            admission.identity_frames,
             admission.experience_frames,
             admission.current_task_context,
         )
@@ -95,13 +101,14 @@ def exact_chain(*, identity=None, experiences=None, current_task=None):
     envelope = JuliaAssistantRuntime().prepare(
         RuntimeTurnRequest(binding=binding, provider_id="deepseek")
     )
-    return identity, experiences, current_task, package, binding, envelope
+    identity_frames = IdentityFrameSet(schema_version="1.0.0", frames=(identity,))
+    return identity_frames, experiences, current_task, package, binding, envelope
 
 
 def observe(chain, value: str = "provider output"):
-    identity, experiences, current_task, package, binding, envelope = chain
+    identity_frames, experiences, current_task, package, binding, envelope = chain
     return EvidenceOnlyCanonicalExecutionObserver().observe(
-        identity_frame=identity,
+        identity_frames=identity_frames,
         experience_frames=experiences,
         current_task_context=current_task,
         package=package,
@@ -132,11 +139,13 @@ def test_exact_one_frame_provenance_manifest_is_visible() -> None:
     record = observe(exact_chain())
 
     provenance = record.provenance
-    assert provenance.identity_frame.source_ref == {
+    assert provenance.identity_frames[0].source_ref == {
         "lineage_id": "identity-lineage-eng12a",
         "version_id": "v1",
     }
-    assert provenance.identity_frame.source_digest == "a" * 64
+    assert provenance.identity_frames[0].source_digest == "a" * 64
+    assert len(provenance.ordered_identity_frame_digest_manifest) == 1
+    assert provenance.identity_frame_set_digest == exact_chain()[0].digest()
     assert provenance.experience_frames[0].source_ref == {
         "experience_id": "experience-eng12a-1",
         "version_id": "v1",
@@ -161,8 +170,7 @@ def test_n_frame_order_and_complete_manifest_are_preserved() -> None:
     assert record.provenance.ordered_frame_digest_manifest == expected
     assert record.provenance.experience_frame_set_digest == experiences.digest()
     assert tuple(
-        item.source_ref["experience_id"]
-        for item in record.provenance.experience_frames
+        item.source_ref["experience_id"] for item in record.provenance.experience_frames
     ) == ("experience-eng12a-1", "experience-eng12a-2", "experience-eng12a-3")
 
 
@@ -189,7 +197,7 @@ def test_provider_failure_and_error_dispositions_are_non_semantic() -> None:
     identity, experiences, current_task, package, binding, envelope = chain
     observer = EvidenceOnlyCanonicalExecutionObserver()
     common = {
-        "identity_frame": identity,
+        "identity_frames": identity,
         "experience_frames": experiences,
         "current_task_context": current_task,
         "package": package,
@@ -247,7 +255,7 @@ def test_replay_digest_is_deterministic_and_material_change_sensitive() -> None:
     first = observe(chain)
     same = observe(chain)
     changed_disposition = EvidenceOnlyCanonicalExecutionObserver().observe_outcome(
-        identity_frame=chain[0],
+        identity_frames=chain[0],
         experience_frames=chain[1],
         current_task_context=chain[2],
         package=chain[3],
@@ -270,7 +278,7 @@ def test_mismatched_canonical_execution_identity_rejected() -> None:
         CanonicalExecutionObservationRejected, match="identities do not match"
     ):
         EvidenceOnlyCanonicalExecutionObserver().observe(
-            identity_frame=second[0],
+            identity_frames=second[0],
             experience_frames=second[1],
             current_task_context=second[2],
             package=first[3],
@@ -286,7 +294,7 @@ def test_exact_types_and_outcome_subclasses_rejected() -> None:
 
     with pytest.raises(TypeError, match="evidence is inexact"):
         observer.observe_outcome(
-            identity_frame=object.__new__(IdentityFrameSubclass),
+            identity_frames=object.__new__(IdentityFrameSetSubclass),
             experience_frames=experiences,
             current_task_context=current_task,
             package=package,
@@ -296,7 +304,7 @@ def test_exact_types_and_outcome_subclasses_rejected() -> None:
         )
     with pytest.raises(TypeError, match="outcome is inexact"):
         observer.observe_outcome(
-            identity_frame=identity,
+            identity_frames=identity,
             experience_frames=experiences,
             current_task_context=current_task,
             package=package,

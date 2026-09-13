@@ -10,6 +10,7 @@ from julia_core.projection.contracts import (
     ExperienceFrame,
     ExperienceFrameSet,
     IdentityFrame,
+    IdentityFrameSet,
 )
 
 from julia_core.context_admission import (
@@ -35,9 +36,20 @@ def canonical_identity_frame(*, provenance_refs=None) -> IdentityFrame:
         values=(),
         boundaries=({"boundary_id": "exclusive-gateway", "rule": "C03 only"},),
         relationship_role_anchors=(),
-        provenance_refs=provenance_refs
-        if provenance_refs is not None
-        else ({"source_ref": "fixture://eng12a/identity", "source_digest": digest},),
+        provenance_refs=(
+            provenance_refs
+            if provenance_refs is not None
+            else ({"source_ref": "fixture://eng12a/identity", "source_digest": digest},)
+        ),
+    )
+
+
+def canonical_identity_frame_set(
+    *, identity: IdentityFrame | None = None
+) -> IdentityFrameSet:
+    return IdentityFrameSet(
+        schema_version="1.0.0",
+        frames=(identity or canonical_identity_frame(),),
     )
 
 
@@ -55,9 +67,13 @@ def canonical_experience_frame(*, provenance_refs=None) -> ExperienceFrame:
         predecessor_version_id=None,
         experience_type=MemoryExperienceType.PROJECT_COMMITMENT,
         content={"commitment": "Do not bypass governed context admission"},
-        provenance_refs=provenance_refs
-        if provenance_refs is not None
-        else ({"source_ref": "fixture://eng12a/experience", "source_digest": digest},),
+        provenance_refs=(
+            provenance_refs
+            if provenance_refs is not None
+            else (
+                {"source_ref": "fixture://eng12a/experience", "source_digest": digest},
+            )
+        ),
         created_at="2026-09-12T00:00:00Z",
     )
 
@@ -79,9 +95,11 @@ def canonical_current_task_context(
         task_intent="Implement C03 conformance",
         task_domain="software_engineering",
         current_modality="text",
-        bounded_state={"surface": "terminal", "open_loop_count": 1}
-        if bounded_state is None
-        else bounded_state,
+        bounded_state=(
+            {"surface": "terminal", "open_loop_count": 1}
+            if bounded_state is None
+            else bounded_state
+        ),
         provenance=provenance
         or CanonicalConversationProvenance(
             source_type=CanonicalConversationSource.CONVERSATION_RUNTIME,
@@ -96,9 +114,9 @@ def canonical_request(
     *, identity=None, experiences=None, current_task=None
 ) -> ExclusiveAdmissionRequest:
     return ExclusiveAdmissionRequest(
-        identity_frame=identity or canonical_identity_frame(),
-        experience_frames=experiences
-        if experiences is not None
-        else canonical_experience_frame_set(),
+        identity_frames=canonical_identity_frame_set(identity=identity),
+        experience_frames=(
+            experiences if experiences is not None else canonical_experience_frame_set()
+        ),
         current_task_context=current_task or canonical_current_task_context(),
     )

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import get_type_hints
 
 from julia_core.context_admission import ExclusiveAdmissionRequest
+from julia_core.projection.contracts import IdentityFrameSet
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -12,16 +13,14 @@ RUN_PATH = REPOSITORY / "artifacts/continuity/P5_C_REAL_GOLDEN_MIRA_CANARY_RUN_V
 PREFLIGHT_PATH = REPOSITORY / "artifacts/continuity/P5_C_REAL_CANARY_PREFLIGHT_V1.json"
 
 
-def test_p5_live_blocks_before_provider_when_c03_cannot_admit_three_identities() -> (
-    None
-):
+def test_p5_live_block_is_preserved_and_identity_carrier_defect_is_corrected() -> None:
     run = json.loads(RUN_PATH.read_text(encoding="utf-8"))
     preflight = json.loads(PREFLIGHT_PATH.read_text(encoding="utf-8"))
-    identity_hints = get_type_hints(ExclusiveAdmissionRequest)["identity_frame"]
+    identity_hints = get_type_hints(ExclusiveAdmissionRequest)["identity_frames"]
     required_identities = preflight["canonical_input"]["identity_refs"]
 
     assert len(required_identities) == 3
-    assert identity_hints.__args__[0].__name__ == "IdentityFrame"
+    assert identity_hints == (IdentityFrameSet | None)
     assert run["pre_provider_gate"]["failure"] == {
         "code": "C03_IDENTITY_FRAME_CARDINALITY_MISMATCH",
         "message": (

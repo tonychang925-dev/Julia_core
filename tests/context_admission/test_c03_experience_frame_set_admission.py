@@ -17,6 +17,7 @@ from .production_fixtures import (
     canonical_current_task_context,
     canonical_experience_frame,
     canonical_identity_frame,
+    canonical_identity_frame_set,
 )
 
 
@@ -35,7 +36,7 @@ def experience_set(count: int = 1) -> ExperienceFrameSet:
 
 def request(experiences: ExperienceFrameSet | None = None) -> ExclusiveAdmissionRequest:
     return ExclusiveAdmissionRequest(
-        identity_frame=canonical_identity_frame(),
+        identity_frames=canonical_identity_frame_set(),
         experience_frames=experiences if experiences is not None else experience_set(),
         current_task_context=canonical_current_task_context(),
     )
@@ -96,7 +97,9 @@ def test_f1b_06_frame_digest_order_preserved() -> None:
 
     sealed = ExclusiveAdmissionGate().seal(request(experiences))
 
-    assert list(sealed.experience_frame_digests) == [frame.digest() for frame in experiences.frames]
+    assert list(sealed.experience_frame_digests) == [
+        frame.digest() for frame in experiences.frames
+    ]
 
 
 def test_f1b_07_identity_frame_remains_exact() -> None:
@@ -104,13 +107,15 @@ def test_f1b_07_identity_frame_remains_exact() -> None:
 
     sealed = ExclusiveAdmissionGate().seal(
         ExclusiveAdmissionRequest(
-            identity_frame=identity,
+            identity_frames=canonical_identity_frame_set(identity=identity),
             experience_frames=experience_set(),
             current_task_context=canonical_current_task_context(),
         )
     )
 
-    assert sealed.identity_digest == identity.digest()
+    assert sealed.identity_digest == (
+        canonical_identity_frame_set(identity=identity).digest()
+    )
 
 
 def test_f1b_08_current_task_remains_exact() -> None:
@@ -118,7 +123,7 @@ def test_f1b_08_current_task_remains_exact() -> None:
 
     sealed = ExclusiveAdmissionGate().seal(
         ExclusiveAdmissionRequest(
-            identity_frame=canonical_identity_frame(),
+            identity_frames=canonical_identity_frame_set(),
             experience_frames=experience_set(2),
             current_task_context=current_task,
         )
@@ -133,7 +138,9 @@ def test_f1b_09_package_verification_succeeds() -> None:
     sealed = ExclusiveAdmissionGate().seal(request(experience_set(3)))
 
     assert sealed.verify() is sealed
-    assert ModelVisibilityTransport().render(sealed)["gate_receipt"] == sealed.gate_receipt
+    assert (
+        ModelVisibilityTransport().render(sealed)["gate_receipt"] == sealed.gate_receipt
+    )
 
 
 def test_f1b_10_one_and_n_experiences_use_same_c03_path() -> None:
@@ -142,7 +149,10 @@ def test_f1b_10_one_and_n_experiences_use_same_c03_path() -> None:
 
     assert type(one) is type(many)
     assert one.contract_version == many.contract_version
-    assert one.to_dict()["source_digests"].keys() == many.to_dict()["source_digests"].keys()
+    assert (
+        one.to_dict()["source_digests"].keys()
+        == many.to_dict()["source_digests"].keys()
+    )
 
 
 def test_f1b_11_singular_experience_frame_request_surface_absent() -> None:
@@ -150,7 +160,7 @@ def test_f1b_11_singular_experience_frame_request_surface_absent() -> None:
 
     with pytest.raises(TypeError):
         ExclusiveAdmissionRequest(
-            identity_frame=canonical_identity_frame(),
+            identity_frames=canonical_identity_frame_set(),
             experience_frame=canonical_experience_frame(),
             current_task_context=canonical_current_task_context(),
         )
@@ -159,7 +169,7 @@ def test_f1b_11_singular_experience_frame_request_surface_absent() -> None:
 def test_f1b_12_none_carrier_rejected() -> None:
     with pytest.raises(C03AdmissionRejected, match="ExperienceFrameSet"):
         ExclusiveAdmissionRequest(
-            identity_frame=canonical_identity_frame(),
+            identity_frames=canonical_identity_frame_set(),
             experience_frames=None,
             current_task_context=canonical_current_task_context(),
         )
@@ -168,7 +178,7 @@ def test_f1b_12_none_carrier_rejected() -> None:
 def test_f1b_13_wrong_carrier_type_rejected() -> None:
     with pytest.raises(C03AdmissionRejected, match="ExperienceFrameSet"):
         ExclusiveAdmissionRequest(
-            identity_frame=canonical_identity_frame(),
+            identity_frames=canonical_identity_frame_set(),
             experience_frames=canonical_experience_frame(),
             current_task_context=canonical_current_task_context(),
         )
@@ -180,7 +190,7 @@ def test_f1b_14_carrier_subclass_rejected() -> None:
 
     with pytest.raises(C03AdmissionRejected, match="ExperienceFrameSet"):
         ExclusiveAdmissionRequest(
-            identity_frame=canonical_identity_frame(),
+            identity_frames=canonical_identity_frame_set(),
             experience_frames=SubclassedFrameSet(
                 schema_version="1.0.0",
                 frames=experience_set().frames,
@@ -200,7 +210,9 @@ def test_f1b_16_missing_individual_frame_digest_fails() -> None:
     sealed = ExclusiveAdmissionGate().seal(request(experience_set(2)))
 
     with pytest.raises(C03AdmissionRejected, match="count does not match"):
-        forged(sealed, experience_frame_digests=sealed.experience_frame_digests[:1]).verify()
+        forged(
+            sealed, experience_frame_digests=sealed.experience_frame_digests[:1]
+        ).verify()
 
 
 def test_f1b_17_reordered_frame_digest_manifest_fails() -> None:
@@ -229,10 +241,9 @@ def test_f1b_19_no_selection_surface() -> None:
 
 
 def test_f1b_20_no_compatibility_singular_path() -> None:
-    production_source = (
-        __import__("inspect").getsource(ExclusiveAdmissionGate)
-        + __import__("inspect").getsource(ExclusiveAdmissionRequest)
-    )
+    production_source = __import__("inspect").getsource(
+        ExclusiveAdmissionGate
+    ) + __import__("inspect").getsource(ExclusiveAdmissionRequest)
 
     assert "experience_frame=" not in production_source
     assert "len(experience_frames.frames) == 1" not in production_source

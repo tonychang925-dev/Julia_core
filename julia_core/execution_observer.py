@@ -22,7 +22,7 @@ from julia_core.context_admission import (
 from julia_core.context_admission.contracts import canonical_json
 from julia_core.projection.contracts import (
     ExperienceFrameSet,
-    IdentityFrame,
+    IdentityFrameSet,
 )
 
 
@@ -114,7 +114,9 @@ class CanonicalExecutionProvenance:
     schema_version: str
     conversation_id: str
     turn_id: str
-    identity_frame: CanonicalSourceObservation
+    identity_frames: tuple[CanonicalSourceObservation, ...]
+    identity_frame_set_digest: str
+    ordered_identity_frame_digest_manifest: tuple[str, ...]
     experience_frames: tuple[CanonicalSourceObservation, ...]
     experience_frame_set_digest: str
     ordered_frame_digest_manifest: tuple[str, ...]
@@ -134,8 +136,15 @@ class CanonicalExecutionProvenance:
         for name in ("conversation_id", "turn_id", "provider_id"):
             if type(getattr(self, name)) is not str or not getattr(self, name):
                 raise TypeError(f"observer {name} is inexact")
-        if type(self.identity_frame) is not CanonicalSourceObservation:
-            raise TypeError("identity provenance is inexact")
+        if (
+            type(self.identity_frames) is not tuple
+            or not self.identity_frames
+            or any(
+                type(item) is not CanonicalSourceObservation
+                for item in self.identity_frames
+            )
+        ):
+            raise TypeError("identity provenance is partial or inexact")
         if (
             type(self.experience_frames) is not tuple
             or not self.experience_frames
@@ -147,6 +156,13 @@ class CanonicalExecutionProvenance:
             raise TypeError("experience provenance is partial or inexact")
         if type(self.current_task_context) is not CanonicalSourceObservation:
             raise TypeError("current task provenance is inexact")
+        _require_digest(self.identity_frame_set_digest, "IdentityFrameSet digest")
+        if type(self.ordered_identity_frame_digest_manifest) is not tuple or not (
+            self.ordered_identity_frame_digest_manifest
+        ):
+            raise TypeError("ordered identity frame digest manifest is partial")
+        for digest in self.ordered_identity_frame_digest_manifest:
+            _require_digest(digest, "ordered identity frame digest")
         _require_digest(self.experience_frame_set_digest, "ExperienceFrameSet digest")
         if type(self.ordered_frame_digest_manifest) is not tuple or not (
             self.ordered_frame_digest_manifest
@@ -172,10 +188,14 @@ class CanonicalExecutionProvenance:
                 "conversation_id": self.conversation_id,
                 "turn_id": self.turn_id,
             },
-            "identity_frame": self.identity_frame.to_dict(),
-            "experience_frames": [
-                item.to_dict() for item in self.experience_frames
-            ],
+            "identity_frames": [item.to_dict() for item in self.identity_frames],
+            "identity_frame_set": {
+                "digest": self.identity_frame_set_digest,
+                "ordered_frame_digest_manifest": list(
+                    self.ordered_identity_frame_digest_manifest
+                ),
+            },
+            "experience_frames": [item.to_dict() for item in self.experience_frames],
             "experience_frame_set": {
                 "digest": self.experience_frame_set_digest,
                 "ordered_frame_digest_manifest": list(
@@ -304,9 +324,7 @@ class ExecutionAuthorityAttestation:
             "MEMORY_EXPERIENCE_AUTHORITY_MUTATION": (
                 self.memory_experience_authority_mutations
             ),
-            "POST_C03_SEMANTIC_RECONSTRUCTION": (
-                self.post_c03_semantic_reconstruction
-            ),
+            "POST_C03_SEMANTIC_RECONSTRUCTION": (self.post_c03_semantic_reconstruction),
         }
 
 
@@ -359,7 +377,7 @@ class EvidenceOnlyCanonicalExecutionObserver:
     def observe(
         self,
         *,
-        identity_frame: IdentityFrame,
+        identity_frames: IdentityFrameSet,
         experience_frames: ExperienceFrameSet,
         current_task_context: CurrentConversationalTaskContext,
         package: SealedCognitiveContextPackage,
@@ -370,7 +388,7 @@ class EvidenceOnlyCanonicalExecutionObserver:
         if not callable(provider_execution):
             raise TypeError("provider execution must be an injected exact callable")
         provenance = self._provenance(
-            identity_frame=identity_frame,
+            identity_frames=identity_frames,
             experience_frames=experience_frames,
             current_task_context=current_task_context,
             package=package,
@@ -399,7 +417,7 @@ class EvidenceOnlyCanonicalExecutionObserver:
     def observe_outcome(
         self,
         *,
-        identity_frame: IdentityFrame,
+        identity_frames: IdentityFrameSet,
         experience_frames: ExperienceFrameSet,
         current_task_context: CurrentConversationalTaskContext,
         package: SealedCognitiveContextPackage,
@@ -410,7 +428,7 @@ class EvidenceOnlyCanonicalExecutionObserver:
         if type(outcome) is not ProviderExecutionOutcome:
             raise TypeError("provider execution outcome is inexact")
         provenance = self._provenance(
-            identity_frame=identity_frame,
+            identity_frames=identity_frames,
             experience_frames=experience_frames,
             current_task_context=current_task_context,
             package=package,
@@ -422,7 +440,7 @@ class EvidenceOnlyCanonicalExecutionObserver:
     def _provenance(
         self,
         *,
-        identity_frame: IdentityFrame,
+        identity_frames: IdentityFrameSet,
         experience_frames: ExperienceFrameSet,
         current_task_context: CurrentConversationalTaskContext,
         package: SealedCognitiveContextPackage,
@@ -432,7 +450,7 @@ class EvidenceOnlyCanonicalExecutionObserver:
         if type(self) is not EvidenceOnlyCanonicalExecutionObserver:
             raise TypeError("observation requires the exact evidence observer")
         exact_inputs = (
-            identity_frame,
+            identity_frames,
             experience_frames,
             current_task_context,
             package,
@@ -440,7 +458,7 @@ class EvidenceOnlyCanonicalExecutionObserver:
             envelope,
         )
         expected_types = (
-            IdentityFrame,
+            IdentityFrameSet,
             ExperienceFrameSet,
             CurrentConversationalTaskContext,
             SealedCognitiveContextPackage,
@@ -472,12 +490,15 @@ class EvidenceOnlyCanonicalExecutionObserver:
             raise CanonicalExecutionObservationRejected(
                 "canonical execution identities do not match"
             )
-        frame_digests = tuple(frame.digest() for frame in experience_frames.frames)
-        ordered_unit_digests = tuple(
-            unit.semantic_digest for unit in binding.units
+        identity_frame_digests = tuple(
+            frame.digest() for frame in identity_frames.frames
         )
+        frame_digests = tuple(frame.digest() for frame in experience_frames.frames)
+        ordered_unit_digests = tuple(unit.semantic_digest for unit in binding.units)
         if (
-            identity_frame.digest() != package.identity_digest
+            identity_frames.digest() != package.identity_digest
+            or identity_frame_digests != package.identity_frame_digests
+            or len(identity_frame_digests) != package.identity_frame_count
             or experience_frames.digest() != package.experience_digest
             or frame_digests != package.experience_frame_digests
             or len(frame_digests) != package.experience_frame_count
@@ -495,7 +516,7 @@ class EvidenceOnlyCanonicalExecutionObserver:
                 "canonical semantic evidence does not match the sealed package"
             )
         if tuple(unit.frame_name for unit in binding.units) != (
-            "identity_frame",
+            "identity_frame_set",
             "experience_frame_set",
             "current_task_context",
         ):
@@ -506,10 +527,15 @@ class EvidenceOnlyCanonicalExecutionObserver:
             schema_version=CANONICAL_EXECUTION_OBSERVER_SCHEMA_VERSION,
             conversation_id=envelope.conversation_id,
             turn_id=envelope.turn_id,
-            identity_frame=CanonicalSourceObservation(
-                source_ref=identity_frame.source_ref.to_dict(),
-                source_digest=identity_frame.source_digest,
+            identity_frames=tuple(
+                CanonicalSourceObservation(
+                    source_ref=item.source_ref.to_dict(),
+                    source_digest=item.source_digest,
+                )
+                for item in identity_frames.frames
             ),
+            identity_frame_set_digest=identity_frames.digest(),
+            ordered_identity_frame_digest_manifest=identity_frame_digests,
             experience_frames=tuple(
                 CanonicalSourceObservation(
                     source_ref=item.source_ref.to_dict(),
@@ -520,9 +546,7 @@ class EvidenceOnlyCanonicalExecutionObserver:
             experience_frame_set_digest=experience_frames.digest(),
             ordered_frame_digest_manifest=frame_digests,
             current_task_context=CanonicalSourceObservation(
-                source_ref={
-                    "source_ref": current_task_context.provenance.source_ref
-                },
+                source_ref={"source_ref": current_task_context.provenance.source_ref},
                 source_digest=current_task_context.provenance.source_digest,
             ),
             gate_receipt=envelope.gate_receipt,

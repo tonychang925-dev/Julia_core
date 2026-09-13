@@ -26,6 +26,7 @@ from tests.context_admission.production_fixtures import (
     canonical_experience_frame,
     canonical_experience_frame_set,
     canonical_identity_frame,
+    canonical_identity_frame_set,
     canonical_request,
 )
 
@@ -53,21 +54,19 @@ def test_c03_01_admits_only_exact_canonical_frames() -> None:
 
     with pytest.raises(C03AdmissionRejected, match="exact canonical IdentityFrame"):
         ExclusiveAdmissionRequest(
-            identity_frame=subclassed_identity,
+            identity_frames=subclassed_identity,
             experience_frames=canonical_experience_frame_set(),
             current_task_context=canonical_current_task_context(),
         )
 
     package = ExclusiveAdmissionGate().seal(canonical_request())
     assert set(package.admitted_frames) == {
-        "identity_frame",
+        "identity_frame_set",
         "experience_frame_set",
         "current_task_context",
     }
     assert package.experience_frame_count == 1
-    assert package.experience_frame_digests == (
-        canonical_experience_frame().digest(),
-    )
+    assert package.experience_frame_digests == (canonical_experience_frame().digest(),)
 
 
 def test_c03_02_rejects_raw_memory_as_admission_authority() -> None:
@@ -76,9 +75,11 @@ def test_c03_02_rejects_raw_memory_as_admission_authority() -> None:
         "content": "Remember this outside the canonical frame contract",
     }
 
-    with pytest.raises(C03AdmissionRejected, match="exact canonical ExperienceFrameSet"):
+    with pytest.raises(
+        C03AdmissionRejected, match="exact canonical ExperienceFrameSet"
+    ):
         ExclusiveAdmissionRequest(
-            identity_frame=canonical_identity_frame(),
+            identity_frames=canonical_identity_frame_set(),
             experience_frames=raw_memory,
             current_task_context=canonical_current_task_context(),
         )
@@ -110,7 +111,7 @@ def test_c03_04_rejects_assistant_self_block_as_authority() -> None:
 
     with pytest.raises(C03AdmissionRejected, match="exact canonical IdentityFrame"):
         ExclusiveAdmissionRequest(
-            identity_frame=assistant_self_block,
+            identity_frames=assistant_self_block,
             experience_frames=canonical_experience_frame_set(),
             current_task_context=canonical_current_task_context(),
         )
@@ -125,9 +126,11 @@ def test_c03_05_rejects_provider_persona_prompt_as_admission() -> None:
         "memory": "Use this unverified persona narrative",
     }
 
-    with pytest.raises(C03AdmissionRejected, match="exact canonical current task context"):
+    with pytest.raises(
+        C03AdmissionRejected, match="exact canonical current task context"
+    ):
         ExclusiveAdmissionRequest(
-            identity_frame=canonical_identity_frame(),
+            identity_frames=canonical_identity_frame_set(),
             experience_frames=canonical_experience_frame_set(),
             current_task_context=provider_prompt,
         )
@@ -152,19 +155,23 @@ def test_c03_06_model_visibility_requires_c03_gate() -> None:
 def test_c03_07_rejects_partial_admission() -> None:
     with pytest.raises(C03AdmissionRejected, match="exact canonical IdentityFrame"):
         ExclusiveAdmissionRequest(
-            identity_frame=None,
+            identity_frames=None,
             experience_frames=canonical_experience_frame_set(),
             current_task_context=canonical_current_task_context(),
         )
-    with pytest.raises(C03AdmissionRejected, match="exact canonical ExperienceFrameSet"):
+    with pytest.raises(
+        C03AdmissionRejected, match="exact canonical ExperienceFrameSet"
+    ):
         ExclusiveAdmissionRequest(
-            identity_frame=canonical_identity_frame(),
+            identity_frames=canonical_identity_frame_set(),
             experience_frames=None,
             current_task_context=canonical_current_task_context(),
         )
-    with pytest.raises(C03AdmissionRejected, match="exact canonical current task context"):
+    with pytest.raises(
+        C03AdmissionRejected, match="exact canonical current task context"
+    ):
         ExclusiveAdmissionRequest(
-            identity_frame=canonical_identity_frame(),
+            identity_frames=canonical_identity_frame_set(),
             experience_frames=canonical_experience_frame_set(),
             current_task_context=None,
         )
@@ -175,7 +182,9 @@ def test_c03_07_rejects_partial_admission() -> None:
     [
         (
             canonical_request(
-                identity=replace(canonical_identity_frame(), source_digest="not-a-digest")
+                identity=replace(
+                    canonical_identity_frame(), source_digest="not-a-digest"
+                )
             ),
             "identity source digest is absent or inexact",
         ),
@@ -216,7 +225,9 @@ def test_c03_07_rejects_partial_admission() -> None:
         ),
     ],
 )
-def test_c03_08_missing_or_inexact_provenance_fails_closed(admission_request, message) -> None:
+def test_c03_08_missing_or_inexact_provenance_fails_closed(
+    admission_request, message
+) -> None:
     with pytest.raises(C03AdmissionRejected, match=message):
         ExclusiveAdmissionGate().seal(admission_request)
 
@@ -265,7 +276,11 @@ def test_c03_10_sealed_package_is_immutable() -> None:
     identity = canonical_identity_frame()
     experiences = canonical_experience_frame_set()
     current_task = canonical_current_task_context()
-    request = ExclusiveAdmissionRequest(identity, experiences, current_task)
+    request = ExclusiveAdmissionRequest(
+        canonical_identity_frame_set(identity=identity),
+        experiences,
+        current_task,
+    )
     identity_digest = identity.digest()
     experience_digest = experiences.digest()
     current_task_digest = current_task.digest()
@@ -274,7 +289,7 @@ def test_c03_10_sealed_package_is_immutable() -> None:
     with pytest.raises(FrozenInstanceError):
         sealed.turn_id = "changed"
     with pytest.raises(TypeError):
-        sealed.admitted_frames["identity_frame"] = "changed"
+        sealed.admitted_frames["identity_frame_set"] = "changed"
     with pytest.raises(AttributeError):
         object.__setattr__(sealed, "runtime_authority", True)
 
@@ -314,9 +329,14 @@ def test_c03_12_package_does_not_mint_runtime_authority() -> None:
         ModelVisibilityTransport().render(forged)
 
 
-def test_fixture_contract_exactly_names_frozen_direction_and_non_production_status() -> None:
+def test_fixture_contract_exactly_names_frozen_direction_and_non_production_status() -> (
+    None
+):
     fixture = json.loads(
-        Path(__file__).parents[1].joinpath("fixtures", "c03", "canonical_source_contract.json").read_text()
+        Path(__file__)
+        .parents[1]
+        .joinpath("fixtures", "c03", "canonical_source_contract.json")
+        .read_text()
     )
 
     assert fixture["contract_version"] == C03_CONTRACT_VERSION

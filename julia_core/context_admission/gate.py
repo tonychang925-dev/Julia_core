@@ -1,4 +1,5 @@
 """Exclusive fail-closed admission gate for production C03."""
+
 from __future__ import annotations
 
 from types import MappingProxyType
@@ -12,11 +13,13 @@ from julia_core.projection.contracts import (
     EXPERIENCE_PROJECTION_POLICY_ID,
     EXPERIENCE_PROJECTION_POLICY_VERSION,
     IDENTITY_FRAME_SCHEMA_VERSION,
+    IDENTITY_FRAME_SET_SCHEMA_VERSION,
     PERSONA_PROJECTION_POLICY_ID,
     PERSONA_PROJECTION_POLICY_VERSION,
     ExperienceFrame,
     ExperienceFrameSet,
     IdentityFrame,
+    IdentityFrameSet,
 )
 
 from .contracts import (
@@ -31,7 +34,7 @@ from .contracts import (
 )
 
 
-C03_PRODUCTION_CONTRACT_VERSION = "julia_core.context_admission.c03.production.v2"
+C03_PRODUCTION_CONTRACT_VERSION = "julia_core.context_admission.c03.production.v3"
 C03_ADMISSION_ISSUER = object()
 
 
@@ -54,11 +57,11 @@ class ExclusiveAdmissionGate:
                 )
             )
 
-        identity = request.identity_frame
+        identity_frames = request.identity_frames
         experience_frames = request.experience_frames
         current_task = request.current_task_context
         if (
-            type(identity) is not IdentityFrame
+            type(identity_frames) is not IdentityFrameSet
             or type(experience_frames) is not ExperienceFrameSet
             or type(current_task) is not CurrentConversationalTaskContext
         ):
@@ -69,16 +72,20 @@ class ExclusiveAdmissionGate:
                 )
             )
 
-        _require_identity_frame(identity)
+        identity_digest = _require_identity_frame_set(identity_frames)
+        identity_frame_digests = tuple(
+            _frame_digest(frame, "identity frame") for frame in identity_frames.frames
+        )
         experience_digest = _require_experience_frame_set(experience_frames)
         experience_frame_digests = _experience_frame_digests(experience_frames)
-        identity_digest = _frame_digest(identity, "identity frame")
         current_task_digest = _digest(current_task.digest(), "current task context")
         receipt = package_digest(
             C03_PRODUCTION_CONTRACT_VERSION,
             current_task.conversation_id,
             current_task.turn_id,
             identity_digest,
+            identity_frame_digests,
+            len(identity_frames.frames),
             experience_digest,
             experience_frame_digests,
             len(experience_frames.frames),
@@ -89,13 +96,15 @@ class ExclusiveAdmissionGate:
             conversation_id=current_task.conversation_id,
             turn_id=current_task.turn_id,
             identity_digest=identity_digest,
+            identity_frame_digests=identity_frame_digests,
+            identity_frame_count=len(identity_frames.frames),
             experience_digest=experience_digest,
             experience_frame_digests=experience_frame_digests,
             experience_frame_count=len(experience_frames.frames),
             current_task_digest=current_task_digest,
             gate_receipt=receipt,
             admitted_frames={
-                "identity_frame": identity_digest,
+                "identity_frame_set": identity_digest,
                 "experience_frame_set": experience_digest,
                 "current_task_context": current_task_digest,
             },
@@ -119,6 +128,8 @@ class ModelVisibilityTransport:
             candidate.conversation_id,
             candidate.turn_id,
             candidate.identity_digest,
+            candidate.identity_frame_digests,
+            candidate.identity_frame_count,
             candidate.experience_digest,
             candidate.experience_frame_digests,
             candidate.experience_frame_count,
@@ -144,6 +155,45 @@ def _require_identity_frame(frame: IdentityFrame) -> None:
         policy_version=PERSONA_PROJECTION_POLICY_VERSION,
         admitted_status=IdentityStatus.ADMITTED,
     )
+
+
+def _require_identity_frame_set(identity_frames: IdentityFrameSet) -> str:
+    if (
+        type(identity_frames) is not IdentityFrameSet
+        or identity_frames.schema_version != IDENTITY_FRAME_SET_SCHEMA_VERSION
+    ):
+        raise C03AdmissionRejected(
+            AdmissionRejection(
+                code="non_canonical_identity_frame_set",
+                message="identity frame set contract is inexact",
+            )
+        )
+    if type(identity_frames.frames) is not tuple or not identity_frames.frames:
+        raise C03AdmissionRejected(
+            AdmissionRejection(
+                code="incomplete_identity_frame_set",
+                message="identity frame set is empty",
+            )
+        )
+    source_refs = []
+    for frame in identity_frames.frames:
+        if type(frame) is not IdentityFrame:
+            raise C03AdmissionRejected(
+                AdmissionRejection(
+                    code="inexact_identity_frame",
+                    message="identity frame set contains an inexact IdentityFrame",
+                )
+            )
+        _require_identity_frame(frame)
+        source_refs.append(frame.source_ref)
+    if len(source_refs) != len(set(source_refs)):
+        raise C03AdmissionRejected(
+            AdmissionRejection(
+                code="duplicate_identity_source_ref",
+                message="identity frame set source refs are not unique",
+            )
+        )
+    return _digest(identity_frames.digest(), "identity frame set")
 
 
 def _require_experience_frame(frame: ExperienceFrame) -> None:
@@ -197,7 +247,9 @@ def _require_experience_frame_set(experience_frames: ExperienceFrameSet) -> str:
 
 
 def _experience_frame_digests(experience_frames: ExperienceFrameSet) -> tuple[str, ...]:
-    return tuple(_frame_digest(frame, "experience frame") for frame in experience_frames.frames)
+    return tuple(
+        _frame_digest(frame, "experience frame") for frame in experience_frames.frames
+    )
 
 
 def _require_frame(
