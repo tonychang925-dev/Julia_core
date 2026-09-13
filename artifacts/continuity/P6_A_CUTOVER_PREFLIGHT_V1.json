@@ -1,0 +1,241 @@
+{
+  "artifact_id": "P6_A_CUTOVER_PREFLIGHT_V1",
+  "authority": {
+    "canonical_writes": 0,
+    "deploys": 0,
+    "identity_admissions": 0,
+    "main_mutations": 0,
+    "memory_experience_mutations": 0,
+    "merges": 0,
+    "p6_b_execution": 0,
+    "p6_c_execution": 0,
+    "production_switches": 0,
+    "provider_runtime_semantic_mutations": 0,
+    "releases": 0
+  },
+  "blockers": [],
+  "cutover_readiness_checks": {
+    "no_bypass": {
+      "proof": "P3 static gate active_selection_bypass=0; P4 authority analysis legacy_semantic_bypass=0; P5 sealed C03 package, admitted bundle, provider envelope, and observer correlation all verify.",
+      "result": "PASS"
+    },
+    "no_canonical_mutation_required": {
+      "proof": "P5 observer CANONICAL_WRITES=0, IDENTITY_AUTHORITY_MUTATION=0, MEMORY_EXPERIENCE_AUTHORITY_MUTATION=0; P6-A changes evidence/test files only and requires no admission, supersede, or retire operation.",
+      "result": "PASS"
+    },
+    "no_fallback": {
+      "proof": "P5 preflight fallback_provider=0 and default_or_latest_selection=0; P5 execution used exactly one selected deepseek call with zero retries.",
+      "result": "PASS"
+    },
+    "no_post_c03_semantic_reconstruction_required": {
+      "proof": "P5 observer authority POST_C03_SEMANTIC_RECONSTRUCTION=0; provider_runtime_semantic_mutation=0; C03 v3, IdentityFrameSet count 3, ordered ExperienceFrameSet count 8, semantic fingerprint, and observer replay are bound.",
+      "result": "PASS"
+    },
+    "no_shadow_authority": {
+      "proof": "P4 comparison/observer authority is zero and P5 observer authority records all semantic, canonical, production-selection, and mutation authorities as zero.",
+      "result": "PASS"
+    },
+    "no_silent_degrade": {
+      "proof": "P5 provider outcome is SUCCEEDED with output present; all nine P5-D dimensions are PASS and no dimension was inferred from absent evidence.",
+      "result": "PASS"
+    },
+    "static_scan": {
+      "forbidden_active_hits": 0,
+      "observer_counter_definition_hits": 3,
+      "result": "PASS",
+      "scope": [
+        "julia_core/comparison.py",
+        "julia_core/execution_observer.py",
+        "julia_core/context_admission/semantic_binding.py",
+        "julia_core/alignment_os/adapter.py",
+        "julia_core/runtime/assistant_runtime.py"
+      ]
+    }
+  },
+  "final_result": "PASS_READY_FOR_P6_B_OWNER_GATE",
+  "git_graph": {
+    "ahead_by": 72,
+    "ancestry": "CANDIDATE_DESCENDS_FROM_MAIN",
+    "behind_by": 0,
+    "candidate_head": "28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+    "candidate_range": "e2edba9dfff460e3769f93b58491afaf644e6da5..28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+    "divergence": "NONE",
+    "main_head": "e2edba9dfff460e3769f93b58491afaf644e6da5",
+    "merge_base": "e2edba9dfff460e3769f93b58491afaf644e6da5",
+    "merge_base_equals_main": true,
+    "p6_a_delivery_note": "The P6-A evidence branch is delivery-only and is not the proposed cutover head.",
+    "pending_drift_between_p5_candidate_and_proposed_cutover_head": 0,
+    "proposed_cutover_head": "28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+    "result": "PASS",
+    "unverified_commit_between_p5_candidate_and_proposed_cutover_head": 0
+  },
+  "issue": "tonychang925-dev/Julia_core#82",
+  "owner_authorization": {
+    "merge_authority": "NONE",
+    "p6_b_authority": "NONE",
+    "p6_c_authority": "NONE",
+    "scope": "READ_ONLY_PREFLIGHT_NO_CUTOVER",
+    "state": "GRANTED_BY_TONY_FOR_P6_A_ONLY"
+  },
+  "p5_run_verification": {
+    "artifact_path": "artifacts/continuity/P5_C_REAL_GOLDEN_MIRA_CANARY_RUN_V1.json",
+    "candidate_head": "28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+    "cue": "Hi Mira，还记得我吗？",
+    "final_result": "PASS_REAL_GOLDEN_MIRA_CANARY",
+    "identity_frame_count": 3,
+    "local_git_blob": "6498bad21a580fda73a601d0c9d4f84ba179c825",
+    "observer_disposition": "SUCCEEDED",
+    "ordered_memory_experience_count": 8,
+    "output_present": true,
+    "p5_d_all_dimensions_pass": true,
+    "p5_d_dimension_count": 9,
+    "p5_d_evaluation": "PASS",
+    "provider_call_count": 1,
+    "remote_git_blob": "6498bad21a580fda73a601d0c9d4f84ba179c825",
+    "remote_readback_verified": true,
+    "remote_size_bytes": 41519,
+    "result": "PASS",
+    "retries": 0,
+    "run_id": "P5-LIVE-GOLDEN-MIRA-CANARY-RERUN-ONCE-V1",
+    "schema": "julia_core.continuity.p5_c.real_golden_mira_canary_run.v1"
+  },
+  "phase": "P6-A",
+  "pinned_inputs": {
+    "current_main_sha": "e2edba9dfff460e3769f93b58491afaf644e6da5",
+    "p5_final_result": "PASS_REAL_GOLDEN_MIRA_CANARY",
+    "p5_frozen_candidate_sha": "28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+    "p5_owner_freeze": "COMPLETE",
+    "p5_run_artifact": "artifacts/continuity/P5_C_REAL_GOLDEN_MIRA_CANARY_RUN_V1.json",
+    "p5_run_artifact_blob": "6498bad21a580fda73a601d0c9d4f84ba179c825"
+  },
+  "post_cutover_observation_contract": {
+    "checks": [
+      {
+        "name": "continuity_smoke",
+        "requirement": "Exact 3 IdentityFrameSet refs and ordered 8 MemoryExperience refs remain present and ADMITTED through sealed C03 v3."
+      },
+      {
+        "name": "provider_observer_provenance",
+        "requirement": "Provider correlation, semantic fingerprint, gate receipt, observer replay, and comparison replay match the cutover evidence contract."
+      },
+      {
+        "name": "no_bypass_proof",
+        "requirement": "No legacy semantic bypass, fallback provider, shadow authority, or post-C03 semantic reconstruction is active."
+      },
+      {
+        "name": "regression_subset",
+        "requirement": "tests/context_admission, tests/evidence, tests/projection, and tests/continuity_conformance pass without unrelated fixture changes."
+      },
+      {
+        "name": "authority_counters",
+        "requirement": "Canonical, semantic, production-selection, routing, mutation, release, deploy, and P6-B/C authority counters remain zero unless separately Owner-authorized."
+      },
+      {
+        "name": "rollback_trigger_conditions",
+        "requirement": "Monitor all P6-A rollback triggers and stop/rollback only under the future Owner-authorized contract."
+      }
+    ],
+    "execution_status": "PLANNED_NOT_EXECUTED",
+    "phase": "FUTURE_P6_C"
+  },
+  "remote_verification": {
+    "frozen_candidate": {
+      "expected_head": "28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+      "observed_head": "28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+      "ref": "refs/heads/mira/p5-live-real-golden-mira-canary",
+      "result": "PASS"
+    },
+    "main": {
+      "expected_head": "e2edba9dfff460e3769f93b58491afaf644e6da5",
+      "observed_head": "e2edba9dfff460e3769f93b58491afaf644e6da5",
+      "ref": "refs/heads/main",
+      "result": "PASS"
+    },
+    "remote_readback_surface": "GitHub git ls-remote plus repository Contents API",
+    "result": "PASS"
+  },
+  "required_evidence_bindings": [
+    {
+      "artifact": "artifacts/continuity/P3_F1C_BINDER_EXPERIENCE_FRAME_SET_MIGRATION_V1.json",
+      "binding_result": "PASS",
+      "candidate_blob": "b31471dd779bd3b6aaf4117f595c54d2ec68138e",
+      "origin_commit": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+      "phase": "P3",
+      "remote_readback_verified": true
+    },
+    {
+      "artifact": "artifacts/continuity/P4_FINAL_R1_SHADOW_CANARY_PREPARATION_EXIT_REAUDIT_V1.json",
+      "candidate_blob": "b2d7d4663af48d0b5b4b1abecd9f88efca6df4a5",
+      "final_result": "PASS_READY_FOR_P5_OWNER_GATE",
+      "origin_commit": "2421a22695ca41d3b044879febf582dea8a036bc",
+      "phase": "P4",
+      "remote_readback_verified": true
+    },
+    {
+      "artifact": "artifacts/continuity/P5_C_REAL_CANARY_PREFLIGHT_V1.json",
+      "candidate_blob": "2f0da6df7560348198b842301bf272e2e033433d",
+      "candidate_commit": "5abd6e2",
+      "final_result": "PASS_READY_FOR_REAL_GOLDEN_MIRA_CANARY",
+      "phase": "P5",
+      "remote_readback_verified": true
+    },
+    {
+      "artifact": "artifacts/continuity/P5_D_CONTINUITY_EVALUATION_PREP_V1.json",
+      "candidate_blob": "196f2b86111965d5c8cddc794da6622384a58206",
+      "final_result": "P5_D_PREPARED_EVALUATION_CONTRACT_READY_FOR_FUTURE_CANARY",
+      "phase": "P5",
+      "remote_readback_verified": true
+    },
+    {
+      "artifact": "artifacts/continuity/P5_IDENTITY_FRAME_SET_CARDINALITY_FIX_V1.json",
+      "candidate_blob": "f1b66957814a97a16b332250b1b8bfda2d72e1d2",
+      "final_result": "PASS_IDENTITY_CARDINALITY_SEAM_CORRECTED",
+      "origin_commit": "2596ac93c2b5d9b0468136a37cef171a0266fa28",
+      "phase": "P5",
+      "remote_readback_verified": true
+    },
+    {
+      "artifact": "artifacts/continuity/P5_C_REAL_GOLDEN_MIRA_CANARY_RUN_V1.json",
+      "candidate_blob": "6498bad21a580fda73a601d0c9d4f84ba179c825",
+      "final_result": "PASS_REAL_GOLDEN_MIRA_CANARY",
+      "origin_commit": "28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+      "phase": "P5",
+      "remote_readback_verified": true
+    }
+  ],
+  "rollback_contract": {
+    "authority": "FUTURE_OWNER_AUTHORIZED_P6_B_OR_LATER_ONLY",
+    "execution_status": "PLANNED_NOT_EXECUTED",
+    "rollback_target": {
+      "git_target": "e2edba9dfff460e3769f93b58491afaf644e6da5",
+      "reason": "Verified pre-P5-candidate main state; merge-base and exact remote main at P6-A execution.",
+      "target_ref": "refs/heads/main"
+    },
+    "triggers": [
+      "P6-C continuity smoke returns FAIL",
+      "provider or observer provenance fails identity, semantic fingerprint, gate receipt, or replay verification",
+      "no-bypass static or runtime proof fails",
+      "required regression subset returns FAIL",
+      "any post-cutover authority counter becomes nonzero",
+      "rollback condition is explicitly triggered by the Owner"
+    ]
+  },
+  "schema": "julia_core.continuity.p6_a.cutover_preflight.v1",
+  "task_id": "P6-A-CUTOVER-PREFLIGHT",
+  "task_type": "READ_ONLY_CUTOVER_PREFLIGHT_NO_MUTATION",
+  "validation": {
+    "focused_regression": {
+      "command": "/opt/miniconda3/bin/pytest tests/context_admission tests/evidence tests/projection tests/continuity_conformance -q",
+      "result": "PASS: 239 passed in 1.69s"
+    },
+    "git_diff_check": {
+      "command": "git diff --check",
+      "result": "PASS",
+      "scope": "P6-A working-tree evidence/test changes only"
+    },
+    "p6_a_artifact_test": {
+      "command": "/opt/miniconda3/bin/pytest tests/evidence/test_p6_a_cutover_preflight.py -q",
+      "result": "PASS: 3 passed"
+    }
+  }
+}
