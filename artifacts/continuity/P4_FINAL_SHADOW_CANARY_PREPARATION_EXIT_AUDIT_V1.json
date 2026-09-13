@@ -1,0 +1,171 @@
+{
+  "task_id": "P4-FINAL",
+  "issue": "Julia_core#72",
+  "phase": "P4",
+  "task_type": "AUDIT_ONLY",
+  "base_sha": "b03594c3b34269e9106f4c8d580fc2c5524befe6",
+  "roadmap_authority": "Julia_Mira_Continuity_Parallel_Development_Plan_v0.2_2026-09-12",
+  "accepted_lineage": {
+    "P4-A0": "EXISTING_SEAM_SUFFICIENT_NO_IMPLEMENTATION",
+    "P4-B1": "EVIDENCE_ONLY_SIDE_BY_SIDE_COMPARISON_AVAILABLE",
+    "P4-C1": "EVIDENCE_ONLY_CANONICAL_EXECUTION_OBSERVER_AVAILABLE",
+    "P4-D0": "EXISTING_SURFACE_SUFFICIENT_NO_IMPLEMENTATION"
+  },
+  "audited_repositories": {
+    "Julia_core": "tonychang925-dev/Julia_core",
+    "Julia-AI-Assistant": "tonychang925-dev/Julia-AI-Assistant"
+  },
+  "audited_shas": {
+    "Julia_core_p4_final_base": "b03594c3b34269e9106f4c8d580fc2c5524befe6",
+    "Julia_core_p4_c1_implementation": "bfd478ef47df897f0d883a00f544dce560651f7e",
+    "Julia_core_p4_d0_evidence": "b03594c3b34269e9106f4c8d580fc2c5524befe6",
+    "Julia_core_f1c_assistant_dependency": "40616570f13d6314cdc5c9e1b7cdfe1ef1c3f216",
+    "Julia-AI-Assistant_f1e_implementation": "ba0fa19948fba82a22a5cc5ab7d9d3d4af2090b7",
+    "Julia-AI-Assistant_f1e_evidence_head": "d245ae3123427d478f2eb29ae8f730578544f285"
+  },
+  "integration_target_matrix": [
+    {
+      "requirement": "SHADOW_EXECUTION_ISOLATED",
+      "value": "YES",
+      "evidence": "P4-A0 accepted exact caller frame and injected-provider seam; P4-C1 observer has no production response-path attachment"
+    },
+    {
+      "requirement": "SHADOW_SEMANTIC_AUTHORITY",
+      "value": 0,
+      "evidence": "Assistant requires exact caller IdentityFrame and ExperienceFrameSet; Core C03/Binder/Runtime reject independent semantic ingress"
+    },
+    {
+      "requirement": "SHADOW_CANONICAL_WRITES",
+      "value": 0,
+      "evidence": "P4-A0 and P4-C1 accepted artifacts record zero canonical/admission writes; C03 preparation uses immutable objects and no persistence call"
+    },
+    {
+      "requirement": "SHADOW_PRODUCTION_RESPONSE_SELECTION_AUTHORITY",
+      "value": 0,
+      "evidence": "P4-B1 comparison and P4-C1 observer contain no winner, preference, selected response, switch, or routing fields"
+    },
+    {
+      "requirement": "SIDE_BY_SIDE_COMPARISON",
+      "value": "AVAILABLE",
+      "evidence": "P4-B1 immutable evidence-only comparator and tests are present on the exact lineage"
+    },
+    {
+      "requirement": "COMPARISON_OUTPUT_AUTHORITY",
+      "value": 0,
+      "evidence": "P4-B1 records equality/difference evidence only and fails closed on correlation mismatch"
+    },
+    {
+      "requirement": "PROVENANCE_OBSERVABILITY",
+      "value": "COMPLETE_FOR_P4",
+      "evidence": "P4-C1 observer emits canonical source refs/digests, carrier and frame manifests, gate receipt, fingerprint, ordered units, provider/alignment identity, disposition, zero-authority attestation, and replay digest"
+    },
+    {
+      "requirement": "CONTINUITY_NON_REGRESSION_HARNESS",
+      "value": "NOT_READY_AFTER_EXACT_RERUN",
+      "evidence": "The accepted P4-D0 command previously passed, but the exact P4-FINAL rerun exposed an intermittent deterministic-fingerprint failure caused by Assistant-generated observed_at"
+    },
+    {
+      "requirement": "LEGACY_SEMANTIC_BYPASS",
+      "value": 0,
+      "evidence": "Assistant N3 retirement and N4 cutover suites reject legacy semantic authority and incomplete production ingress; Core Runtime has no independent history ingress"
+    },
+    {
+      "requirement": "FALLBACK_SEMANTIC_AUTHORITY",
+      "value": 0,
+      "evidence": "C03, Assistant F1E, P4-B1, and P4-C1 tests reject missing/inexact inputs without fallback or default source construction"
+    },
+    {
+      "requirement": "P5_WORK_PERFORMED",
+      "value": 0,
+      "evidence": "No Golden Mira admission, real user/persona canary traffic, or production response switching exists in accepted P4 lineage"
+    },
+    {
+      "requirement": "P6_WORK_PERFORMED",
+      "value": 0,
+      "evidence": "No cutover, release, deployment, or production routing work exists in accepted P4 lineage"
+    }
+  ],
+  "blocking_defect": {
+    "id": "P4-B01_ASSISTANT_CURRENT_TASK_TEMPORAL_PROVENANCE_NONDETERMINISM",
+    "owning_repository": "tonychang925-dev/Julia-AI-Assistant",
+    "owning_sha": "ba0fa19948fba82a22a5cc5ab7d9d3d4af2090b7",
+    "location": "runtime/canonical_turn.py::prepare_canonical_turn",
+    "root_cause": "prepare_canonical_turn calls datetime.now(timezone.utc) for every CurrentConversationalTaskContext provenance observation. observed_at is included in the current-task digest, gate receipt, semantic fingerprint, and P4-C1 replay digest. Repeated preparation of the same exact request can therefore cross a one-second boundary and produce different semantic/replay evidence even though provenance_payload and all semantic inputs are identical.",
+    "observed_failure": {
+      "command": "JULIA_CORE_PATH=<exact F1C worktree> PYTHONPATH=<exact F1C worktree> pytest tests/test_p3_f1e_canonical_turn_authority_rebind.py tests/test_p3_n1_provider_transport.py tests/test_p3_n2_end_to_end_seam.py tests/test_p3_n3_legacy_authority_retirement.py tests/test_p3_n4_production_canonical_cutover.py -q",
+      "result": "1 failed, 78 passed, 1 unrelated python_multipart deprecation warning",
+      "failed_test": "tests/test_p3_f1e_canonical_turn_authority_rebind.py::test_semantic_fingerprint_is_deterministic_and_order_sensitive"
+    },
+    "deterministic_reproduction": {
+      "method": "Monkeypatch only the Assistant execution clock so identical requests observe adjacent timestamps",
+      "first_observed_at": "2026-01-01T00:00:01Z",
+      "second_observed_at": "2026-01-01T00:00:02Z",
+      "first_fingerprint": "869c6fa31bd4b9b66ff857176e34f35520051cea11b82e90dc843ace6e3e19f8",
+      "second_fingerprint": "bd8f2cd7b5d4ba2a4ead8c5a9da9756c26cebf36f64679857ada0f92ce290382",
+      "same_provenance_source_digest": true,
+      "mismatch": true
+    },
+    "does_this_directly_prevent_p4_final_gate": "YES",
+    "reason": "Shadow/canary preparation requires repeated exact execution to retain deterministic semantic fingerprint and replay identity for reference/canonical comparison and continuity non-regression. A wall-clock-derived semantic input defeats that guarantee.",
+    "smallest_repair_boundary": {
+      "node": "P4-F0 Assistant Current-Task Temporal Provenance Determinism Repair",
+      "repository": "tonychang925-dev/Julia-AI-Assistant",
+      "allowed_paths": [
+        "runtime/canonical_turn.py",
+        "focused Assistant P4/F1E tests"
+      ],
+      "forbidden_paths": [
+        "Julia_core C03/Binder/Runtime semantic authority",
+        "provider behavior",
+        "production response selection or routing",
+        "canonical authority persistence",
+        "P5 admission/canary",
+        "P6 cutover/release/deploy"
+      ],
+      "repair_direction": "Require an exact caller-controlled deterministic temporal observation input or exact caller-supplied CurrentConversationalTaskContext for repeated shadow preparation; retain observed_at as provenance but prevent implicit wall-clock mutation of identical semantic/replay evidence. Add a deterministic cross-second regression before any P5 Owner Gate."
+    }
+  },
+  "gap_scope_gate": {
+    "P4-B01_ASSISTANT_CURRENT_TASK_TEMPORAL_PROVENANCE_NONDETERMINISM": "YES",
+    "yes_gap_count": 1,
+    "no_gaps": "No other observed gap directly prevents the P4 final gate."
+  },
+  "non_blocking_observations": [
+    {
+      "observation": "No packaged combined Core/Assistant non-regression runner",
+      "does_this_directly_prevent_p4_final_gate": "NO",
+      "disposition": "DEFERRED",
+      "reason": "Exact commands and evidence already exist; the blocking issue is deterministic reproducibility, not command packaging"
+    }
+  ],
+  "authority_analysis": {
+    "OBSERVABILITY_OUTPUT_AUTHORITY": 0,
+    "SEMANTIC_AUTHORITY": 0,
+    "PRODUCTION_RESPONSE_SELECTION_AUTHORITY": 0,
+    "CANONICAL_WRITES": 0,
+    "IDENTITY_AUTHORITY_MUTATION": 0,
+    "MEMORY_EXPERIENCE_AUTHORITY_MUTATION": 0,
+    "POST_C03_SEMANTIC_RECONSTRUCTION": 0,
+    "P4_SCOPE_EXPANSION": 0,
+    "P5_WORK_PERFORMED": 0,
+    "P6_WORK_PERFORMED": 0
+  },
+  "validation": {
+    "julia_core": {
+      "command": "pytest tests/context_admission/test_c03_executable_conformance.py tests/context_admission/test_c03_experience_frame_set_admission.py tests/context_admission/test_c03_production_hardening.py tests/context_admission/test_binder_experience_frame_set_migration.py tests/context_admission/test_p3_n0_semantic_binding.py tests/context_admission/test_p3_n0_alignment_boundary.py tests/runtime/test_p3_n0_runtime_envelope.py tests/evidence/test_side_by_side_comparison.py tests/evidence/test_canonical_execution_observer.py -q",
+      "result": "144 passed"
+    },
+    "julia_ai_assistant_exact_rerun": {
+      "command": "JULIA_CORE_PATH=<exact F1C worktree> PYTHONPATH=<exact F1C worktree> pytest tests/test_p3_f1e_canonical_turn_authority_rebind.py tests/test_p3_n1_provider_transport.py tests/test_p3_n2_end_to_end_seam.py tests/test_p3_n3_legacy_authority_retirement.py tests/test_p3_n4_production_canonical_cutover.py -q",
+      "result": "1 failed, 78 passed, 1 unrelated python_multipart deprecation warning"
+    },
+    "forbidden_authority_static_scan": {
+      "command": "rg -n \"winner|preferred|selected|switch|routing|get_llm_provider|ProviderAlignmentBoundary|IdentityFrame\\(|ExperienceFrameSet\\(|CurrentConversationalTaskContext\\(\" julia_core/comparison.py julia_core/execution_observer.py",
+      "result": "PASS: no hits"
+    },
+    "git_diff_check": "PASS"
+  },
+  "production_code_changed": 0,
+  "final_result": "P4_FINAL_RESULT=BLOCKED_BY_BOUNDED_P4_DEFECT",
+  "next_phase": "P4-F0 Assistant Current-Task Temporal Provenance Determinism Repair; P5 Owner Gate remains blocked until it passes"
+}
