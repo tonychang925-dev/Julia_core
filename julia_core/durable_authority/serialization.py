@@ -17,8 +17,13 @@ from julia_core.identity import (
 )
 from julia_core.identity.contracts import IdentityAnchor, IdentityGovernanceEvent
 from julia_core.memory_experience import (
+    CausalStatus,
     CommitmentTransferSemantics,
+    CommitmentApplicability,
+    CommitmentRevision,
+    CommitmentStage,
     EpisodicExperienceContent,
+    EvidenceBindingRef,
     GovernedMemoryExperience,
     MemoryExperienceAdmission,
     MemoryExperienceProvenance,
@@ -27,9 +32,15 @@ from julia_core.memory_experience import (
     MemoryExperienceStatus,
     MemoryExperienceType,
     NarrativeExperienceContent,
+    PolicyTransferApplicability,
+    PolicyTransferNotApplicable,
+    PolicyTransferSemantics,
     PreferenceExperienceContent,
     ProjectCommitmentExperienceContent,
     RelationshipExperienceContent,
+    AutobiographicalOwner,
+    SubjectBoundary,
+    SubjectIdentity,
 )
 from julia_core.runtime_canonical_binding import (
     BINDING_SCHEMA_VERSION,
@@ -45,6 +56,7 @@ from .contracts import (
     ENVELOPE_SCHEMA_VERSION,
     IDENTITY_OBJECT_SCHEMA,
     MEMORY_EXPERIENCE_OBJECT_SCHEMA,
+    MEMORY_EXPERIENCE_OBJECT_SCHEMA_V2,
     RUNTIME_BINDING_OBJECT_SCHEMA,
     AuthorityFamily,
     DurableAuthorityEnvelope,
@@ -116,13 +128,14 @@ def build_memory_experience_envelope(
         raise _type_mismatch("GovernedMemoryExperience")
     serialized_payload = governed.record.canonical_serialization()
     payload = governed.record.canonical_payload()
+    payload_schema = payload["schema"]
     governance_events = [item for item in governed.to_dict()["governance_events"]]
     provenance = [item.to_dict() for item in governed.record.provenance_refs]
     digest = envelope_digest(
         envelope_schema=ENVELOPE_SCHEMA_VERSION,
         authority_family=AuthorityFamily.MEMORY_EXPERIENCE,
         authority_object_ref=governed.ref.uri,
-        authority_object_schema=MEMORY_EXPERIENCE_OBJECT_SCHEMA,
+        authority_object_schema=payload_schema,
         serialized_payload=serialized_payload,
         payload_digest=governed.record.digest(),
         governance_events=tuple(governance_events),
@@ -134,7 +147,7 @@ def build_memory_experience_envelope(
         ENVELOPE_SCHEMA_VERSION,
         AuthorityFamily.MEMORY_EXPERIENCE,
         governed.ref.uri,
-        MEMORY_EXPERIENCE_OBJECT_SCHEMA,
+        payload_schema,
         serialized_payload,
         governed.record.digest(),
         tuple(governance_events),
@@ -237,7 +250,7 @@ def validate_envelope_semantics(envelope: DurableAuthorityEnvelope) -> None:
         exact_payload = governed.version.canonical_serialization()
     elif family is AuthorityFamily.MEMORY_EXPERIENCE:
         governed = parse_memory_experience_governed(payload, envelope.governance_events)
-        schema = MEMORY_EXPERIENCE_OBJECT_SCHEMA
+        schema = payload["schema"]
         lineage = _memory_lineage(governed.record)
         provenance = tuple(item.to_dict() for item in governed.record.provenance_refs)
         ref = governed.ref.uri
@@ -347,7 +360,10 @@ def parse_identity_version(data: object) -> IdentityVersion:
 def parse_memory_experience_record(data: object) -> MemoryExperienceRecord:
     try:
         _require_exact_dict(data)
-        if data.get("schema") != MEMORY_EXPERIENCE_OBJECT_SCHEMA:
+        if data.get("schema") not in {
+            MEMORY_EXPERIENCE_OBJECT_SCHEMA,
+            MEMORY_EXPERIENCE_OBJECT_SCHEMA_V2,
+        }:
             raise _schema_failure()
         experience_type = MemoryExperienceType(data["experience_type"])
         content = _CONTENT_PARSERS[experience_type](data["content"])
@@ -600,6 +616,49 @@ def _parse_narrative(data):
 
 
 def _parse_relationship(data):
+    if data.get("schema_version", "v2") == "v2" or "significance" in data:
+        policy = data["policy_transfer"]
+        policy_transfer = (
+            PolicyTransferNotApplicable(reason=policy["reason"])
+            if policy["coverage"] == "NOT_APPLICABLE"
+            else PolicyTransferSemantics(
+                observed_scope=policy["observed_scope"],
+                applicability_scope=PolicyTransferApplicability(
+                    policy["applicability_scope"]
+                ),
+                future_behavior_proof=policy["future_behavior_proof"],
+                binding_role_refs=tuple(
+                    EvidenceBindingRef(**item) for item in policy["binding_role_refs"]
+                ),
+            )
+        )
+        subject_boundary = data.get("subject_boundary")
+        return RelationshipExperienceContent(
+            relationship_id=data["relationship_id"],
+            event=data["event"],
+            interpretation=data["interpretation"],
+            occurred_at=data["occurred_at"],
+            schema_version="v2",
+            significance=data["significance"],
+            prior_judgment=data["prior_judgment"],
+            corrected_judgment=data["corrected_judgment"],
+            later_reinterpretation=data["later_reinterpretation"],
+            policy_transfer=policy_transfer,
+            causal_status=CausalStatus(data["causal_status"]),
+            subject_boundary=None
+            if subject_boundary is None
+            else SubjectBoundary(
+                semantic_subject=SubjectIdentity(subject_boundary["semantic_subject"]),
+                observed_subject=SubjectIdentity(subject_boundary["observed_subject"]),
+                autobiographical_owner=AutobiographicalOwner(
+                    subject_boundary["autobiographical_owner"]
+                ),
+            ),
+            judgment_binding_role_refs=tuple(
+                EvidenceBindingRef(**item)
+                for item in data["judgment_binding_role_refs"]
+            ),
+        )
     return RelationshipExperienceContent(
         relationship_id=data["relationship_id"],
         event=data["event"],
@@ -618,6 +677,44 @@ def _parse_preference(data):
 
 
 def _parse_project_commitment(data):
+    if data.get("schema_version", "v2") == "v2" or "commitment_stage" in data:
+        revision = data["revision"]
+        applicability = data["applicability"]
+        return ProjectCommitmentExperienceContent(
+            subject=data["subject"],
+            counterparty=data["counterparty"],
+            scope=data["scope"],
+            commitment=data["commitment"],
+            transfer_semantics=CommitmentTransferSemantics(
+                data["transfer_semantics"]
+            ),
+            occurred_at=data["occurred_at"],
+            schema_version="v2",
+            trigger_event=data["trigger_event"],
+            interpretation=data["interpretation"],
+            significance=data["significance"],
+            commitment_stage=CommitmentStage(data["commitment_stage"]),
+            revision=None
+            if revision is None
+            else CommitmentRevision(
+                predecessor_ref=MemoryExperienceRef(**revision["predecessor_ref"]),
+                supersession_scope=revision["supersession_scope"],
+                supersession_reason=revision["supersession_reason"],
+                rewrite_history=revision["rewrite_history"],
+            ),
+            binding_role_refs=tuple(
+                EvidenceBindingRef(**item) for item in data["binding_role_refs"]
+            ),
+            applicability=CommitmentApplicability(
+                scope=applicability["scope"],
+                inheritance=CommitmentTransferSemantics(
+                    applicability["inheritance"]
+                ),
+                current_authorization=applicability["current_authorization"],
+                standing_consent=applicability["standing_consent"],
+                runtime_authority=applicability["runtime_authority"],
+            ),
+        )
     return ProjectCommitmentExperienceContent(
         subject=data["subject"],
         counterparty=data["counterparty"],

@@ -320,6 +320,17 @@ def test_changed_scope_is_limited_to_authorized_eng08_paths() -> None:
         )
     )
     allowed = (
+        "julia_core/durable_authority/",
+            "tools/continuity/export_golden_mira_durable_authority.py",
+            "tests/durable_authority/",
+            ".codex/skills/NO_CRITICAL_FALLBACK_REVIEW/",
+            ".github/pull_request_template.md",
+            ".github/workflows/no-critical-fallback-gate.yml",
+            "docs/governance/CR-CONSTITUTION-01-NO-CRITICAL-FALLBACK.md",
+            "hooks/",
+            "ncf-baseline.json",
+            "tests/governance/",
+            "tools/no_critical_fallback_gate.py",
         "julia_core/identity/",
         "julia_core/projection/",
         "julia_core/context_admission/",
