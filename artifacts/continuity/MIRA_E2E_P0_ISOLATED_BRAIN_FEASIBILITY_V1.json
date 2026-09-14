@@ -1,0 +1,142 @@
+{
+  "task_id": "MIRA-E2E-P0",
+  "task_name": "Isolated Golden Mira Brain Composition Feasibility Spike",
+  "agent_id": "Codex",
+  "generated_at": "2026-09-14T00:00:00+08:00",
+  "final_result": "PASS_WITH_BLOCKERS",
+  "executive_summary": {
+    "existing_brain_shell_reusable": true,
+    "golden_mira_runtime_callable_identified": true,
+    "canonical_mira_read_path_available": false,
+    "old_julia_persona_hard_bound_in_existing_http_path": true,
+    "conversation_runtime_independently_instantiable": true,
+    "new_brain_adapter_required": false,
+    "implementation_delta_bounded": true
+  },
+  "pins": {
+    "assistant_product_sha": "bbd90af42ba659684c25f1e9473c24804364548c",
+    "assistant_spike_worktree": "/private/tmp/mira-e2e-p0-assistant",
+    "core_target_sha": "28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+    "core_spike_worktree": "/private/tmp/mira-e2e-p0-core"
+  },
+  "composition_bindings": [
+    {"name":"SERVER_ENTRYPOINT","file":"voice_api/server.py","line":24,"symbol":"main","injectable":true,"hard_coded":false,"future_change_needed":true},
+    {"name":"ROUTER_ENTRYPOINT","file":"voice_api/conversation_routes.py","line":47,"symbol":"conversation_turn","injectable":false,"hard_coded":true,"future_change_needed":true},
+    {"name":"CONVERSATION_RUNTIME_FACTORY","file":"julia_core/runtime/conversation_runtime.py","line":738,"symbol":"get_conversation_runtime","injectable":true,"hard_coded":true,"future_change_needed":true},
+    {"name":"CORE_IMPORT_PATH","file":"/Users/admin/.julia_ops/bin/start-brain-18089","line":22,"symbol":"PYTHONPATH/import provenance checks","injectable":true,"hard_coded":true,"future_change_needed":true},
+    {"name":"PERSONA_BINDING_POINT","file":"julia_core/runtime/julia_session.py","line":75,"symbol":"JuliaSession.__init__","injectable":false,"hard_coded":true,"future_change_needed":true},
+    {"name":"MEMORY_BINDING_POINT","file":"julia_core/runtime/julia_session.py","line":95,"symbol":"recorder/recent-session services","injectable":false,"hard_coded":true,"future_change_needed":true},
+    {"name":"PROVIDER_BINDING_POINT","file":"julia_core/runtime/julia_session.py","line":75,"symbol":"get_llm_provider(deepseek)","injectable":false,"hard_coded":true,"future_change_needed":true},
+    {"name":"CONVERSATION_STORE_BINDING_POINT","file":"julia_core/runtime/conversation_runtime.py","line":101,"symbol":"ConversationRuntime.__init__","injectable":true,"hard_coded":true,"future_change_needed":true}
+  ],
+  "julia_persona_binding": {
+    "classification": "HARD_BOUND_IN_EXISTING_HTTP_COMPOSITION",
+    "conversation_runtime_without_old_julia_persona": true,
+    "existing_http_route_without_old_julia_persona": false,
+    "evidence": ["julia_core/runtime/julia_session.py:75","julia_core/runtime/julia_session.py:78","julia_core/runtime/julia_session.py:100","julia_core/runtime/julia_session.py:111","voice_api/conversation_routes.py:67"]
+  },
+  "golden_mira_runtime_callable": {
+    "available": true,
+    "chain": ["IdentityRepository","MemoryExperienceRepository","CanonicalSemanticAuthoritySource.resolve_identity_frame","CanonicalSemanticAuthoritySource.resolve_experience_frame","IdentityFrameSet","ExperienceFrameSet","CurrentConversationalTaskContext","ExclusiveAdmissionRequest","ExclusiveAdmissionGate.seal","ExactAdmittedSemanticBinder.bind","RuntimeTurnRequest","JuliaAssistantRuntime.prepare","ProviderExecutionEnvelope","EvidenceOnlyCanonicalExecutionObserver.observe"],
+    "provider_interface": "Callable[[ProviderExecutionEnvelope], str]",
+    "observer_interface": "EvidenceOnlyCanonicalExecutionObserver.observe(..., provider_execution=callable) -> CanonicalExecutionObservation",
+    "validation": "60 relevant tests passed"
+  },
+  "canonical_inputs": {
+    "identity_count": 3,
+    "memory_experience_count": 8,
+    "ordered_identity_refs": ["identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview","identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview","identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview"],
+    "ordered_identity_digests": ["7580e0a930dc7f3d5446da2cdd8d1c23cf251e12929fb2f3baa056bd9739dd44","adaa2508c4e475a700c394eb205e278d515dfe014ccdaa4bab3c3e7b7dcd5f3a","0008a5e157347ae9b0dd8600d661ec4a0e3fbd1858673cd04dc7c7b812a96c29"],
+    "ordered_memory_refs": ["memory://golden-mira%3AGM-CMIR-001/v0.2-preview","memory://golden-mira%3AGM-CMIR-002/v0.2-preview","memory://golden-mira%3AGM-CMIR-004/v0.1-preview","memory://golden-mira%3AGM-CMIR-006/v0.1-preview","memory://golden-mira%3AGM-CMIR-008/v0.1-preview","memory://golden-mira%3AGM-CMIR-011/formation-draft-preview","memory://golden-mira%3AGM-CMIR-011/frozen-final-preview","memory://golden-mira%3AGM-CMIR-013/v0.2-preview"],
+    "ordered_memory_digests": ["4e29eb74de7f29bbf8d69485a7c18b5dceb06486d7e1d986d668a30c85fb7228","e4374452173b144ce48dbefa5299f1ac3dc15cec3615b8e7d528176293536f93","ba4edeff89bc8054be19d7a48226fcef74359bc85d17dbd6abea4b754b905f97","47636f46d2934eeb66f91c8202e2245c180b7077fddd04ca6445683308b54f2c","08c95873446b01949b7aec50ad35ebbe36ce8b5b9ad87aca45c51b627f70c408","3107a3ab38d0fc0d2446752f48bedebf2ee336e3cb8b22811bf3c156247a4ae9","3c31de4d62ecfd5d7857a5a4df85725affa0862d0055b5527d7d80f27fcc8ad8","8e2d16304357b7fb72b5b6cb53501be5d8743b3c687d2f0aadf3a9e1e132046c"]
+  },
+  "canonical_storage_read_path": {
+    "available": false,
+    "existing_in_memory_path": "tools/continuity/p5_a1_admission.py::admit_golden_mira",
+    "existing_fixture_constructor": "tools/mira_migration/admission_sim.py::construct_admission_inputs",
+    "durable_reconstruction_api": "julia_core/durable_authority/reconstruction.py::restore_identity_repository/restore_memory_experience_repository",
+    "missing": ["concrete DurableAuthorityReader","owner-gated durable export","production startup composition caller","durable exact-reference selection"],
+    "blocker": "CANONICAL_RUNTIME_READ_PATH_NOT_DEPLOYABLE"
+  },
+  "provider": {
+    "implementation_reuse_possible": true,
+    "existing_deepseek_chat_directly_c03_compatible": false,
+    "required_callable": "envelope-only DeepSeek transport returning str",
+    "independent_credential_preferred": true,
+    "temporary_shared_key_accepted": true,
+    "provider_account_coupling_if_shared": "YES",
+    "shared_persona_state": "NO"
+  },
+  "state_isolation": {
+    "feasible": true,
+    "conversation_runtime_repository_injectable": true,
+    "existing_default": "data/conversations.json",
+    "default_is_cwd_relative": true,
+    "change_required": "EXPLICIT_CONVERSATION_STORE_PATH",
+    "target_run_root": "/Users/admin/.julia_mira_e2e",
+    "target_store": "/Users/admin/.julia_mira_e2e/data/conversations.json"
+  },
+  "sha_pinning": {
+    "feasible": true,
+    "recommended": ["dedicated worktrees","dedicated clean venv","explicit worktree paths","resolved-module assertions","fail-closed HEAD comparison"],
+    "spike_import_proof": {"julia_core":"/private/tmp/mira-e2e-p0-core/julia_core/__init__.py","voice_api":"/private/tmp/mira-e2e-p0-assistant/voice_api/__init__.py"}
+  },
+  "electron_compatibility": {
+    "client_change_required": false,
+    "contract_supported": ["health","conversation create/read/list/rename/delete","messages","turns","SSE","typed error frames","completion and interrupted message semantics"],
+    "experimental_endpoint": "http://127.0.0.1:18091",
+    "experimental_profile": "separate Electron user-data directory"
+  },
+  "disposable_runtime": {
+    "started": true,
+    "scope": "health_only",
+    "host": "127.0.0.1",
+    "port": 18091,
+    "pid": 32452,
+    "http_status": 200,
+    "response": {"status":"ok","contract_version":"1.0.0","julia_core":"frozen-865ffc4"},
+    "turns": 0,
+    "provider_calls": 0,
+    "stopped_cleanly": true
+  },
+  "julia_preservation_proof": {
+    "pid_18089": 629,
+    "port_owner_18089": "python3.1 PID 629 listening on 127.0.0.1:18089",
+    "launchd_label": "com.julia.brain.18089",
+    "product_root": "/Users/admin/julia_ai_assistant_rmd3g_prod",
+    "product_conversation_store_sha256": "fbae7e00b8f2275c90c6d769f27d3c1a453cc41528e59127d330d0c4630bcec7",
+    "current_core_conversation_store_sha256": "be5bf696665d0967627a8453781654620eaeef1ec970743169f4741dccd4ee7f",
+    "current_core_sessions_sha256": "bb68d5b9c00565a6ce8e57868d9fb771dbb30a97e137cfb970824d58b2f4de8b",
+    "user_julia_sessions_sha256": "51702425a4a76f328490788c3890cc3bb2c05276fc57ff38532dbfb0a206fc43",
+    "julia_requests_from_experiment": 0,
+    "julia_state_changed": false,
+    "julia_process_restarted": false,
+    "julia_config_changed": false
+  },
+  "implementation_change_map": {
+    "julia_client": {"change_required":false,"files":[],"items":["separate user-data-dir","brainEndpoint=http://127.0.0.1:18091"]},
+    "julia_ai_assistant": {"change_required":true,"required_files":["voice_api/server.py","voice_api/conversation_routes.py","voice_api/julia_core_adapter.py","voice_api/conversation_management.py","voice_api/mira_composition.py"],"optional_hardening_files":["voice_api/routes.py"],"reason":"isolated experimental composition replacing old JuliaSession binding"},
+    "julia_core": {"change_required":true,"required_files":["julia_core/durable_authority/filesystem_adapter.py","julia_core/durable_authority/reconstruction.py","julia_core/runtime/conversation_runtime.py","julia_core/runtime/mira_composition.py"],"optional_hardening_files":["julia_core/execution_observer.py"],"reason":"durable canonical read/reconstruction, explicit store, and bounded startup composition"},
+    "local_runtime_config": {"change_required":true,"items":["EXPECTED_ASSISTANT_SHA","EXPECTED_CORE_SHA","MIRA_E2E_RUN_ROOT","MIRA_E2E_CONVERSATION_STORE","MIRA_DURABLE_AUTHORITY_ROOT","BRAIN_PORT=18091","PROVIDER=deepseek","MIRA_DEEPSEEK_API_KEY","MIRA_DEEPSEEK_MODEL","MIRA_PROVIDER_TIMEOUT","MIRA_PROVIDER_MAX_RETRIES","MIRA_PROVIDER_STREAM"]}
+  },
+  "startup_contract_draft": {
+    "expected_assistant_sha": "bbd90af42ba659684c25f1e9473c24804364548c",
+    "expected_core_sha": "28b502ca4f48e580d4941e095bb8dccc6f3e9682",
+    "mira_e2e_run_root": "/Users/admin/.julia_mira_e2e",
+    "mira_e2e_conversation_store": "/Users/admin/.julia_mira_e2e/data/conversations.json",
+    "mira_durable_authority_root": "/Users/admin/.julia_mira_e2e/cache/durable-authority",
+    "brain_host": "127.0.0.1",
+    "brain_port": 18091,
+    "provider": "deepseek",
+    "command": "python voice_api/server.py --port 18091",
+    "preconditions": ["exact HEAD checks","exact module path checks","run-root containment","canonical manifest checks","port 18091 only"]
+  },
+  "p1_task_dag": ["D1 owner-gated durable canonical export","D2 fail-closed durable Reader","D3 canonical reconstruction and projection","D4 explicit isolated ConversationRuntime","D5 C03 envelope-only provider transport","D6 Assistant experimental route composition","D7 launcher and preservation harness","D8 one disposable synthetic real HTTP turn","D9 Electron P2 preparation"],
+  "blockers": ["CANONICAL_RUNTIME_READ_PATH_NOT_DEPLOYABLE","EXPLICIT_CONVERSATION_STORE_PATH_REQUIRED","EXISTING_NATIVE_ROUTE_HARD_BINDS_OLD_JULIA_SESSION","C03_ENVELOPE_PROVIDER_TRANSPORT_REQUIRED"],
+  "delivery": {
+    "artifact_md_path": "artifacts/continuity/MIRA_E2E_P0_ISOLATED_BRAIN_FEASIBILITY_V1.md",
+    "artifact_json_path": "artifacts/continuity/MIRA_E2E_P0_ISOLATED_BRAIN_FEASIBILITY_V1.json",
+    "artifact_blob_sha": "379577efc554b24d5fdb4888ddf38807b89b4782",
+    "artifact_md_sha256": "70924b1820d5044370e54fad44367c2bfddc54b51101bcee04baa3bd4fe271f5"
+  }
+}
