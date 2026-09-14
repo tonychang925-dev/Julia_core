@@ -1,0 +1,118 @@
+{
+  "TASK_ID": "MIRA-E2E-P1-B",
+  "TASK_NAME": "Golden Mira Isolated Runtime Composition",
+  "AGENT_ID": "Codex",
+  "BASE_SHA": "08b8002b2973bf88dabe729d58e10d6ccab2968d",
+  "composition_entrypoint": "julia_core/runtime/mira_composition.py:compose_golden_mira_runtime",
+  "authority_chain": {
+    "reader": "julia_core/durable_authority/filesystem_adapter.py:FilesystemDurableAuthorityReader",
+    "reconstruction": "julia_core/durable_authority/reconstruction.py:reconstruct_from_durable_authority",
+    "semantic_authority_source": "julia_core/canonical_authority_source.py:CanonicalSemanticAuthoritySource",
+    "projection": "IdentityFrameSet + ExperienceFrameSet",
+    "c03_gate": "julia_core/context_admission/gate.py:ExclusiveAdmissionGate",
+    "c03_contract_version": "julia_core.context_admission.c03.production.v3",
+    "binder": "julia_core/context_admission/semantic_binding.py:ExactAdmittedSemanticBinder",
+    "assistant_runtime": "julia_core/runtime/assistant_runtime.py:JuliaAssistantRuntime.prepare",
+    "provider_result": "julia_core/alignment_os/contracts.py:ProviderExecutionEnvelope"
+  },
+  "explicit_inputs": {
+    "authority_root_required": true,
+    "conversation_store_path_required": true,
+    "expected_core_sha_required": true,
+    "observed_core_sha_required": true,
+    "expected_assistant_sha_required": true,
+    "observed_assistant_sha_required": true,
+    "git_execution_in_runtime": false,
+    "sha_mismatch_behavior": "FAIL_CLOSED"
+  },
+  "canonical_set": {
+    "persona_id": "golden-mira",
+    "identity_count": 3,
+    "memory_experience_count": 8,
+    "ordered_identity_refs": [
+      "mira-golden:mira-id-cand-001",
+      "mira-golden:mira-id-cand-002",
+      "mira-golden:mira-id-cand-003"
+    ],
+    "ordered_memory_experience_refs": [
+      "golden-mira:GM-CMIR-001",
+      "golden-mira:GM-CMIR-002",
+      "golden-mira:GM-CMIR-004",
+      "golden-mira:GM-CMIR-006",
+      "golden-mira:GM-CMIR-008",
+      "golden-mira:GM-CMIR-011/formation-draft-preview",
+      "golden-mira:GM-CMIR-011/frozen-final-preview",
+      "golden-mira:GM-CMIR-013"
+    ]
+  },
+  "isolation": {
+    "conversation_repository": "julia_core/conversation_state/legacy_json_repository.py:LegacyJsonConversationRepository",
+    "cwd_fallback": false,
+    "implicit_data_conversations_json": false,
+    "julia_session_imported": false,
+    "narrative_bootstrap_imported": false,
+    "julia_persona_feature_store_imported": false,
+    "provider_network_call": false,
+    "fake_provider_response": false,
+    "network_sabotage_proof": "tests/runtime/test_mira_composition.py disables socket.socket during JuliaAssistantRuntime.prepare"
+  },
+  "fixture_independence": {
+    "runtime_imports_admission_sim": false,
+    "runtime_imports_p5_admission": false,
+    "runtime_direct_fixture_reads": false,
+    "runtime_fixture_dependency_count": 0,
+    "proof": "tests/runtime/test_mira_composition.py:test_composition_has_no_legacy_julia_dependency"
+  },
+  "changed_paths": [
+    "julia_core/runtime/mira_composition.py",
+    "tests/runtime/test_mira_composition.py",
+    "artifacts/continuity/MIRA_E2E_P1_B_ISOLATED_RUNTIME_COMPOSITION_V1.md",
+    "artifacts/continuity/MIRA_E2E_P1_B_ISOLATED_RUNTIME_COMPOSITION_V1.json"
+  ],
+  "test_evidence": {
+    "focused": {
+      "command": "/opt/miniconda3/bin/pytest -q tests/runtime/test_mira_composition.py",
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0,
+      "warnings": 0
+    },
+    "mandatory_relevant_regression": {
+      "command": "/opt/miniconda3/bin/pytest -q tests/durable_authority tests/context_admission tests/projection tests/evidence tests/continuity tests/mira_migration tests/runtime/test_mira_composition.py",
+      "passed": 267,
+      "failed": 0,
+      "skipped": 0,
+      "warnings": 0
+    },
+    "legacy_runtime_directory_audit": {
+      "command": "/opt/miniconda3/bin/pytest -q tests/runtime",
+      "candidate": "186 passed / 17 failed / 6 skipped / 15 xfailed",
+      "base": "177 passed / 17 failed / 6 skipped / 15 xfailed",
+      "interpretation": "The same 17 failures exist at BASE_SHA; the +9 passes are the new P1-B tests. No forbidden legacy runtime file was changed."
+    },
+    "no_critical_fallback_gate": {
+      "command": "python3 tools/no_critical_fallback_gate.py --repo . --baseline ncf-baseline.json",
+      "result": "PASS",
+      "p0_new": 0,
+      "p1_new": 0,
+      "p2_new": 1,
+      "p2_finding": "NCF-04 julia_core/runtime/capability_bridge.py:321 execute_tool_typed"
+    },
+    "git_diff_check": "PASS"
+  },
+  "julia_preservation_proof": {
+    "pid_18089_before": 629,
+    "pid_18089_after": 629,
+    "listener_18089_after": "127.0.0.1:18089 owned by python PID 629",
+    "product_conversation_store_sha256_before": "fbae7e00b8f2275c90c6d769f27d3c1a458cc41528e59127d330d0c4630bcec7",
+    "product_conversation_store_sha256_after": "fbae7e00b8f2275c90c6d769f27d3c1a458cc41528e59127d330d0c4630bcec7",
+    "user_julia_sessions_sha256_before": "51702425a4a76f328490788c3890cc3bb2c05276fc57ff38532dbfb0a206fc43",
+    "user_julia_sessions_sha256_after": "51702425a4a76f328490788c3890cc3bb2c05276fc57ff38532dbfb0a206fc43",
+    "julia_requests_from_p1_b": 0,
+    "julia_state_changed": false,
+    "julia_process_restarted": false,
+    "julia_config_changed": false
+  },
+  "blockers": [],
+  "final_result": "PASS_READY_FOR_MIRA_E2E_P1_C"
+}
