@@ -83,7 +83,6 @@ class MiraRuntimeShaPins:
 class MiraProviderEnvelopeRequest:
     conversation_id: str
     turn_id: str
-    task_intent: str
     task_domain: str
     input_mode: str
     input_text: str
@@ -94,7 +93,6 @@ class MiraProviderEnvelopeRequest:
         for field_name in (
             "conversation_id",
             "turn_id",
-            "task_intent",
             "task_domain",
             "input_mode",
             "input_text",
@@ -252,7 +250,7 @@ class GoldenMiraRuntimeComposition:
             schema_version="1.0.0",
             conversation_id=request.conversation_id,
             turn_id=request.turn_id,
-            task_intent=request.task_intent,
+            task_intent=request.input_text,
             task_domain=request.task_domain,
             current_modality=request.input_mode,
             bounded_state=ingress,

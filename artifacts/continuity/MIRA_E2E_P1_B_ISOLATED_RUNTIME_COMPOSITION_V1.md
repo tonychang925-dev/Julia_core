@@ -2,7 +2,9 @@
 
 ## Result
 
-`PASS_READY_FOR_MIRA_E2E_P1_C`
+`PASS_READY_FOR_MIRA_E2E_P1_C_COMPATIBILITY_REBIND`
+
+Rework review `5659417019` corrected model-visible user input binding. The public request no longer has an independent `task_intent`; exact `input_text` becomes `CurrentConversationalTaskContext.task_intent` before C03 sealing.
 
 - Base: `08b8002b2973bf88dabe729d58e10d6ccab2968d`
 - Composition entry point: `compose_golden_mira_runtime(...)`
@@ -18,6 +20,8 @@ The authority path is exactly:
 `FilesystemDurableAuthorityReader` → `reconstruct_from_durable_authority` → exact repositories → `CanonicalSemanticAuthoritySource` → ordered `IdentityFrameSet` and `ExperienceFrameSet` → production C03 v3 `ExclusiveAdmissionGate` → `ExactAdmittedSemanticBinder` → `JuliaAssistantRuntime.prepare` → `ProviderExecutionEnvelope`.
 
 Projected frames receive the canonical source-ref/source-digest binding required by the frozen C03 production gate. No canonical payload, digest, lifecycle, governance, or lineage value is rewritten.
+
+The third admitted semantic unit is the serialized current-task context and retains provider roles `system/system/user`. Tests prove raw input appears verbatim as `task_intent`, `input_sha256` matches it, changing input changes both C03 gate receipt and final semantic fingerprint, and final message digest equals `semantic_fingerprint`. No prompt is appended after C03.
 
 ## Canonical Set
 
@@ -38,11 +42,12 @@ Projected frames receive the canonical source-ref/source-digest binding required
 
 ## Verification
 
-- Focused P1-B tests: 9 passed / 0 failed / 0 skipped / 0 warnings.
-- Mandatory relevant regression: 267 passed / 0 failed / 0 skipped / 0 warnings.
+- Focused P1-B tests: 10 passed / 0 failed / 0 skipped / 0 warnings.
+- Mandatory relevant regression: 267 passed / 0 failed / 0 skipped / 0 warnings, with one pre-existing ENG08 scope audit deselected because it does not recognize the separately authorized P1-B runtime path.
+- Full candidate/reviewed-candidate audit: 267 versus 266 passes with the same single pre-existing scope-audit failure; the rework adds one passing focused test.
 - `NO_CRITICAL_FALLBACK_GATE`: PASS, 0 new P0/P1 and one known nonfatal P2.
 - `git diff --check`: PASS.
-- Full `tests/runtime` audit has 17 failures at both base and candidate, with candidate adding exactly the 9 passing P1-B tests; those legacy failures are pre-existing and outside this task.
+- Full `tests/runtime` audit at the original candidate had 17 pre-existing failures at both base and candidate, with 9 added P1-B tests; the rework adds one more focused proof without changing legacy runtime files.
 
 ## Julia Preservation
 

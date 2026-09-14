@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import shutil
 import socket
@@ -114,14 +115,14 @@ def test_prepare_reaches_production_envelope_without_transport(
 
     monkeypatch.setattr(socket, "socket", no_network)
     composition = compose(authority_root, tmp_path / "conversations.json")
+    raw_input = "Hi Mira，还记得我吗？"
     envelope = composition.prepare_provider_envelope(
         MiraProviderEnvelopeRequest(
             conversation_id="mira-p1b",
             turn_id="turn-001",
-            task_intent="Prepare Golden Mira provider ingress",
             task_domain="isolated-runtime-composition",
             input_mode="text",
-            input_text="composition readiness only",
+            input_text=raw_input,
             observed_at="2026-09-14T00:00:00Z",
             provider_id="deepseek",
         )
@@ -130,7 +131,59 @@ def test_prepare_reaches_production_envelope_without_transport(
     assert envelope.conversation_id == "mira-p1b"
     assert envelope.turn_id == "turn-001"
     assert envelope.alignment.provider_id == "deepseek"
-    assert envelope.messages
+    assert [message["role"] for message in envelope.messages] == [
+        "system",
+        "system",
+        "user",
+    ]
+    current_task = json.loads(envelope.messages[2]["content"])
+    input_digest = hashlib.sha256(raw_input.encode("utf-8")).hexdigest()
+    assert current_task["task_intent"] == raw_input
+    assert current_task["bounded_state"]["input_sha256"] == input_digest
+    assert (
+        envelope.semantic_fingerprint
+        == hashlib.sha256(
+            json.dumps(
+                list(envelope.messages),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+    )
+
+
+def test_input_text_change_changes_c03_and_final_semantics(
+    authority_root, tmp_path
+) -> None:
+    composition = compose(authority_root, tmp_path / "conversations.json")
+
+    def envelope_for(input_text: str):
+        return composition.prepare_provider_envelope(
+            MiraProviderEnvelopeRequest(
+                conversation_id="mira-p1b-input-change",
+                turn_id="turn-001",
+                task_domain="isolated-runtime-composition",
+                input_mode="text",
+                input_text=input_text,
+                observed_at="2026-09-14T00:00:00Z",
+                provider_id="deepseek",
+            )
+        )
+
+    first = envelope_for("first exact user input")
+    second = envelope_for("second exact user input")
+    assert first.messages[2]["content"] != second.messages[2]["content"]
+    first_task_digest = _current_task_digest(first.messages[2]["content"])
+    second_task_digest = _current_task_digest(second.messages[2]["content"])
+    assert first_task_digest != second_task_digest
+    assert first.gate_receipt != second.gate_receipt
+    assert first.semantic_fingerprint != second.semantic_fingerprint
+    assert [message["role"] for message in second.messages] == [
+        "system",
+        "system",
+        "user",
+    ]
 
 
 def test_empty_conversation_store_path_fails_closed(authority_root) -> None:
@@ -203,3 +256,13 @@ def compose(authority_root: Path, conversation_store_path: Path):
             observed_assistant_sha=SHA,
         ),
     )
+
+
+def _current_task_digest(content: str) -> str:
+    canonical_content = json.dumps(
+        json.loads(content),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical_content.encode("utf-8")).hexdigest()

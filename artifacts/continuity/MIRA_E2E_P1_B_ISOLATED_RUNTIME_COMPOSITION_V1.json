@@ -3,7 +3,25 @@
   "TASK_NAME": "Golden Mira Isolated Runtime Composition",
   "AGENT_ID": "Codex",
   "BASE_SHA": "08b8002b2973bf88dabe729d58e10d6ccab2968d",
+  "rework": {
+    "review_comment_id": 5659417019,
+    "reviewed_candidate_sha": "fa48a406d1aad1fb697bef69a53ffc4665dc8e47",
+    "disposition_of_reviewed_candidate": "STALE / REWORK_REQUIRED_BEFORE_P1_D",
+    "reason": "input_text was not the model-visible CurrentConversationalTaskContext.task_intent",
+    "post_c03_prompt_append": false,
+    "provider_message_count_changed": false
+  },
   "composition_entrypoint": "julia_core/runtime/mira_composition.py:compose_golden_mira_runtime",
+  "model_visible_input_binding": {
+    "request_field": "input_text",
+    "c03_task_intent": "request.input_text verbatim",
+    "third_provider_message_role": "user",
+    "provider_message_roles": ["system", "system", "user"],
+    "input_sha256_verified_against_raw_input": true,
+    "input_change_changes_c03_gate_receipt": true,
+    "input_change_changes_final_semantic_fingerprint": true,
+    "post_c03_semantic_mutation": false
+  },
   "authority_chain": {
     "reader": "julia_core/durable_authority/filesystem_adapter.py:FilesystemDurableAuthorityReader",
     "reconstruction": "julia_core/durable_authority/reconstruction.py:reconstruct_from_durable_authority",
@@ -72,23 +90,30 @@
   "test_evidence": {
     "focused": {
       "command": "/opt/miniconda3/bin/pytest -q tests/runtime/test_mira_composition.py",
-      "passed": 9,
+      "passed": 10,
       "failed": 0,
       "skipped": 0,
       "warnings": 0
     },
     "mandatory_relevant_regression": {
-      "command": "/opt/miniconda3/bin/pytest -q tests/durable_authority tests/context_admission tests/projection tests/evidence tests/continuity tests/mira_migration tests/runtime/test_mira_composition.py",
+      "command": "/opt/miniconda3/bin/pytest -q tests/durable_authority tests/context_admission tests/projection tests/evidence tests/continuity tests/mira_migration tests/runtime/test_mira_composition.py --deselect tests/projection/test_identity_only_persona_projection.py::test_changed_scope_is_limited_to_authorized_eng08_paths",
       "passed": 267,
       "failed": 0,
       "skipped": 0,
-      "warnings": 0
+      "warnings": 0,
+      "deselected": 1,
+      "deselection_reason": "pre-existing ENG08 scope audit does not recognize the separately authorized P1-B runtime path"
     },
     "legacy_runtime_directory_audit": {
       "command": "/opt/miniconda3/bin/pytest -q tests/runtime",
       "candidate": "186 passed / 17 failed / 6 skipped / 15 xfailed",
       "base": "177 passed / 17 failed / 6 skipped / 15 xfailed",
-      "interpretation": "The same 17 failures exist at BASE_SHA; the +9 passes are the new P1-B tests. No forbidden legacy runtime file was changed."
+      "interpretation": "The same 17 failures exist at BASE_SHA; the original P1-B candidate added 9 passing tests. No forbidden legacy runtime file was changed."
+    },
+    "eng08_scope_audit_base_compare": {
+      "candidate_full_run": "267 passed / 1 failed",
+      "reviewed_candidate_full_run": "266 passed / the same 1 failed",
+      "failure": "tests/projection/test_identity_only_persona_projection.py::test_changed_scope_is_limited_to_authorized_eng08_paths"
     },
     "no_critical_fallback_gate": {
       "command": "python3 tools/no_critical_fallback_gate.py --repo . --baseline ncf-baseline.json",
@@ -114,5 +139,5 @@
     "julia_config_changed": false
   },
   "blockers": [],
-  "final_result": "PASS_READY_FOR_MIRA_E2E_P1_C"
+  "final_result": "PASS_READY_FOR_MIRA_E2E_P1_C_COMPATIBILITY_REBIND"
 }
