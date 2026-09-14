@@ -1,0 +1,226 @@
+{
+  "schema_version": 1,
+  "authorization": "EXPLICIT_TONY_GO_NCF_A5_LOCAL_CODEX_CI_GITHUB_ENFORCEMENT",
+  "entries": [
+    {
+      "rule": "NCF-04",
+      "repo": "Julia_core",
+      "file": "julia_core/awareness/identity.py",
+      "line": 30,
+      "symbol": "time_window",
+      "severity": "P2",
+      "reason": "(ValueError, IndexError) handler returns default 'unknown_window'",
+      "fingerprint": "8c1c6a21e25b4817f3b6274a3591da57b4ec1da1dd634a26624330487533f527"
+    },
+    {
+      "rule": "NCF-11",
+      "repo": "Julia_core",
+      "file": "julia_core/capability/financial/research/evidence_normalizer.py",
+      "line": 44,
+      "symbol": "provenance",
+      "severity": "P1",
+      "reason": "item.provenance = {}",
+      "fingerprint": "716f83d966df2e170f31ecdf3311bb71ba999f1eeab4187a39bf982bf9c3dc48"
+    },
+    {
+      "rule": "NCF-11",
+      "repo": "Julia_core",
+      "file": "julia_core/capability/financial/research/evidence_normalizer.py",
+      "line": 96,
+      "symbol": "provenance",
+      "severity": "P1",
+      "reason": "item.provenance = {}",
+      "fingerprint": "716f83d966df2e170f31ecdf3311bb71ba999f1eeab4187a39bf982bf9c3dc48"
+    },
+    {
+      "rule": "NCF-09",
+      "repo": "Julia_core",
+      "file": "julia_core/capability/manager.py",
+      "line": 251,
+      "symbol": "legacy-carrier",
+      "severity": "P2",
+      "reason": "return self._legacy_from_execution(request, execution)",
+      "fingerprint": "3519db0621b83e342b153593de0c95a449c8dc63247a26c00628217dc17e86a8"
+    },
+    {
+      "rule": "NCF-09",
+      "repo": "Julia_core",
+      "file": "julia_core/capability/manager.py",
+      "line": 389,
+      "symbol": "legacy-carrier",
+      "severity": "P2",
+      "reason": "def _legacy_from_execution(self, request: CapabilityRequest, execution: CapabilityExecution) -> CapabilityResult:",
+      "fingerprint": "dfb2a4ad53e4d9dfec1ecd6723d743b75907b9f74607c44898cf2d0905f37538"
+    },
+    {
+      "rule": "NCF-04",
+      "repo": "Julia_core",
+      "file": "julia_core/capability/providers/local/security.py",
+      "line": 52,
+      "symbol": "_is_within",
+      "severity": "P2",
+      "reason": "ValueError handler returns default False",
+      "fingerprint": "fc0c22a0613ce3213181365a236061aaa3c14d4c9a9dd7426843a6dbbeddd8c4"
+    },
+    {
+      "rule": "NCF-07",
+      "repo": "Julia_core",
+      "file": "julia_core/capability/web_provider.py",
+      "line": 104,
+      "symbol": "get_provider",
+      "severity": "P1",
+      "reason": "authority getter auto-constructs or dynamically substitutes an implementation",
+      "fingerprint": "ece0e3b798b5f26faddb300c3669309a5f0f37ff8038d244e3f09837de24bf07"
+    },
+    {
+      "rule": "NCF-04",
+      "repo": "Julia_core",
+      "file": "julia_core/conversation_state/cutover.py",
+      "line": 43,
+      "symbol": "is_complete",
+      "severity": "P2",
+      "reason": "Exception handler returns default False",
+      "fingerprint": "5e72339a4f487a91ad9ef2c4152000ebd3164e9f442da78f0f15500d4c36e074"
+    },
+    {
+      "rule": "NCF-04",
+      "repo": "Julia_core",
+      "file": "julia_core/conversation_state/storage_v2_repository.py",
+      "line": 168,
+      "symbol": "_segment_number",
+      "severity": "P2",
+      "reason": "(ValueError, IndexError) handler returns default 1",
+      "fingerprint": "5f9e195b09f957fe46a6d5437a6cef324da1bb3d5a97f3d42b40fd0e318fd9c9"
+    },
+    {
+      "rule": "NCF-04",
+      "repo": "Julia_core",
+      "file": "julia_core/evidence/local_retrieval.py",
+      "line": 102,
+      "symbol": "_read_text",
+      "severity": "P2",
+      "reason": "UnicodeDecodeError handler returns default ''",
+      "fingerprint": "4c8abb739dfe9f0c7831f6c7828902d2ab15e3c634dabe149b5d3997f994529f"
+    },
+    {
+      "rule": "NCF-04",
+      "repo": "Julia_core",
+      "file": "julia_core/runtime/capability.py",
+      "line": 383,
+      "symbol": "execute",
+      "severity": "P2",
+      "reason": "(_json.JSONDecodeError, KeyError) handler returns default None",
+      "fingerprint": "e0be3fd8e3e266b02a10240eefafe1e7a03df2af6f0790c55386b24902ddc3ca"
+    },
+    {
+      "rule": "NCF-04",
+      "repo": "Julia_core",
+      "file": "julia_core/runtime/capability_bridge.py",
+      "line": 536,
+      "symbol": "_resolve_tool_request",
+      "severity": "P2",
+      "reason": "(_json.JSONDecodeError, KeyError, TypeError) handler returns default None",
+      "fingerprint": "a7ac6b16452b7897034695808b5ac7fef94cddecee4d1eb958213b640d015a0f"
+    },
+    {
+      "rule": "NCF-06",
+      "repo": "Julia_core",
+      "file": "julia_core/runtime/capability_bridge.py",
+      "line": 297,
+      "symbol": "provider-binding",
+      "severity": "P1",
+      "reason": "fallback_provider = create_frozen_market_provider()",
+      "fingerprint": "1cc18f20561813adbfe86f1320bae58ad77bd11f3e5045f71223935c761ee0af"
+    },
+    {
+      "rule": "NCF-06",
+      "repo": "Julia_core",
+      "file": "julia_core/runtime/capability_bridge.py",
+      "line": 298,
+      "symbol": "provider-binding",
+      "severity": "P1",
+      "reason": "if not frozen_market_database_gateways_bound(fallback_provider.adapter):",
+      "fingerprint": "fb3039feff89f2190726a0454d10bbcfb7d351a2408a7d5961ceb0cc515c93ec"
+    },
+    {
+      "rule": "NCF-06",
+      "repo": "Julia_core",
+      "file": "julia_core/runtime/capability_bridge.py",
+      "line": 300,
+      "symbol": "provider-binding",
+      "severity": "P1",
+      "reason": "self._providers[\"ai_theme_app\"] = fallback_provider",
+      "fingerprint": "c08eadd9a3dfe93f907e4eef25e4da13ba15a90b16a33b6b23b03d8a0575607b"
+    },
+    {
+      "rule": "NCF-04",
+      "repo": "Julia_core",
+      "file": "julia_core/runtime/conversation_runtime.py",
+      "line": 517,
+      "symbol": "migrate_legacy_sessions",
+      "severity": "P2",
+      "reason": "(_json.JSONDecodeError, KeyError) handler returns default 0",
+      "fingerprint": "3b0e516121be27e994fa6043a5fe67e016ab28426d7d95911b7c42fdd42e7282"
+    },
+    {
+      "rule": "NCF-04",
+      "repo": "Julia_core",
+      "file": "providers/examples/voice/edge_tts_provider.py",
+      "line": 59,
+      "symbol": "synthesize",
+      "severity": "P2",
+      "reason": "Exception handler returns default None",
+      "fingerprint": "95b9c53b4169dfb7301696c07f6b70d41865f14b5dc1cb7aa4d006b2560abc15"
+    },
+    {
+      "rule": "NCF-04",
+      "repo": "Julia_core",
+      "file": "voice_runtime/providers/asr/apple_speech.py",
+      "line": 88,
+      "symbol": "_transcribe",
+      "severity": "P2",
+      "reason": "Exception handler returns default None",
+      "fingerprint": "8048408c8f726331849f71cc67489caf9b1eb05a6c11659514775e23cd9db346"
+    },
+    {
+      "rule": "NCF-04",
+      "repo": "Julia_core",
+      "file": "voice_runtime/providers/local/asr/whisper_cpu.py",
+      "line": 164,
+      "symbol": "_transcribe_sync",
+      "severity": "P2",
+      "reason": "Exception handler returns default None",
+      "fingerprint": "53705102b4cbee23aa1b77a3858dd39b222a6176276bb42cdc580fc64200011a"
+    },
+    {
+      "rule": "NCF-04",
+      "repo": "Julia_core",
+      "file": "voice_runtime/providers/tts/edge_tts_pcm.py",
+      "line": 79,
+      "symbol": "stream_to_track",
+      "severity": "P2",
+      "reason": "Exception handler returns default False",
+      "fingerprint": "e412231b461167c8059744cdf8a520a4927aef795da297765cd37e2ad5804a4c"
+    },
+    {
+      "rule": "NCF-04",
+      "repo": "Julia_core",
+      "file": "voice_runtime/providers/tts/edge_tts_pcm.py",
+      "line": 132,
+      "symbol": "_decode_and_enqueue",
+      "severity": "P2",
+      "reason": "Exception handler returns default False",
+      "fingerprint": "e412231b461167c8059744cdf8a520a4927aef795da297765cd37e2ad5804a4c"
+    },
+    {
+      "rule": "NCF-04",
+      "repo": "Julia_core",
+      "file": "voice_runtime/providers/tts/edge_tts_pcm.py",
+      "line": 152,
+      "symbol": "_decode_and_enqueue",
+      "severity": "P2",
+      "reason": "Exception handler returns default False",
+      "fingerprint": "e412231b461167c8059744cdf8a520a4927aef795da297765cd37e2ad5804a4c"
+    }
+  ]
+}

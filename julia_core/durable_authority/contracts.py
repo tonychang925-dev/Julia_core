@@ -12,6 +12,7 @@ from typing import Any
 ENVELOPE_SCHEMA_VERSION = "julia_core.durable_authority.envelope.v1"
 IDENTITY_OBJECT_SCHEMA = "julia_core.identity.version.v1"
 MEMORY_EXPERIENCE_OBJECT_SCHEMA = "julia_core.memory_experience.record.v1"
+MEMORY_EXPERIENCE_OBJECT_SCHEMA_V2 = "julia_core.memory_experience.record.v2"
 RUNTIME_BINDING_OBJECT_SCHEMA = "julia_core.runtime_canonical_authority.binding.v1"
 
 
@@ -34,6 +35,9 @@ class DurableAuthorityErrorCode(str, Enum):
     INCONSISTENT_LIFECYCLE = "INCONSISTENT_LIFECYCLE"
     MISSING_PREDECESSOR = "MISSING_PREDECESSOR"
     DUPLICATE_CONFLICT = "DUPLICATE_CONFLICT"
+    MANIFEST_MISMATCH = "MANIFEST_MISMATCH"
+    ORDER_MISMATCH = "ORDER_MISMATCH"
+    PROVENANCE_MISSING = "PROVENANCE_MISSING"
 
 
 class DurableAuthorityPersistenceError(Exception):

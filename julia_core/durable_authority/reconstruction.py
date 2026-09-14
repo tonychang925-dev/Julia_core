@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from types import MappingProxyType
+from urllib.parse import unquote
 
 from julia_core.identity import IdentityRef, IdentityRepository
 from julia_core.memory_experience import (
@@ -139,6 +140,12 @@ def restore_runtime_binding_repository(
     return repository
 
 
+def reconstruct_from_durable_authority(
+    reader: DurableAuthorityReader,
+) -> tuple[IdentityRepository, MemoryExperienceRepository]:
+    return restore_identity_repository(reader), restore_memory_experience_repository(reader)
+
+
 def _read_by_uri(reader: DurableAuthorityReader, family: AuthorityFamily, ref_uri: str):
     if type(ref_uri) is not str:
         raise DurableAuthorityPersistenceError(
@@ -167,7 +174,9 @@ def _parse_ref_uri(family: AuthorityFamily, ref_uri: str):
                 "identity ref URI is malformed",
             )
         lineage_id, version_id = ref_uri[len(prefix) :].split("/", 1)
-        return IdentityRef(lineage_id, version_id)
+        return IdentityRef(
+            unquote(lineage_id, errors="strict"), unquote(version_id, errors="strict")
+        )
     if family is AuthorityFamily.MEMORY_EXPERIENCE:
         prefix = "memory-experience://"
         if not ref_uri.startswith(prefix):
@@ -228,6 +237,7 @@ def _missing_predecessor(ref_uri: str) -> DurableAuthorityPersistenceError:
 
 __all__ = [
     "DurableAuthorityReconstructor",
+    "reconstruct_from_durable_authority",
     "restore_identity_repository",
     "restore_memory_experience_repository",
     "restore_runtime_binding_repository",
