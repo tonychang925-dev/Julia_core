@@ -494,7 +494,8 @@ class EvidenceOnlyCanonicalExecutionObserver:
             frame.digest() for frame in identity_frames.frames
         )
         frame_digests = tuple(frame.digest() for frame in experience_frames.frames)
-        ordered_unit_digests = tuple(unit.semantic_digest for unit in binding.units)
+        ordered_source_digests = tuple(unit.source_digest for unit in binding.units)
+        ordered_projection_digests = tuple(unit.projected_digest for unit in binding.units)
         if (
             identity_frames.digest() != package.identity_digest
             or identity_frame_digests != package.identity_frame_digests
@@ -508,8 +509,8 @@ class EvidenceOnlyCanonicalExecutionObserver:
                 "canonical provenance does not match the sealed package"
             )
         if (
-            dict(binding.package_digest_manifest) != dict(package.admitted_frames)
-            or ordered_unit_digests != tuple(package.admitted_frames.values())
+            dict(binding.source_digest_manifest) != dict(package.admitted_frames)
+            or ordered_source_digests != tuple(package.admitted_frames.values())
             or envelope.semantic_fingerprint != binding.semantic_fingerprint()
         ):
             raise CanonicalExecutionObservationRejected(
@@ -551,7 +552,7 @@ class EvidenceOnlyCanonicalExecutionObserver:
             ),
             gate_receipt=envelope.gate_receipt,
             semantic_fingerprint=envelope.semantic_fingerprint,
-            ordered_unit_digests=ordered_unit_digests,
+            ordered_unit_digests=ordered_projection_digests,
             provider_id=envelope.alignment.provider_id,
             alignment_identity=_digest(envelope.alignment.to_dict()),
             issued_by=_OBSERVER_ISSUER,

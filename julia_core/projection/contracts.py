@@ -155,6 +155,29 @@ class IdentityFrameSet:
             self.canonical_serialization().encode("utf-8")
         ).hexdigest()
 
+    def model_visible_projection(self) -> dict[str, Any]:
+        return {
+            "schema": "julia_core.projection.identity_model_visible.v1",
+            "projection_version": "1.0.0",
+            "runtime_identity_binding": {
+                "lineage_refs": [frame.source_ref.to_dict() for frame in self.frames],
+                "source_digests": [frame.source_digest for frame in self.frames],
+                "derivation": "admitted IdentityFrameSet source refs and digests",
+            },
+            "identities": [
+                {
+                    "identity_id": frame.identity_id,
+                    "anchors": [_deep_unfreeze(item) for item in frame.anchors],
+                    "values": [_deep_unfreeze(item) for item in frame.values],
+                    "boundaries": [_deep_unfreeze(item) for item in frame.boundaries],
+                    "relationship_role_anchors": [
+                        _deep_unfreeze(item) for item in frame.relationship_role_anchors
+                    ],
+                }
+                for frame in self.frames
+            ],
+        }
+
     def ordered_source_refs(self) -> tuple[IdentityRef, ...]:
         return tuple(frame.source_ref for frame in self.frames)
 
@@ -285,6 +308,44 @@ class ExperienceFrameSet:
         return hashlib.sha256(
             self.canonical_serialization().encode("utf-8")
         ).hexdigest()
+
+    def model_visible_projection(self) -> dict[str, Any]:
+        experiences = []
+        for frame in self.frames:
+            content = _deep_unfreeze(frame.content)
+            if isinstance(content, Mapping):
+                content = {
+                    key: value
+                    for key, value in content.items()
+                    if key not in {
+                        "applicability", "policy_transfer", "authority",
+                        "binding_role_refs", "revision", "source_refs",
+                    }
+                }
+            item: dict[str, Any] = {
+                "experience_id": frame.experience_id,
+                "experience_type": frame.experience_type.value,
+                "content": content,
+            }
+            applicability = content.get("applicability") if isinstance(content, Mapping) else None
+            if isinstance(applicability, Mapping):
+                scope = {}
+                for key in ("scope", "inheritance"):
+                    if key in applicability:
+                        scope[key] = applicability[key]
+                if scope:
+                    item["commitment_scope"] = scope
+            experiences.append(item)
+        return {
+            "schema": "julia_core.projection.experience_model_visible.v1",
+            "projection_version": "1.0.0",
+            "runtime_experience_binding": {
+                "lineage_refs": [frame.source_ref.to_dict() for frame in self.frames],
+                "source_digests": [frame.source_digest for frame in self.frames],
+                "derivation": "admitted ExperienceFrameSet source refs and digests",
+            },
+            "experiences": experiences,
+        }
 
 
 def _deep_freeze(value: Any) -> Any:

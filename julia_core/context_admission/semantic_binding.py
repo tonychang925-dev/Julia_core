@@ -80,8 +80,10 @@ class AdmittedSemanticUnit:
 
     frame_name: str
     role: str
-    semantic_digest: str
-    canonical_content: str
+    source_digest: str
+    projection_schema: str
+    projected_digest: str
+    projected_content: str
     issued_by: object = field(repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -100,8 +102,8 @@ class AdmittedSemanticUnit:
                 "inexact_semantic_role",
                 "semantic binding role does not match the frozen transport contract",
             )
-        actual_digest = sha256(self.canonical_content.encode("utf-8")).hexdigest()
-        if self.semantic_digest != actual_digest:
+        actual_digest = sha256(self.projected_content.encode("utf-8")).hexdigest()
+        if self.projected_digest != actual_digest:
             raise _rejection(
                 "forged_semantic_unit",
                 "semantic unit digest does not match its canonical content",
@@ -112,7 +114,15 @@ class AdmittedSemanticUnit:
         return self
 
     def to_message(self) -> dict[str, str]:
-        return {"role": self.role, "content": self.canonical_content}
+        return {"role": self.role, "content": self.projected_content}
+
+    @property
+    def semantic_digest(self) -> str:
+        return self.projected_digest
+
+    @property
+    def canonical_content(self) -> str:
+        return self.projected_content
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,7 +133,8 @@ class AdmittedSemanticBundle:
     conversation_id: str
     turn_id: str
     gate_receipt: str
-    package_digest_manifest: Mapping[str, str]
+    source_digest_manifest: Mapping[str, str]
+    projection_digest_manifest: Mapping[str, str]
     units: tuple[AdmittedSemanticUnit, ...]
     issued_by: object = field(repr=False, compare=False)
 
@@ -135,10 +146,15 @@ class AdmittedSemanticBundle:
             )
         object.__setattr__(
             self,
-            "package_digest_manifest",
-            MappingProxyType(dict(self.package_digest_manifest)),
+            "source_digest_manifest",
+            MappingProxyType(dict(self.source_digest_manifest)),
         )
-        if tuple(self.package_digest_manifest) != ADMITTED_FRAME_ORDER:
+        object.__setattr__(
+            self,
+            "projection_digest_manifest",
+            MappingProxyType(dict(self.projection_digest_manifest)),
+        )
+        if tuple(self.source_digest_manifest) != ADMITTED_FRAME_ORDER or tuple(self.projection_digest_manifest) != ADMITTED_FRAME_ORDER:
             raise _rejection(
                 "inexact_semantic_manifest",
                 "semantic bundle manifest is partial, ambiguous, or out of order",
@@ -162,12 +178,14 @@ class AdmittedSemanticBundle:
                     "semantic bundle requires exact admitted semantic units",
                 )
             unit.verify()
-            if unit.semantic_digest != self.package_digest_manifest[unit.frame_name]:
+            if unit.source_digest != self.source_digest_manifest[unit.frame_name]:
                 raise _rejection(
                     "mismatched_semantic_unit",
                     "semantic unit does not match its sealed package digest",
                 )
-        if len({unit.semantic_digest for unit in self.units}) != len(self.units):
+            if unit.projected_digest != self.projection_digest_manifest[unit.frame_name]:
+                raise _rejection("mismatched_projection_unit", "semantic unit does not match its projection digest")
+        if len({unit.projected_digest for unit in self.units}) != len(self.units):
             raise _rejection(
                 "ambiguous_semantic_unit",
                 "semantic unit digests are ambiguous",
@@ -176,6 +194,11 @@ class AdmittedSemanticBundle:
     def verify(self) -> AdmittedSemanticBundle:
         self.__post_init__()
         return self
+
+    @property
+    def package_digest_manifest(self) -> Mapping[str, str]:
+        """Deprecated v2 name; read-only alias for canonical source digests."""
+        return self.source_digest_manifest
 
     def semantic_fingerprint(self) -> str:
         payload = [unit.to_message() for unit in self.units]
@@ -188,7 +211,8 @@ class AdmittedSemanticBundle:
             "conversation_id": self.conversation_id,
             "turn_id": self.turn_id,
             "gate_receipt": self.gate_receipt,
-            "package_digest_manifest": dict(self.package_digest_manifest),
+            "source_digest_manifest": dict(self.source_digest_manifest),
+            "projection_digest_manifest": dict(self.projection_digest_manifest),
             "semantic_fingerprint": self.semantic_fingerprint(),
             "authority": {
                 "canonical": False,
@@ -259,7 +283,7 @@ class ExactAdmittedSemanticBinder:
         units: list[AdmittedSemanticUnit] = []
         for frame_name, source in zip(ADMITTED_FRAME_ORDER, sources, strict=True):
             try:
-                payload = source.to_dict()
+                canonical_payload = source.to_dict()
                 source_digest = source.digest()
             except (
                 AttributeError,
@@ -271,19 +295,25 @@ class ExactAdmittedSemanticBinder:
                     "inexact_admitted_source_serialization",
                     "semantic binding could not canonicalize an exact C03 source",
                 ) from error
-            if type(payload) is not dict or type(source_digest) is not str:
+            if type(canonical_payload) is not dict or type(source_digest) is not str:
                 raise _rejection(
                     "inexact_admitted_source_serialization",
                     "semantic binding source serialization is inexact",
                 )
-            canonical_content = canonical_json(payload)
-            actual_digest = _semantic_digest(payload)
-            if source_digest != actual_digest:
+            if isinstance(source, IdentityFrameSet):
+                payload = source.model_visible_projection()
+            elif isinstance(source, ExperienceFrameSet):
+                payload = source.model_visible_projection()
+            else:
+                payload = canonical_payload
+            projected_content = canonical_json(payload)
+            projected_digest = _semantic_digest(payload)
+            if source_digest != _semantic_digest(canonical_payload):
                 raise _rejection(
                     "inexact_admitted_source_digest",
                     "semantic source digest is not its canonical digest",
                 )
-            if actual_digest != package.admitted_frames[frame_name]:
+            if source_digest != package.admitted_frames[frame_name]:
                 raise _rejection(
                     "mismatched_admitted_frame",
                     "semantic source digest does not match the sealed package",
@@ -292,8 +322,10 @@ class ExactAdmittedSemanticBinder:
                 AdmittedSemanticUnit(
                     frame_name=frame_name,
                     role=ADMITTED_FRAME_ROLES[frame_name],
-                    semantic_digest=actual_digest,
-                    canonical_content=canonical_content,
+                    source_digest=source_digest,
+                    projection_schema=payload["schema"],
+                    projected_digest=projected_digest,
+                    projected_content=projected_content,
                     issued_by=_BINDER_ISSUER,
                 )
             )
@@ -303,7 +335,8 @@ class ExactAdmittedSemanticBinder:
             conversation_id=package.conversation_id,
             turn_id=package.turn_id,
             gate_receipt=package.gate_receipt,
-            package_digest_manifest=dict(package.admitted_frames),
+            source_digest_manifest=dict(package.admitted_frames),
+            projection_digest_manifest={unit.frame_name: unit.projected_digest for unit in units},
             units=tuple(units),
             issued_by=_BINDER_ISSUER,
         )

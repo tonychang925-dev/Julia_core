@@ -155,7 +155,9 @@ def test_f1c_08_canonical_frame_set_json_becomes_one_system_unit() -> None:
     unit = binding.units[1]
 
     assert unit.role == "system"
-    assert unit.canonical_content == canonical_json(experiences.to_dict())
+    assert unit.projected_content == canonical_json(experiences.model_visible_projection())
+    assert unit.source_digest == experiences.digest()
+    assert unit.projected_digest != unit.source_digest
 
 
 def test_f1c_09_exactly_three_semantic_units_remain() -> None:
