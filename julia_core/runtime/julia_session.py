@@ -315,7 +315,8 @@ class JuliaSession:
         # Layer 4: LLM (Pass 1)
         reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")
 
-        # Layer 5: Evidence Gate — does this need external evidence?
+        # Layer 5: Evidence Gate — only explicit structured tool calls can
+        # request a capability. Raw conversation text never selects Market.
         needs_evidence = self.capability.requires_tool(text)
         tool_json = self.capability.detect_tool_call(reply)
 

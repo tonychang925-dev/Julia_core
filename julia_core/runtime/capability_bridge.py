@@ -6,7 +6,7 @@ the new capability/manager.py. It provides:
   1. Unified initialization: registry + policy + all providers
   2. Backward-compatible tool manifest for LLM context
   3. Backward-compatible tool execution for LLM tool calls
-  4. New intent-based capability resolution for workflow routing
+  4. Structured capability execution for Julia cognition selections
 
 After full migration (R3), this becomes the sole capability interface.
 The old runtime/capability.py is relegated to legacy compat.
@@ -50,8 +50,8 @@ class ProviderAlreadyRegisteredError(RuntimeError):
     """A different provider is already bound to a provider namespace."""
 
 
-class _UnavailableAiThemeProvider:
-    """Explicitly-unavailable provider for failed ai_theme initialization.
+class _UnavailableProvider:
+    """Explicitly-unavailable provider for a failed external binding.
 
     Not a fallback/mock: health() reports False and execute() returns an
     unavailable marker. The manager turns this into a typed
@@ -63,7 +63,7 @@ class _UnavailableAiThemeProvider:
         self.reason = reason
 
     async def health(self) -> tuple[bool, str]:
-        return False, f"ai_theme_app provider unavailable: {self.reason}"
+        return False, f"market provider unavailable: {self.reason}"
 
     async def execute(self, request) -> dict:
         return {"status": "unavailable", "error": self.reason}
@@ -197,25 +197,22 @@ class RuntimeCapabilityBridge:
             status=CapabilityStatus.AVAILABLE,
         ))
 
-        # ai_theme_app provider (M1) — only if not already injected (tests)
-        if "ai_theme_app" not in self._providers:
-            from julia_core.capability.providers.ai_theme import (
-                register_ai_theme_capabilities,
-                create_ai_theme_provider,
-            )
-            try:
-                self._providers["ai_theme_app"] = create_ai_theme_provider()
-                register_ai_theme_capabilities(self.registry, status=CapabilityStatus.AVAILABLE)
-            except Exception as exc:
-                # Explicit degradation, NOT silent disappearance: capability
-                # stays known, provider state is DEGRADED/UNAVAILABLE, and
-                # invocation returns a typed unavailable outcome.
-                register_ai_theme_capabilities(self.registry, status=CapabilityStatus.DEGRADED)
-                self._providers["ai_theme_app"] = _UnavailableAiThemeProvider(str(exc))
-                import logging
-                logging.getLogger("julia.capability").warning(
-                    "ai_theme provider unavailable; market capability DEGRADED: %s", exc
-                )
+        # Market is a generic provider namespace. The public Market provider is
+        # bound by the application/runtime composition root; Core never imports
+        # Market private code or manufactures an unavailable substitute.
+        for name, description in {
+            "market.event.resolve": "Resolve structured Market event criteria",
+            "market.event.read": "Read one structured Market event",
+            "market.product.read": "Read one structured Market product",
+        }.items():
+            self.registry.register_definition(CapabilityDefinition(
+                name=name,
+                description=description,
+                layer=CapabilityLayer.INTELLIGENCE,
+                provider="market",
+                permission_scope="market.observe",
+                status=CapabilityStatus.AVAILABLE,
+            ))
 
         # External Code Review capability (Core semantic contract).
         # The provider (external_review) is implemented cross-repo in
@@ -280,7 +277,7 @@ class RuntimeCapabilityBridge:
             lines.append(f'- {d.name}: {d.description}。参数: {{{params}}}')
 
         # Market tools
-        for d in self.registry.by_provider("ai_theme_app"):
+        for d in self.registry.by_provider("market"):
             lines.append(f'- {d.name}: {d.description}')
             if d.input_schema:
                 params = ", ".join(f'"{k}": {v}' for k, v in d.input_schema.items())
@@ -373,16 +370,6 @@ class RuntimeCapabilityBridge:
         """
         lower = user_text.lower()
 
-        # Market intent — needs capability
-        market_triggers = [
-            "今天市场", "市场怎么样", "大盘怎么看", "市场状态",
-            "今天行情", "市场情况", "盘面", "最近什么方向",
-            "风险", "警报", "预警",
-        ]
-        for kw in market_triggers:
-            if kw in user_text:
-                return True
-
         # File access triggers
         file_triggers = [
             "读一下", "读取", "打开", "看看文件", "帮我看看", "查看文件",
@@ -418,18 +405,6 @@ class RuntimeCapabilityBridge:
             key = "path" if name in ("read_file", "list_directory") else "pattern"
             return _json.dumps({"name": name, "arguments": {key: val}})
         return None
-
-    # ── New Path: Intent-based Capability Resolution ─────────────────────
-
-    async def resolve_market_intent(self, user_text: str, session_id: str = None):
-        """Resolve market intent through MarketBriefPipeline.
-
-        This is the R0.3 integration point — called by WorkflowRouter.
-        """
-        from julia_core.reasoning.market_brief_pipeline import MarketBriefPipeline
-        pipeline = MarketBriefPipeline(self.manager)
-        return await pipeline.process(user_text, session_id)
-
 
 # ── Singleton ───────────────────────────────────────────────────────────────
 
