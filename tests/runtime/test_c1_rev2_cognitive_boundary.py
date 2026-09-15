@@ -69,10 +69,6 @@ def test_runtime_capability_bridge_contains_no_semantic_keyword_trigger_tables()
     assert forbidden_literals.isdisjoint(literals)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A-02 / C-00+C-08: WorkflowRouter still dispatches market workflow from NL intent resolver; pending R2-P4",
-)
 @pytest.mark.asyncio
 async def test_workflow_router_does_not_preroute_ambiguous_nl_to_domain_workflow():
     """WorkflowRouter must not replace cognition by selecting a market workflow from NL text."""
@@ -88,10 +84,6 @@ async def test_workflow_router_does_not_preroute_ambiguous_nl_to_domain_workflow
     assert result.status == "no_match"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A-02 / C-00+C-08: WorkflowRouter owns MarketBriefIntentResolver; pending R2-P4",
-)
 def test_workflow_router_has_no_market_intent_resolver_dependency():
     """WorkflowRouter may route deterministic infrastructure, not semantic market intent."""
     router = WorkflowRouter(bridge=object())

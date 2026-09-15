@@ -12,10 +12,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from julia_core.reasoning.intents.market_brief import (
-    MarketBriefIntentResolver,
-    MarketIntent,
-)
 
 
 @dataclass
@@ -36,20 +32,15 @@ class WorkflowRouter:
 
     def __init__(self, bridge):
         self.bridge = bridge
-        self._market_resolver = MarketBriefIntentResolver()
 
     async def route(self, user_text: str, session_id: str = None) -> WorkflowResult:
         """Detect intent and dispatch to correct workflow.
 
         Returns WorkflowResult even on no-match — caller decides how to respond.
         """
-        # Step 1: Detect market intent
-        intent_result = self._market_resolver.resolve(user_text)
-
-        if intent_result.is_market_related:
-            return await self._run_market_brief(user_text, session_id, intent_result)
-
-        # Step 2: Check for file intent (file triggers → LLM tool call path)
+        # Semantic capability selection is owned by Julia cognition. This
+        # router only retains deterministic infrastructure routing.
+        # Check for file intent (file triggers → LLM tool call path)
         if self._is_file_request(user_text):
             return WorkflowResult(
                 workflow="file_read",
@@ -63,26 +54,6 @@ class WorkflowRouter:
             intent="general",
             status="no_match",
         )
-
-    async def _run_market_brief(self, user_text, session_id, intent_result) -> WorkflowResult:
-        """Execute MarketBriefPipeline through capability bridge."""
-        try:
-            pipeline_result = await self.bridge.resolve_market_intent(
-                user_text, session_id
-            )
-            return WorkflowResult(
-                workflow="market_brief",
-                intent=intent_result.intent.value,
-                status="completed" if pipeline_result.capability_status == "success" else pipeline_result.capability_status,
-                pipeline_result=pipeline_result,
-            )
-        except Exception as e:
-            return WorkflowResult(
-                workflow="market_brief",
-                intent=intent_result.intent.value,
-                status="error",
-                error=str(e),
-            )
 
     def _is_file_request(self, text: str) -> bool:
         """Check if user is asking for file operations."""
