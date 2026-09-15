@@ -369,16 +369,8 @@ class ContextExecutionRuntime:
                 pkg.mark_frame_failure("situation:interaction", str(exc), required=False)
         pkg.add_provenance("situation", "runtime:turn_context", reason="current state", stage=0)
 
-        # ── EvidenceFrame — market/domain evidence (C-03) ──
-        if self._js is not None:
-            try:
-                market_ctx = self._js._resolve_market_context(user_text)
-                if market_ctx:
-                    pkg.evidence_frame = {"market_context": market_ctx[:800]}
-                    pkg.add_provenance("evidence", "domain:market_brain", reason="market context", stage=1,
-                                      token_estimate=len(market_ctx) // 4)
-            except Exception as exc:
-                pkg.mark_frame_failure("evidence:market", str(exc), required=False)
+        # EvidenceFrame is populated only by typed capability execution below.
+        # Raw conversational text must not create pre-cognition Market evidence.
 
         # ── CapabilityFrame — structured registry catalog (C-08) ──
         # `available_tools` is the structured advertised/registered capability
@@ -443,17 +435,11 @@ class ContextExecutionRuntime:
         never canonical truth. Does not query the Manager, does not select among
         multiple ToolResults, and does not infer correlation from ordering.
 
-        Temporary legacy ingress: the serial runtime still passes a flattened
-        string until P3.2 typed bridge delivery. A str input is delegated to a
-        private legacy text projection. This shim is NOT part of the long-term
-        canonical API contract and must be removed once P3.2 lands.
+        Only the canonical ToolResult contract is accepted. Legacy flattened
+        strings and arbitrary payloads fail closed instead of becoming evidence.
         """
-        if isinstance(tool_result, str):
-            return self._project_legacy_text_result(
-                parent_package=parent_package,
-                tool_result=tool_result,
-                generation_id=generation_id,
-            )
+        if not isinstance(tool_result, ToolResult):
+            raise TypeError("project_tool_result accepts canonical ToolResult only")
 
         resolved_evidence = self._resolve_evidence_refs(tool_result, evidence)
 
@@ -599,29 +585,6 @@ class ContextExecutionRuntime:
         return pkg
 
     # ── P3.1A helpers ─────────────────────────────────────────────────────
-
-    def _project_legacy_text_result(
-        self,
-        *,
-        parent_package: CognitiveContextPackage | None,
-        tool_result: str,
-        generation_id: str,
-    ) -> CognitiveContextPackage:
-        """Legacy flattened-string ingress (pre-P3.2). Preserves P2-I behavior."""
-        pkg = CognitiveContextPackage(
-            conversation_id=parent_package.conversation_id if parent_package else "",
-            turn_id=parent_package.turn_id if parent_package else "",
-            generation_id=generation_id,
-        )
-        pkg.evidence_frame = {
-            "tool_result": tool_result[:2000],
-            "source": "capability_execution",
-        }
-        pkg.situation_frame = {"mode": "tool_continuation"}
-        pkg.add_provenance("evidence", "capability:tool_result",
-                          reason="tool execution result", stage=2,
-                          token_estimate=len(tool_result) // 4)
-        return pkg
 
     def _resolve_evidence_refs(
         self,
