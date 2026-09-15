@@ -21,10 +21,19 @@ from typing import Any
 import pytest
 
 from julia_core.runtime.context_execution_runtime import CognitiveContextPackage, ContextExecutionRuntime
-from julia_core.capability.models import CapabilityResult
+from julia_core.capability.models import CapabilityResult, ToolResult, ToolResultStatus
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _typed_result(content: str) -> ToolResult:
+    return ToolResult(
+        capability_call_id="call-c1",
+        status=ToolResultStatus.SUCCESS,
+        structured_output={"content": content},
+        provider="local",
+    )
 
 
 def _dataclass_fields(cls: type[Any]) -> set[str]:
@@ -43,7 +52,7 @@ def test_project_tool_result_enters_evidence_frame_not_identity_or_memory_frames
 
     delta = runtime.project_tool_result(
         parent_package=parent,
-        tool_result='{"capability":"file.read","content":"observed fact"}',
+        tool_result=_typed_result("observed fact"),
         generation_id="gen_after_tool",
     )
 
@@ -51,7 +60,7 @@ def test_project_tool_result_enters_evidence_frame_not_identity_or_memory_frames
     assert delta.turn_id == parent.turn_id
     assert delta.generation_id == "gen_after_tool"
     assert delta.evidence_frame["source"] == "capability_execution"
-    assert "observed fact" in delta.evidence_frame["tool_result"]
+    assert delta.evidence_frame["tool_result"]["structured_output"]["content"] == "observed fact"
 
     assert delta.identity_frame == {}
     assert delta.experience_frame == {}
@@ -65,14 +74,14 @@ def test_project_tool_result_records_context_os_provenance():
     parent = CognitiveContextPackage(conversation_id="conv", turn_id="turn", generation_id="gen_1")
     delta = ContextExecutionRuntime().project_tool_result(
         parent_package=parent,
-        tool_result="capability observation",
+        tool_result=_typed_result("capability observation"),
         generation_id="gen_2",
     )
 
     assert any(
         entry["frame"] == "evidence"
         and entry["source_ref"] == "capability:tool_result"
-        and entry["reason"] == "tool execution result"
+        and entry["reason"] == "tool execution result (typed)"
         for entry in delta.provenance
     )
 
@@ -82,7 +91,7 @@ def test_projected_tool_result_renders_through_context_package_messages():
     parent = CognitiveContextPackage(conversation_id="conv", turn_id="turn", generation_id="gen_1")
     delta = ContextExecutionRuntime().project_tool_result(
         parent_package=parent,
-        tool_result="structured capability observation",
+        tool_result=_typed_result("structured capability observation"),
         generation_id="gen_2",
     )
 
@@ -97,7 +106,7 @@ def test_capability_projection_is_not_a_memory_persona_or_relationship_write():
     """Evidence projection must not acquire identity/memory/persona/relationship authority."""
     delta = ContextExecutionRuntime().project_tool_result(
         parent_package=CognitiveContextPackage(conversation_id="conv", turn_id="turn", generation_id="gen_1"),
-        tool_result="external observation",
+        tool_result=_typed_result("external observation"),
         generation_id="gen_2",
     )
 
