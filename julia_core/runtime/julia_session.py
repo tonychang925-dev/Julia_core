@@ -76,8 +76,8 @@ class JuliaSession:
         # Provider is supplied by the Core composition root. There is no
         # deterministic or Assistant-owned provider fallback.
         if provider is None:
-            from julia_core.providers.core_cognition import get_cognition_provider
-            provider = get_cognition_provider("production")
+            from julia_core.providers.core_cognition import _get_cognition_provider
+            provider = _get_cognition_provider("production")
         if provider is None:
             raise RuntimeError("CORE_PROVIDER_UNAVAILABLE")
         from julia_core.narrative.bootstrap import get_bootstrap
