@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+from concurrent.futures import ThreadPoolExecutor
 
 from julia_core.public.conversation import (
     CoreConversationConfig,
@@ -53,6 +54,29 @@ def test_public_ingress_missing_configuration_fails_closed():
     assert response.status == "failed"
     assert response.error_code == "CORE_COMPOSITION_UNAVAILABLE"
     assert response.assistant_content == ""
+
+
+def test_real_core_composition_and_transport_worker_thread(tmp_path):
+    """TC-RC25-05: real Core composition is usable from a worker thread."""
+    ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
+    ingress.create_conversation("real-conversation")
+    request = CoreConversationRequest("real-conversation", "real-turn", "text", "hello")
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        response = pool.submit(ingress.process, request).result()
+    assert response.status == "completed"
+    assert response.assistant_content
+
+
+def test_real_core_domain_errors_remain_typed(tmp_path):
+    """TC-RC25-06: missing conversation and conflicting turns stay distinct."""
+    ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
+    missing = ingress.process(_request())
+    assert missing.error_code == "CONVERSATION_NOT_FOUND"
+    ingress.create_conversation("conv-1")
+    first = ingress.process(_request())
+    conflict = ingress.process(CoreConversationRequest("conv-1", "turn-1", "text", "different"))
+    assert first.status == "completed"
+    assert conflict.error_code == "TURN_CONFLICT"
 
 
 def test_public_surface_does_not_expose_cognition_or_repository_injection():

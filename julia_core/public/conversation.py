@@ -9,9 +9,13 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
-
 from julia_core.conversation_state.storage_v2_repository import StorageV2ConversationRepository
+from julia_core.conversation_state.repository import (
+    ConversationAdvancedError,
+    ConversationNotFoundError,
+    InvalidTurnStateError,
+    TurnConflictError,
+)
 from julia_core.runtime.conversation_runtime import ConversationRuntime
 from julia_core.runtime.julia_session import JuliaSession
 
@@ -90,14 +94,29 @@ class CoreConversationIngress:
                 assistant_content=result.assistant_content,
                 status=result.status,
             )
+        except ConversationNotFoundError:
+            return CoreConversationResponse(
+                request.conversation_id, request.turn_id, "", "failed", "CONVERSATION_NOT_FOUND"
+            )
+        except TurnConflictError:
+            return CoreConversationResponse(
+                request.conversation_id, request.turn_id, "", "failed", "TURN_CONFLICT"
+            )
+        except (ConversationAdvancedError, InvalidTurnStateError):
+            return CoreConversationResponse(
+                request.conversation_id, request.turn_id, "", "failed", "CORE_CONVERSATION_UNAVAILABLE"
+            )
         except Exception:
             return CoreConversationResponse(
-                conversation_id=request.conversation_id,
-                turn_id=request.turn_id,
-                assistant_content="",
-                status="failed",
-                error_code="CORE_CONVERSATION_UNAVAILABLE",
+                request.conversation_id, request.turn_id, "", "failed", "CORE_CONVERSATION_UNAVAILABLE"
             )
+
+    def create_conversation(self, conversation_id: str, title: str = "New Conversation") -> str:
+        """Explicitly bind/create a conversation; process() never auto-creates."""
+        if self._composition_error is not None:
+            raise CoreConversationConfigurationError("Core composition is unavailable")
+        assert self._runtime is not None
+        return self._runtime.create_conversation(conversation_id, title).conversation_id
 
 
 class CoreConversationConfigurationError(RuntimeError):

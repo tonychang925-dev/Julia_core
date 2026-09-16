@@ -74,10 +74,10 @@ class JuliaSession:
 
     def __init__(self):
         # Provider
-        from providers.llm.deepseek_provider import get_llm_provider
+        from julia_core.providers.core_cognition import CoreCognitionProvider
         from julia_core.narrative.bootstrap import get_bootstrap
 
-        self.provider = get_llm_provider("deepseek")
+        self.provider = CoreCognitionProvider()
         self.bootstrap = get_bootstrap()
 
         # Capability Layer
