@@ -247,7 +247,7 @@ def test_p3_capability_frame_canonical_state_is_structured_not_truncated_text():
             return ""
 
         def _resolve_market_context(self, _text):
-            return ""
+            raise AssertionError("raw text must not resolve Market before cognition")
 
     pkg = ContextExecutionRuntime(_Session()).prepare(
         conversation_id="conv",
@@ -262,6 +262,7 @@ def test_p3_capability_frame_canonical_state_is_structured_not_truncated_text():
     assert all(isinstance(entry, dict) for entry in entries)
     assert {"capability_id", "description", "input_schema"}.issubset(entries[0])
     assert "[:600]" not in inspect.getsource(ContextExecutionRuntime.prepare)
+    assert pkg.evidence_frame == {}
 
 
 def test_p3_legacy_capability_result_remains_compatibility_not_canonical_tool_result():
@@ -275,11 +276,21 @@ def test_p3_legacy_capability_result_remains_compatibility_not_canonical_tool_re
     assert "evidence_refs" not in legacy_fields
 
 
+def test_p3_legacy_string_tool_result_is_rejected_fail_closed():
+    """RC2-T5: flattened legacy results cannot become model-visible evidence."""
+    with pytest.raises(TypeError, match="canonical ToolResult only"):
+        ContextExecutionRuntime().project_tool_result(
+            parent_package=CognitiveContextPackage(conversation_id="conv", turn_id="turn"),
+            tool_result="legacy capability observation",
+            generation_id="gen-after",
+        )
+
+
 def test_p3_capability_projection_still_does_not_mutate_identity_or_continuity_authority():
     """G / ADR-037. Preserve T-CX-04 identity, memory, relationship, continuity isolation."""
     delta = ContextExecutionRuntime().project_tool_result(
         parent_package=CognitiveContextPackage(conversation_id="conv", turn_id="turn", generation_id="gen-before"),
-        tool_result="legacy capability observation",
+        tool_result=_tool_result("call-authority", output={"content": "external observation"}),
         generation_id="gen-after",
     )
 
