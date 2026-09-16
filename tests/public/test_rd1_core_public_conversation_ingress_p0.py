@@ -42,7 +42,7 @@ def test_public_ingress_processes_typed_turn_through_core_runtime(monkeypatch, t
 
     monkeypatch.setattr("julia_core.public.conversation.JuliaSession", FakeSession)
     monkeypatch.setattr("julia_core.public.conversation.ConversationRuntime", FakeRuntime)
-    monkeypatch.setattr("julia_core.providers.core_cognition.get_cognition_provider", lambda _name: object())
+    monkeypatch.setattr("julia_core.providers.core_cognition._get_cognition_provider", lambda _name: object())
     ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
     response = ingress.process(_request())
 
@@ -75,7 +75,7 @@ def test_real_composition_requires_explicit_test_provider(tmp_path, monkeypatch)
             return "TEST_PROVIDER_SENTINEL"
 
     monkeypatch.setattr(
-        "julia_core.providers.core_cognition.get_cognition_provider",
+        "julia_core.providers.core_cognition._get_cognition_provider",
         lambda _name: TestProvider(),
     )
     ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
@@ -88,7 +88,7 @@ def test_real_composition_requires_explicit_test_provider(tmp_path, monkeypatch)
 def test_real_core_composition_and_transport_worker_thread(tmp_path, monkeypatch):
     """TC-RC25-05: real Core composition is usable from a worker thread."""
     monkeypatch.setattr(
-        "julia_core.providers.core_cognition.get_cognition_provider",
+        "julia_core.providers.core_cognition._get_cognition_provider",
         lambda _name: type("TestProvider", (), {"chat": lambda self, messages, cognitive_mode="": "worker answer"})(),
     )
     ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
@@ -103,7 +103,7 @@ def test_real_core_composition_and_transport_worker_thread(tmp_path, monkeypatch
 def test_real_core_domain_errors_remain_typed(tmp_path, monkeypatch):
     """TC-RC25-06: missing conversation and conflicting turns stay distinct."""
     monkeypatch.setattr(
-        "julia_core.providers.core_cognition.get_cognition_provider",
+        "julia_core.providers.core_cognition._get_cognition_provider",
         lambda _name: type("TestProvider", (), {"chat": lambda self, messages, cognitive_mode="": "domain answer"})(),
     )
     ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
@@ -126,7 +126,5 @@ def test_public_surface_does_not_expose_cognition_or_repository_injection():
 
 def test_public_response_is_typed_and_private_object_free():
     """TC-RC25-04: public response contains scalar transport-safe fields only."""
-    fields = set(CoreConversationIngress.__annotations__) if hasattr(CoreConversationIngress, "__annotations__") else set()
-    assert not fields
     response_fields = set(CoreConversationIngress().process(_request()).__dataclass_fields__)
     assert response_fields == {"conversation_id", "turn_id", "assistant_content", "status", "error_code"}

@@ -14,16 +14,16 @@ class CoreCognitionProvider(Protocol):
 _providers: dict[str, CoreCognitionProvider] = {}
 
 
-def register_cognition_provider(name: str, provider: CoreCognitionProvider) -> None:
+def _register_cognition_provider(name: str, provider: CoreCognitionProvider) -> None:
     """Register an explicitly configured real provider at Core composition time."""
     if not name or provider is None:
         raise ValueError("provider registration requires a name and provider")
     _providers[name] = provider
 
 
-def get_cognition_provider(name: str = "production") -> CoreCognitionProvider | None:
+def _get_cognition_provider(name: str = "production") -> CoreCognitionProvider | None:
     """Resolve only an explicitly registered provider; never synthesize one."""
     return _providers.get(name)
 
 
-__all__ = ["CoreCognitionProvider", "get_cognition_provider", "register_cognition_provider"]
+__all__ = ["CoreCognitionProvider"]
