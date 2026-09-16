@@ -73,13 +73,12 @@ class JuliaSession:
     """
 
     def __init__(self, provider=None):
-        # Provider is supplied by the Core composition root. There is no
-        # deterministic or Assistant-owned provider fallback.
+        # Preserve the BASE no-argument Core caller contract. The public
+        # ingress supplies an explicitly composed provider; existing Core
+        # callers retain their pre-existing provider binding.
         if provider is None:
-            from julia_core.providers.core_cognition import _get_cognition_provider
-            provider = _get_cognition_provider("production")
-        if provider is None:
-            raise RuntimeError("CORE_PROVIDER_UNAVAILABLE")
+            from providers.llm.deepseek_provider import get_llm_provider
+            provider = get_llm_provider("deepseek")
         from julia_core.narrative.bootstrap import get_bootstrap
 
         self.provider = provider

@@ -60,9 +60,7 @@ class StorageV2ConversationRepository:
     # ── catalog ────────────────────────────────────────────────────────
 
     def _open_catalog(self) -> sqlite3.Connection:
-        # Repository methods are protected by _lock and may be called by
-        # transport worker threads sharing one Core ingress instance.
-        conn = sqlite3.connect(str(self._cat_path), check_same_thread=False)
+        conn = sqlite3.connect(str(self._cat_path))
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA foreign_keys=ON")
