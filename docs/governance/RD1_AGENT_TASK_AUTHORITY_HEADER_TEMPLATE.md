@@ -16,7 +16,7 @@ FROZEN_AUTHORITY_TRACE
 = <exact governing frozen documents / clauses / versions>
 
 RULE11_CLASSIFICATION
-= A | B | C | D | N/A_WITH_REASON
+= A | B | C | D | NO_ACTIVE_FINDING
 
 CURRENT_PHASE
 = <exact RC / gate / milestone>
@@ -59,7 +59,7 @@ ACCEPTANCE_EVIDENCE
 
 ## Frozen Authority Trace rules
 
-`FROZEN_AUTHORITY_TRACE` must identify the actual governing authority. It may not be populated from:
+`FROZEN_AUTHORITY_TRACE` must identify the actual governing authority and exact clause/scope where practicable. It may not be populated from:
 
 ```text
 current code shape
@@ -81,6 +81,13 @@ WHAT OWNERSHIP / BOUNDARY / PHASE DOES IT FREEZE?
 WHAT LOWER-LEVEL MATERIAL IS NON-AUTHORITATIVE?
 ```
 
+The Architecture Authority Index is a pointer/status register only. It helps locate current sources but is not itself architecture law.
+
+```text
+INDEX != SOURCE_AUTHORITY
+SOURCE_DOCUMENT_WINS_ON_CONFLICT
+```
+
 ## Rule 11 classification rules
 
 Use exactly one of:
@@ -90,9 +97,15 @@ A = IMPLEMENTATION_GAP_UNDER_EXISTING_FROZEN_AUTHORITY
 B = IMPLEMENTATION_DEVIATION_FROM_FROZEN_ARCHITECTURE
 C = DEFERRED_PHASE_CONCERN
 D = TRUE_FROZEN_AUTHORITY_CONFLICT_OR_GAP
+NO_ACTIVE_FINDING = no architecture gap/deviation/deferred/conflict is being used to define this task
 ```
 
-For ordinary implementation tasks already fully defined by frozen architecture, `RULE11_CLASSIFICATION` may be `N/A_WITH_REASON`, but the reason must explicitly state that no ambiguity/gap/deviation/deferred finding is being used to define architecture.
+`NO_ACTIVE_FINDING` is valid only for an ordinary implementation/review task whose target requirement is already fully defined by frozen authority. It is not a substitute for unresolved classification.
+
+```text
+UNKNOWN != NO_ACTIVE_FINDING
+UNRESOLVED != NO_ACTIVE_FINDING
+```
 
 No Agent may convert A/B/C into D by reasoning from implementation facts.
 
@@ -159,8 +172,16 @@ new architecture layer
 new composition owner
 ```
 
+Hard rule:
+
+```text
+IMPLEMENTATION_FREEDOM = BOUNDED
+ARCHITECTURE_FREEDOM = NO
+NO_FROZEN_ANSWER_FOUND != PERMISSION_TO_INVENT
+```
+
 ## Mandatory opening sentence
 
 Every task card must begin with:
 
-> **违反 `DEVELOPMENT_CONSTITUTION.md`、当前有效 frozen authority、Authority Index 或本任务的 Frozen Authority Trace，立即 STOP；Agent 不得自行解释、补全、设计例外、扩大 scope 或用代码/测试反向定义架构。**
+> **违反 `DEVELOPMENT_CONSTITUTION.md` 或当前有效 frozen authority，立即 STOP；Agent 不得自行解释、补全、设计例外、扩大 scope 或用代码/测试反向定义架构。若 Architecture Authority Index 与源冻结文档冲突或过期，源文档优先，任务停止直至 Index 完成 rebind。**
