@@ -1,6 +1,6 @@
 # Julia Core / RD1 开发宪法
 
-## 十条军规 — 违反即终止
+## 十一条军规 — 违反即终止
 
 **状态：最高工程纪律**  
 **适用范围：所有 Agent、Codex、Claude、Mira、人工开发者、Review Agent、自动化任务，以及 Julia Core / Julia-AI-Assistant / Market Brain 相关仓库。**
@@ -369,6 +369,182 @@ infer authority from branch history
 
 ---
 
+## 军规十一：实现永远无权解决架构歧义
+
+任何 architecture、ownership、composition、authority、phase、ABI、dependency direction、public/private boundary 出现混淆、不一致或无法唯一解释时，任何实现、测试、Agent 共识、当前代码形态、部署现状都不得替架构作出选择。
+
+立即进入：
+
+```text
+ARCHITECTURE_CONFUSION
+→ IMPLEMENTATION = STOP
+→ BRANCH_CREATION = STOP
+→ TASK_DELEGATION = STOP
+→ DESIGN_DISPOSITION = NON-AUTHORITATIVE
+```
+
+必须先执行 **Frozen Authority Trace**：
+
+```text
+1. IDENTIFY_GOVERNING_FROZEN_AUTHORITY
+2. APPLY_SCOPE_AWARE_PRECEDENCE
+3. CLASSIFY_THE_FINDING
+4. ONLY_THEN_DECIDE_NEXT_ACTION
+```
+
+### 强制分类
+
+任何争议必须先机械分类为以下之一：
+
+```text
+A. CURRENT_MAIN_IMPLEMENTATION_GAP
+B. CURRENT_MAIN_DEVIATION_FROM_FROZEN_ARCHITECTURE
+C. DEFERRED_PHASE_CONCERN
+D. TRUE_FROZEN_AUTHORITY_CONFLICT_OR_GAP
+```
+
+其中：
+
+```text
+A/B/C
+!= ARCHITECTURE_AMBIGUITY
+```
+
+只有：
+
+```text
+D = TRUE_FROZEN_AUTHORITY_CONFLICT_OR_GAP
+```
+
+且在应用现有 frozen authority precedence 后仍无法消解，才允许：
+
+```text
+ARCHITECTURE_AMBIGUITY = YES
+TASK = STOP
+OWNER_ADJUDICATION_REQUIRED = 1
+```
+
+### 永久禁止的错误推理
+
+```text
+CURRENT_MAIN_ABSENCE
+→ ARCHITECTURE_ABSENCE
+
+IMPLEMENTATION_GAP
+→ ARCHITECTURE_AMBIGUITY
+
+TEST_PASS
+→ ARCHITECTURE_APPROVAL
+
+RUNTIME_BEHAVIOR
+→ ARCHITECTURE_AUTHORITY
+
+CODEX / MIRA / CLAUDE / HUMAN CONSENSUS
+→ ARCHITECTURE_AUTHORITY
+
+IMPLEMENTATION_CONVENIENCE
+→ ARCHITECTURE_CHOICE
+
+HISTORICAL_IMPLEMENTATION
+→ CURRENT_ARCHITECTURE_AUTHORITY
+
+DEFERRED_PHASE_GAP
+→ CURRENT_PHASE_SCOPE_EXPANSION
+```
+
+全部禁止。
+
+### 代码事实的合法地位
+
+代码、测试、source trace、runtime evidence、部署事实只能证明：
+
+```text
+CURRENT_IMPLEMENTATION_STATE
+```
+
+它们必须被拿去与 frozen architecture 比较，而不得反向定义 frozen architecture。
+
+```text
+CODE_FACT
+!= ARCHITECTURE_LAW
+
+TEST_EVIDENCE
+!= ARCHITECTURE_LAW
+
+CURRENT_MAIN
+!= ARCHITECTURE_SOURCE_OF_AUTHORITY
+```
+
+如果代码与冻结架构不一致：
+
+```text
+IMPLEMENTATION_DEVIATION
+```
+
+而不是自动判定：
+
+```text
+ARCHITECTURE_AMBIGUITY
+```
+
+### Owner 也受宪法约束
+
+Owner 拥有本宪法定义范围内的显式 amendment / adjudication authority，但不存在宪法之外的临时例外权。
+
+任何 Owner 指令如果与 frozen constitution / architecture 冲突：
+
+```text
+CONSTITUTION_WINS
+TASK = STOP
+FORMAL_SCOPE_BOUNDED_AMENDMENT_REQUIRED = YES
+```
+
+不得以口头授权、实现便利、紧急修复或测试通过绕过。
+
+### 真正架构空白的处理方式
+
+只有确认存在真实 frozen-authority conflict/gap 后，才允许制定新的架构约束。新增约束必须：
+
+```text
+STATE_EXACT_AMBIGUITY
+STATE_GOVERNING_AUTHORITIES
+STATE_PRECEDENCE_RESULT
+STATE_EXACT_SCOPE
+STATE_WHAT_IS_SUPERSEDED_OR_REFINED
+STATE_WHAT_REMAINS_UNCHANGED
+STATE_REQUIRED_BEHAVIOR
+STATE_FORBIDDEN_BEHAVIOR
+```
+
+冻结顺序必须永远是：
+
+```text
+architecture confusion
+→ authority trace
+→ classification
+→ constitutional clarification if truly required
+→ freeze
+→ exact implementation contract
+→ code
+```
+
+永久禁止：
+
+```text
+architecture confusion
+→ implementation proposal
+→ tests pass
+→ retroactive architecture justification
+```
+
+核心原则：
+
+> **IMPLEMENTATION MUST NEVER RESOLVE ARCHITECTURE AMBIGUITY.**
+>
+> **ARCHITECTURE CONSTRAINTS MAY RESOLVE TRUE AUTHORITY GAPS; THEY MUST NOT BE INVENTED TO COVER IMPLEMENTATION GAPS.**
+
+---
+
 # 一票否决事项
 
 出现以下任何一种情况，任务立即终止：
@@ -384,16 +560,20 @@ BRANCH_NAME_USED_AS_AUTHORITY
 NEXT_TASK_STARTED_BEFORE_PREVIOUS_MERGE_CLOSURE
 REJECTED_BRANCH_LEFT_ACTIVE
 AGENT_SELF_SELECTED_BASE
+IMPLEMENTATION_USED_TO_RESOLVE_ARCHITECTURE_AMBIGUITY
+CURRENT_MAIN_FACT_PROMOTED_TO_ARCHITECTURE_AUTHORITY
+DEFERRED_PHASE_CONCERN_PROMOTED_TO_CURRENT_ARCHITECTURE_GAP
+OWNER_INSTRUCTION_USED_AS_UNSCOPED_CONSTITUTION_OVERRIDE
 ```
 
 处置统一为：
 
 ```text
 STOP
-INVALIDATE CANDIDATE
-CLOSE TASK BRANCH
-RETURN TO SOLE TRUNK
-RESTART FROM AUTHORIZED HEAD
+INVALIDATE CANDIDATE OR DESIGN DISPOSITION
+CLOSE TASK BRANCH IF CODE TASK HAS STARTED
+RETURN TO FROZEN AUTHORITY
+RE-CLASSIFY BEFORE ANY CODE MUTATION
 ```
 
 ---
@@ -451,12 +631,13 @@ ONE CURRENT HEAD
 ONE TASK BASE
 NO FALLBACK
 MERGE OR DELETE
+ARCHITECTURE BEFORE IMPLEMENTATION
 ```
 
-任何工程流程如果让开发者或 Agent 再次面对“到底哪个分支才是真的”这个问题：
+任何工程流程如果让开发者或 Agent 再次面对“到底哪个分支才是真的”或“让代码替架构选答案”这个问题：
 
 > **流程本身已经失败。**
 
 项目不依赖 Agent 的记忆来保持正确。
 
-项目必须依靠仓库结构本身，使错误选择变得不可能。
+项目必须依靠仓库结构与冻结 authority 本身，使错误选择变得不可能。
