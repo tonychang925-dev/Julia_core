@@ -49,13 +49,16 @@ BASE_SHA
 TARGET_BRANCH
 ```
 
+The Architecture Authority Index is a pointer/status register, not architecture law. Gate 0 must verify that the index points to the correct current sources; if the index conflicts with a frozen source, the source wins and the index must be rebound before review proceeds.
+
 Questions:
 
 ```text
 Is the task based on the current authorized trunk?
 Does the task contract contain the mandatory authority header?
 Is every cited authority currently effective?
-Is any cited document superseded or evidence-only?
+Is any cited document superseded, candidate-only, or evidence-only?
+Does the Authority Index agree with the governing frozen source set?
 ```
 
 Failure result:
@@ -67,14 +70,17 @@ AUTHORITY_IDENTITY_FAIL
 
 ## Gate 1 — Rule 11 Classification
 
-Verify any gap/conflict/deferred finding is classified as A/B/C/D under Rule 11.
+Verify any gap/conflict/deferred finding is classified under Rule 11 as:
 
 ```text
 A = IMPLEMENTATION_GAP
 B = IMPLEMENTATION_DEVIATION
 C = DEFERRED_PHASE_CONCERN
 D = TRUE_FROZEN_AUTHORITY_CONFLICT_OR_GAP
+NO_ACTIVE_FINDING = ordinary task already fully defined by frozen authority
 ```
+
+`UNKNOWN` or `UNRESOLVED` may never be treated as `NO_ACTIVE_FINDING`.
 
 Mandatory anti-inference checks:
 
@@ -84,6 +90,8 @@ NO_PHYSICAL_CALLER != NO_LOGICAL_OWNER
 NO_PACKAGE_RESOLUTION != NO_COMPOSITION_TOPOLOGY
 TEST_PASS != ARCHITECTURE_PASS
 AGENT_CONSENSUS != ARCHITECTURE_AUTHORITY
+MISSING_INFORMATION != DESIGN_FREEDOM
+NO_FROZEN_ANSWER_FOUND != PERMISSION_TO_INVENT
 ```
 
 Any attempt to promote A/B/C to D using implementation facts is a hard fail.
@@ -123,6 +131,8 @@ ARCHITECTURE_DEVIATION
 → REVIEW STOP
 ```
 
+No reviewer may invent a missing owner, layer, topology, ABI, dependency direction, or composition root in order to make a candidate reviewable.
+
 ## Gate 3 — Scope Compliance
 
 Verify:
@@ -152,7 +162,7 @@ Tests prove implementation behavior only.
 
 ```text
 TESTS = EVIDENCE
-TESTS != ARCHITECTURE AUTHORITY
+TESTS != ARCHITECTURE_AUTHORITY
 ```
 
 A test that contradicts frozen architecture is the item to correct; the architecture is not changed to satisfy the test.
@@ -176,6 +186,15 @@ candidate ancestry verified
 task branch deleted/closed
 ```
 
+If the available toolchain cannot delete the task branch, report:
+
+```text
+MERGE_CLOSURE = INCOMPLETE
+BRANCH_CLEANUP = EXTERNALLY_REQUIRED
+```
+
+Never claim DONE while the task branch remains.
+
 ## Reviewer prohibited behavior
 
 Reviewers, including Mira, Codex, Claude, and humans, must not:
@@ -187,6 +206,7 @@ use current implementation as target authority
 add a new ownership layer because wiring is absent
 promote future-phase closure into current-phase scope
 accept architecture drift because tests are green
+convert missing information into design freedom
 ```
 
 When uncertain:
