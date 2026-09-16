@@ -72,12 +72,16 @@ class JuliaSession:
     JuliaSession.process() is the cognitive_fn passed to process_turn().
     """
 
-    def __init__(self):
-        # Provider
-        from providers.llm.deepseek_provider import get_llm_provider
+    def __init__(self, provider=None):
+        # Preserve the BASE no-argument Core caller contract. The public
+        # ingress supplies an explicitly composed provider; existing Core
+        # callers retain their pre-existing provider binding.
+        if provider is None:
+            from providers.llm.deepseek_provider import get_llm_provider
+            provider = get_llm_provider("deepseek")
         from julia_core.narrative.bootstrap import get_bootstrap
 
-        self.provider = get_llm_provider("deepseek")
+        self.provider = provider
         self.bootstrap = get_bootstrap()
 
         # Capability Layer
