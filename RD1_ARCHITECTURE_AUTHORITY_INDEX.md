@@ -1,6 +1,6 @@
 # RD1 Architecture Authority Index
 
-**Status:** CONTROL-PLANE CANDIDATE  
+**Status:** ACTIVE CONTROL PLANE  
 **Purpose:** provide one canonical starting point for architecture authority resolution.  
 **Important:** this index is a pointer/status register only. It is **not** an independent source of architecture law and cannot override the referenced frozen sources.
 
@@ -15,7 +15,7 @@ SOURCE_DOCUMENTS_REMAIN_AUTHORITATIVE
 ```text
 DOCUMENT = DEVELOPMENT_CONSTITUTION.md
 REPO = tonychang925-dev/Julia_core
-BASELINE_AT_INDEX_CREATION = 3b8f19636b8aecd96b36b18a37ebb14bbc9b7f7e
+CONTROL_PLANE_ACTIVATION_BASE = 98c6b5c6fb6b2b4dfbcdcd3b50864b9b297f20b4
 STATUS = ACTIVE / HIGHEST ENGINEERING DISCIPLINE
 RULE11 = ACTIVE
 ```
@@ -89,22 +89,23 @@ RC10 = minimal E2E bound to exact manifest/runtime
 RC11 = controlled cutover
 ```
 
-## 5. Current repository mains at index creation
+## 5. Repository SHA snapshot — implementation evidence only
 
 ```text
-Julia_core/main
-= 3b8f19636b8aecd96b36b18a37ebb14bbc9b7f7e
+Julia_core activation-base snapshot
+= 98c6b5c6fb6b2b4dfbcdcd3b50864b9b297f20b4
 
-Julia-AI-Assistant/main
+Julia-AI-Assistant snapshot
 = fe0b2065e572a20d191cea75dafb16da98f83c93
 
-ai_theme_app/main
+ai_theme_app snapshot
 = 7925a63bb5500a74496c1e7d7b2b42c935f2c739
 ```
 
-These SHAs are implementation-state facts, not architecture authority. An Agent must mechanically re-check current trunk identity before using any SHA as a task base.
+These SHAs are implementation-state evidence, not architecture authority and not permanent task-base authority. Every task must mechanically re-check current trunk identity before authorization.
 
 ```text
+INDEX_SHA_SNAPSHOT != CURRENT_TRUNK_PROOF
 INDEX_SHA_SNAPSHOT != TASK_BASE_AUTHORITY
 ```
 

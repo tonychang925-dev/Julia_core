@@ -1,6 +1,6 @@
 # RD1 Architecture / Authority Precheck
 
-**Status:** CONTROL-PLANE CANDIDATE  
+**Status:** ACTIVE CONTROL PLANE  
 **Purpose:** make architecture/authority compliance the first review gate. Diff, tests, and runtime evidence are reviewed only after this precheck passes.
 
 ```text
