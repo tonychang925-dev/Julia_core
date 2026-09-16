@@ -1,25 +1,29 @@
-"""Core-owned baseline cognition provider for the public application seam."""
+"""Core-owned cognition provider contract and explicit registry."""
 
 from __future__ import annotations
 
-from julia_core.providers.streaming import DeterministicProviderStreamAdapter, ProviderStreamRequest
+from typing import Protocol
 
 
-class CoreCognitionProvider:
-    """Package-local chat provider; no Assistant checkout or import is needed."""
+class CoreCognitionProvider(Protocol):
+    """Production cognition provider contract owned by Core."""
 
-    def __init__(self) -> None:
-        self._adapter = DeterministicProviderStreamAdapter()
-
-    def chat(self, messages: list[dict], *, cognitive_mode: str = "") -> str:
-        request = ProviderStreamRequest(
-            messages=tuple(messages),
-            stream=False,
-            model="core-cognition",
-            provider_name="core-cognition",
-            trace={"cognitive_mode": cognitive_mode},
-        )
-        return self._adapter._answer(request)
+    def chat(self, messages: list[dict], *, cognitive_mode: str = "") -> str: ...
 
 
-__all__ = ["CoreCognitionProvider"]
+_providers: dict[str, CoreCognitionProvider] = {}
+
+
+def register_cognition_provider(name: str, provider: CoreCognitionProvider) -> None:
+    """Register an explicitly configured real provider at Core composition time."""
+    if not name or provider is None:
+        raise ValueError("provider registration requires a name and provider")
+    _providers[name] = provider
+
+
+def get_cognition_provider(name: str = "production") -> CoreCognitionProvider | None:
+    """Resolve only an explicitly registered provider; never synthesize one."""
+    return _providers.get(name)
+
+
+__all__ = ["CoreCognitionProvider", "get_cognition_provider", "register_cognition_provider"]

@@ -21,6 +21,9 @@ def test_public_ingress_processes_typed_turn_through_core_runtime(monkeypatch, t
     calls = []
 
     class FakeSession:
+        def __init__(self, provider=None):
+            self.provider = provider
+
         def process(self, *args):
             return "CORE_SENTINEL"
 
@@ -39,6 +42,7 @@ def test_public_ingress_processes_typed_turn_through_core_runtime(monkeypatch, t
 
     monkeypatch.setattr("julia_core.public.conversation.JuliaSession", FakeSession)
     monkeypatch.setattr("julia_core.public.conversation.ConversationRuntime", FakeRuntime)
+    monkeypatch.setattr("julia_core.providers.core_cognition.get_cognition_provider", lambda _name: object())
     ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
     response = ingress.process(_request())
 
@@ -56,8 +60,37 @@ def test_public_ingress_missing_configuration_fails_closed():
     assert response.assistant_content == ""
 
 
-def test_real_core_composition_and_transport_worker_thread(tmp_path):
+def test_no_registered_real_provider_fails_closed(tmp_path):
+    """TC-RC25-07: deterministic or Assistant providers are never a default."""
+    response = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations")).process(_request())
+    assert response.status == "failed"
+    assert response.error_code == "CORE_PROVIDER_UNAVAILABLE"
+    assert response.assistant_content == ""
+
+
+def test_real_composition_requires_explicit_test_provider(tmp_path, monkeypatch):
+    """TC-RC25-08: test provider injection is explicit and registry-mediated."""
+    class TestProvider:
+        def chat(self, messages, *, cognitive_mode=""):
+            return "TEST_PROVIDER_SENTINEL"
+
+    monkeypatch.setattr(
+        "julia_core.providers.core_cognition.get_cognition_provider",
+        lambda _name: TestProvider(),
+    )
+    ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
+    ingress.create_conversation("configured")
+    response = ingress.process(CoreConversationRequest("configured", "turn", "text", "hello"))
+    assert response.status == "completed"
+    assert response.assistant_content == "TEST_PROVIDER_SENTINEL"
+
+
+def test_real_core_composition_and_transport_worker_thread(tmp_path, monkeypatch):
     """TC-RC25-05: real Core composition is usable from a worker thread."""
+    monkeypatch.setattr(
+        "julia_core.providers.core_cognition.get_cognition_provider",
+        lambda _name: type("TestProvider", (), {"chat": lambda self, messages, cognitive_mode="": "worker answer"})(),
+    )
     ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
     ingress.create_conversation("real-conversation")
     request = CoreConversationRequest("real-conversation", "real-turn", "text", "hello")
@@ -67,8 +100,12 @@ def test_real_core_composition_and_transport_worker_thread(tmp_path):
     assert response.assistant_content
 
 
-def test_real_core_domain_errors_remain_typed(tmp_path):
+def test_real_core_domain_errors_remain_typed(tmp_path, monkeypatch):
     """TC-RC25-06: missing conversation and conflicting turns stay distinct."""
+    monkeypatch.setattr(
+        "julia_core.providers.core_cognition.get_cognition_provider",
+        lambda _name: type("TestProvider", (), {"chat": lambda self, messages, cognitive_mode="": "domain answer"})(),
+    )
     ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
     missing = ingress.process(_request())
     assert missing.error_code == "CONVERSATION_NOT_FOUND"

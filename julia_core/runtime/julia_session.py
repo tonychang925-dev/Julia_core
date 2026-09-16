@@ -72,12 +72,17 @@ class JuliaSession:
     JuliaSession.process() is the cognitive_fn passed to process_turn().
     """
 
-    def __init__(self):
-        # Provider
-        from julia_core.providers.core_cognition import CoreCognitionProvider
+    def __init__(self, provider=None):
+        # Provider is supplied by the Core composition root. There is no
+        # deterministic or Assistant-owned provider fallback.
+        if provider is None:
+            from julia_core.providers.core_cognition import get_cognition_provider
+            provider = get_cognition_provider("production")
+        if provider is None:
+            raise RuntimeError("CORE_PROVIDER_UNAVAILABLE")
         from julia_core.narrative.bootstrap import get_bootstrap
 
-        self.provider = CoreCognitionProvider()
+        self.provider = provider
         self.bootstrap = get_bootstrap()
 
         # Capability Layer

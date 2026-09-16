@@ -25,6 +25,7 @@ class CoreConversationConfig:
     """Deployment configuration; dependency construction remains Core-owned."""
 
     conversation_data_dir: str | Path | None = None
+    provider_name: str = "production"
 
     def resolve_data_dir(self) -> Path | None:
         configured = self.conversation_data_dir or os.environ.get("JULIA_CONVERSATION_DATA_DIR")
@@ -63,7 +64,11 @@ class CoreConversationIngress:
                 )
             repository = StorageV2ConversationRepository(data_dir)
             self._runtime = ConversationRuntime(repository=repository)
-            self._session = JuliaSession()
+            from julia_core.providers.core_cognition import get_cognition_provider
+            provider = get_cognition_provider((config or CoreConversationConfig()).provider_name)
+            if provider is None:
+                raise CoreConversationProviderUnavailable("configured Core provider is unavailable")
+            self._session = JuliaSession(provider=provider)
         except Exception as exc:
             self._composition_error = exc
 
@@ -77,7 +82,11 @@ class CoreConversationIngress:
                 turn_id=request.turn_id,
                 assistant_content="",
                 status="failed",
-                error_code="CORE_COMPOSITION_UNAVAILABLE",
+                error_code=(
+                    "CORE_PROVIDER_UNAVAILABLE"
+                    if isinstance(self._composition_error, CoreConversationProviderUnavailable)
+                    else "CORE_COMPOSITION_UNAVAILABLE"
+                ),
             )
         assert self._runtime is not None and self._session is not None
         try:
@@ -121,6 +130,10 @@ class CoreConversationIngress:
 
 class CoreConversationConfigurationError(RuntimeError):
     """Typed composition configuration failure; no fallback is permitted."""
+
+
+class CoreConversationProviderUnavailable(RuntimeError):
+    """No explicitly registered real Core cognition provider is available."""
 
 
 __all__ = [
