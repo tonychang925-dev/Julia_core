@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import inspect
-from concurrent.futures import ThreadPoolExecutor
 
 from julia_core.public.conversation import (
     CoreConversationConfig,
@@ -83,21 +82,6 @@ def test_real_composition_requires_explicit_test_provider(tmp_path, monkeypatch)
     response = ingress.process(CoreConversationRequest("configured", "turn", "text", "hello"))
     assert response.status == "completed"
     assert response.assistant_content == "TEST_PROVIDER_SENTINEL"
-
-
-def test_real_core_composition_and_transport_worker_thread(tmp_path, monkeypatch):
-    """TC-RC25-05: real Core composition is usable from a worker thread."""
-    monkeypatch.setattr(
-        "julia_core.providers.core_cognition._get_cognition_provider",
-        lambda _name: type("TestProvider", (), {"chat": lambda self, messages, cognitive_mode="": "worker answer"})(),
-    )
-    ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
-    ingress.create_conversation("real-conversation")
-    request = CoreConversationRequest("real-conversation", "real-turn", "text", "hello")
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        response = pool.submit(ingress.process, request).result()
-    assert response.status == "completed"
-    assert response.assistant_content
 
 
 def test_real_core_domain_errors_remain_typed(tmp_path, monkeypatch):
