@@ -1,6 +1,6 @@
 # RD1 Agent Task Authority Header Template
 
-**Status:** CONTROL-PLANE CANDIDATE  
+**Status:** ACTIVE CONTROL PLANE  
 **Applies to:** Mira, Codex, Claude, human-authored task cards, review agents, automations, and any implementation/rework task across Julia Core / Julia-AI-Assistant / Market Brain.
 
 A task that does not contain the mandatory authority header below is invalid and must not start.
