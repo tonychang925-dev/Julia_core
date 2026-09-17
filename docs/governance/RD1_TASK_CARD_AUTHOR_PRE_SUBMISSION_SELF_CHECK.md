@@ -9,6 +9,8 @@ A task-card author is not only a drafter. The author is the **first-line governa
 
 ```text
 TASK_CARD_CREATED
+→ RULE11_CLASSIFICATION
+→ RULE12_ARCHITECTURE_COMPLETION_AUDIT
 → AUTHOR_SELF_CHECK
 → MACHINE-VERIFIABLE EVIDENCE
 → PASS?
@@ -20,12 +22,13 @@ Hard rules:
 
 ```text
 NO_SELF_CHECK_EVIDENCE = NO_TASK_SUBMISSION
+NO_RULE12_ARCHITECTURE_COMPLETION_EVIDENCE = NO_TASK_SUBMISSION
 SELF_CHECK_PASS != OWNER_APPROVAL
 SELF_CHECK_PASS != IMPLEMENTATION_AUTHORIZATION
 SELF_CHECK_PASS != MERGE_AUTHORIZATION
 ```
 
-A task card that is submitted without the required self-check record is invalid for submission.
+A task card submitted without the required self-check record is invalid for submission.
 
 ```text
 TASK_CARD_STATUS = INVALID_FOR_SUBMISSION
@@ -43,8 +46,19 @@ CURRENT_MAIN_SHAS
 MANDATORY_TASK_FIELDS_PRESENT
 AUTHORIZED_PATH_COUNT
 DEFERRED_FINDING_COUNT
+TASK_AUTHOR_ARCHITECTURE_COMPLETION_CHECK
+FROZEN_SOURCE_BINDING_COMPLETE
+TASK_AUTHOR_NEW_ARCHITECTURE_DECISIONS
+NEW_OWNER_COUNT
+NEW_DOMAIN_COUNT
+NEW_COMPOSITION_ROOT_COUNT
+NEW_BINDING_AUTHORITY_COUNT
+NEW_PACKAGE_BOUNDARY_COUNT
+NEW_DEPENDENCY_DIRECTION_COUNT
+NEW_RUNTIME_AUTHORITY_COUNT
+NEW_TRANSPORT_COUNT
 RESIDUAL_ARCHITECTURE_DECISIONS
-RESIDUAL_CROSS_BOUNDARY_SEMANTIC_DECISIONS
+RESIDUAL_CONTRACT_SEMANTIC_DECISIONS
 SELF_CHECK_RESULT
 READY_FOR_SUBMISSION
 ```
@@ -63,6 +77,7 @@ Mechanically verify:
 
 ```text
 CURRENT_CONSTITUTION
+CURRENT_RULE12_AMENDMENT
 CURRENT_ARCHITECTURE_AUTHORITY_INDEX
 GOVERNING_FROZEN_DOCUMENTS
 CURRENT_PHASE
@@ -99,12 +114,10 @@ RULE11_CLASSIFICATION
 CURRENT_PHASE
 TARGET_REQUIREMENT
 DEFERRED_FINDINGS
-
 TASK_ID
 REPO
 TARGET_BRANCH
 BASE_SHA
-
 AUTHORIZED_PATHS
 FORBIDDEN_PATHS
 REQUIRED_BEHAVIOR
@@ -144,7 +157,71 @@ TEST_EXPECTATION != ARCHITECTURE_AUTHORITY
 
 Any attempt to let implementation facts define architecture fails the self-check.
 
-## 6. Check D — Phase and scope
+## 6. Check D — Rule 12 Task-Author Architecture Completion Audit
+
+This check is mandatory for every coding task card and is independent of the residual-decision audit.
+
+The author MUST answer:
+
+```text
+DID I, AS TASK AUTHOR, INTRODUCE ANY ARCHITECTURE ELEMENT
+THAT IS NOT DIRECTLY BOUND TO EFFECTIVE FROZEN AUTHORITY?
+```
+
+Audit at minimum:
+
+```text
+new owner
+new domain
+new composition root
+new binding authority
+new package/public-private boundary
+new dependency direction
+new runtime authority
+new transport requirement
+new lifecycle authority
+new cross-repo responsibility
+new ABI authority
+new phase ownership
+```
+
+Required result for implementation/correction task cards:
+
+```text
+TASK_AUTHOR_ARCHITECTURE_COMPLETION_CHECK = PASS
+FROZEN_SOURCE_BINDING_COMPLETE = PASS
+TASK_AUTHOR_NEW_ARCHITECTURE_DECISIONS = 0
+NEW_OWNER_COUNT = 0
+NEW_DOMAIN_COUNT = 0
+NEW_COMPOSITION_ROOT_COUNT = 0
+NEW_BINDING_AUTHORITY_COUNT = 0
+NEW_PACKAGE_BOUNDARY_COUNT = 0
+NEW_DEPENDENCY_DIRECTION_COUNT = 0
+NEW_RUNTIME_AUTHORITY_COUNT = 0
+NEW_TRANSPORT_COUNT = 0
+```
+
+The author MUST NOT count a decision as "already frozen" merely because it is implied by code layout, runtime need, implementation convenience, tests, or Agent consensus.
+
+Forbidden:
+
+```text
+IMPLEMENTATION_GAP -> TASK_AUTHOR_INVENTS_ARCHITECTURE
+NO_COMPOSITION_ROOT_IN_CODE -> TASK_AUTHOR_CREATES_NEW_COMPOSITION_ROOT
+NO_BINDING_LOCUS_IN_CODE -> TASK_AUTHOR_CREATES_NEW_BINDING_AUTHORITY
+```
+
+If any count is non-zero or frozen-source binding cannot be proven:
+
+```text
+TASK_CARD_NOT_READY
+SELF_CHECK_RESULT = FAIL
+READY_FOR_SUBMISSION = NO
+```
+
+A deliberate architecture change must first complete the Constitution's explicit scope-bounded amendment/refreeze path; it may not be hidden inside a coding task card.
+
+## 7. Check E — Phase and scope
 
 The author MUST prove:
 
@@ -163,7 +240,7 @@ Permanent law:
 DISCOVER_MORE != DO_MORE
 ```
 
-## 7. Check E — Residual Decision Audit
+## 8. Check F — Residual Decision Audit
 
 This is mandatory for every task card.
 
@@ -212,20 +289,9 @@ READY_FOR_SUBMISSION = NO
 
 The author MUST NOT hide a residual architecture decision by calling it an "implementation detail".
 
-## 8. Check F — Cross-Boundary Semantic Mapping Gate
+## 9. Check G — Cross-Boundary Semantic Mapping Gate
 
-This gate is mandatory when the task contains or changes any:
-
-```text
-adapter
-bridge
-translator
-proxy
-serializer
-provider wrapper
-public boundary conversion
-cross-repo contract conversion
-```
+This gate is mandatory when the task contains or changes any adapter, bridge, translator, proxy, serializer, provider wrapper, public-boundary conversion, or cross-repo contract conversion.
 
 The task MUST explicitly freeze, or point to already-frozen law for:
 
@@ -257,28 +323,14 @@ CROSS_BOUNDARY_SEMANTIC_MAPPING = FROZEN_BEFORE_CODING
 AGENT_CROSS_BOUNDARY_SEMANTIC_FREEDOM = NO
 ```
 
-An Agent may translate frozen truth. It may not invent cross-boundary truth.
+## 10. Check H — Current-code compatibility evidence
 
-## 9. Check G — Current-code compatibility evidence
-
-Current code is evidence only. The author MUST mechanically inspect the exact implementation surfaces necessary to prove the task is executable as written:
-
-```text
-source ABI
-target ABI
-method names
-argument shapes
-return types
-failure/result carriers
-lifecycle methods
-```
-
-Then compare them to frozen authority and the task contract.
+Current code is evidence only. The author MUST mechanically inspect the exact implementation surfaces necessary to prove the task is executable as written, then compare them to frozen authority and the task contract.
 
 Forbidden:
 
 ```text
-CURRENT_CODE → NEW_ARCHITECTURE
+CURRENT_CODE -> NEW_ARCHITECTURE
 ```
 
 Allowed:
@@ -296,7 +348,7 @@ CURRENT_CODE_COMPATIBILITY = FAIL
 READY_FOR_SUBMISSION = NO
 ```
 
-## 10. Check H — Acceptance-evidence sufficiency
+## 11. Check I — Acceptance-evidence sufficiency
 
 The author MUST confirm acceptance evidence can prove the exact task without forcing a test-driven architecture change.
 
@@ -318,75 +370,44 @@ ACCEPTANCE_EVIDENCE = FAIL
 READY_FOR_SUBMISSION = NO
 ```
 
-## 11. Mandatory self-check output block
+## 12. Mandatory self-check output block
 
-Every task-card submission MUST carry a completed record in this exact shape:
+Every task-card submission MUST carry a completed record containing at least:
 
 ```text
 TASK_CARD_AUTHOR_SELF_CHECK
-
 AUTHOR_ROLE
-= <Mira / Codex / Claude / human / automation identity>
-
 TASK_ID
-= <exact task id>
-
 TASK_CARD_VERSION
-= <exact version>
-
 AUTHORITY_SOURCE_FILES_CHECKED
-= <exact sources>
-
 CURRENT_MAIN_SHAS
-= <repo=sha list>
-
 MANDATORY_TASK_FIELDS_PRESENT
-= <count>/<required count>
-
 AUTHORIZED_PATH_COUNT
-= <integer>
-
 DEFERRED_FINDING_COUNT
-= <integer>
-
 AUTHORITY_IDENTITY
-= PASS | FAIL
-
 MANDATORY_HEADER
-= PASS | FAIL
-
 RULE11_CLASSIFICATION_CHECK
-= PASS | FAIL
-
+TASK_AUTHOR_ARCHITECTURE_COMPLETION_CHECK
+FROZEN_SOURCE_BINDING_COMPLETE
+TASK_AUTHOR_NEW_ARCHITECTURE_DECISIONS
+NEW_OWNER_COUNT
+NEW_DOMAIN_COUNT
+NEW_COMPOSITION_ROOT_COUNT
+NEW_BINDING_AUTHORITY_COUNT
+NEW_PACKAGE_BOUNDARY_COUNT
+NEW_DEPENDENCY_DIRECTION_COUNT
+NEW_RUNTIME_AUTHORITY_COUNT
+NEW_TRANSPORT_COUNT
 PHASE_SCOPE_CHECK
-= PASS | FAIL
-
 RESIDUAL_DECISION_AUDIT
-= PASS | FAIL
-
 RESIDUAL_ARCHITECTURE_DECISIONS
-= <integer>
-
 RESIDUAL_CONTRACT_SEMANTIC_DECISIONS
-= <integer>
-
 CROSS_BOUNDARY_SEMANTICS
-= PASS | FAIL | N/A
-
 CURRENT_CODE_COMPATIBILITY
-= PASS | FAIL
-
 ACCEPTANCE_EVIDENCE_CHECK
-= PASS | FAIL
-
 NO_AGENT_ARCHITECTURE_DISCRETION
-= PASS | FAIL
-
 SELF_CHECK_RESULT
-= PASS | FAIL
-
 READY_FOR_SUBMISSION
-= YES | NO
 ```
 
 Submission is legal only if:
@@ -394,11 +415,15 @@ Submission is legal only if:
 ```text
 SELF_CHECK_RESULT = PASS
 READY_FOR_SUBMISSION = YES
+TASK_AUTHOR_ARCHITECTURE_COMPLETION_CHECK = PASS
+FROZEN_SOURCE_BINDING_COMPLETE = PASS
+TASK_AUTHOR_NEW_ARCHITECTURE_DECISIONS = 0
+ALL_REQUIRED_NEW_*_COUNT = 0
 RESIDUAL_ARCHITECTURE_DECISIONS = 0
 RESIDUAL_CONTRACT_SEMANTIC_DECISIONS = 0
 ```
 
-## 12. Independent review remains mandatory
+## 13. Independent review remains mandatory
 
 Author self-check is the first line of defense, never the final authority.
 
