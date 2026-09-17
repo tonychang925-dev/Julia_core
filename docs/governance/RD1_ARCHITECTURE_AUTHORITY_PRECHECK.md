@@ -6,6 +6,7 @@
 ```text
 ARCHITECTURE_PRECHECK_BEFORE_DIFF = REQUIRED
 AUTHOR_SELF_CHECK_BEFORE_INDEPENDENT_PRECHECK = REQUIRED
+RULE12_ARCHITECTURE_COMPLETION_PRECHECK = REQUIRED
 ```
 
 ## Review order
@@ -16,6 +17,7 @@ Every implementation/rework review must execute in this order:
 PRE-GATE — AUTHOR SELF-CHECK EVIDENCE VERIFICATION
 GATE 0 — AUTHORITY IDENTITY
 GATE 1 — RULE11 CLASSIFICATION
+GATE 1A — RULE12 TASK-AUTHOR ARCHITECTURE COMPLETION CHECK
 GATE 2 — ARCHITECTURE / OWNERSHIP / PHASE COMPLIANCE
 GATE 3 — SCOPE COMPLIANCE
 GATE 4 — DIFF REVIEW
@@ -34,8 +36,6 @@ DO_NOT_SUGGEST_CODE_REWORK
 DO_NOT_EXPAND_SCOPE
 ```
 
-The reviewer must first resolve the authority/control problem.
-
 ## PRE-GATE — Author Self-Check Evidence Verification
 
 Every submitted task card must include the completed record required by:
@@ -52,6 +52,10 @@ Required checks:
 SELF_CHECK_RECORD_PRESENT
 SELF_CHECK_RESULT = PASS
 READY_FOR_SUBMISSION = YES
+TASK_AUTHOR_ARCHITECTURE_COMPLETION_CHECK = PASS
+FROZEN_SOURCE_BINDING_COMPLETE = PASS
+TASK_AUTHOR_NEW_ARCHITECTURE_DECISIONS = 0
+ALL_REQUIRED_NEW_*_COUNT = 0
 RESIDUAL_ARCHITECTURE_DECISIONS = 0
 RESIDUAL_CONTRACT_SEMANTIC_DECISIONS = 0
 AUTHORITY_SOURCE_FILES_CHECKED are real/current
@@ -64,17 +68,11 @@ Hard rules:
 
 ```text
 NO_SELF_CHECK_EVIDENCE = REVIEW STOP
+NO_RULE12_ARCHITECTURE_COMPLETION_EVIDENCE = REVIEW STOP
 SELF_CHECK_CLAIM = SIGNAL_ONLY
 SELF_CHECK_EVIDENCE = MUST_BE_VERIFIED
 SELF_CHECK_PASS != OWNER_APPROVAL
 SELF_CHECK_PASS != IMPLEMENTATION_AUTHORIZATION
-```
-
-Failure result:
-
-```text
-AUTHOR_SELF_CHECK_PRE_GATE_FAIL
-→ REVIEW STOP
 ```
 
 ## Gate 0 — Authority Identity
@@ -83,6 +81,7 @@ Verify mechanically:
 
 ```text
 CURRENT_CONSTITUTION
+CURRENT_RULE12_AMENDMENT
 CURRENT_ARCHITECTURE_AUTHORITY_INDEX
 GOVERNING_FROZEN_DOCUMENTS
 CURRENT_PHASE
@@ -149,6 +148,68 @@ NO_FROZEN_ANSWER_FOUND != PERMISSION_TO_INVENT
 ```
 
 Any attempt to promote A/B/C to D using implementation facts is a hard fail.
+
+## Gate 1A — Rule 12 Task-Author Architecture Completion Check
+
+This gate asks a different question from the residual-decision audit:
+
+```text
+DID THE TASK AUTHOR ALREADY INVENT OR SILENTLY COMPLETE ARCHITECTURE
+BEFORE THE IMPLEMENTATION AGENT RECEIVED THE CARD?
+```
+
+Verify all architecture-relevant claims in the task against effective frozen authority. Audit at minimum:
+
+```text
+owner
+domain
+composition root
+binding authority
+package/public-private boundary
+dependency direction
+runtime authority
+transport requirement
+lifecycle authority
+cross-repo responsibility
+ABI authority
+phase ownership
+```
+
+Required result for ordinary implementation/correction tasks:
+
+```text
+TASK_AUTHOR_ARCHITECTURE_COMPLETION_CHECK = PASS
+FROZEN_SOURCE_BINDING_COMPLETE = PASS
+TASK_AUTHOR_NEW_ARCHITECTURE_DECISIONS = 0
+NEW_OWNER_COUNT = 0
+NEW_DOMAIN_COUNT = 0
+NEW_COMPOSITION_ROOT_COUNT = 0
+NEW_BINDING_AUTHORITY_COUNT = 0
+NEW_PACKAGE_BOUNDARY_COUNT = 0
+NEW_DEPENDENCY_DIRECTION_COUNT = 0
+NEW_RUNTIME_AUTHORITY_COUNT = 0
+NEW_TRANSPORT_COUNT = 0
+```
+
+The reviewer MUST NOT accept these claims based only on the author's declarations. Re-resolve the relevant frozen clauses.
+
+Forbidden rationalizations:
+
+```text
+"the code needs somewhere to bind"
+"there is no existing composition root"
+"this is the cleanest place"
+"the tests imply this boundary"
+"all Agents agree"
+```
+
+If a task author introduced any new architecture element without a completed explicit architecture-amendment/refreeze path:
+
+```text
+ARCHITECTURE_COMPLETION_PRECHECK = FAIL
+TASK_CARD_INVALID
+REVIEW = STOP
+```
 
 ## Gate 2 — Architecture / Ownership / Phase Compliance
 
@@ -284,8 +345,6 @@ TESTS = EVIDENCE
 TESTS != ARCHITECTURE_AUTHORITY
 ```
 
-A test that contradicts frozen architecture is the item to correct; the architecture is not changed to satisfy the test.
-
 ## Gate 6 — Evidence Review
 
 Verify exact candidate SHA, source trace, commands/results, typed failures, absence of fallback, and any task-specific acceptance evidence.
@@ -312,8 +371,6 @@ MERGE_CLOSURE = INCOMPLETE
 BRANCH_CLEANUP = EXTERNALLY_REQUIRED
 ```
 
-Never claim DONE while the task branch remains.
-
 ## Reviewer prohibited behavior
 
 Reviewers, including Mira, Codex, Claude, and humans, must not:
@@ -323,6 +380,8 @@ invent missing architecture
 repair architecture through code suggestions
 use current implementation as target authority
 add a new ownership layer because wiring is absent
+add a composition root because none is implemented
+add a binding authority because code lacks one
 promote future-phase closure into current-phase scope
 accept architecture drift because tests are green
 convert missing information into design freedom
@@ -335,6 +394,7 @@ When uncertain:
 ```text
 SEARCH FROZEN AUTHORITY FIRST
 CLASSIFY BEFORE DESIGN
+RUN RULE12 CHECK BEFORE TASK ACCEPTANCE
 ```
 
 No reviewer has autonomous architecture-completion authority.
