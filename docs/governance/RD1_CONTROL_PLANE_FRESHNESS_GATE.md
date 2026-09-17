@@ -1,153 +1,136 @@
-# RD1 Control-Plane Freshness Gate
+# RD1 Control-Plane Compatibility / Freshness Gate
 
-**Status:** ACTIVE CONTROL PLANE CANDIDATE  
-**Scope:** every RD1 coding task card, Owner review, implementation authorization, delegation, branch creation, implementation start, and merge review across Julia Core / Julia-AI-Assistant / Market Brain.
+**Status:** ACTIVE CONTROL PLANE AFTER CONSOLIDATION MERGE  
+**Scope:** RD1 coding task cards and authority transitions across Julia Core / Julia-AI-Assistant / Market Brain.
 
 ## 1. Purpose
 
-This gate closes a time-of-check/time-of-use governance race: a task card may self-check against one Julia Core control-plane HEAD, then be submitted or authorized after the control plane has advanced.
+Prevent governance TOCTOU without coupling task validity to every `Julia_core/main` SHA movement.
 
 ```text
-SELF_CHECK_PASS_AT_T1
-!= PASS_AT_SUBMISSION_OR_AUTHORIZATION_T2
+CONTROL_PLANE_COMPATIBILITY_REQUIRED = YES
 ```
 
-Permanent rule:
+Canonical compatibility source:
 
 ```text
-CONTROL_PLANE_FRESHNESS_REQUIRED = YES
+docs/governance/RD1_CONTROL_PLANE_COMPATIBILITY.md
 ```
 
-## 2. Canonical control-plane identity
-
-```text
-CONTROL_PLANE_AUTHORITY_REPO
-= tonychang925-dev/Julia_core
-```
+## 2. Required task fields
 
 Every coding task card MUST carry:
 
 ```text
+CONTROL_PLANE_AUTHORITY_REPO
+= tonychang925-dev/Julia_core
+
+SELF_CHECK_CONTROL_PLANE_COMPATIBILITY_VERSION
+= <integer>
+
 SELF_CHECK_CONTROL_PLANE_SHA
-= <exact 40-hex Julia_core/main SHA used by the author self-check>
+= <exact 40-hex SHA observed by author>
 
 CONTROL_PLANE_FRESHNESS_CHECK
 = PASS
 ```
 
-The SHA is evidence of the exact governance/control-plane state used by the author. It is not architecture law by itself.
+The SHA is evidence only. Compatibility is determined by the version.
 
-## 3. Freshness equation
+## 3. Compatibility equation
 
-Immediately before a task card is submitted for independent/Owner review, the current `Julia_core/main` MUST be fetched again and compared with the self-check SHA.
-
-```text
-SUBMISSION_CONTROL_PLANE_SHA
-= freshly verified Julia_core/main
-
-SELF_CHECK_CONTROL_PLANE_SHA
-== SUBMISSION_CONTROL_PLANE_SHA
-= REQUIRED
-```
-
-If they differ:
+At Owner approval, implementation start, and merge review, resolve the current compatibility version from the exact current `Julia_core/main`:
 
 ```text
-CONTROL_PLANE_DRIFT
-→ SELF_CHECK_INVALIDATED
-→ READY_FOR_SUBMISSION = NO
-→ TASK_REBIND_REQUIRED = YES
+git show <CURRENT_JULIA_CORE_MAIN_SHA>:docs/governance/RD1_CONTROL_PLANE_COMPATIBILITY.md
 ```
 
-No stale PASS may be carried forward.
+Required:
+
+```text
+SELF_CHECK_CONTROL_PLANE_COMPATIBILITY_VERSION
+== CURRENT_CONTROL_PLANE_COMPATIBILITY_VERSION
+```
+
+If Julia Core SHA changed but version did not:
+
+```text
+CONTROL_PLANE_SHA_CHANGED
++ COMPATIBILITY_VERSION_UNCHANGED
+→ TASK_REMAINS_GOVERNANCE_COMPATIBLE
+```
+
+If version changed:
+
+```text
+COMPATIBILITY_VERSION_CHANGED
+→ COMPATIBILITY_REVALIDATION_REQUIRED
+```
+
+Version change does not automatically invalidate the task:
+
+```text
+CHANGE_NOT_APPLICABLE
+→ REVALIDATED
+→ CONTINUE
+
+CHANGE_APPLICABLE
+→ REBIND_REQUIRED
+```
 
 ## 4. Dual-baseline rule
 
-Task implementation identity and governance identity are independent and MUST both be fresh.
-
-```text
-TASK_BASE_SHA
-= declared task repository main SHA
-
-SELF_CHECK_CONTROL_PLANE_SHA
-= Julia_core/main SHA used for self-check
-```
-
-Required before submission/use:
+Implementation identity remains strict and independent:
 
 ```text
 TASK_BASE_SHA == CURRENT_TASK_REPO_MAIN_SHA
-AND
-SELF_CHECK_CONTROL_PLANE_SHA == CURRENT_JULIA_CORE_MAIN_SHA
 ```
 
-A current implementation base does not excuse a stale control-plane base, and vice versa.
-
-## 5. Mandatory revalidation points
-
-Freshness MUST be revalidated at every authority transition that can permit work to advance:
+Governance compatibility:
 
 ```text
-TASK_SUBMISSION
-OWNER_REVIEW
-IMPLEMENTATION_AUTHORIZATION
-DELEGATION
-BRANCH_CREATION
-IMPLEMENTATION_START
-MERGE_REVIEW
+TASK_CONTROL_PLANE_COMPATIBILITY_VERSION
+== CURRENT_CONTROL_PLANE_COMPATIBILITY_VERSION
 ```
 
-If the control plane advances after an earlier PASS, the previous PASS becomes stale automatically.
+Both are required.
+
+## 5. Machine enforcement
+
+`tools/control_plane_freshness_gate.py` enforces:
 
 ```text
-CONTROL_PLANE_HEAD_CHANGE
-→ PRIOR_SELF_CHECK_FRESHNESS = STALE
-→ REBIND / RECHECK BEFORE ADVANCE
+CONTROL_PLANE_AUTHORITY_REPO exact
+SELF_CHECK_CONTROL_PLANE_COMPATIBILITY_VERSION present/integer
+SELF_CHECK_CONTROL_PLANE_SHA exact 40-hex evidence
+CONTROL_PLANE_FRESHNESS_CHECK = PASS
+current compatibility version resolvable
+self-check version == current version
 ```
 
-## 6. Independent-review duty
-
-Independent reviewers MUST freshly resolve `Julia_core/main` rather than trusting the task card's declared `CURRENT_MAIN_SHAS` or `CONTROL_PLANE_FRESHNESS_CHECK`.
+It MUST NOT fail solely because the observed SHA differs from current SHA when compatibility version is unchanged.
 
 ```text
-AUTHOR_FRESHNESS_CLAIM = SIGNAL_ONLY
-CURRENT_CONTROL_PLANE_HEAD = MUST_BE_REVERIFIED
+FRESHNESS_GATE = GOVERNANCE_ENFORCER
+FRESHNESS_GATE != ARCHITECTURE_LAW
+FRESHNESS_GATE != OWNER_APPROVAL
+FRESHNESS_GATE != IMPLEMENTATION_AUTHORIZATION
 ```
 
-If Rule 12, the Constitution, Authority Index, self-check rules, permission matrix, parser gate, architecture precheck, or another active governance companion changed since self-check, the task card must be rebound to the current control plane before review proceeds.
+## 6. Fail closed
 
-## 7. Machine enforcement
-
-`tools/control_plane_freshness_gate.py` MUST reject task-card submissions when:
+If current compatibility cannot be resolved:
 
 ```text
-CONTROL_PLANE_AUTHORITY_REPO is missing or not tonychang925-dev/Julia_core
-SELF_CHECK_CONTROL_PLANE_SHA is missing or not exact 40-hex
-CONTROL_PLANE_FRESHNESS_CHECK != PASS
-SELF_CHECK_CONTROL_PLANE_SHA != current Julia_core/main
-```
-
-The machine gate enforces freshness only. It does not determine architecture truth or Owner approval.
-
-```text
-FRESHNESS_GATE = GOVERNANCE ENFORCER
-FRESHNESS_GATE != ARCHITECTURE LAW
-FRESHNESS_GATE != OWNER APPROVAL
-FRESHNESS_GATE != IMPLEMENTATION AUTHORIZATION
-```
-
-## 8. Fail-closed behavior
-
-If GitHub/current-head verification is unavailable:
-
-```text
-CONTROL_PLANE_FRESHNESS = UNVERIFIED
+CONTROL_PLANE_COMPATIBILITY = UNVERIFIED
 → GATE FAIL
 → ADVANCE = FORBIDDEN
 ```
 
-Never assume the control plane is unchanged because it cannot be reached.
+## 7. Initial transition
 
-## 9. Core principle
-
-> **A self-check PASS is valid only against the exact control-plane HEAD it checked, and only while that HEAD remains current at the next authority transition.**
+```text
+LEGACY_CONTROL_PLANE = UNVERSIONED
+CONSOLIDATED_CONTROL_PLANE = VERSION 1
+INITIAL_CONSOLIDATION_IMPACT = BREAKING
+```
