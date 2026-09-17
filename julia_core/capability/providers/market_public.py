@@ -1,7 +1,7 @@
 """Mechanical Core binding for the Market public boundary.
 
 This module adapts Core's generic ``CapabilityRequest`` to the public request
-shapes owned/exported by ``market_public``.  It deliberately does not import or
+shapes owned/exported by ``market_public``. It deliberately does not import or
 inspect Market private repositories, DB sessions, MCP tools, routes, or other
 implementation details.
 
@@ -30,7 +30,7 @@ RequestBuilder = Callable[..., Any]
 class MarketPublicProviderAdapter:
     """Adapt Core capability requests to one Market public provider object.
 
-    ``public_provider`` is the object returned by Market's public factory.  The
+    ``public_provider`` is the object returned by Market's public factory. The
     adapter knows only the public ``execute(capability, request, ...)`` shape.
     ``request_builders`` are the Market-exported public request types keyed by
     capability id.
@@ -50,14 +50,14 @@ class MarketPublicProviderAdapter:
     def from_installed_market_public(
         cls,
         *,
-        database_url: str | None = None,
         public_provider: Any | None = None,
     ) -> "MarketPublicProviderAdapter":
         """Bind to the installed Market *public* package only.
 
-        Market owns construction through ``MarketPublicFactory``.  Core merely
-        calls that public factory when no already-constructed public provider is
-        supplied, then binds the resulting public provider mechanically.
+        Market owns construction and configuration through
+        ``MarketPublicFactory``. Core may bind an already-constructed public
+        provider, or ask Market's no-argument public factory to construct one.
+        Core never supplies Market DB/repository configuration.
         """
         from market_public import (
             EventReadRequest,
@@ -68,7 +68,7 @@ class MarketPublicProviderAdapter:
 
         provider = public_provider
         if provider is None:
-            provider = MarketPublicFactory.create(database_url=database_url)
+            provider = MarketPublicFactory.create()
 
         return cls(
             provider,
@@ -83,7 +83,7 @@ class MarketPublicProviderAdapter:
         """Report binding health, not Market-domain data availability.
 
         The current Market public provider represents dependency/data failures
-        inside ``MarketResultEnvelope``.  Core must not pre-empt that domain
+        inside ``MarketResultEnvelope``. Core must not pre-empt that domain
         result by probing Market private dependencies itself.
         """
         return True, "Market public provider bound"
@@ -115,7 +115,7 @@ class MarketPublicProviderAdapter:
         """Adapt argument shape without taking ownership of Market validation.
 
         If a public request type cannot be constructed, pass the raw mapping to
-        the Market public provider.  The Market provider then owns the canonical
+        the Market public provider. The Market provider then owns the canonical
         contract-mismatch result instead of Core manufacturing domain semantics.
         """
         try:
