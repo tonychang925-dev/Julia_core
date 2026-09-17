@@ -1,6 +1,6 @@
 # RD1 Task Card Author Pre-Submission Self-Check
 
-**Status:** ACTIVE CONTROL-PLANE CANDIDATE  
+**Status:** ACTIVE CONTROL PLANE  
 **Applies to:** Mira, Codex, Claude, human task authors, automation-generated task cards, and any Agent acting as task-card owner/author across Julia Core / Julia-AI-Assistant / Market Brain.
 
 ## 1. Permanent law
