@@ -19,6 +19,7 @@ CONTROL_PLANE_REPO = "tonychang925-dev/Julia_core"
 COMPATIBILITY_PATH = "docs/governance/RD1_CONTROL_PLANE_COMPATIBILITY.md"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 VERSION_RE = re.compile(r"^\d+$")
+NORMATIVE_PREFIXES = ("docs/governance/", "tools/", ".github/workflows/")
 
 CONTROL_PLANE_EXCLUSIONS = {
     "docs/governance/RD1_CONTROL_PLANE_FRESHNESS_GATE.md",
@@ -69,7 +70,9 @@ def _request_json(url: str, token: str | None) -> dict:
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             return json.load(resp)
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as exc:
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(f"GitHub HTTP {exc.code}: {exc.reason}") from exc
+    except (urllib.error.URLError, TimeoutError) as exc:
         raise RuntimeError(f"GitHub verification failed: {exc}") from exc
 
 
@@ -100,7 +103,13 @@ def compatibility_version_from_text(text: str) -> int:
 
 def github_current_control_plane(token: str | None) -> tuple[str, int]:
     sha = github_main_sha(CONTROL_PLANE_REPO, token)
-    text = github_file_text(CONTROL_PLANE_REPO, COMPATIBILITY_PATH, sha, token)
+    try:
+        text = github_file_text(CONTROL_PLANE_REPO, COMPATIBILITY_PATH, sha, token)
+    except RuntimeError as exc:
+        # Bootstrap: legacy main before the first consolidated compatibility file.
+        if "HTTP 404" in str(exc):
+            return sha, 0
+        raise
     return sha, compatibility_version_from_text(text)
 
 
@@ -144,9 +153,72 @@ def validate_task_card(
                 f"current_version={current_compatibility_version}, self_check_version={version}"
             )
 
-    # Exact SHA drift alone is intentionally NOT an error when compatibility matches.
+    # Exact SHA drift alone is intentionally not an error when compatibility matches.
     _ = current_control_plane_sha
     return [f"{path}: {error}" for error in errors]
+
+
+def changed_files(base_ref: str) -> list[str]:
+    proc = subprocess.run(
+        ["git", "diff", "--name-only", f"{base_ref}...HEAD"],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+
+
+def git_compatibility_version(ref: str) -> int:
+    proc = subprocess.run(
+        ["git", "show", f"{ref}:{COMPATIBILITY_PATH}"],
+        text=True,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        return 0
+    return compatibility_version_from_text(proc.stdout)
+
+
+def current_head_compatibility_version() -> int:
+    path = Path(COMPATIBILITY_PATH)
+    if not path.exists():
+        return 0
+    return compatibility_version_from_text(path.read_text(encoding="utf-8"))
+
+
+def pr_body(event_path: str | None) -> str:
+    if not event_path:
+        return ""
+    path = Path(event_path)
+    if not path.exists():
+        return ""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return ((payload.get("pull_request") or {}).get("body") or "")
+
+
+def validate_governance_transition(*, base_ref: str | None, event_path: str | None, changed: list[str]) -> list[str]:
+    if not base_ref or not any(p.startswith(NORMATIVE_PREFIXES) for p in changed):
+        return []
+
+    body = pr_body(event_path)
+    impact = _field_value(body, "CONTROL_PLANE_COMPATIBILITY_IMPACT")
+    if impact not in {"NONE", "BREAKING"}:
+        return ["governance PR must declare CONTROL_PLANE_COMPATIBILITY_IMPACT = NONE | BREAKING"]
+
+    base_version = git_compatibility_version(base_ref)
+    head_version = current_head_compatibility_version()
+
+    if impact == "BREAKING" and head_version != base_version + 1:
+        return [
+            "BREAKING compatibility impact requires version increment exactly once: "
+            f"base={base_version}, head={head_version}"
+        ]
+    if impact == "NONE" and head_version != base_version:
+        return [
+            "NONE compatibility impact forbids version movement: "
+            f"base={base_version}, head={head_version}"
+        ]
+    return []
 
 
 def validate_paths(paths: Iterable[str], *, verify_remote: bool, token: str | None) -> dict:
@@ -192,13 +264,7 @@ def validate_paths(paths: Iterable[str], *, verify_remote: bool, token: str | No
 
 
 def validate_pr_body(event_path: str | None, *, current_sha: str | None, current_version: int | None) -> list[str]:
-    if not event_path:
-        return []
-    path = Path(event_path)
-    if not path.exists():
-        return []
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    body = ((payload.get("pull_request") or {}).get("body") or "")
+    body = pr_body(event_path)
     if not body or not looks_like_task_card("PR_BODY", body):
         return []
     return validate_task_card(
@@ -207,16 +273,6 @@ def validate_pr_body(event_path: str | None, *, current_sha: str | None, current
         current_control_plane_sha=current_sha,
         current_compatibility_version=current_version,
     )
-
-
-def changed_files(base_ref: str) -> list[str]:
-    proc = subprocess.run(
-        ["git", "diff", "--name-only", f"{base_ref}...HEAD"],
-        check=True,
-        text=True,
-        capture_output=True,
-    )
-    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
 
 
 def main() -> int:
@@ -229,8 +285,10 @@ def main() -> int:
     args = parser.parse_args()
 
     paths = list(args.paths)
+    changed: list[str] = []
     if args.base_ref:
-        paths.extend(changed_files(args.base_ref))
+        changed = changed_files(args.base_ref)
+        paths.extend(changed)
 
     result = validate_paths(
         dict.fromkeys(paths),
@@ -241,6 +299,11 @@ def main() -> int:
         args.event_path,
         current_sha=result.get("control_plane_sha"),
         current_version=result.get("control_plane_compatibility_version"),
+    ))
+    result["errors"].extend(validate_governance_transition(
+        base_ref=args.base_ref,
+        event_path=args.event_path,
+        changed=changed,
     ))
     result["status"] = "PASS" if not result["errors"] else "FAIL"
 
