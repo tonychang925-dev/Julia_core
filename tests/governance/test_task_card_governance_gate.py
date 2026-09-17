@@ -13,7 +13,8 @@ spec.loader.exec_module(mod)
 
 
 def valid_card(*, cross_boundary: bool = False) -> str:
-    body = """
+    cross_value = "PASS" if cross_boundary else "N/A"
+    body = f"""
 FROZEN_AUTHORITY_TRACE
 = DEVELOPMENT_CONSTITUTION.md Rule 11
 RULE11_CLASSIFICATION
@@ -75,7 +76,7 @@ RESIDUAL_ARCHITECTURE_DECISIONS
 RESIDUAL_CONTRACT_SEMANTIC_DECISIONS
 = 0
 CROSS_BOUNDARY_SEMANTICS
-= N/A
+= {cross_value}
 CURRENT_CODE_COMPATIBILITY
 = PASS
 ACCEPTANCE_EVIDENCE_CHECK
@@ -110,8 +111,6 @@ UNKNOWN_VALUE_BEHAVIOR
 = fail closed
 LIFECYCLE_OWNERSHIP
 = frozen owner
-CROSS_BOUNDARY_SEMANTICS
-= PASS
 """
     return body
 
@@ -139,7 +138,7 @@ class TaskCardGovernanceGateTests(unittest.TestCase):
         self.assertTrue(any("illegal value" in e for e in errors))
 
     def test_cross_boundary_card_requires_mappings(self):
-        text = valid_card() + "\nadapter\n"
+        text = valid_card().replace("CROSS_BOUNDARY_SEMANTICS\n= N/A", "CROSS_BOUNDARY_SEMANTICS\n= PASS") + "\nadapter\n"
         errors = mod.validate_task_card(text)
         self.assertTrue(any("cross-boundary task missing frozen mappings" in e for e in errors))
 
@@ -158,6 +157,14 @@ class TaskCardGovernanceGateTests(unittest.TestCase):
         text = valid_card().replace("PHASE_SCOPE_CHECK\n= PASS", "PHASE_SCOPE_CHECK\n= FAIL")
         errors = mod.validate_task_card(text)
         self.assertTrue(any("PHASE_SCOPE_CHECK must be PASS" in e for e in errors))
+
+    def test_control_plane_template_is_not_misclassified_as_task_card(self):
+        self.assertFalse(
+            mod.looks_like_task_card(
+                "docs/governance/RD1_TASK_CARD_AUTHOR_PRE_SUBMISSION_SELF_CHECK.md",
+                "TASK_CARD_AUTHOR_SELF_CHECK\nTASK_ID\nBASE_SHA\nREPO",
+            )
+        )
 
 
 if __name__ == "__main__":
