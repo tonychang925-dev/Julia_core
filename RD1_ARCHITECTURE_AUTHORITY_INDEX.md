@@ -164,6 +164,7 @@ READ_INDEX
 → FROZEN_AUTHORITY_TRACE
 → RULE11_CLASSIFICATION
 → RULE12_ARCHITECTURE_COMPLETION_CHECK
+→ CONTROL_PLANE_FRESHNESS_CHECK
 → PHASE_CHECK
 → EXACT_CONTRACT
 → AGENT_EXECUTION_PERMISSION_MATRIX
@@ -188,6 +189,7 @@ Every task author, implementation Agent, and reviewer must use:
 
 ```text
 docs/governance/RD1_RULE12_ARCHITECTURE_COMPLETION_PROHIBITION.md
+docs/governance/RD1_CONTROL_PLANE_FRESHNESS_GATE.md
 docs/governance/RD1_AGENT_TASK_AUTHORITY_HEADER_TEMPLATE.md
 docs/governance/RD1_TASK_CARD_AUTHOR_PRE_SUBMISSION_SELF_CHECK.md
 docs/governance/RD1_TASK_CARD_CI_PARSER_GATE.md
@@ -204,11 +206,14 @@ TASK_CARD_DRAFT
 → RULE11_CLASSIFICATION
 → RULE12_TASK_AUTHOR_ARCHITECTURE_COMPLETION_AUDIT
 → AUTHOR_SELF_CHECK
+→ CONTROL_PLANE_FRESHNESS_CHECK
 → AGENT_EXECUTION_PERMISSION_MATRIX
 → MACHINE_VERIFIABLE_SELF_CHECK_EVIDENCE
 → SELF_CHECK_PASS
+→ FRESHNESS_REVALIDATION_AT_SUBMISSION
 → CI / PARSER GATE
 → INDEPENDENT_ARCHITECTURE_PRECHECK
+→ FRESHNESS_REVALIDATION_AT_AUTHORITY_TRANSITION
 → OWNER / AUTHORIZED REVIEW
 → POSSIBLE IMPLEMENTATION AUTHORIZATION
 ```
@@ -218,21 +223,57 @@ Hard law:
 ```text
 NO_SELF_CHECK_EVIDENCE = NO_TASK_SUBMISSION
 NO_RULE12_ARCHITECTURE_COMPLETION_EVIDENCE = NO_TASK_SUBMISSION
+NO_CONTROL_PLANE_FRESHNESS_EVIDENCE = NO_TASK_SUBMISSION
 NO_PERMISSION_MATRIX = NO_TASK_SUBMISSION
 ANY_PERMISSION_NOT_EXPLICITLY_GRANTED = DENY
 SELF_CHECK_PASS != OWNER_APPROVAL
 SELF_CHECK_PASS != IMPLEMENTATION_AUTHORIZATION
+CONTROL_PLANE_DRIFT = SELF_CHECK_INVALIDATED
 TASK_CARD_GOVERNANCE_GATE_FAIL = NO_MERGE_WHILE_REQUIRED_CHECK_IS_ENFORCED
 ```
 
-The parser gate runs inside the already-required `NO_CRITICAL_FALLBACK_GATE` GitHub check. It validates structure/self-check evidence, Rule 12 architecture-completion declarations, permission-matrix completeness, residual decision counts, cross-boundary semantic mapping, and declared task-base SHA against the current `main` SHA of the declared repository.
+The parser gates run inside the already-required `NO_CRITICAL_FALLBACK_GATE` GitHub check. They validate structure/self-check evidence, Rule 12 architecture-completion declarations, permission-matrix completeness, residual decision counts, cross-boundary semantic mapping, declared task-base SHA against the current `main` SHA of the declared repository, and the self-check control-plane SHA against current `Julia_core/main`.
 
 ```text
 PARSER = GOVERNANCE_ENFORCER
 PARSER != ARCHITECTURE_LAW
 ```
 
-## 10. Anti-free-form Agent rule
+## 10. Control-plane freshness / TOCTOU rule
+
+A self-check PASS is bound to the exact Julia Core control-plane HEAD it checked.
+
+```text
+CONTROL_PLANE_AUTHORITY_REPO
+= tonychang925-dev/Julia_core
+
+SELF_CHECK_CONTROL_PLANE_SHA
+= <exact Julia_core/main SHA used by self-check>
+
+CONTROL_PLANE_FRESHNESS_CHECK
+= PASS
+```
+
+At every authority transition that can advance work, current `Julia_core/main` must be fetched again.
+
+```text
+SELF_CHECK_CONTROL_PLANE_SHA
+== CURRENT_JULIA_CORE_MAIN_SHA
+= REQUIRED
+```
+
+If false or unverifiable:
+
+```text
+CONTROL_PLANE_DRIFT_OR_UNVERIFIED
+→ SELF_CHECK_INVALIDATED
+→ READY_FOR_SUBMISSION = NO
+→ TASK_REBIND_REQUIRED = YES
+```
+
+Implementation-base freshness and control-plane freshness are independent and both required.
+
+## 11. Anti-free-form Agent rule
 
 ```text
 NO_FROZEN_ANSWER_FOUND != PERMISSION_TO_INVENT
@@ -245,6 +286,7 @@ CROSS_BOUNDARY_SEMANTIC_MAPPING = FROZEN_BEFORE_CODING
 AGENT_CROSS_BOUNDARY_SEMANTIC_FREEDOM = NO
 ANY_PERMISSION_NOT_EXPLICITLY_GRANTED = DENY
 NO_ARCHITECTURE_COMPLETION_BY_AGENT_INFERENCE = YES
+CONTROL_PLANE_FRESHNESS_REQUIRED = YES
 ```
 
 When an Agent cannot resolve a frozen answer or permission:
@@ -254,8 +296,9 @@ SEARCH
 TRACE
 CLASSIFY
 RULE12_CHECK
+FRESHNESS_CHECK
 CHECK_PERMISSION_MATRIX
-STOP_IF_D_OR_DENIED
+STOP_IF_D_OR_DENIED_OR_STALE
 ```
 
 Never:
@@ -275,4 +318,5 @@ INVENT_PROVENANCE_MAPPING
 INVENT_LIFECYCLE_MAPPING
 INVENT_AUTHORIZATION_MEANING
 INFER_PERMISSION_FROM_SILENCE
+REUSE_STALE_SELF_CHECK_PASS_AFTER_CONTROL_PLANE_DRIFT
 ```

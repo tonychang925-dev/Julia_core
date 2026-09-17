@@ -31,6 +31,15 @@ jobs:
             --base-ref origin/main \
             --verify-remote-base \
             --json > task-card-governance-findings.json
+      - name: Run control-plane freshness gate
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 tools/control_plane_freshness_gate.py \
+            --base-ref origin/main \
+            --verify-remote-control-plane \
+            --json > control-plane-freshness-findings.json
       - name: Run sabotage tests
         run: python3 -m unittest discover -s tests/governance -p 'test_*.py' -v
       - name: Emit reports
@@ -38,6 +47,7 @@ jobs:
         run: |
           cat ncf-findings.json || true
           cat task-card-governance-findings.json || true
+          cat control-plane-freshness-findings.json || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -45,3 +55,4 @@ jobs:
           path: |
             ncf-findings.json
             task-card-governance-findings.json
+            control-plane-freshness-findings.json

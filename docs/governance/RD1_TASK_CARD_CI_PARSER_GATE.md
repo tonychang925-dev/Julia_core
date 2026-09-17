@@ -1,7 +1,7 @@
 # RD1 Task Card CI / Parser Gate
 
 **Status:** ACTIVE CONTROL PLANE  
-**Purpose:** convert task-card self-check, Rule 12 architecture-completion discipline, and execution permissions into machine-enforced pull-request gating.
+**Purpose:** convert task-card self-check, Rule 12 architecture-completion discipline, control-plane freshness, and execution permissions into machine-enforced pull-request gating.
 
 ## 1. Enforcement path
 
@@ -13,6 +13,8 @@ TASK CARD / TASK-CARD PR
 → Rule12 task-author architecture-completion evidence present?
 → task-author new-architecture counts == 0?
 → frozen-source binding complete?
+→ control-plane freshness fields present?
+→ SELF_CHECK_CONTROL_PLANE_SHA == current Julia_core/main?
 → execution permission matrix present?
 → default-deny permission model valid?
 → residual architecture decisions == 0?
@@ -23,21 +25,23 @@ TASK CARD / TASK-CARD PR
 → PASS / FAIL
 ```
 
-Parser:
+Parsers:
 
 ```text
 tools/task_card_governance_gate.py
+tools/control_plane_freshness_gate.py
 ```
 
 Sabotage/unit coverage:
 
 ```text
 tests/governance/test_task_card_governance_gate.py
+tests/governance/test_control_plane_freshness_gate.py
 ```
 
 ## 2. Merge enforcement
 
-The parser runs inside the repository's required GitHub check:
+Both parsers run inside the repository's required GitHub check:
 
 ```text
 NO_CRITICAL_FALLBACK_GATE
@@ -47,6 +51,7 @@ Therefore, while that repository rule remains required:
 
 ```text
 TASK_CARD_GOVERNANCE_GATE_FAIL
+OR CONTROL_PLANE_FRESHNESS_GATE_FAIL
 → NO_CRITICAL_FALLBACK_GATE FAIL
 → PR CANNOT MERGE
 ```
@@ -82,8 +87,6 @@ NEW_RUNTIME_AUTHORITY_COUNT = 0
 NEW_TRANSPORT_COUNT = 0
 ```
 
-This closes the failure mode where a task author pre-solves architecture before an implementation Agent sees the card.
-
 Permanent law:
 
 ```text
@@ -92,9 +95,40 @@ NO_ARCHITECTURE_COMPLETION_BY_AGENT_INFERENCE = YES
 
 A deliberate architecture change must first complete the Constitution's explicit scope-bounded amendment/refreeze path. It may not be embedded as a coding-task inference.
 
-The parser verifies declarations; it does not determine whether the cited frozen authority truly supports them. Independent Architecture Precheck must re-verify that evidence.
+## 5. Control-Plane Freshness hard gate
 
-## 5. Agent Execution Permission Matrix hard gate
+Every coding task card must declare:
+
+```text
+CONTROL_PLANE_AUTHORITY_REPO
+= tonychang925-dev/Julia_core
+
+SELF_CHECK_CONTROL_PLANE_SHA
+= <exact 40-hex Julia_core/main SHA used by the author self-check>
+
+CONTROL_PLANE_FRESHNESS_CHECK
+= PASS
+```
+
+At CI/use time the current Julia Core main SHA is fetched again.
+
+Required:
+
+```text
+SELF_CHECK_CONTROL_PLANE_SHA == CURRENT_JULIA_CORE_MAIN_SHA
+```
+
+Failure or inability to verify is fail-closed:
+
+```text
+CONTROL_PLANE_DRIFT_OR_UNVERIFIED
+→ SELF_CHECK_INVALIDATED
+→ GATE FAIL
+```
+
+Implementation-base freshness and control-plane freshness are independent; both are mandatory.
+
+## 6. Agent Execution Permission Matrix hard gate
 
 Every coding task card must contain:
 
@@ -160,7 +194,7 @@ Permanent law:
 ANY_PERMISSION_NOT_EXPLICITLY_GRANTED = DENY
 ```
 
-## 6. Cross-boundary hard gate
+## 7. Cross-boundary hard gate
 
 For adapter / bridge / translator / proxy / serializer / provider-wrapper / boundary-conversion work, the parser also requires:
 
@@ -180,7 +214,7 @@ CROSS_BOUNDARY_SEMANTICS = PASS
 
 Missing mapping is a machine failure, not implementation-Agent design freedom.
 
-## 7. Exact SHA verification
+## 8. Exact implementation SHA verification
 
 In PR CI the parser requires:
 
@@ -197,7 +231,7 @@ BASE_DRIFT
 
 Current code/SHA identity remains engineering evidence only; it is not architecture authority.
 
-## 8. Scope and non-authority
+## 9. Scope and non-authority
 
 ```text
 PARSER = GOVERNANCE ENFORCER
@@ -207,4 +241,4 @@ PARSER != IMPLEMENTATION AUTHORIZATION
 PARSER != MERGE AUTHORIZATION BY ITSELF
 ```
 
-Frozen source documents remain authoritative. The parser rejects submissions that fail active control-plane requirements; it does not design architecture.
+Frozen source documents remain authoritative. The parsers reject submissions that fail active control-plane requirements; they do not design architecture.
