@@ -19,7 +19,20 @@ CONTROL_PLANE_REPO = "tonychang925-dev/Julia_core"
 COMPATIBILITY_PATH = "docs/governance/RD1_CONTROL_PLANE_COMPATIBILITY.md"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 VERSION_RE = re.compile(r"^\d+$")
-NORMATIVE_PREFIXES = ("docs/governance/", "tools/", ".github/workflows/")
+
+NORMATIVE_ROOT_PATHS = {
+    "DEVELOPMENT_CONSTITUTION.md",
+    "RD1_ARCHITECTURE_AUTHORITY_INDEX.md",
+    ".github/workflows/no-critical-fallback-gate.yml",
+}
+NORMATIVE_PREFIXES = (
+    "docs/governance/",
+    "tests/governance/",
+)
+NORMATIVE_TOOL_PATHS = {
+    "tools/control_plane_freshness_gate.py",
+    "tools/task_card_governance_gate.py",
+}
 
 CONTROL_PLANE_EXCLUSIONS = {
     "docs/governance/RD1_CONTROL_PLANE_FRESHNESS_GATE.md",
@@ -56,6 +69,15 @@ def looks_like_task_card(path: str, text: str) -> bool:
         or "task card" in name
         or "TASK_CARD_AUTHOR_SELF_CHECK" in text
         or all(token in text for token in ("TASK_ID", "BASE_SHA", "REPO"))
+    )
+
+
+def is_normative_governance_path(path: str) -> bool:
+    normalized = path.replace("\\", "/")
+    return (
+        normalized in NORMATIVE_ROOT_PATHS
+        or normalized in NORMATIVE_TOOL_PATHS
+        or normalized.startswith(NORMATIVE_PREFIXES)
     )
 
 
@@ -106,7 +128,6 @@ def github_current_control_plane(token: str | None) -> tuple[str, int]:
     try:
         text = github_file_text(CONTROL_PLANE_REPO, COMPATIBILITY_PATH, sha, token)
     except RuntimeError as exc:
-        # Bootstrap: legacy main before the first consolidated compatibility file.
         if "HTTP 404" in str(exc):
             return sha, 0
         raise
@@ -153,7 +174,6 @@ def validate_task_card(
                 f"current_version={current_compatibility_version}, self_check_version={version}"
             )
 
-    # Exact SHA drift alone is intentionally not an error when compatibility matches.
     _ = current_control_plane_sha
     return [f"{path}: {error}" for error in errors]
 
@@ -197,7 +217,7 @@ def pr_body(event_path: str | None) -> str:
 
 
 def validate_governance_transition(*, base_ref: str | None, event_path: str | None, changed: list[str]) -> list[str]:
-    if not base_ref or not any(p.startswith(NORMATIVE_PREFIXES) for p in changed):
+    if not base_ref or not any(is_normative_governance_path(p) for p in changed):
         return []
 
     body = pr_body(event_path)
