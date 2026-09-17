@@ -26,8 +26,6 @@ The Development Constitution governs the governance process itself. No architect
 CONSTITUTIONAL_GOVERNANCE_SUPREMACY = YES
 ```
 
-This is distinct from the scope-aware precedence used to resolve **architecture content** among frozen domain documents.
-
 ## 2. Frozen architecture-content resolution stack
 
 Within the constitutional process, resolve architecture content using scope-aware precedence:
@@ -40,15 +38,11 @@ Within the constitutional process, resolve architecture content using scope-awar
 5. G0 — Owner Correction Source + Composition Baseline Card v0.1
 ```
 
-Rules:
-
 ```text
 LOWER_LEVEL_EVIDENCE_CANNOT_REDEFINE_HIGHER_FROZEN_AUTHORITY = YES
 OWNER_CONVENIENCE_INSTRUCTION_IS_NOT_CONSTITUTIONAL_OVERRIDE = YES
 SCOPE_AWARE_PRECEDENCE_REQUIRED = YES
 ```
-
-Historical R-line / M-line / recovery candidates are evidence only under the current clean-main development model.
 
 ## 3. Current Master Plan
 
@@ -58,16 +52,12 @@ STATUS = CURRENT PLAN AUTHORITY
 DEVELOPMENT_MODEL = CURRENT MAIN CLEAN REIMPLEMENTATION
 ```
 
-The Master Plan governs phase sequencing and clean-main execution. It does not override a higher frozen architecture boundary outside its scope.
-
 ## 4. Current phase
 
 ```text
 CURRENT_PHASE = RC4
 RC4_PURPOSE = first canonical three-repo text path
 ```
-
-Frozen high-level RC4 path:
 
 ```text
 Assistant
@@ -80,8 +70,6 @@ Assistant
 → Julia continuation
 → Assistant response
 ```
-
-Future-phase concerns must not be promoted into RC4 blockers unless an existing frozen dependency gate explicitly requires it.
 
 ```text
 RC9  = Candidate Manifest + Runtime Identity
@@ -101,8 +89,6 @@ Julia-AI-Assistant snapshot
 ai_theme_app snapshot
 = 7925a63bb5500a74496c1e7d7b2b42c935f2c739
 ```
-
-These SHAs are implementation-state evidence, not architecture authority and not permanent task-base authority. Every task must mechanically re-check current trunk identity before authorization.
 
 ```text
 INDEX_SHA_SNAPSHOT != CURRENT_TRUNK_PROOF
@@ -127,8 +113,6 @@ RC4-F1B-C Cross-Repo Public Export Resolution Law v0.1
 = RECLASSIFY AS AUDIT / DEFERRED PRODUCTION-COMPOSITION FINDING
 ```
 
-No document listed as `NOT EXECUTABLE`, `CANDIDATE`, `REQUIRES CORRECTION`, or `NOT ARCHITECTURE AUTHORITY` may be used as implementation authorization.
-
 ## 7. Superseded / non-authoritative classes
 
 ```text
@@ -143,8 +127,6 @@ PASS / tests passed claims
 runtime behavior
 ```
 
-All are:
-
 ```text
 EVIDENCE_ONLY
 NO_ARCHITECTURE_AUTHORITY
@@ -154,8 +136,6 @@ NO_FALLBACK_AUTHORITY
 
 ## 8. Required Agent startup behavior
 
-Before architecture analysis, task creation, delegation, implementation, or review, every Agent must read this index and then resolve the referenced frozen sources relevant to the task.
-
 ```text
 READ_INDEX
 → IDENTIFY_GOVERNING_FROZEN_AUTHORITY
@@ -163,9 +143,8 @@ READ_INDEX
 → RULE11_CLASSIFICATION
 → PHASE_CHECK
 → EXACT_CONTRACT
+→ AGENT_EXECUTION_PERMISSION_MATRIX
 ```
-
-The index is a routing/control artifact, not a substitute for reading governing source clauses.
 
 If the index is stale or contradicts a referenced frozen source:
 
@@ -176,16 +155,15 @@ TASK = STOP
 INDEX_REBIND_REQUIRED = YES
 ```
 
-The index may never be used to invent missing architecture.
-
 ## 9. Mandatory control-plane companions
 
-Every task author and reviewer must use:
+Every task author, implementation Agent, and reviewer must use:
 
 ```text
 docs/governance/RD1_AGENT_TASK_AUTHORITY_HEADER_TEMPLATE.md
 docs/governance/RD1_TASK_CARD_AUTHOR_PRE_SUBMISSION_SELF_CHECK.md
 docs/governance/RD1_TASK_CARD_CI_PARSER_GATE.md
+docs/governance/RD1_AGENT_EXECUTION_PERMISSION_MATRIX.md
 docs/governance/RD1_ARCHITECTURE_AUTHORITY_PRECHECK.md
 ```
 
@@ -196,6 +174,7 @@ Mandatory lifecycle:
 ```text
 TASK_CARD_DRAFT
 → AUTHOR_SELF_CHECK
+→ AGENT_EXECUTION_PERMISSION_MATRIX
 → MACHINE_VERIFIABLE_SELF_CHECK_EVIDENCE
 → SELF_CHECK_PASS
 → CI / PARSER GATE
@@ -208,12 +187,12 @@ Hard law:
 
 ```text
 NO_SELF_CHECK_EVIDENCE = NO_TASK_SUBMISSION
+NO_PERMISSION_MATRIX = NO_TASK_SUBMISSION
+ANY_PERMISSION_NOT_EXPLICITLY_GRANTED = DENY
 SELF_CHECK_PASS != OWNER_APPROVAL
 SELF_CHECK_PASS != IMPLEMENTATION_AUTHORIZATION
 TASK_CARD_GOVERNANCE_GATE_FAIL = NO_MERGE_WHILE_REQUIRED_CHECK_IS_ENFORCED
 ```
-
-The parser gate runs inside the already-required `NO_CRITICAL_FALLBACK_GATE` GitHub check. It validates structure/self-check evidence, residual decision counts, cross-boundary semantic mapping, and declared task-base SHA against the current `main` SHA of the declared repository.
 
 ```text
 PARSER = GOVERNANCE_ENFORCER
@@ -230,15 +209,15 @@ NO_CURRENT_IMPLEMENTATION != NO_ARCHITECTURE
 NO_PACKAGE_RESOLUTION != NO_COMPOSITION_TOPOLOGY
 CROSS_BOUNDARY_SEMANTIC_MAPPING = FROZEN_BEFORE_CODING
 AGENT_CROSS_BOUNDARY_SEMANTIC_FREEDOM = NO
+ANY_PERMISSION_NOT_EXPLICITLY_GRANTED = DENY
 ```
-
-When an Agent cannot resolve a frozen answer:
 
 ```text
 SEARCH
 TRACE
 CLASSIFY
-STOP_IF_D
+CHECK_PERMISSION_MATRIX
+STOP_IF_D_OR_DENIED
 ```
 
 Never:
@@ -253,4 +232,5 @@ INVENT_FAILURE_MAPPING
 INVENT_PROVENANCE_MAPPING
 INVENT_LIFECYCLE_MAPPING
 INVENT_AUTHORIZATION_MEANING
+INFER_PERMISSION_FROM_SILENCE
 ```
