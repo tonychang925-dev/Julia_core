@@ -1,6 +1,6 @@
 # RD1 Agent Execution Permission Matrix
 
-**Status:** ACTIVE CONTROL-PLANE CANDIDATE  
+**Status:** ACTIVE CONTROL PLANE  
 **Applies to:** every implementation/rework task executed by Mira, Codex, Claude, humans, automations, or any other Agent across Julia Core / Julia-AI-Assistant / Market Brain.
 
 ## 1. Permanent law
