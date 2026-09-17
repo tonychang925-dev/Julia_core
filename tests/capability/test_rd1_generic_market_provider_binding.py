@@ -250,6 +250,20 @@ async def test_c08_denial_does_not_invoke_market_public_provider():
 
 
 @pytest.mark.asyncio
+async def test_missing_market_binding_is_typed_unavailable_without_fallback():
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+
+    result = await bridge.manager.execute_typed(
+        CapabilityRequest("market.product.read", {"subject_key": "theme:1"})
+    )
+
+    assert result.tool_result.status.value == "unavailable"
+    assert result.tool_result.error["code"] == "provider_not_found"
+    assert result.tool_result.structured_output == {}
+
+
+@pytest.mark.asyncio
 async def test_pre_envelope_provider_exception_is_core_execution_error():
     class Broken(MarketPublicFixture):
         async def execute(self, capability, request, *, request_id=None, correlation_id=None):
