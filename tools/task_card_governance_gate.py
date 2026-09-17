@@ -22,44 +22,21 @@ from pathlib import Path
 from typing import Iterable
 
 MANDATORY_TASK_FIELDS = (
-    "FROZEN_AUTHORITY_TRACE",
-    "RULE11_CLASSIFICATION",
-    "CURRENT_PHASE",
-    "TARGET_REQUIREMENT",
-    "DEFERRED_FINDINGS",
-    "TASK_ID",
-    "REPO",
-    "TARGET_BRANCH",
-    "BASE_SHA",
-    "AUTHORIZED_PATHS",
-    "FORBIDDEN_PATHS",
-    "REQUIRED_BEHAVIOR",
-    "FORBIDDEN_BEHAVIOR",
-    "ACCEPTANCE_EVIDENCE",
+    "FROZEN_AUTHORITY_TRACE", "RULE11_CLASSIFICATION", "CURRENT_PHASE",
+    "TARGET_REQUIREMENT", "DEFERRED_FINDINGS", "TASK_ID", "REPO",
+    "TARGET_BRANCH", "BASE_SHA", "AUTHORIZED_PATHS", "FORBIDDEN_PATHS",
+    "REQUIRED_BEHAVIOR", "FORBIDDEN_BEHAVIOR", "ACCEPTANCE_EVIDENCE",
 )
 
 MANDATORY_SELF_CHECK_FIELDS = (
-    "AUTHOR_ROLE",
-    "TASK_ID",
-    "TASK_CARD_VERSION",
-    "AUTHORITY_SOURCE_FILES_CHECKED",
-    "CURRENT_MAIN_SHAS",
-    "MANDATORY_TASK_FIELDS_PRESENT",
-    "AUTHORIZED_PATH_COUNT",
-    "DEFERRED_FINDING_COUNT",
-    "AUTHORITY_IDENTITY",
-    "MANDATORY_HEADER",
-    "RULE11_CLASSIFICATION_CHECK",
-    "PHASE_SCOPE_CHECK",
-    "RESIDUAL_DECISION_AUDIT",
-    "RESIDUAL_ARCHITECTURE_DECISIONS",
-    "RESIDUAL_CONTRACT_SEMANTIC_DECISIONS",
-    "CROSS_BOUNDARY_SEMANTICS",
-    "CURRENT_CODE_COMPATIBILITY",
-    "ACCEPTANCE_EVIDENCE_CHECK",
-    "NO_AGENT_ARCHITECTURE_DISCRETION",
-    "SELF_CHECK_RESULT",
-    "READY_FOR_SUBMISSION",
+    "AUTHOR_ROLE", "TASK_ID", "TASK_CARD_VERSION", "AUTHORITY_SOURCE_FILES_CHECKED",
+    "CURRENT_MAIN_SHAS", "MANDATORY_TASK_FIELDS_PRESENT", "AUTHORIZED_PATH_COUNT",
+    "DEFERRED_FINDING_COUNT", "AUTHORITY_IDENTITY", "MANDATORY_HEADER",
+    "RULE11_CLASSIFICATION_CHECK", "PHASE_SCOPE_CHECK", "RESIDUAL_DECISION_AUDIT",
+    "RESIDUAL_ARCHITECTURE_DECISIONS", "RESIDUAL_CONTRACT_SEMANTIC_DECISIONS",
+    "CROSS_BOUNDARY_SEMANTICS", "CURRENT_CODE_COMPATIBILITY",
+    "ACCEPTANCE_EVIDENCE_CHECK", "NO_AGENT_ARCHITECTURE_DISCRETION",
+    "SELF_CHECK_RESULT", "READY_FOR_SUBMISSION",
 )
 
 CROSS_BOUNDARY_TOKENS = (
@@ -68,16 +45,9 @@ CROSS_BOUNDARY_TOKENS = (
 )
 
 CROSS_BOUNDARY_REQUIRED = (
-    "SOURCE_CONTRACT",
-    "TARGET_CONTRACT",
-    "FIELD_MAPPING",
-    "STATUS_MAPPING",
-    "FAILURE_MAPPING",
-    "PROVENANCE_MAPPING",
-    "AUTHORITY_TRANSFER",
-    "MALFORMED_INPUT_BEHAVIOR",
-    "UNKNOWN_VALUE_BEHAVIOR",
-    "LIFECYCLE_OWNERSHIP",
+    "SOURCE_CONTRACT", "TARGET_CONTRACT", "FIELD_MAPPING", "STATUS_MAPPING",
+    "FAILURE_MAPPING", "PROVENANCE_MAPPING", "AUTHORITY_TRANSFER",
+    "MALFORMED_INPUT_BEHAVIOR", "UNKNOWN_VALUE_BEHAVIOR", "LIFECYCLE_OWNERSHIP",
 )
 
 CONTROL_PLANE_EXCLUSIONS = {
@@ -99,14 +69,14 @@ def _field_value(text: str, key: str) -> str | None:
 
 
 def _has_field(text: str, key: str) -> bool:
-    return _field_value(text, key) is not None or re.search(
-        rf"(?m)^\s*{re.escape(key)}\s*$", text
-    ) is not None
+    return _field_value(text, key) is not None or re.search(rf"(?m)^\s*{re.escape(key)}\s*$", text) is not None
 
 
 def looks_like_task_card(path: str, text: str) -> bool:
     normalized = path.replace("\\", "/")
     if normalized in CONTROL_PLANE_EXCLUSIONS:
+        return False
+    if normalized != "PR_BODY" and Path(normalized).suffix.lower() not in {".md", ".markdown"}:
         return False
     name = Path(path).name.lower()
     by_name = "task_card" in name or "task-card" in name or "task card" in name
@@ -131,29 +101,21 @@ def _int_value(text: str, key: str) -> int | None:
 
 def validate_task_card(text: str, *, path: str = "<memory>") -> list[str]:
     errors: list[str] = []
-
     missing_task = [key for key in MANDATORY_TASK_FIELDS if not _has_field(text, key)]
     if missing_task:
         errors.append("missing mandatory task fields: " + ", ".join(missing_task))
-
     if "TASK_CARD_AUTHOR_SELF_CHECK" not in text:
         errors.append("missing TASK_CARD_AUTHOR_SELF_CHECK block")
-
     missing_self = [key for key in MANDATORY_SELF_CHECK_FIELDS if not _has_field(text, key)]
     if missing_self:
         errors.append("missing self-check fields: " + ", ".join(missing_self))
 
     expected_values = {
-        "AUTHORITY_IDENTITY": "PASS",
-        "MANDATORY_HEADER": "PASS",
-        "RULE11_CLASSIFICATION_CHECK": "PASS",
-        "PHASE_SCOPE_CHECK": "PASS",
-        "RESIDUAL_DECISION_AUDIT": "PASS",
-        "CURRENT_CODE_COMPATIBILITY": "PASS",
-        "ACCEPTANCE_EVIDENCE_CHECK": "PASS",
-        "NO_AGENT_ARCHITECTURE_DISCRETION": "PASS",
-        "SELF_CHECK_RESULT": "PASS",
-        "READY_FOR_SUBMISSION": "YES",
+        "AUTHORITY_IDENTITY": "PASS", "MANDATORY_HEADER": "PASS",
+        "RULE11_CLASSIFICATION_CHECK": "PASS", "PHASE_SCOPE_CHECK": "PASS",
+        "RESIDUAL_DECISION_AUDIT": "PASS", "CURRENT_CODE_COMPATIBILITY": "PASS",
+        "ACCEPTANCE_EVIDENCE_CHECK": "PASS", "NO_AGENT_ARCHITECTURE_DISCRETION": "PASS",
+        "SELF_CHECK_RESULT": "PASS", "READY_FOR_SUBMISSION": "YES",
     }
     for key, expected in expected_values.items():
         value = _field_value(text, key)
@@ -186,9 +148,7 @@ def validate_task_card(text: str, *, path: str = "<memory>") -> list[str]:
         expected = len(MANDATORY_TASK_FIELDS)
         m = re.match(r"\s*(\d+)\s*/\s*(\d+)\s*$", mandatory_count)
         if not m or int(m.group(1)) != expected or int(m.group(2)) != expected:
-            errors.append(
-                f"MANDATORY_TASK_FIELDS_PRESENT must be {expected}/{expected}, got {mandatory_count!r}"
-            )
+            errors.append(f"MANDATORY_TASK_FIELDS_PRESENT must be {expected}/{expected}, got {mandatory_count!r}")
 
     return [f"{path}: {error}" for error in errors]
 
@@ -222,12 +182,7 @@ def validate_remote_base(text: str, *, token: str | None) -> list[str]:
 
 
 def changed_files(base_ref: str) -> list[str]:
-    proc = subprocess.run(
-        ["git", "diff", "--name-only", f"{base_ref}...HEAD"],
-        check=True,
-        text=True,
-        capture_output=True,
-    )
+    proc = subprocess.run(["git", "diff", "--name-only", f"{base_ref}...HEAD"], check=True, text=True, capture_output=True)
     return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
 
 
@@ -239,9 +194,7 @@ def validate_pr_body(event_path: str | None) -> list[str]:
         return []
     payload = json.loads(path.read_text(encoding="utf-8"))
     body = ((payload.get("pull_request") or {}).get("body") or "")
-    if not body:
-        return []
-    if not looks_like_task_card("PR_BODY", body):
+    if not body or not looks_like_task_card("PR_BODY", body):
         return []
     return validate_task_card(body, path="PR_BODY")
 
@@ -281,12 +234,7 @@ def main() -> int:
     paths = list(args.paths)
     if args.base_ref:
         paths.extend(changed_files(args.base_ref))
-
-    result = validate_paths(
-        dict.fromkeys(paths),
-        verify_remote=args.verify_remote_base,
-        token=os.getenv("GITHUB_TOKEN"),
-    )
+    result = validate_paths(dict.fromkeys(paths), verify_remote=args.verify_remote_base, token=os.getenv("GITHUB_TOKEN"))
     result["errors"].extend(validate_pr_body(args.event_path))
     result["status"] = "PASS" if not result["errors"] else "FAIL"
 
@@ -298,7 +246,6 @@ def main() -> int:
             print(f"checked: {item}")
         for error in result["errors"]:
             print(f"ERROR: {error}")
-
     return 0 if result["status"] == "PASS" else 1
 
 
