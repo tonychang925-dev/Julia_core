@@ -1,765 +1,152 @@
-# Julia Core / RD1 开发宪法
+# Julia Core / RD1 Development Rules Lite v2.0
 
-## 十一条军规 — 违反即终止
+**Date:** 2026-09-17  
+**Owner:** Tony  
+**Status:** ACTIVE / OWNER APPROVED  
+**Purpose:** replace recovery-era eleven-rule governance with five normal engineering rules.
 
-**状态：最高工程纪律**  
-**适用范围：所有 Agent、Codex、Claude、Mira、人工开发者、Review Agent、自动化任务，以及 Julia Core / Julia-AI-Assistant / Market Brain 相关仓库。**
-
-本宪法目标只有一个：
-
-> **任何时候，项目只能存在一个开发真相。**
-
-任何规则、任务卡、Review 结论、历史分支、旧文档、自动化 Agent，都不得凌驾于本宪法。
-
----
-
-## 受保护研究线例外
-
-Mira 人格 / continuity 实验线与 RD1 开发 authority 严格隔离：
+Architecture source:
 
 ```text
-mira/*
-= PROTECTED RESEARCH LINE
-= NEVER DELETE BY RD1 CLEANUP
-= NO RD1 DEVELOPMENT AUTHORITY
-= MUST NOT BE USED AS RD1 TASK BASE
-= MUST NOT BE USED AS RD1 FALLBACK
-= NOT COUNTED AS RD1 LONG_LIVED_WRITABLE_BRANCH
+docs/architecture/RD1_V1_ARCHITECTURE_CONSTITUTION_LITE.md
 ```
 
-本例外仅用于保护研究资产，不赋予 `mira/*` 任何 RD1 canonical / recovery / production authority。
-
----
-
-## 军规一：永远只有一条长期开发主线
-
-每个仓库最多允许：
+Engineering governance source:
 
 ```text
-LONG_LIVED_WRITABLE_BRANCH_COUNT = 1
+docs/governance/RD1_ENGINEERING_GOVERNANCE_LITE.md
 ```
 
-除唯一主线外，任何开发分支都必须是短生命周期任务分支。
-
-禁止创建或长期保留：
+Acceptance/release source:
 
 ```text
-second canonical branch
-parallel recovery branch
-parallel accepted branch
-agent-specific long-lived branch
-alternative integration branch
-```
-
-### 违反处置
-
-```text
-TASK = STOP
-BRANCH = CLOSE
-CANDIDATE = INVALID
+docs/governance/RD1_ACCEPTANCE_AND_RELEASE.md
 ```
 
 ---
 
-## 军规二：任务分支只有两个结局——MERGE 或 DELETE
-
-任何任务分支必须：
+## Rule 1 — One Development Truth
 
 ```text
-create
-→ implement
-→ review
-→ merge
-→ delete
+main/current trunk = development truth
+task = exact repo + exact base SHA
+task branch = merge or delete
 ```
 
-或者：
+Historical branches, old PRs, old candidates, and branch names do not become current development truth by implication.
 
-```text
-create
-→ reject
-→ delete
-```
-
-不存在第三种状态。
-
-禁止：
-
-```text
-accepted but unmerged
-done but kept alive
-maybe useful later
-temporary branch becoming permanent
-```
-
-### DONE 的唯一合法定义
-
-```text
-CODE_COMPLETE
-+
-REVIEW_PASS
-+
-MERGED_TO_TRUNK
-+
-TRUNK_HEAD_VERIFIED
-+
-TASK_BRANCH_DELETED
-```
-
-缺任何一项：
-
-```text
-STATUS != DONE
-```
+Protected research branches such as `mira/*` may remain for research continuity, but they do not become RD1 task bases or production fallbacks merely because they exist.
 
 ---
 
-## 军规三：Agent 永远无权自行选择开发基线
+## Rule 2 — Respect Architecture Boundaries
 
-任何任务必须明确绑定：
-
-```text
-REPO
-BASE_SHA
-TARGET_BRANCH
-TASK_ID
-```
-
-Agent 不得：
+Implementation must not silently change:
 
 ```text
-search for a suitable branch
-pick latest-looking branch
-pick accepted-looking branch
-pick PASS branch
-pick recovery branch
-pick branch by name
+component ownership
+dependency direction
+public/private boundary
+public contract semantics
+Julia final-judgment responsibility
 ```
 
-唯一合法起点：
+If a task intentionally changes one of these, make the architecture change explicit and Owner-approved before implementation.
 
-```text
-TASK_BASE_SHA == CURRENT_AUTHORIZED_TRUNK_SHA
-```
-
-不匹配立即 STOP。
+Ordinary implementation details do not require architecture adjudication.
 
 ---
 
-## 军规四：分支名称没有任何权威
+## Rule 3 — Stay in Task Scope
 
-以下名字全部不能赋予 authority：
-
-```text
-main
-release
-production
-accepted
-canonical
-recovery
-final
-fixed
-golden
-stable
-```
-
-工程事实只能来自：
+A task states:
 
 ```text
-exact repository
-exact SHA
-exact ancestry
-exact current trunk HEAD
+goal
+repo(s)
+base SHA(s)
+allowed paths
+forbidden paths
+acceptance tests
+expected evidence
 ```
 
-禁止根据 branch 名称推断可信度。
+Modify only what is needed for that task.
+
+Cross-repository implementation is allowed when the product slice genuinely requires it. Cross-repo coordination is not itself an architecture violation.
 
 ---
 
-## 军规五：ACCEPTED 不等于 MERGED
-
-任何：
-
-```text
-PASS
-APPROVED
-ACCEPTED
-TESTS PASSED
-REVIEW COMPLETE
-```
-
-都只代表候选状态。
-
-只有满足：
-
-```text
-candidate SHA
-is ancestor of
-current trunk HEAD
-```
-
-才算完成集成。
-
-否则：
-
-```text
-CANDIDATE_ACCEPTED_NOT_INTEGRATED
-```
-
-不得进入下一任务。
-
----
-
-## 军规六：禁止任何生产 fallback
-
-生产路径必须遵守：
+## Rule 4 — No Hidden Fallback or Synthetic Success
 
 ```text
 required dependency unavailable
-→ typed failure
-→ fail closed
+→ visible failure / missing evidence
 ```
 
-永久禁止：
+Do not silently substitute:
 
 ```text
-new path fails
-→ old path
-
-canonical provider unavailable
-→ legacy provider
-
-real execution fails
-→ mock / fake / stub / synthetic success
-
-new architecture unavailable
-→ historical implementation
+legacy path
+mock
+fake data
+stub success
+historical implementation
 ```
 
-生产 fallback 数量：
-
-```text
-PRODUCTION_FALLBACK_COUNT = 0
-```
-
-发现一个，视为 P0。
+A degraded answer may use remaining real evidence only when the missing evidence remains visible to Julia/user semantics.
 
 ---
 
-## 军规七：历史代码只能是证据，不得成为第二真相
+## Rule 5 — Prove the Result
 
-旧 commit、旧 branch、旧 PR 可以作为：
-
-```text
-REFERENCE
-EVIDENCE
-TEST SOURCE
-POSTMORTEM SOURCE
-```
-
-不得自动成为：
+A candidate passes when:
 
 ```text
-TASK BASE
-CANONICAL BASE
-RECOVERY AUTHORITY
-FALLBACK SOURCE
+scope is respected
+acceptance tests pass
+required evidence is present
+architecture boundaries remain intact
 ```
 
-历史节点需要保存时：
-
-```text
-TAG
-```
-
-而不是长期 branch。
+Merge, release, and deploy are explicit lifecycle actions and are not implied by test/review PASS.
 
 ---
 
-## 军规八：Review 必须包含 Merge Closure
-
-Code Review 不得只检查：
+## Minimal operating model
 
 ```text
-diff
-tests
-architecture
-scope
+Architecture review:
+Does it violate Architecture Constitution Lite?
+
+Code review:
+Does it satisfy the task and tests?
+
+Project review:
+Does it advance the product?
+
+Release review:
+Is this exact build ready to ship?
 ```
 
-还必须检查：
-
-```text
-1. candidate exact SHA
-2. target trunk exact SHA
-3. merge completed
-4. new trunk HEAD
-5. candidate ancestor of trunk HEAD
-6. task branch deleted
-```
-
-Review 没有完成 Merge Closure：
-
-```text
-REVIEW = INCOMPLETE
-```
+No additional governance taxonomy is required unless repeated concrete engineering failures demonstrate a real need.
 
 ---
 
-## 军规九：任何新任务必须从最新主线 HEAD 开始
+## Superseded recovery-era machinery
 
-禁止链式继承旧任务 branch：
-
-```text
-task A branch
-→ task B based on A branch
-→ task C based on B branch
-```
-
-正确方式：
+The following concepts are no longer mandatory for ordinary RD1 engineering:
 
 ```text
-task A
-→ merge trunk
-→ delete
-
-task B
-→ branch from new trunk HEAD
-→ merge trunk
-→ delete
-
-task C
-→ branch from new trunk HEAD
+A/B/C/D Rule11 classification
+Frozen Authority Trace
+CONTROL_PLANE_COMPATIBILITY_VERSION task binding
+CONTROL_PLANE_SHA_OBSERVED task binding
+CURRENT_PHASE task field
+FROZEN_AUTHORITY_BINDING task field
+AGENT_EXECUTION_PERMISSION_MATRIX
+mandatory semantic-atomicity gate fields
+mandatory authority-header/self-check/parser ceremony
 ```
 
-每个任务都重新回到唯一主线。
-
----
-
-## 军规十：任何 Agent 不得通过考古重建“当前真相”
-
-新 Agent 启动后，不应阅读几十条历史 branch 来决定项目状态。
-
-它只需要确认：
-
-```text
-AUTHORIZED_TRUNK
-AUTHORIZED_HEAD_SHA
-TASK_BASE_SHA
-```
-
-如果这些信息不能唯一确定：
-
-```text
-STOP
-```
-
-禁止 Agent：
-
-```text
-guess
-infer
-reconstruct authority from old chats
-infer authority from old PASS
-infer authority from PR comments
-infer authority from branch history
-```
-
-项目当前真相必须在 1 分钟内机械确认。
-
----
-
-## 军规十一：实现永远无权解决架构歧义
-
-任何 architecture、ownership、composition、authority、phase、ABI、dependency direction、public/private boundary 出现混淆、不一致或无法唯一解释时，任何实现、测试、Agent 共识、当前代码形态、candidate 状态、部署现状都不得替架构作出选择。
-
-立即进入：
-
-```text
-ARCHITECTURE_CONFUSION
-→ IMPLEMENTATION = STOP
-→ BRANCH_CREATION = STOP
-→ TASK_DELEGATION = STOP
-→ DESIGN_DISPOSITION = NON-AUTHORITATIVE
-```
-
-这里的 STOP 是 **authority-resolution barrier**，不是永久冻结。只有完成 Frozen Authority Trace 和强制分类后，才能按本军规定义的 A/B/C/D 后续动作恢复、纠正、延期或进入 adjudication。
-
-必须先执行 **Frozen Authority Trace**：
-
-```text
-1. IDENTIFY_GOVERNING_FROZEN_AUTHORITY
-2. APPLY_SCOPE_AWARE_PRECEDENCE
-3. IDENTIFY_IMPLEMENTATION_STATE_UNDER_INVESTIGATION
-4. CLASSIFY_THE_FINDING
-5. ONLY_THEN_DECIDE_NEXT_ACTION
-```
-
-### 强制分类
-
-任何争议必须先机械分类为以下之一：
-
-```text
-A. IMPLEMENTATION_GAP_UNDER_EXISTING_FROZEN_AUTHORITY
-B. IMPLEMENTATION_DEVIATION_FROM_FROZEN_ARCHITECTURE
-C. DEFERRED_PHASE_CONCERN
-D. TRUE_FROZEN_AUTHORITY_CONFLICT_OR_GAP
-```
-
-`IMPLEMENTATION_STATE_UNDER_INVESTIGATION` 可以是：
-
-```text
-CURRENT_MAIN
-CURRENT_CANDIDATE
-DEPLOYED_RUNTIME
-RELEASE_ARTIFACT
-OTHER_EXACTLY_IDENTIFIED_IMPLEMENTATION_STATE
-```
-
-其中：
-
-```text
-A/B/C
-!= ARCHITECTURE_AMBIGUITY
-```
-
-#### A：实现缺口
-
-当 frozen authority 已经给出唯一答案，而被调查实现状态尚未实现它：
-
-```text
-CLASSIFICATION = A
-ARCHITECTURE_AMBIGUITY = NO
-```
-
-允许恢复的唯一后续动作是：
-
-```text
-RETURN TO EXISTING FROZEN AUTHORITY
-→ produce or rebind an exact constitution-compliant task contract
-→ resume implementation only inside that already-authorized architecture/scope
-```
-
-A 不授权新增 architecture、扩大 phase、改变 ownership、ABI 或 dependency direction。
-
-#### B：实现偏离
-
-当被调查实现状态与 frozen architecture 冲突：
-
-```text
-CLASSIFICATION = B
-ARCHITECTURE_AMBIGUITY = NO
-```
-
-允许恢复的唯一后续动作是：
-
-```text
-RETURN TO EXISTING FROZEN AUTHORITY
-→ invalidate the conflicting implementation/design disposition
-→ create or rebind a bounded correction task
-→ resume only after exact scope/base/branch authority is valid
-```
-
-不得以“当前代码已经这样”为理由修改架构去迁就偏离实现。
-
-#### C：后续阶段事项
-
-当问题已经被 frozen plan / phase contract 明确分配到后续阶段：
-
-```text
-CLASSIFICATION = C
-ARCHITECTURE_AMBIGUITY = NO
-CURRENT_PHASE_SCOPE_EXPANSION = FORBIDDEN
-```
-
-后续动作必须是：
-
-```text
-RECORD / DEFER TO GOVERNING FUTURE PHASE
-→ current-phase implementation may resume only if no independent A/B/D blocker remains
-```
-
-C 不得被提升为当前 phase architecture gap。
-
-#### D：真实 frozen-authority conflict / gap
-
-只有：
-
-```text
-D = TRUE_FROZEN_AUTHORITY_CONFLICT_OR_GAP
-```
-
-且在应用现有 frozen authority precedence 后仍无法消解，才允许：
-
-```text
-ARCHITECTURE_AMBIGUITY = YES
-TASK = STOP
-OWNER_ADJUDICATION_REQUIRED = 1
-```
-
-D 期间不得用 implementation proposal、test result 或当前代码形态代替 architecture adjudication。
-
-### 永久禁止的错误推理
-
-```text
-CURRENT_MAIN_ABSENCE
-→ ARCHITECTURE_ABSENCE
-
-IMPLEMENTATION_GAP
-→ ARCHITECTURE_AMBIGUITY
-
-TEST_PASS
-→ ARCHITECTURE_APPROVAL
-
-RUNTIME_BEHAVIOR
-→ ARCHITECTURE_AUTHORITY
-
-CODEX / MIRA / CLAUDE / HUMAN CONSENSUS
-→ ARCHITECTURE_AUTHORITY
-
-IMPLEMENTATION_CONVENIENCE
-→ ARCHITECTURE_CHOICE
-
-HISTORICAL_IMPLEMENTATION
-→ CURRENT_ARCHITECTURE_AUTHORITY
-
-DEFERRED_PHASE_GAP
-→ CURRENT_PHASE_SCOPE_EXPANSION
-```
-
-全部禁止。
-
-### 代码事实的合法地位
-
-代码、测试、source trace、runtime evidence、部署事实只能证明：
-
-```text
-IMPLEMENTATION_STATE
-```
-
-它们必须被拿去与 frozen architecture 比较，而不得反向定义 frozen architecture。
-
-```text
-CODE_FACT
-!= ARCHITECTURE_LAW
-
-TEST_EVIDENCE
-!= ARCHITECTURE_LAW
-
-CURRENT_MAIN
-!= ARCHITECTURE_SOURCE_OF_AUTHORITY
-
-DEPLOYED_RUNTIME
-!= ARCHITECTURE_SOURCE_OF_AUTHORITY
-```
-
-如果实现与冻结架构不一致：
-
-```text
-IMPLEMENTATION_DEVIATION
-```
-
-而不是自动判定：
-
-```text
-ARCHITECTURE_AMBIGUITY
-```
-
-### Owner 也受宪法约束
-
-Owner 拥有本宪法定义范围内的显式 amendment / adjudication authority，但不存在宪法之外的临时例外权。
-
-任何 Owner 指令如果与 frozen constitution / architecture 冲突：
-
-```text
-CONSTITUTION_WINS
-TASK = STOP
-FORMAL_SCOPE_BOUNDED_AMENDMENT_REQUIRED = YES
-```
-
-不得以口头授权、实现便利、紧急修复或测试通过绕过。
-
-### 两种合法的架构变更通道
-
-#### 1. Ambiguity-driven clarification
-
-只有确认存在真实 frozen-authority conflict/gap 后，才允许为了**消解歧义**制定新的架构约束。新增约束必须：
-
-```text
-STATE_EXACT_AMBIGUITY
-STATE_GOVERNING_AUTHORITIES
-STATE_PRECEDENCE_RESULT
-STATE_EXACT_SCOPE
-STATE_WHAT_IS_SUPERSEDED_OR_REFINED
-STATE_WHAT_REMAINS_UNCHANGED
-STATE_REQUIRED_BEHAVIOR
-STATE_FORBIDDEN_BEHAVIOR
-```
-
-#### 2. Intentional scoped architecture amendment
-
-即使现有 frozen authority 本身清晰，也允许因明确批准的 feature / architecture change 主动修改既有边界；但必须通过正式、scope-bounded amendment 流程，而不能伪装成“歧义处理”。
-
-至少必须：
-
-```text
-STATE_CHANGE_INTENT
-STATE_GOVERNING_CURRENT_AUTHORITY
-STATE_EXACT_SCOPE
-STATE_IMPACT_ANALYSIS
-STATE_EXACTLY_WHAT_IS_SUPERSEDED_OR_CHANGED
-STATE_WHAT_REMAINS_UNCHANGED
-REFREEZE_ARCHITECTURE
-REBIND_DOWNSTREAM_TASK_CONTRACTS
-RERUN_REQUIRED_ACCEPTANCE_EVIDENCE
-```
-
-在 amendment 正式冻结前：
-
-```text
-OLD_FROZEN_AUTHORITY_REMAINS_IN_FORCE
-IMPLEMENTATION_AGAINST_PROPOSED_NEW_BOUNDARY = FORBIDDEN
-```
-
-### 冻结顺序
-
-Ambiguity-driven clarification：
-
-```text
-architecture confusion
-→ authority trace
-→ classification D
-→ constitutional clarification
-→ freeze
-→ exact implementation contract
-→ code
-```
-
-Intentional scoped architecture amendment：
-
-```text
-explicit change intent
-→ impact analysis
-→ scope-bounded amendment
-→ refreeze
-→ rebind exact implementation contract
-→ code
-```
-
-永久禁止：
-
-```text
-architecture confusion
-→ implementation proposal
-→ tests pass
-→ retroactive architecture justification
-```
-
-核心原则：
-
-> **IMPLEMENTATION MUST NEVER RESOLVE ARCHITECTURE AMBIGUITY.**
->
-> **ARCHITECTURE CONSTRAINTS MAY RESOLVE TRUE AUTHORITY GAPS; THEY MUST NOT BE INVENTED TO COVER IMPLEMENTATION GAPS.**
->
-> **CLEAR FROZEN ARCHITECTURE MAY CHANGE ONLY THROUGH AN EXPLICIT, SCOPE-BOUNDED, CONSTITUTION-COMPLIANT AMENDMENT — NEVER THROUGH IMPLEMENTATION DRIFT.**
-
----
-
-# 一票否决事项
-
-出现以下任何一种情况，任务立即终止：
-
-```text
-SECOND_LONG_LIVED_DEVELOPMENT_BRANCH
-WRONG_BASE_SHA
-UNMERGED_ACCEPTED_CANDIDATE
-OLD_BRANCH_USED_AS_NEW_TASK_BASE
-PRODUCTION_FALLBACK
-SYNTHETIC_SUCCESS
-BRANCH_NAME_USED_AS_AUTHORITY
-NEXT_TASK_STARTED_BEFORE_PREVIOUS_MERGE_CLOSURE
-REJECTED_BRANCH_LEFT_ACTIVE
-AGENT_SELF_SELECTED_BASE
-IMPLEMENTATION_USED_TO_RESOLVE_ARCHITECTURE_AMBIGUITY
-CURRENT_MAIN_FACT_PROMOTED_TO_ARCHITECTURE_AUTHORITY
-DEFERRED_PHASE_CONCERN_PROMOTED_TO_CURRENT_ARCHITECTURE_GAP
-OWNER_INSTRUCTION_USED_AS_UNSCOPED_CONSTITUTION_OVERRIDE
-```
-
-处置统一为：
-
-```text
-STOP
-INVALIDATE CANDIDATE OR DESIGN DISPOSITION
-CLOSE / DELETE TASK BRANCH IF A TASK BRANCH EXISTS
-RETURN TO FROZEN AUTHORITY
-RE-CLASSIFY BEFORE ANY CODE MUTATION
-```
-
-纯设计审计如果尚未创建 task branch，则 branch cleanup 不适用；一旦 task branch 已存在，被 reject / invalidated 后必须按军规二关闭并删除，不以“尚未写代码”为例外。
-
----
-
-# 仓库最终应长期保持的形态
-
-正常状态：
-
-```text
-main
-```
-
-开发期间最多：
-
-```text
-main
-├── task/ABC-123
-├── task/ABC-124
-└── task/ABC-125
-```
-
-任务结束后重新回到：
-
-```text
-main
-```
-
-不允许长期变成多条并行 RD1 development lineage。
-
-`mira/*` 属于受保护研究线，不参与 RD1 development authority，也不计入上述 RD1 长期开发主线数量。
-
----
-
-# Agent Task Card 第一条强制条款
-
-任何 Agent / Codex / Claude / Mira / 自动化任务卡第一条必须写：
-
-> **违反 `DEVELOPMENT_CONSTITUTION.md` 任一军规，立即 STOP，不得自行解释、绕过、降级、创建例外或继续实现。**
-
-如任务卡与本宪法冲突：
-
-```text
-CONSTITUTION_WINS
-TASK = STOP
-OWNER_ADJUDICATION_REQUIRED = 1
-```
-
----
-
-# 永久原则
-
-```text
-ONE TRUNK
-ONE CURRENT HEAD
-ONE TASK BASE
-NO FALLBACK
-MERGE OR DELETE
-ARCHITECTURE BEFORE IMPLEMENTATION
-```
-
-任何工程流程如果让开发者或 Agent 再次面对“到底哪个分支才是真的”或“让代码替架构选答案”这个问题：
-
-> **流程本身已经失败。**
-
-项目不依赖 Agent 的记忆来保持正确。
-
-项目必须依靠仓库结构与冻结 authority 本身，使错误选择变得不可能。
+Historical governance documents remain repository history/reference. They are not active day-to-day engineering law unless explicitly reactivated by an Owner-approved change.
