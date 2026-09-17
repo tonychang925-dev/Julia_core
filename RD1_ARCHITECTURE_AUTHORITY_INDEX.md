@@ -163,6 +163,7 @@ READ_INDEX
 → RULE11_CLASSIFICATION
 → PHASE_CHECK
 → EXACT_CONTRACT
+→ AGENT_EXECUTION_PERMISSION_MATRIX
 ```
 
 The index is a routing/control artifact, not a substitute for reading governing source clauses.
@@ -180,12 +181,13 @@ The index may never be used to invent missing architecture.
 
 ## 9. Mandatory control-plane companions
 
-Every task author and reviewer must use:
+Every task author, implementation Agent, and reviewer must use:
 
 ```text
 docs/governance/RD1_AGENT_TASK_AUTHORITY_HEADER_TEMPLATE.md
 docs/governance/RD1_TASK_CARD_AUTHOR_PRE_SUBMISSION_SELF_CHECK.md
 docs/governance/RD1_TASK_CARD_CI_PARSER_GATE.md
+docs/governance/RD1_AGENT_EXECUTION_PERMISSION_MATRIX.md
 docs/governance/RD1_ARCHITECTURE_AUTHORITY_PRECHECK.md
 ```
 
@@ -196,6 +198,7 @@ Mandatory lifecycle:
 ```text
 TASK_CARD_DRAFT
 → AUTHOR_SELF_CHECK
+→ AGENT_EXECUTION_PERMISSION_MATRIX
 → MACHINE_VERIFIABLE_SELF_CHECK_EVIDENCE
 → SELF_CHECK_PASS
 → CI / PARSER GATE
@@ -208,12 +211,14 @@ Hard law:
 
 ```text
 NO_SELF_CHECK_EVIDENCE = NO_TASK_SUBMISSION
+NO_PERMISSION_MATRIX = NO_TASK_SUBMISSION
+ANY_PERMISSION_NOT_EXPLICITLY_GRANTED = DENY
 SELF_CHECK_PASS != OWNER_APPROVAL
 SELF_CHECK_PASS != IMPLEMENTATION_AUTHORIZATION
 TASK_CARD_GOVERNANCE_GATE_FAIL = NO_MERGE_WHILE_REQUIRED_CHECK_IS_ENFORCED
 ```
 
-The parser gate runs inside the already-required `NO_CRITICAL_FALLBACK_GATE` GitHub check. It validates structure/self-check evidence, residual decision counts, cross-boundary semantic mapping, and declared task-base SHA against the current `main` SHA of the declared repository.
+The parser gate runs inside the already-required `NO_CRITICAL_FALLBACK_GATE` GitHub check. It validates structure/self-check evidence, permission-matrix completeness, residual decision counts, cross-boundary semantic mapping, and declared task-base SHA against the current `main` SHA of the declared repository.
 
 ```text
 PARSER = GOVERNANCE_ENFORCER
@@ -230,15 +235,17 @@ NO_CURRENT_IMPLEMENTATION != NO_ARCHITECTURE
 NO_PACKAGE_RESOLUTION != NO_COMPOSITION_TOPOLOGY
 CROSS_BOUNDARY_SEMANTIC_MAPPING = FROZEN_BEFORE_CODING
 AGENT_CROSS_BOUNDARY_SEMANTIC_FREEDOM = NO
+ANY_PERMISSION_NOT_EXPLICITLY_GRANTED = DENY
 ```
 
-When an Agent cannot resolve a frozen answer:
+When an Agent cannot resolve a frozen answer or permission:
 
 ```text
 SEARCH
 TRACE
 CLASSIFY
-STOP_IF_D
+CHECK_PERMISSION_MATRIX
+STOP_IF_D_OR_DENIED
 ```
 
 Never:
@@ -253,4 +260,5 @@ INVENT_FAILURE_MAPPING
 INVENT_PROVENANCE_MAPPING
 INVENT_LIFECYCLE_MAPPING
 INVENT_AUTHORIZATION_MEANING
+INFER_PERMISSION_FROM_SILENCE
 ```

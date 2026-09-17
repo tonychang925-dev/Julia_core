@@ -1,29 +1,32 @@
 # RD1 Task Card CI / Parser Gate
 
 **Status:** ACTIVE CONTROL PLANE  
-**Purpose:** convert task-card self-check from process-only discipline into machine-enforced pull-request gating.
+**Purpose:** convert task-card self-check and execution permissions into machine-enforced pull-request gating.
 
 ## 1. Enforcement path
 
 ```text
 TASK CARD / TASK-CARD PR
 → parser
-→ mandatory fields present?
+→ mandatory authority fields present?
 → author self-check evidence present?
+→ execution permission matrix present?
+→ default-deny permission model valid?
 → residual architecture decisions == 0?
 → residual contract-semantic decisions == 0?
 → cross-boundary mapping complete when applicable?
+→ task identity == permission identity?
 → BASE_SHA == declared repo current main?
 → PASS / FAIL
 ```
 
-The parser is:
+Parser:
 
 ```text
 tools/task_card_governance_gate.py
 ```
 
-Its sabotage/unit coverage is:
+Sabotage/unit coverage:
 
 ```text
 tests/governance/test_task_card_governance_gate.py
@@ -31,13 +34,13 @@ tests/governance/test_task_card_governance_gate.py
 
 ## 2. Merge enforcement
 
-The parser is executed inside the repository's already-required GitHub check:
+The parser runs inside the repository's required GitHub check:
 
 ```text
 NO_CRITICAL_FALLBACK_GATE
 ```
 
-Therefore, while that required check remains required by repository rules:
+Therefore, while that repository rule remains required:
 
 ```text
 TASK_CARD_GOVERNANCE_GATE_FAIL
@@ -45,54 +48,11 @@ TASK_CARD_GOVERNANCE_GATE_FAIL
 → PR CANNOT MERGE
 ```
 
-This avoids creating a second unprotected advisory workflow.
+## 3. Mandatory task/self-check fields
 
-## 3. Mechanical checks
+The parser requires the active authority header and completed `TASK_CARD_AUTHOR_SELF_CHECK`, including zero residual architecture and contract-semantic decisions.
 
-The gate checks task cards detected by filename/content and task-card submissions embedded in PR bodies.
-
-Mandatory task fields:
-
-```text
-FROZEN_AUTHORITY_TRACE
-RULE11_CLASSIFICATION
-CURRENT_PHASE
-TARGET_REQUIREMENT
-DEFERRED_FINDINGS
-TASK_ID
-REPO
-TARGET_BRANCH
-BASE_SHA
-AUTHORIZED_PATHS
-FORBIDDEN_PATHS
-REQUIRED_BEHAVIOR
-FORBIDDEN_BEHAVIOR
-ACCEPTANCE_EVIDENCE
-```
-
-Mandatory author self-check evidence includes:
-
-```text
-TASK_CARD_AUTHOR_SELF_CHECK
-AUTHORITY_SOURCE_FILES_CHECKED
-CURRENT_MAIN_SHAS
-MANDATORY_TASK_FIELDS_PRESENT
-AUTHORITY_IDENTITY
-MANDATORY_HEADER
-RULE11_CLASSIFICATION_CHECK
-PHASE_SCOPE_CHECK
-RESIDUAL_DECISION_AUDIT
-RESIDUAL_ARCHITECTURE_DECISIONS
-RESIDUAL_CONTRACT_SEMANTIC_DECISIONS
-CROSS_BOUNDARY_SEMANTICS
-CURRENT_CODE_COMPATIBILITY
-ACCEPTANCE_EVIDENCE_CHECK
-NO_AGENT_ARCHITECTURE_DISCRETION
-SELF_CHECK_RESULT
-READY_FOR_SUBMISSION
-```
-
-Legal submission requires mechanically:
+Legal submission requires:
 
 ```text
 SELF_CHECK_RESULT = PASS
@@ -101,7 +61,73 @@ RESIDUAL_ARCHITECTURE_DECISIONS = 0
 RESIDUAL_CONTRACT_SEMANTIC_DECISIONS = 0
 ```
 
-## 4. Cross-boundary hard gate
+## 4. Agent Execution Permission Matrix hard gate
+
+Every coding task card must contain:
+
+```text
+AGENT_EXECUTION_PERMISSION_MATRIX
+```
+
+with at least:
+
+```text
+PERMISSION_MODEL
+PERMISSION_REPOSITORY
+PERMISSION_BASE_SHA
+PERMISSION_TARGET_BRANCH
+READ_SCOPE
+WRITE_SCOPE
+ARCHITECTURE_MUTATION
+PUBLIC_CONTRACT_MUTATION
+CROSS_BOUNDARY_SEMANTIC_DECISION
+DEPENDENCY_MUTATION
+TEST_CREATION
+BRANCH_CREATION
+COMMIT
+PR_CREATION
+MERGE
+RELEASE
+DEPLOY
+PRODUCTION_MUTATION
+FALLBACK
+SYNTHETIC_SUCCESS
+FUTURE_PHASE_SCOPE
+```
+
+Required default-deny values:
+
+```text
+PERMISSION_MODEL = DEFAULT_DENY
+ARCHITECTURE_MUTATION = DENY
+CROSS_BOUNDARY_SEMANTIC_DECISION = DENY
+TEST_CREATION = BOUNDED_TO_ACCEPTANCE_EVIDENCE
+BRANCH_CREATION = EXACT_TARGET_ONLY
+COMMIT = TASK_BRANCH_ONLY
+MERGE = DENY
+RELEASE = DENY
+DEPLOY = DENY
+PRODUCTION_MUTATION = DENY
+FALLBACK = DENY
+SYNTHETIC_SUCCESS = DENY
+FUTURE_PHASE_SCOPE = DENY
+```
+
+Identity must match mechanically:
+
+```text
+PERMISSION_REPOSITORY == REPO
+PERMISSION_BASE_SHA == BASE_SHA
+PERMISSION_TARGET_BRANCH == TARGET_BRANCH
+```
+
+Permanent law:
+
+```text
+ANY_PERMISSION_NOT_EXPLICITLY_GRANTED = DENY
+```
+
+## 5. Cross-boundary hard gate
 
 For adapter / bridge / translator / proxy / serializer / provider-wrapper / boundary-conversion work, the parser also requires:
 
@@ -116,30 +142,29 @@ AUTHORITY_TRANSFER
 MALFORMED_INPUT_BEHAVIOR
 UNKNOWN_VALUE_BEHAVIOR
 LIFECYCLE_OWNERSHIP
-
 CROSS_BOUNDARY_SEMANTICS = PASS
 ```
 
-Missing mapping is a machine failure, not an implementation-Agent design opportunity.
+Missing mapping is a machine failure, not implementation-Agent design freedom.
 
-## 5. Exact SHA verification
+## 6. Exact SHA verification
 
-In PR CI the parser uses GitHub API identity for the declared `REPO` and requires:
+In PR CI the parser requires:
 
 ```text
 BASE_SHA == REPO/main current SHA
 ```
 
-Failure is:
+Failure:
 
 ```text
 BASE_DRIFT
 → GATE FAIL
 ```
 
-The parser validates engineering identity only. It does not promote current code into architecture authority.
+Current code/SHA identity remains engineering evidence only; it is not architecture authority.
 
-## 6. Scope and non-authority
+## 7. Scope and non-authority
 
 ```text
 PARSER = GOVERNANCE ENFORCER
@@ -149,4 +174,4 @@ PARSER != IMPLEMENTATION AUTHORIZATION
 PARSER != MERGE AUTHORIZATION BY ITSELF
 ```
 
-Frozen source documents remain authoritative. The parser only rejects submissions that fail the active control-plane requirements.
+Frozen source documents remain authoritative. The parser rejects submissions that fail active control-plane requirements; it does not design architecture.

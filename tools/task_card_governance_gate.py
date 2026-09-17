@@ -39,6 +39,22 @@ MANDATORY_SELF_CHECK_FIELDS = (
     "SELF_CHECK_RESULT", "READY_FOR_SUBMISSION",
 )
 
+MANDATORY_PERMISSION_FIELDS = (
+    "PERMISSION_MODEL", "PERMISSION_REPOSITORY", "PERMISSION_BASE_SHA",
+    "PERMISSION_TARGET_BRANCH", "READ_SCOPE", "WRITE_SCOPE",
+    "ARCHITECTURE_MUTATION", "PUBLIC_CONTRACT_MUTATION",
+    "CROSS_BOUNDARY_SEMANTIC_DECISION", "DEPENDENCY_MUTATION",
+    "TEST_CREATION", "BRANCH_CREATION", "COMMIT", "PR_CREATION",
+    "MERGE", "RELEASE", "DEPLOY", "PRODUCTION_MUTATION",
+    "FALLBACK", "SYNTHETIC_SUCCESS", "FUTURE_PHASE_SCOPE",
+)
+
+MANDATORY_DENY_PERMISSION_FIELDS = (
+    "ARCHITECTURE_MUTATION", "CROSS_BOUNDARY_SEMANTIC_DECISION",
+    "MERGE", "RELEASE", "DEPLOY", "PRODUCTION_MUTATION",
+    "FALLBACK", "SYNTHETIC_SUCCESS", "FUTURE_PHASE_SCOPE",
+)
+
 CROSS_BOUNDARY_TOKENS = (
     "adapter", "bridge", "translator", "proxy", "serializer",
     "provider wrapper", "public boundary conversion", "cross-repo contract conversion",
@@ -55,6 +71,7 @@ CONTROL_PLANE_EXCLUSIONS = {
     "docs/governance/RD1_TASK_CARD_AUTHOR_PRE_SUBMISSION_SELF_CHECK.md",
     "docs/governance/RD1_ARCHITECTURE_AUTHORITY_PRECHECK.md",
     "docs/governance/RD1_TASK_CARD_CI_PARSER_GATE.md",
+    "docs/governance/RD1_AGENT_EXECUTION_PERMISSION_MATRIX.md",
 }
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -69,7 +86,9 @@ def _field_value(text: str, key: str) -> str | None:
 
 
 def _has_field(text: str, key: str) -> bool:
-    return _field_value(text, key) is not None or re.search(rf"(?m)^\s*{re.escape(key)}\s*$", text) is not None
+    return _field_value(text, key) is not None or re.search(
+        rf"(?m)^\s*{re.escape(key)}\s*$", text
+    ) is not None
 
 
 def looks_like_task_card(path: str, text: str) -> bool:
@@ -101,26 +120,77 @@ def _int_value(text: str, key: str) -> int | None:
 
 def validate_task_card(text: str, *, path: str = "<memory>") -> list[str]:
     errors: list[str] = []
+
     missing_task = [key for key in MANDATORY_TASK_FIELDS if not _has_field(text, key)]
     if missing_task:
         errors.append("missing mandatory task fields: " + ", ".join(missing_task))
+
     if "TASK_CARD_AUTHOR_SELF_CHECK" not in text:
         errors.append("missing TASK_CARD_AUTHOR_SELF_CHECK block")
+
     missing_self = [key for key in MANDATORY_SELF_CHECK_FIELDS if not _has_field(text, key)]
     if missing_self:
         errors.append("missing self-check fields: " + ", ".join(missing_self))
 
+    if "AGENT_EXECUTION_PERMISSION_MATRIX" not in text:
+        errors.append("missing AGENT_EXECUTION_PERMISSION_MATRIX block")
+
+    missing_permissions = [key for key in MANDATORY_PERMISSION_FIELDS if not _has_field(text, key)]
+    if missing_permissions:
+        errors.append("missing permission-matrix fields: " + ", ".join(missing_permissions))
+
     expected_values = {
-        "AUTHORITY_IDENTITY": "PASS", "MANDATORY_HEADER": "PASS",
-        "RULE11_CLASSIFICATION_CHECK": "PASS", "PHASE_SCOPE_CHECK": "PASS",
-        "RESIDUAL_DECISION_AUDIT": "PASS", "CURRENT_CODE_COMPATIBILITY": "PASS",
-        "ACCEPTANCE_EVIDENCE_CHECK": "PASS", "NO_AGENT_ARCHITECTURE_DISCRETION": "PASS",
-        "SELF_CHECK_RESULT": "PASS", "READY_FOR_SUBMISSION": "YES",
+        "AUTHORITY_IDENTITY": "PASS",
+        "MANDATORY_HEADER": "PASS",
+        "RULE11_CLASSIFICATION_CHECK": "PASS",
+        "PHASE_SCOPE_CHECK": "PASS",
+        "RESIDUAL_DECISION_AUDIT": "PASS",
+        "CURRENT_CODE_COMPATIBILITY": "PASS",
+        "ACCEPTANCE_EVIDENCE_CHECK": "PASS",
+        "NO_AGENT_ARCHITECTURE_DISCRETION": "PASS",
+        "SELF_CHECK_RESULT": "PASS",
+        "READY_FOR_SUBMISSION": "YES",
+        "PERMISSION_MODEL": "DEFAULT_DENY",
+        "TEST_CREATION": "BOUNDED_TO_ACCEPTANCE_EVIDENCE",
+        "BRANCH_CREATION": "EXACT_TARGET_ONLY",
+        "COMMIT": "TASK_BRANCH_ONLY",
     }
     for key, expected in expected_values.items():
         value = _field_value(text, key)
         if value is not None and value.upper() != expected:
             errors.append(f"{key} must be {expected}, got {value!r}")
+
+    for key in MANDATORY_DENY_PERMISSION_FIELDS:
+        value = _field_value(text, key)
+        if value is not None and value.upper() != "DENY":
+            errors.append(f"{key} must be DENY, got {value!r}")
+
+    public_contract = _field_value(text, "PUBLIC_CONTRACT_MUTATION")
+    if public_contract is not None and not (
+        public_contract.upper() == "DENY" or public_contract.startswith("EXPLICITLY_AUTHORIZED:")
+    ):
+        errors.append("PUBLIC_CONTRACT_MUTATION must be DENY or EXPLICITLY_AUTHORIZED:<scope>")
+
+    dependency = _field_value(text, "DEPENDENCY_MUTATION")
+    if dependency is not None and not (
+        dependency.upper() == "DENY" or dependency.startswith("EXPLICITLY_AUTHORIZED:")
+    ):
+        errors.append("DEPENDENCY_MUTATION must be DENY or EXPLICITLY_AUTHORIZED:<scope>")
+
+    pr_creation = _field_value(text, "PR_CREATION")
+    if pr_creation is not None and pr_creation.upper() not in {"ALLOW", "DENY"}:
+        errors.append("PR_CREATION must be ALLOW or DENY")
+
+    permission_identity_pairs = (
+        ("PERMISSION_REPOSITORY", "REPO"),
+        ("PERMISSION_BASE_SHA", "BASE_SHA"),
+        ("PERMISSION_TARGET_BRANCH", "TARGET_BRANCH"),
+    )
+    for permission_key, task_key in permission_identity_pairs:
+        permission_value = _field_value(text, permission_key)
+        task_value = _field_value(text, task_key)
+        if permission_value is not None and task_value is not None and permission_value != task_value:
+            errors.append(f"{permission_key} must exactly equal {task_key}")
 
     for key in ("RESIDUAL_ARCHITECTURE_DECISIONS", "RESIDUAL_CONTRACT_SEMANTIC_DECISIONS"):
         value = _int_value(text, key)
@@ -148,7 +218,9 @@ def validate_task_card(text: str, *, path: str = "<memory>") -> list[str]:
         expected = len(MANDATORY_TASK_FIELDS)
         m = re.match(r"\s*(\d+)\s*/\s*(\d+)\s*$", mandatory_count)
         if not m or int(m.group(1)) != expected or int(m.group(2)) != expected:
-            errors.append(f"MANDATORY_TASK_FIELDS_PRESENT must be {expected}/{expected}, got {mandatory_count!r}")
+            errors.append(
+                f"MANDATORY_TASK_FIELDS_PRESENT must be {expected}/{expected}, got {mandatory_count!r}"
+            )
 
     return [f"{path}: {error}" for error in errors]
 
@@ -182,7 +254,12 @@ def validate_remote_base(text: str, *, token: str | None) -> list[str]:
 
 
 def changed_files(base_ref: str) -> list[str]:
-    proc = subprocess.run(["git", "diff", "--name-only", f"{base_ref}...HEAD"], check=True, text=True, capture_output=True)
+    proc = subprocess.run(
+        ["git", "diff", "--name-only", f"{base_ref}...HEAD"],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
     return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
 
 
@@ -234,7 +311,11 @@ def main() -> int:
     paths = list(args.paths)
     if args.base_ref:
         paths.extend(changed_files(args.base_ref))
-    result = validate_paths(dict.fromkeys(paths), verify_remote=args.verify_remote_base, token=os.getenv("GITHUB_TOKEN"))
+    result = validate_paths(
+        dict.fromkeys(paths),
+        verify_remote=args.verify_remote_base,
+        token=os.getenv("GITHUB_TOKEN"),
+    )
     result["errors"].extend(validate_pr_body(args.event_path))
     result["status"] = "PASS" if not result["errors"] else "FAIL"
 

@@ -11,6 +11,56 @@ mod = importlib.util.module_from_spec(spec)
 assert spec and spec.loader
 spec.loader.exec_module(mod)
 
+BASE = "7c0f34f929d14cc9a9b8d4b638d9b9ad4825e183"
+
+
+def permission_matrix() -> str:
+    return f"""
+AGENT_EXECUTION_PERMISSION_MATRIX
+PERMISSION_MODEL
+= DEFAULT_DENY
+PERMISSION_REPOSITORY
+= tonychang925-dev/Julia_core
+PERMISSION_BASE_SHA
+= {BASE}
+PERMISSION_TARGET_BRANCH
+= task/test-01
+READ_SCOPE
+= repository source needed for authorized task
+WRITE_SCOPE
+= tools/example.py
+ARCHITECTURE_MUTATION
+= DENY
+PUBLIC_CONTRACT_MUTATION
+= DENY
+CROSS_BOUNDARY_SEMANTIC_DECISION
+= DENY
+DEPENDENCY_MUTATION
+= DENY
+TEST_CREATION
+= BOUNDED_TO_ACCEPTANCE_EVIDENCE
+BRANCH_CREATION
+= EXACT_TARGET_ONLY
+COMMIT
+= TASK_BRANCH_ONLY
+PR_CREATION
+= ALLOW
+MERGE
+= DENY
+RELEASE
+= DENY
+DEPLOY
+= DENY
+PRODUCTION_MUTATION
+= DENY
+FALLBACK
+= DENY
+SYNTHETIC_SUCCESS
+= DENY
+FUTURE_PHASE_SCOPE
+= DENY
+"""
+
 
 def valid_card(*, cross_boundary: bool = False) -> str:
     cross_value = "PASS" if cross_boundary else "N/A"
@@ -32,7 +82,7 @@ REPO
 TARGET_BRANCH
 = task/test-01
 BASE_SHA
-= 7534f233a79e443ed05de4cbf6cbaaa02d22d85b
+= {BASE}
 AUTHORIZED_PATHS
 = tools/example.py
 FORBIDDEN_PATHS
@@ -43,7 +93,7 @@ FORBIDDEN_BEHAVIOR
 = no scope expansion
 ACCEPTANCE_EVIDENCE
 = exact candidate SHA + focused tests
-
+{permission_matrix()}
 TASK_CARD_AUTHOR_SELF_CHECK
 AUTHOR_ROLE
 = Mira
@@ -54,7 +104,7 @@ TASK_CARD_VERSION
 AUTHORITY_SOURCE_FILES_CHECKED
 = DEVELOPMENT_CONSTITUTION.md
 CURRENT_MAIN_SHAS
-= Julia_core=7534f233a79e443ed05de4cbf6cbaaa02d22d85b
+= Julia_core={BASE}
 MANDATORY_TASK_FIELDS_PRESENT
 = 14/14
 AUTHORIZED_PATH_COUNT
@@ -116,56 +166,31 @@ LIFECYCLE_OWNERSHIP
 
 
 class TaskCardGovernanceGateTests(unittest.TestCase):
-    def test_valid_non_boundary_card_passes(self):
-        self.assertEqual(mod.validate_task_card(valid_card()), [])
-
+    def test_valid_non_boundary_card_passes(self): self.assertEqual(mod.validate_task_card(valid_card()), [])
     def test_missing_self_check_fails(self):
-        text = valid_card().replace("TASK_CARD_AUTHOR_SELF_CHECK", "")
-        errors = mod.validate_task_card(text)
-        self.assertTrue(any("missing TASK_CARD_AUTHOR_SELF_CHECK" in e for e in errors))
-
+        errors=mod.validate_task_card(valid_card().replace("TASK_CARD_AUTHOR_SELF_CHECK", "")); self.assertTrue(any("missing TASK_CARD_AUTHOR_SELF_CHECK" in e for e in errors))
+    def test_missing_permission_matrix_fails(self):
+        text=valid_card().replace(permission_matrix(), ""); errors=mod.validate_task_card(text); self.assertTrue(any("missing AGENT_EXECUTION_PERMISSION_MATRIX" in e for e in errors))
+    def test_architecture_mutation_cannot_be_allowed(self):
+        text=valid_card().replace("ARCHITECTURE_MUTATION\n= DENY","ARCHITECTURE_MUTATION\n= ALLOW"); errors=mod.validate_task_card(text); self.assertTrue(any("ARCHITECTURE_MUTATION must be DENY" in e for e in errors))
+    def test_merge_permission_cannot_be_granted(self):
+        text=valid_card().replace("MERGE\n= DENY","MERGE\n= ALLOW"); errors=mod.validate_task_card(text); self.assertTrue(any("MERGE must be DENY" in e for e in errors))
+    def test_permission_identity_must_match_task_identity(self):
+        text=valid_card().replace(f"PERMISSION_BASE_SHA\n= {BASE}","PERMISSION_BASE_SHA\n= " + "0"*40); errors=mod.validate_task_card(text); self.assertTrue(any("PERMISSION_BASE_SHA must exactly equal BASE_SHA" in e for e in errors))
+    def test_default_deny_is_required(self):
+        text=valid_card().replace("PERMISSION_MODEL\n= DEFAULT_DENY","PERMISSION_MODEL\n= ALLOW_UNLESS_DENIED"); errors=mod.validate_task_card(text); self.assertTrue(any("PERMISSION_MODEL must be DEFAULT_DENY" in e for e in errors))
     def test_residual_semantic_decision_fails(self):
-        text = valid_card().replace(
-            "RESIDUAL_CONTRACT_SEMANTIC_DECISIONS\n= 0",
-            "RESIDUAL_CONTRACT_SEMANTIC_DECISIONS\n= 1",
-        )
-        errors = mod.validate_task_card(text)
-        self.assertTrue(any("RESIDUAL_CONTRACT_SEMANTIC_DECISIONS must be 0" in e for e in errors))
-
+        text=valid_card().replace("RESIDUAL_CONTRACT_SEMANTIC_DECISIONS\n= 0","RESIDUAL_CONTRACT_SEMANTIC_DECISIONS\n= 1"); errors=mod.validate_task_card(text); self.assertTrue(any("RESIDUAL_CONTRACT_SEMANTIC_DECISIONS must be 0" in e for e in errors))
     def test_invalid_rule11_token_fails(self):
-        text = valid_card().replace("RULE11_CLASSIFICATION\n= A", "RULE11_CLASSIFICATION\n= AUTHORITY_A")
-        errors = mod.validate_task_card(text)
-        self.assertTrue(any("illegal value" in e for e in errors))
-
+        text=valid_card().replace("RULE11_CLASSIFICATION\n= A","RULE11_CLASSIFICATION\n= AUTHORITY_A"); errors=mod.validate_task_card(text); self.assertTrue(any("illegal value" in e for e in errors))
     def test_cross_boundary_card_requires_mappings(self):
-        text = valid_card().replace("CROSS_BOUNDARY_SEMANTICS\n= N/A", "CROSS_BOUNDARY_SEMANTICS\n= PASS") + "\nadapter\n"
-        errors = mod.validate_task_card(text)
-        self.assertTrue(any("cross-boundary task missing frozen mappings" in e for e in errors))
-
-    def test_cross_boundary_card_passes_when_complete(self):
-        self.assertEqual(mod.validate_task_card(valid_card(cross_boundary=True)), [])
-
+        text=valid_card().replace("CROSS_BOUNDARY_SEMANTICS\n= N/A","CROSS_BOUNDARY_SEMANTICS\n= PASS")+"\nadapter\n"; errors=mod.validate_task_card(text); self.assertTrue(any("cross-boundary task missing frozen mappings" in e for e in errors))
+    def test_cross_boundary_card_passes_when_complete(self): self.assertEqual(mod.validate_task_card(valid_card(cross_boundary=True)), [])
     def test_base_sha_must_be_exact(self):
-        text = valid_card().replace(
-            "BASE_SHA\n= 7534f233a79e443ed05de4cbf6cbaaa02d22d85b",
-            "BASE_SHA\n= main",
-        )
-        errors = mod.validate_task_card(text)
-        self.assertTrue(any("BASE_SHA must be an exact 40-hex SHA" in e for e in errors))
-
+        text=valid_card().replace(f"BASE_SHA\n= {BASE}","BASE_SHA\n= main",1); errors=mod.validate_task_card(text); self.assertTrue(any("BASE_SHA must be an exact 40-hex SHA" in e for e in errors))
     def test_author_pass_claim_cannot_hide_failure(self):
-        text = valid_card().replace("PHASE_SCOPE_CHECK\n= PASS", "PHASE_SCOPE_CHECK\n= FAIL")
-        errors = mod.validate_task_card(text)
-        self.assertTrue(any("PHASE_SCOPE_CHECK must be PASS" in e for e in errors))
-
+        text=valid_card().replace("PHASE_SCOPE_CHECK\n= PASS","PHASE_SCOPE_CHECK\n= FAIL"); errors=mod.validate_task_card(text); self.assertTrue(any("PHASE_SCOPE_CHECK must be PASS" in e for e in errors))
     def test_control_plane_template_is_not_misclassified_as_task_card(self):
-        self.assertFalse(
-            mod.looks_like_task_card(
-                "docs/governance/RD1_TASK_CARD_AUTHOR_PRE_SUBMISSION_SELF_CHECK.md",
-                "TASK_CARD_AUTHOR_SELF_CHECK\nTASK_ID\nBASE_SHA\nREPO",
-            )
-        )
+        self.assertFalse(mod.looks_like_task_card("docs/governance/RD1_AGENT_EXECUTION_PERMISSION_MATRIX.md","TASK_CARD_AUTHOR_SELF_CHECK\nTASK_ID\nBASE_SHA\nREPO"))
 
-
-if __name__ == "__main__":
-    unittest.main()
+if __name__ == "__main__": unittest.main()
