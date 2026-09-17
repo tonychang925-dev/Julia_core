@@ -2,8 +2,8 @@
 """Mechanical RD1 task-card governance gate.
 
 This gate enforces the active control plane before a task card may advance.
-It validates task-card structure/self-check evidence and, in CI, verifies the
-bound BASE_SHA against the current main SHA of the declared REPO.
+It validates task-card structure/self-check evidence, Rule 12 architecture-
+completion declarations, permission boundaries and, in CI, the bound BASE_SHA.
 
 Architecture remains defined by frozen sources; this parser only enforces
 required governance evidence and never invents architecture.
@@ -28,11 +28,21 @@ MANDATORY_TASK_FIELDS = (
     "REQUIRED_BEHAVIOR", "FORBIDDEN_BEHAVIOR", "ACCEPTANCE_EVIDENCE",
 )
 
+RULE12_ZERO_FIELDS = (
+    "TASK_AUTHOR_NEW_ARCHITECTURE_DECISIONS",
+    "NEW_OWNER_COUNT", "NEW_DOMAIN_COUNT", "NEW_COMPOSITION_ROOT_COUNT",
+    "NEW_BINDING_AUTHORITY_COUNT", "NEW_PACKAGE_BOUNDARY_COUNT",
+    "NEW_DEPENDENCY_DIRECTION_COUNT", "NEW_RUNTIME_AUTHORITY_COUNT",
+    "NEW_TRANSPORT_COUNT",
+)
+
 MANDATORY_SELF_CHECK_FIELDS = (
     "AUTHOR_ROLE", "TASK_ID", "TASK_CARD_VERSION", "AUTHORITY_SOURCE_FILES_CHECKED",
     "CURRENT_MAIN_SHAS", "MANDATORY_TASK_FIELDS_PRESENT", "AUTHORIZED_PATH_COUNT",
     "DEFERRED_FINDING_COUNT", "AUTHORITY_IDENTITY", "MANDATORY_HEADER",
-    "RULE11_CLASSIFICATION_CHECK", "PHASE_SCOPE_CHECK", "RESIDUAL_DECISION_AUDIT",
+    "RULE11_CLASSIFICATION_CHECK", "TASK_AUTHOR_ARCHITECTURE_COMPLETION_CHECK",
+    "FROZEN_SOURCE_BINDING_COMPLETE", *RULE12_ZERO_FIELDS,
+    "PHASE_SCOPE_CHECK", "RESIDUAL_DECISION_AUDIT",
     "RESIDUAL_ARCHITECTURE_DECISIONS", "RESIDUAL_CONTRACT_SEMANTIC_DECISIONS",
     "CROSS_BOUNDARY_SEMANTICS", "CURRENT_CODE_COMPATIBILITY",
     "ACCEPTANCE_EVIDENCE_CHECK", "NO_AGENT_ARCHITECTURE_DISCRETION",
@@ -67,6 +77,7 @@ CROSS_BOUNDARY_REQUIRED = (
 )
 
 CONTROL_PLANE_EXCLUSIONS = {
+    "docs/governance/RD1_RULE12_ARCHITECTURE_COMPLETION_PROHIBITION.md",
     "docs/governance/RD1_AGENT_TASK_AUTHORITY_HEADER_TEMPLATE.md",
     "docs/governance/RD1_TASK_CARD_AUTHOR_PRE_SUBMISSION_SELF_CHECK.md",
     "docs/governance/RD1_ARCHITECTURE_AUTHORITY_PRECHECK.md",
@@ -143,6 +154,8 @@ def validate_task_card(text: str, *, path: str = "<memory>") -> list[str]:
         "AUTHORITY_IDENTITY": "PASS",
         "MANDATORY_HEADER": "PASS",
         "RULE11_CLASSIFICATION_CHECK": "PASS",
+        "TASK_AUTHOR_ARCHITECTURE_COMPLETION_CHECK": "PASS",
+        "FROZEN_SOURCE_BINDING_COMPLETE": "PASS",
         "PHASE_SCOPE_CHECK": "PASS",
         "RESIDUAL_DECISION_AUDIT": "PASS",
         "CURRENT_CODE_COMPATIBILITY": "PASS",
@@ -181,18 +194,17 @@ def validate_task_card(text: str, *, path: str = "<memory>") -> list[str]:
     if pr_creation is not None and pr_creation.upper() not in {"ALLOW", "DENY"}:
         errors.append("PR_CREATION must be ALLOW or DENY")
 
-    permission_identity_pairs = (
+    for permission_key, task_key in (
         ("PERMISSION_REPOSITORY", "REPO"),
         ("PERMISSION_BASE_SHA", "BASE_SHA"),
         ("PERMISSION_TARGET_BRANCH", "TARGET_BRANCH"),
-    )
-    for permission_key, task_key in permission_identity_pairs:
+    ):
         permission_value = _field_value(text, permission_key)
         task_value = _field_value(text, task_key)
         if permission_value is not None and task_value is not None and permission_value != task_value:
             errors.append(f"{permission_key} must exactly equal {task_key}")
 
-    for key in ("RESIDUAL_ARCHITECTURE_DECISIONS", "RESIDUAL_CONTRACT_SEMANTIC_DECISIONS"):
+    for key in (*RULE12_ZERO_FIELDS, "RESIDUAL_ARCHITECTURE_DECISIONS", "RESIDUAL_CONTRACT_SEMANTIC_DECISIONS"):
         value = _int_value(text, key)
         if value is not None and value != 0:
             errors.append(f"{key} must be 0, got {value}")
