@@ -18,12 +18,14 @@ REPO = tonychang925-dev/Julia_core
 CONTROL_PLANE_ACTIVATION_BASE = 98c6b5c6fb6b2b4dfbcdcd3b50864b9b297f20b4
 STATUS = ACTIVE / HIGHEST ENGINEERING DISCIPLINE
 RULE11 = ACTIVE
+RULE12 = ACTIVE VIA docs/governance/RD1_RULE12_ARCHITECTURE_COMPLETION_PROHIBITION.md
 ```
 
-The Development Constitution governs the governance process itself. No architecture document, task contract, implementation fact, test result, Agent conclusion, or Owner convenience instruction may bypass it.
+The Development Constitution governs the governance process itself. Rule 12 is an explicit Owner-approved, scope-bounded constitutional amendment that supplements Rule 11. No architecture document, task contract, implementation fact, test result, Agent conclusion, or Owner convenience instruction may bypass them.
 
 ```text
 CONSTITUTIONAL_GOVERNANCE_SUPREMACY = YES
+NO_ARCHITECTURE_COMPLETION_BY_AGENT_INFERENCE = YES
 ```
 
 This is distinct from the scope-aware precedence used to resolve **architecture content** among frozen domain documents.
@@ -161,6 +163,7 @@ READ_INDEX
 → IDENTIFY_GOVERNING_FROZEN_AUTHORITY
 → FROZEN_AUTHORITY_TRACE
 → RULE11_CLASSIFICATION
+→ RULE12_ARCHITECTURE_COMPLETION_CHECK
 → PHASE_CHECK
 → EXACT_CONTRACT
 → AGENT_EXECUTION_PERMISSION_MATRIX
@@ -184,6 +187,7 @@ The index may never be used to invent missing architecture.
 Every task author, implementation Agent, and reviewer must use:
 
 ```text
+docs/governance/RD1_RULE12_ARCHITECTURE_COMPLETION_PROHIBITION.md
 docs/governance/RD1_AGENT_TASK_AUTHORITY_HEADER_TEMPLATE.md
 docs/governance/RD1_TASK_CARD_AUTHOR_PRE_SUBMISSION_SELF_CHECK.md
 docs/governance/RD1_TASK_CARD_CI_PARSER_GATE.md
@@ -191,12 +195,14 @@ docs/governance/RD1_AGENT_EXECUTION_PERMISSION_MATRIX.md
 docs/governance/RD1_ARCHITECTURE_AUTHORITY_PRECHECK.md
 ```
 
-These documents operationalize Rule 11. They do not create architecture authority beyond the Constitution and referenced frozen sources.
+These documents operationalize the Constitution. They do not create architecture authority beyond the Constitution and referenced frozen sources.
 
 Mandatory lifecycle:
 
 ```text
 TASK_CARD_DRAFT
+→ RULE11_CLASSIFICATION
+→ RULE12_TASK_AUTHOR_ARCHITECTURE_COMPLETION_AUDIT
 → AUTHOR_SELF_CHECK
 → AGENT_EXECUTION_PERMISSION_MATRIX
 → MACHINE_VERIFIABLE_SELF_CHECK_EVIDENCE
@@ -211,6 +217,7 @@ Hard law:
 
 ```text
 NO_SELF_CHECK_EVIDENCE = NO_TASK_SUBMISSION
+NO_RULE12_ARCHITECTURE_COMPLETION_EVIDENCE = NO_TASK_SUBMISSION
 NO_PERMISSION_MATRIX = NO_TASK_SUBMISSION
 ANY_PERMISSION_NOT_EXPLICITLY_GRANTED = DENY
 SELF_CHECK_PASS != OWNER_APPROVAL
@@ -218,7 +225,7 @@ SELF_CHECK_PASS != IMPLEMENTATION_AUTHORIZATION
 TASK_CARD_GOVERNANCE_GATE_FAIL = NO_MERGE_WHILE_REQUIRED_CHECK_IS_ENFORCED
 ```
 
-The parser gate runs inside the already-required `NO_CRITICAL_FALLBACK_GATE` GitHub check. It validates structure/self-check evidence, permission-matrix completeness, residual decision counts, cross-boundary semantic mapping, and declared task-base SHA against the current `main` SHA of the declared repository.
+The parser gate runs inside the already-required `NO_CRITICAL_FALLBACK_GATE` GitHub check. It validates structure/self-check evidence, Rule 12 architecture-completion declarations, permission-matrix completeness, residual decision counts, cross-boundary semantic mapping, and declared task-base SHA against the current `main` SHA of the declared repository.
 
 ```text
 PARSER = GOVERNANCE_ENFORCER
@@ -233,9 +240,11 @@ MISSING_INFORMATION != DESIGN_FREEDOM
 NO_PHYSICAL_CALLER != NO_LOGICAL_OWNER
 NO_CURRENT_IMPLEMENTATION != NO_ARCHITECTURE
 NO_PACKAGE_RESOLUTION != NO_COMPOSITION_TOPOLOGY
+NO_EXISTING_COMPOSITION_ROOT != PERMISSION_TO_CREATE_ONE
 CROSS_BOUNDARY_SEMANTIC_MAPPING = FROZEN_BEFORE_CODING
 AGENT_CROSS_BOUNDARY_SEMANTIC_FREEDOM = NO
 ANY_PERMISSION_NOT_EXPLICITLY_GRANTED = DENY
+NO_ARCHITECTURE_COMPLETION_BY_AGENT_INFERENCE = YES
 ```
 
 When an Agent cannot resolve a frozen answer or permission:
@@ -244,6 +253,7 @@ When an Agent cannot resolve a frozen answer or permission:
 SEARCH
 TRACE
 CLASSIFY
+RULE12_CHECK
 CHECK_PERMISSION_MATRIX
 STOP_IF_D_OR_DENIED
 ```
@@ -254,6 +264,10 @@ Never:
 INFER_NEW_OWNERSHIP
 INVENT_NEW_TOPOLOGY
 CREATE_NEW_AUTHORITY_LAYER
+INFER_NEW_COMPOSITION_ROOT_FROM_WIRING_ABSENCE
+INFER_NEW_BINDING_AUTHORITY_FROM_IMPLEMENTATION_GAP
+INFER_NEW_PACKAGE_BOUNDARY_FROM_CODE_LAYOUT
+INFER_NEW_DEPENDENCY_DIRECTION_FROM_CONVENIENCE
 EXPAND_PHASE_BY_REASONING
 INVENT_STATUS_MAPPING
 INVENT_FAILURE_MAPPING
