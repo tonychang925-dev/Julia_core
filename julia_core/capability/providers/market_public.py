@@ -2,8 +2,8 @@
 
 This module adapts Core's generic ``CapabilityRequest`` to the public request
 shapes owned/exported by ``market_public``. It deliberately does not import or
-inspect Market private repositories, DB sessions, MCP tools, routes, or other
-implementation details.
+inspect Market private repositories, DB sessions, MCP tools, routes, factories,
+or other composition details.
 
 A valid Market public result is an execution success from Core's point of view,
 even when the Market-owned ``operation_status`` inside that result is FAILURE.
@@ -28,55 +28,27 @@ RequestBuilder = Callable[..., Any]
 
 
 class MarketPublicProviderAdapter:
-    """Adapt Core capability requests to one Market public provider object.
+    """Bind Core mechanically to one already-constructed Market public provider.
 
-    ``public_provider`` is the object returned by Market's public factory. The
-    adapter knows only the public ``execute(capability, request, ...)`` shape.
-    ``request_builders`` are the Market-exported public request types keyed by
-    capability id.
+    The application/runtime composition root is responsible for asking Market
+    to construct/configure its public provider. Core receives that public object
+    and binds it. Core does not construct Market, choose Market configuration,
+    or know Market private implementation.
+
+    ``request_builders`` may be supplied by the composition root. When omitted,
+    Core loads only the Market-exported public request contract types.
     """
 
     def __init__(
         self,
         public_provider: Any,
-        request_builders: Mapping[str, RequestBuilder],
+        request_builders: Mapping[str, RequestBuilder] | None = None,
     ) -> None:
         if not callable(getattr(public_provider, "execute", None)):
             raise TypeError("Market public provider must implement execute()")
         self._public_provider = public_provider
-        self._request_builders = dict(request_builders)
-
-    @classmethod
-    def from_installed_market_public(
-        cls,
-        *,
-        public_provider: Any | None = None,
-    ) -> "MarketPublicProviderAdapter":
-        """Bind to the installed Market *public* package only.
-
-        Market owns construction and configuration through
-        ``MarketPublicFactory``. Core may bind an already-constructed public
-        provider, or ask Market's no-argument public factory to construct one.
-        Core never supplies Market DB/repository configuration.
-        """
-        from market_public import (
-            EventReadRequest,
-            EventResolveRequest,
-            MarketPublicFactory,
-            ProductReadRequest,
-        )
-
-        provider = public_provider
-        if provider is None:
-            provider = MarketPublicFactory.create()
-
-        return cls(
-            provider,
-            {
-                "market.event.resolve": EventResolveRequest,
-                "market.event.read": EventReadRequest,
-                "market.product.read": ProductReadRequest,
-            },
+        self._request_builders = dict(
+            request_builders if request_builders is not None else _load_public_request_builders()
         )
 
     async def health(self) -> tuple[bool, str]:
@@ -122,6 +94,17 @@ class MarketPublicProviderAdapter:
             return builder(**dict(arguments))
         except (TypeError, ValueError):
             return copy.deepcopy(dict(arguments))
+
+
+def _load_public_request_builders() -> dict[str, RequestBuilder]:
+    """Load only request types exported by the Market public contract package."""
+    from market_public import EventReadRequest, EventResolveRequest, ProductReadRequest
+
+    return {
+        "market.event.resolve": EventResolveRequest,
+        "market.event.read": EventReadRequest,
+        "market.product.read": ProductReadRequest,
+    }
 
 
 def _to_plain_mapping(value: Any) -> dict[str, Any]:
