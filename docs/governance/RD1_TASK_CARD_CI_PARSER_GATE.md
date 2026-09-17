@@ -1,7 +1,7 @@
 # RD1 Task Card CI / Parser Gate
 
 **Status:** ACTIVE CONTROL PLANE  
-**Purpose:** convert task-card self-check and execution permissions into machine-enforced pull-request gating.
+**Purpose:** convert task-card self-check, Rule 12 architecture-completion discipline, and execution permissions into machine-enforced pull-request gating.
 
 ## 1. Enforcement path
 
@@ -10,6 +10,9 @@ TASK CARD / TASK-CARD PR
 → parser
 → mandatory authority fields present?
 → author self-check evidence present?
+→ Rule12 task-author architecture-completion evidence present?
+→ task-author new-architecture counts == 0?
+→ frozen-source binding complete?
 → execution permission matrix present?
 → default-deny permission model valid?
 → residual architecture decisions == 0?
@@ -50,7 +53,7 @@ TASK_CARD_GOVERNANCE_GATE_FAIL
 
 ## 3. Mandatory task/self-check fields
 
-The parser requires the active authority header and completed `TASK_CARD_AUTHOR_SELF_CHECK`, including zero residual architecture and contract-semantic decisions.
+The parser requires the active authority header and completed `TASK_CARD_AUTHOR_SELF_CHECK`.
 
 Legal submission requires:
 
@@ -61,7 +64,37 @@ RESIDUAL_ARCHITECTURE_DECISIONS = 0
 RESIDUAL_CONTRACT_SEMANTIC_DECISIONS = 0
 ```
 
-## 4. Agent Execution Permission Matrix hard gate
+## 4. Rule 12 Task-Author Architecture Completion hard gate
+
+Every coding task card must declare and pass:
+
+```text
+TASK_AUTHOR_ARCHITECTURE_COMPLETION_CHECK = PASS
+FROZEN_SOURCE_BINDING_COMPLETE = PASS
+TASK_AUTHOR_NEW_ARCHITECTURE_DECISIONS = 0
+NEW_OWNER_COUNT = 0
+NEW_DOMAIN_COUNT = 0
+NEW_COMPOSITION_ROOT_COUNT = 0
+NEW_BINDING_AUTHORITY_COUNT = 0
+NEW_PACKAGE_BOUNDARY_COUNT = 0
+NEW_DEPENDENCY_DIRECTION_COUNT = 0
+NEW_RUNTIME_AUTHORITY_COUNT = 0
+NEW_TRANSPORT_COUNT = 0
+```
+
+This closes the failure mode where a task author pre-solves architecture before an implementation Agent sees the card.
+
+Permanent law:
+
+```text
+NO_ARCHITECTURE_COMPLETION_BY_AGENT_INFERENCE = YES
+```
+
+A deliberate architecture change must first complete the Constitution's explicit scope-bounded amendment/refreeze path. It may not be embedded as a coding-task inference.
+
+The parser verifies declarations; it does not determine whether the cited frozen authority truly supports them. Independent Architecture Precheck must re-verify that evidence.
+
+## 5. Agent Execution Permission Matrix hard gate
 
 Every coding task card must contain:
 
@@ -127,7 +160,7 @@ Permanent law:
 ANY_PERMISSION_NOT_EXPLICITLY_GRANTED = DENY
 ```
 
-## 5. Cross-boundary hard gate
+## 6. Cross-boundary hard gate
 
 For adapter / bridge / translator / proxy / serializer / provider-wrapper / boundary-conversion work, the parser also requires:
 
@@ -147,7 +180,7 @@ CROSS_BOUNDARY_SEMANTICS = PASS
 
 Missing mapping is a machine failure, not implementation-Agent design freedom.
 
-## 6. Exact SHA verification
+## 7. Exact SHA verification
 
 In PR CI the parser requires:
 
@@ -164,7 +197,7 @@ BASE_DRIFT
 
 Current code/SHA identity remains engineering evidence only; it is not architecture authority.
 
-## 7. Scope and non-authority
+## 8. Scope and non-authority
 
 ```text
 PARSER = GOVERNANCE ENFORCER
