@@ -1,27 +1,26 @@
 # RD1 Task Card CI / Parser Gate
 
-**Status:** ACTIVE CONTROL PLANE  
-**Purpose:** convert task-card self-check, Rule 12 architecture-completion discipline, control-plane freshness, and execution permissions into machine-enforced pull-request gating.
+**Status:** ACTIVE CONTROL PLANE AFTER CONSOLIDATION MERGE
 
 ## 1. Enforcement path
 
 ```text
 TASK CARD / TASK-CARD PR
-→ parser
-→ mandatory authority fields present?
-→ author self-check evidence present?
-→ Rule12 task-author architecture-completion evidence present?
-→ task-author new-architecture counts == 0?
-→ frozen-source binding complete?
-→ control-plane freshness fields present?
-→ SELF_CHECK_CONTROL_PLANE_SHA == current Julia_core/main?
-→ execution permission matrix present?
-→ default-deny permission model valid?
+→ explicit mandatory task fields present?
+→ CONTROL_PLANE_COMPATIBILITY_VERSION present?
+→ ARCHITECTURE_DELTA = NONE?
+→ FROZEN_AUTHORITY_BINDING present?
+→ SEMANTIC_ATOM present?
+→ VALID_MERGE_END_STATE present?
+→ author self-check PASS?
+→ Permission Matrix valid/default-deny?
 → residual architecture decisions == 0?
 → residual contract-semantic decisions == 0?
-→ cross-boundary mapping complete when applicable?
-→ task identity == permission identity?
-→ BASE_SHA == declared repo current main?
+→ explicit TASK_TYPE valid?
+→ cross-boundary mappings complete only when TASK_TYPE=CROSS_BOUNDARY?
+→ permission identity == task identity?
+→ BASE_SHA == declared repo current main when remote verification enabled?
+→ control-plane compatibility version current?
 → PASS / FAIL
 ```
 
@@ -32,171 +31,105 @@ tools/task_card_governance_gate.py
 tools/control_plane_freshness_gate.py
 ```
 
-Sabotage/unit coverage:
+Both run in `NO_CRITICAL_FALLBACK_GATE`.
+
+## 2. Mandatory task schema
 
 ```text
-tests/governance/test_task_card_governance_gate.py
-tests/governance/test_control_plane_freshness_gate.py
+TASK_ID
+TASK_TYPE
+REPO
+BASE_SHA
+TARGET_BRANCH
+CONTROL_PLANE_COMPATIBILITY_VERSION
+CONTROL_PLANE_SHA_OBSERVED
+CURRENT_PHASE
+RULE11_CLASSIFICATION
+FROZEN_AUTHORITY_BINDING
+ARCHITECTURE_DELTA
+TARGET_REQUIREMENT
+SEMANTIC_ATOM
+VALID_MERGE_END_STATE
+DEFERRED_FINDINGS
+AUTHORIZED_PATHS
+FORBIDDEN_PATHS
+REQUIRED_BEHAVIOR
+FORBIDDEN_BEHAVIOR
+ACCEPTANCE_EVIDENCE
 ```
 
-## 2. Merge enforcement
-
-Both parsers run inside the repository's required GitHub check:
+For normal implementation tasks:
 
 ```text
-NO_CRITICAL_FALLBACK_GATE
+ARCHITECTURE_DELTA = NONE
 ```
 
-Therefore, while that repository rule remains required:
+## 3. Rule 12 hard gate
 
-```text
-TASK_CARD_GOVERNANCE_GATE_FAIL
-OR CONTROL_PLANE_FRESHNESS_GATE_FAIL
-→ NO_CRITICAL_FALLBACK_GATE FAIL
-→ PR CANNOT MERGE
-```
-
-## 3. Mandatory task/self-check fields
-
-The parser requires the active authority header and completed `TASK_CARD_AUTHOR_SELF_CHECK`.
-
-Legal submission requires:
-
-```text
-SELF_CHECK_RESULT = PASS
-READY_FOR_SUBMISSION = YES
-RESIDUAL_ARCHITECTURE_DECISIONS = 0
-RESIDUAL_CONTRACT_SEMANTIC_DECISIONS = 0
-```
-
-## 4. Rule 12 Task-Author Architecture Completion hard gate
-
-Every coding task card must declare and pass:
-
-```text
-TASK_AUTHOR_ARCHITECTURE_COMPLETION_CHECK = PASS
-FROZEN_SOURCE_BINDING_COMPLETE = PASS
-TASK_AUTHOR_NEW_ARCHITECTURE_DECISIONS = 0
-NEW_OWNER_COUNT = 0
-NEW_DOMAIN_COUNT = 0
-NEW_COMPOSITION_ROOT_COUNT = 0
-NEW_BINDING_AUTHORITY_COUNT = 0
-NEW_PACKAGE_BOUNDARY_COUNT = 0
-NEW_DEPENDENCY_DIRECTION_COUNT = 0
-NEW_RUNTIME_AUTHORITY_COUNT = 0
-NEW_TRANSPORT_COUNT = 0
-```
-
-Permanent law:
+Rule 12 constitutional meaning remains:
 
 ```text
 NO_ARCHITECTURE_COMPLETION_BY_AGENT_INFERENCE = YES
 ```
 
-A deliberate architecture change must first complete the Constitution's explicit scope-bounded amendment/refreeze path. It may not be embedded as a coding-task inference.
+Parser requires the simplified operational proof:
 
-## 5. Control-Plane Freshness hard gate
+```text
+FROZEN_AUTHORITY_BINDING present
+ARCHITECTURE_DELTA = NONE
+RESIDUAL_ARCHITECTURE_DECISIONS = 0
+RESIDUAL_CONTRACT_SEMANTIC_DECISIONS = 0
+```
 
-Every coding task card must declare:
+The former `NEW_*_COUNT = 0` fields are no longer mandatory parser syntax.
+
+## 4. Control-plane compatibility gate
+
+Every coding task card carries:
 
 ```text
 CONTROL_PLANE_AUTHORITY_REPO
 = tonychang925-dev/Julia_core
 
+SELF_CHECK_CONTROL_PLANE_COMPATIBILITY_VERSION
+= <integer>
+
 SELF_CHECK_CONTROL_PLANE_SHA
-= <exact 40-hex Julia_core/main SHA used by the author self-check>
+= <exact observed 40-hex SHA>
 
 CONTROL_PLANE_FRESHNESS_CHECK
 = PASS
 ```
 
-At CI/use time the current Julia Core main SHA is fetched again.
-
-Required:
+Machine enforcement compares compatibility version, not exact SHA equality.
 
 ```text
-SELF_CHECK_CONTROL_PLANE_SHA == CURRENT_JULIA_CORE_MAIN_SHA
+SHA_CHANGED + VERSION_UNCHANGED
+→ PASS COMPATIBILITY
+
+VERSION_CHANGED
+→ REVALIDATION / REBIND AS APPLICABLE
 ```
 
-Failure or inability to verify is fail-closed:
+The exact SHA remains audit evidence.
+
+## 5. Permission Matrix hard gate
+
+Default deny remains mandatory. Permission repository/base/branch must equal task identity exactly.
+
+Required denials include architecture mutation, cross-boundary semantic decision, merge, release, deploy, production mutation, fallback, synthetic success, and future-phase scope.
+
+## 6. Cross-boundary hard gate
+
+Parser MUST NOT infer cross-boundary work from prose keywords.
+
+Task author declares:
 
 ```text
-CONTROL_PLANE_DRIFT_OR_UNVERIFIED
-→ SELF_CHECK_INVALIDATED
-→ GATE FAIL
+TASK_TYPE = STANDARD | CROSS_BOUNDARY
 ```
 
-Implementation-base freshness and control-plane freshness are independent; both are mandatory.
-
-## 6. Agent Execution Permission Matrix hard gate
-
-Every coding task card must contain:
-
-```text
-AGENT_EXECUTION_PERMISSION_MATRIX
-```
-
-with at least:
-
-```text
-PERMISSION_MODEL
-PERMISSION_REPOSITORY
-PERMISSION_BASE_SHA
-PERMISSION_TARGET_BRANCH
-READ_SCOPE
-WRITE_SCOPE
-ARCHITECTURE_MUTATION
-PUBLIC_CONTRACT_MUTATION
-CROSS_BOUNDARY_SEMANTIC_DECISION
-DEPENDENCY_MUTATION
-TEST_CREATION
-BRANCH_CREATION
-COMMIT
-PR_CREATION
-MERGE
-RELEASE
-DEPLOY
-PRODUCTION_MUTATION
-FALLBACK
-SYNTHETIC_SUCCESS
-FUTURE_PHASE_SCOPE
-```
-
-Required default-deny values:
-
-```text
-PERMISSION_MODEL = DEFAULT_DENY
-ARCHITECTURE_MUTATION = DENY
-CROSS_BOUNDARY_SEMANTIC_DECISION = DENY
-TEST_CREATION = BOUNDED_TO_ACCEPTANCE_EVIDENCE
-BRANCH_CREATION = EXACT_TARGET_ONLY
-COMMIT = TASK_BRANCH_ONLY
-MERGE = DENY
-RELEASE = DENY
-DEPLOY = DENY
-PRODUCTION_MUTATION = DENY
-FALLBACK = DENY
-SYNTHETIC_SUCCESS = DENY
-FUTURE_PHASE_SCOPE = DENY
-```
-
-Identity must match mechanically:
-
-```text
-PERMISSION_REPOSITORY == REPO
-PERMISSION_BASE_SHA == BASE_SHA
-PERMISSION_TARGET_BRANCH == TARGET_BRANCH
-```
-
-Permanent law:
-
-```text
-ANY_PERMISSION_NOT_EXPLICITLY_GRANTED = DENY
-```
-
-## 7. Cross-boundary hard gate
-
-For adapter / bridge / translator / proxy / serializer / provider-wrapper / boundary-conversion work, the parser also requires:
+Only `CROSS_BOUNDARY` requires:
 
 ```text
 SOURCE_CONTRACT
@@ -209,29 +142,21 @@ AUTHORITY_TRANSFER
 MALFORMED_INPUT_BEHAVIOR
 UNKNOWN_VALUE_BEHAVIOR
 LIFECYCLE_OWNERSHIP
-CROSS_BOUNDARY_SEMANTICS = PASS
 ```
 
-Missing mapping is a machine failure, not implementation-Agent design freedom.
+Independent review verifies that the declared task type is truthful.
 
-## 8. Exact implementation SHA verification
+## 7. Exact implementation base
 
-In PR CI the parser requires:
+When remote-base verification is enabled:
 
 ```text
 BASE_SHA == REPO/main current SHA
 ```
 
-Failure:
+Failure is `BASE_DRIFT` and blocks the task.
 
-```text
-BASE_DRIFT
-→ GATE FAIL
-```
-
-Current code/SHA identity remains engineering evidence only; it is not architecture authority.
-
-## 9. Scope and non-authority
+## 8. Non-authority
 
 ```text
 PARSER = GOVERNANCE ENFORCER
@@ -240,5 +165,3 @@ PARSER != OWNER APPROVAL
 PARSER != IMPLEMENTATION AUTHORIZATION
 PARSER != MERGE AUTHORIZATION BY ITSELF
 ```
-
-Frozen source documents remain authoritative. The parsers reject submissions that fail active control-plane requirements; they do not design architecture.
