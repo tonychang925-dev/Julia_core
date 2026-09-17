@@ -105,23 +105,29 @@ class CognitiveContextPackage:
         return messages
 
     def _render_frame(self, name: str, frame: dict) -> str:
-        """Render a frame as text.
+        """Render one frame without dropping an oversized structured value.
 
-        P3.1A: renders nested typed dict/list projections deterministically.
-        Truncation/bounding occurs here (render time only); the structured
-        Context OS projection itself is never truncated. An explicit overall
-        frame budget caps total model-visible characters per frame.
+        The structured Context OS projection stays complete. Rendering applies a
+        model-visible character budget recursively so a large first value (for
+        example a tool payload) cannot cause the entire evidence item to vanish.
+        The renderer is domain-agnostic: it does not know or prioritize Market,
+        Research, or any provider-specific semantic field.
         """
         lines = [f"[{name}]"]
         total = len(lines[0])
         budget = self._RENDER_MAX_FRAME_CHARS
-        for k, v in frame.items():
-            rendered = f"{k}: {self._render_value(v, depth=0)}"
-            if total + len(rendered) + 1 > budget:
+        for key, value in frame.items():
+            prefix = f"{key}: "
+            remaining = budget - total - len(prefix) - 1
+            if remaining <= len(self._RENDER_TRUNC_MARKER):
                 lines.append(self._RENDER_TRUNC_MARKER + f"[frame budget {budget} chars]")
                 break
-            lines.append(rendered)
-            total += len(rendered) + 1
+            rendered = self._render_value(value, depth=0, char_budget=remaining)
+            line = prefix + rendered
+            lines.append(line)
+            total += len(line) + 1
+            if total >= budget:
+                break
         return "\n".join(lines)
 
     _RENDER_MAX_SCALAR = 2000
@@ -130,31 +136,114 @@ class CognitiveContextPackage:
     _RENDER_MAX_FRAME_CHARS = 8000
     _RENDER_TRUNC_MARKER = "…[truncated]"
 
-    def _render_value(self, value: Any, *, depth: int) -> str:
-        """Deterministically render a nested scalar/dict/list value.
+    def _render_value(self, value: Any, *, depth: int, char_budget: int | None = None) -> str:
+        """Deterministically render a nested value inside an explicit budget.
 
-        Bounds are applied before any serialization so output stays well-formed.
-        Nested mappings use stable sorted-key order so equivalent structured
-        values render identically regardless of input dict construction order.
+        Container budgets are shared across their children rather than rendering
+        an unbounded child first and discarding the whole parent afterwards.
+        Mappings retain stable sorted-key order. Truncation changes only the
+        rendered view; the structured Context OS projection remains untouched.
         """
+        budget = self._RENDER_MAX_FRAME_CHARS if char_budget is None else max(char_budget, 0)
+        marker = self._RENDER_TRUNC_MARKER
+
+        def bounded_scalar(text: str, limit: int) -> str:
+            scalar_limit = min(self._RENDER_MAX_SCALAR, max(limit, 0))
+            if len(text) <= scalar_limit:
+                return text
+            if scalar_limit <= len(marker):
+                return marker[:scalar_limit]
+            return text[: scalar_limit - len(marker)] + marker
+
         if isinstance(value, str):
-            if len(value) > self._RENDER_MAX_SCALAR:
-                return value[: self._RENDER_MAX_SCALAR] + self._RENDER_TRUNC_MARKER
-            return value
+            return bounded_scalar(value, budget)
+
         if isinstance(value, dict):
             if depth >= self._RENDER_MAX_DEPTH:
-                return "{…}" + self._RENDER_TRUNC_MARKER
-            parts = [f"{k}={self._render_value(v, depth=depth + 1)}" for k, v in sorted(value.items())]
-            return "{ " + ", ".join(parts) + " }"
+                compact = "{…}" + marker
+                return compact if len(compact) <= budget else compact[:budget]
+            items = sorted(value.items(), key=lambda item: str(item[0]))
+            if budget <= 4:
+                return "{}"[:budget]
+            remaining = budget - 4  # "{ " + " }"
+            parts: list[str] = []
+            truncated = False
+            for index, (key, child) in enumerate(items):
+                separator = ", " if parts else ""
+                key_prefix = f"{key}="
+                if remaining <= len(separator) + len(key_prefix):
+                    truncated = True
+                    break
+                remaining_items = max(len(items) - index, 1)
+                fair_share = max(
+                    1,
+                    (remaining - len(separator) - len(key_prefix)) // remaining_items,
+                )
+                child_text = self._render_value(
+                    child,
+                    depth=depth + 1,
+                    char_budget=fair_share,
+                )
+                part = separator + key_prefix + child_text
+                if len(part) > remaining:
+                    truncated = True
+                    break
+                parts.append(part)
+                remaining -= len(part)
+                if marker in child_text:
+                    truncated = True
+            if len(parts) < len(items):
+                truncated = True
+            body = "".join(parts)
+            if truncated:
+                note = (", " if body else "") + marker
+                if len(note) <= remaining:
+                    body += note
+            return "{ " + body + " }"
+
         if isinstance(value, (list, tuple)):
             if depth >= self._RENDER_MAX_DEPTH:
-                return "[…]" + self._RENDER_TRUNC_MARKER
-            items = [self._render_value(v, depth=depth + 1) for v in value[: self._RENDER_MAX_ITEMS]]
-            suffix = ""
-            if len(value) > self._RENDER_MAX_ITEMS:
-                suffix = f", …[{len(value) - self._RENDER_MAX_ITEMS} more]"
-            return "[" + ", ".join(items) + suffix + "]"
-        return str(value)
+                compact = "[…]" + marker
+                return compact if len(compact) <= budget else compact[:budget]
+            all_items = list(value)
+            visible_items = all_items[: self._RENDER_MAX_ITEMS]
+            if budget <= 2:
+                return "[]"[:budget]
+            remaining = budget - 2
+            parts: list[str] = []
+            truncated = len(all_items) > len(visible_items)
+            for index, child in enumerate(visible_items):
+                separator = ", " if parts else ""
+                if remaining <= len(separator):
+                    truncated = True
+                    break
+                remaining_items = max(len(visible_items) - index, 1)
+                fair_share = max(1, (remaining - len(separator)) // remaining_items)
+                child_text = self._render_value(
+                    child,
+                    depth=depth + 1,
+                    char_budget=fair_share,
+                )
+                part = separator + child_text
+                if len(part) > remaining:
+                    truncated = True
+                    break
+                parts.append(part)
+                remaining -= len(part)
+                if marker in child_text:
+                    truncated = True
+            if len(parts) < len(visible_items):
+                truncated = True
+            body = "".join(parts)
+            if truncated:
+                note = (", " if body else "") + marker
+                if len(all_items) > len(visible_items):
+                    note += f"[{len(all_items) - len(visible_items)} more]"
+                if len(note) <= remaining:
+                    body += note
+            return "[" + body + "]"
+
+        return bounded_scalar(str(value), budget)
 
     def add_provenance(self, frame: str, source_ref: str, canonical_ref: str = "",
                        reason: str = "", stage: int = 0, token_estimate: int = 0):
@@ -632,9 +721,9 @@ class ContextExecutionRuntime:
             "side_effect_state": side_effect,
         }
         if tr.structured_output:
-            view["structured_output"] = dict(tr.structured_output)
+            view["structured_output"] = copy.deepcopy(dict(tr.structured_output))
         if tr.error is not None:
-            view["error"] = dict(tr.error)
+            view["error"] = copy.deepcopy(dict(tr.error))
         return view
 
     def _project_evidence_view(self, e: Evidence) -> dict[str, Any]:
