@@ -33,6 +33,7 @@ MANDATORY_TASK_FIELDS = (
 MANDATORY_SELF_CHECK_FIELDS = (
     "AUTHOR_ROLE", "TASK_ID", "TASK_CARD_VERSION",
     "AUTHORITY_SOURCE_FILES_CHECKED", "CURRENT_MAIN_SHAS",
+    "SELF_CHECK_CONTROL_PLANE_COMPATIBILITY_VERSION",
     "AUTHORITY_GATE", "SEMANTIC_ATOMICITY_GATE", "PERMISSION_GATE",
     "RESIDUAL_ARCHITECTURE_DECISIONS",
     "RESIDUAL_CONTRACT_SEMANTIC_DECISIONS",
@@ -134,7 +135,9 @@ def validate_task_card(text: str, *, path: str = "<memory>") -> list[str]:
         errors.append(f"RULE11_CLASSIFICATION has illegal value {classification!r}")
 
     task_type = _field_value(text, "TASK_TYPE")
-    if task_type is not None and task_type not in {"STANDARD", "CROSS_BOUNDARY"}:
+    if task_type is None:
+        errors.append("TASK_TYPE must have a nonempty value: STANDARD or CROSS_BOUNDARY")
+    elif task_type not in {"STANDARD", "CROSS_BOUNDARY"}:
         errors.append(f"TASK_TYPE must be STANDARD or CROSS_BOUNDARY, got {task_type!r}")
 
     architecture_delta = _field_value(text, "ARCHITECTURE_DELTA")
@@ -150,8 +153,31 @@ def validate_task_card(text: str, *, path: str = "<memory>") -> list[str]:
         errors.append(f"CONTROL_PLANE_SHA_OBSERVED must be exact 40-hex, got {observed!r}")
 
     cp_version = _field_value(text, "CONTROL_PLANE_COMPATIBILITY_VERSION")
-    if cp_version is not None and not VERSION_RE.fullmatch(cp_version):
-        errors.append(f"CONTROL_PLANE_COMPATIBILITY_VERSION must be integer, got {cp_version!r}")
+    self_check_version = _field_value(text, "SELF_CHECK_CONTROL_PLANE_COMPATIBILITY_VERSION")
+    if cp_version is None or not VERSION_RE.fullmatch(cp_version):
+        errors.append(
+            "CONTROL_PLANE_COMPATIBILITY_VERSION must be a nonempty integer"
+            if cp_version is None
+            else f"CONTROL_PLANE_COMPATIBILITY_VERSION must be integer, got {cp_version!r}"
+        )
+    if self_check_version is None or not VERSION_RE.fullmatch(self_check_version):
+        errors.append(
+            "SELF_CHECK_CONTROL_PLANE_COMPATIBILITY_VERSION must be a nonempty integer"
+            if self_check_version is None
+            else "SELF_CHECK_CONTROL_PLANE_COMPATIBILITY_VERSION must be integer, "
+                 f"got {self_check_version!r}"
+        )
+    if (
+        cp_version is not None
+        and self_check_version is not None
+        and VERSION_RE.fullmatch(cp_version)
+        and VERSION_RE.fullmatch(self_check_version)
+        and cp_version != self_check_version
+    ):
+        errors.append(
+            "CONTROL_PLANE_COMPATIBILITY_VERSION must exactly equal "
+            "SELF_CHECK_CONTROL_PLANE_COMPATIBILITY_VERSION"
+        )
 
     expected_pass = {
         "AUTHORITY_GATE": "PASS",
