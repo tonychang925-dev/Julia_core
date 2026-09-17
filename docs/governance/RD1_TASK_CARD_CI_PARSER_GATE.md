@@ -1,6 +1,6 @@
 # RD1 Task Card CI / Parser Gate
 
-**Status:** ACTIVE CONTROL-PLANE CANDIDATE  
+**Status:** ACTIVE CONTROL PLANE  
 **Purpose:** convert task-card self-check from process-only discipline into machine-enforced pull-request gating.
 
 ## 1. Enforcement path
