@@ -5,6 +5,7 @@
 
 ```text
 ARCHITECTURE_PRECHECK_BEFORE_DIFF = REQUIRED
+AUTHOR_SELF_CHECK_BEFORE_INDEPENDENT_PRECHECK = REQUIRED
 ```
 
 ## Review order
@@ -12,6 +13,7 @@ ARCHITECTURE_PRECHECK_BEFORE_DIFF = REQUIRED
 Every implementation/rework review must execute in this order:
 
 ```text
+PRE-GATE — AUTHOR SELF-CHECK EVIDENCE VERIFICATION
 GATE 0 — AUTHORITY IDENTITY
 GATE 1 — RULE11 CLASSIFICATION
 GATE 2 — ARCHITECTURE / OWNERSHIP / PHASE COMPLIANCE
@@ -22,7 +24,7 @@ GATE 6 — EVIDENCE REVIEW
 GATE 7 — MERGE CLOSURE
 ```
 
-If any of Gates 0–3 fail:
+If PRE-GATE or any of Gates 0–3 fail:
 
 ```text
 REVIEW = STOP
@@ -32,7 +34,48 @@ DO_NOT_SUGGEST_CODE_REWORK
 DO_NOT_EXPAND_SCOPE
 ```
 
-The reviewer must first resolve the authority problem.
+The reviewer must first resolve the authority/control problem.
+
+## PRE-GATE — Author Self-Check Evidence Verification
+
+Every submitted task card must include the completed record required by:
+
+```text
+docs/governance/RD1_TASK_CARD_AUTHOR_PRE_SUBMISSION_SELF_CHECK.md
+```
+
+The independent reviewer MUST mechanically verify the evidence rather than trust the author's PASS claim.
+
+Required checks:
+
+```text
+SELF_CHECK_RECORD_PRESENT
+SELF_CHECK_RESULT = PASS
+READY_FOR_SUBMISSION = YES
+RESIDUAL_ARCHITECTURE_DECISIONS = 0
+RESIDUAL_CONTRACT_SEMANTIC_DECISIONS = 0
+AUTHORITY_SOURCE_FILES_CHECKED are real/current
+CURRENT_MAIN_SHAS mechanically verified
+MANDATORY_TASK_FIELDS_PRESENT is complete
+CROSS_BOUNDARY_SEMANTICS = PASS or legitimate N/A
+```
+
+Hard rules:
+
+```text
+NO_SELF_CHECK_EVIDENCE = REVIEW STOP
+SELF_CHECK_CLAIM = SIGNAL_ONLY
+SELF_CHECK_EVIDENCE = MUST_BE_VERIFIED
+SELF_CHECK_PASS != OWNER_APPROVAL
+SELF_CHECK_PASS != IMPLEMENTATION_AUTHORIZATION
+```
+
+Failure result:
+
+```text
+AUTHOR_SELF_CHECK_PRE_GATE_FAIL
+→ REVIEW STOP
+```
 
 ## Gate 0 — Authority Identity
 
@@ -44,6 +87,7 @@ CURRENT_ARCHITECTURE_AUTHORITY_INDEX
 GOVERNING_FROZEN_DOCUMENTS
 CURRENT_PHASE
 EXACT_TASK_CONTRACT
+PARENT_CONTROL_CONTRACT_STATUS
 REPO
 BASE_SHA
 TARGET_BRANCH
@@ -58,7 +102,17 @@ Is the task based on the current authorized trunk?
 Does the task contract contain the mandatory authority header?
 Is every cited authority currently effective?
 Is any cited document superseded, candidate-only, or evidence-only?
+Is any required parent control contract actually approved/active for this lifecycle step?
 Does the Authority Index agree with the governing frozen source set?
+```
+
+Mandatory anti-confusion:
+
+```text
+OWNER_APPROVAL_CANDIDATE != APPROVED
+DRAFT != ACTIVE_AUTHORITY
+CANDIDATE != ACTIVE_AUTHORITY
+LOOKS_VALID != ACTIVE_AUTHORITY
 ```
 
 Failure result:
@@ -133,6 +187,71 @@ ARCHITECTURE_DEVIATION
 
 No reviewer may invent a missing owner, layer, topology, ABI, dependency direction, or composition root in order to make a candidate reviewable.
 
+### Gate 2A — Residual Decision Audit
+
+Even when ownership/topology is correct, verify the implementation Agent is not being forced to decide any unfrozen contract semantics.
+
+Check at minimum:
+
+```text
+status mapping
+failure mapping
+provenance mapping
+lifecycle mapping
+authorization meaning
+fallback semantics
+unknown-input behavior
+malformed-input behavior
+cross-repo responsibility
+```
+
+Required result:
+
+```text
+RESIDUAL_ARCHITECTURE_DECISIONS = 0
+RESIDUAL_CONTRACT_SEMANTIC_DECISIONS = 0
+```
+
+If not:
+
+```text
+TASK_CARD_NOT_READY
+→ REVIEW STOP
+```
+
+### Gate 2B — Cross-Boundary Semantic Mapping
+
+Mandatory for any adapter / bridge / translator / proxy / serializer / provider wrapper / public-boundary conversion / cross-repo contract conversion.
+
+Verify exact frozen or explicitly task-frozen definitions for:
+
+```text
+SOURCE_CONTRACT
+TARGET_CONTRACT
+FIELD_MAPPING
+STATUS_MAPPING
+FAILURE_MAPPING
+PROVENANCE_MAPPING
+AUTHORITY_TRANSFER
+MALFORMED_INPUT_BEHAVIOR
+UNKNOWN_VALUE_BEHAVIOR
+LIFECYCLE_OWNERSHIP
+```
+
+If any mapping is left for the implementation Agent to infer:
+
+```text
+CROSS_BOUNDARY_SEMANTICS_FAIL
+→ REVIEW STOP
+```
+
+Permanent law:
+
+```text
+CROSS_BOUNDARY_SEMANTIC_MAPPING = FROZEN_BEFORE_CODING
+AGENT_CROSS_BOUNDARY_SEMANTIC_FREEDOM = NO
+```
+
 ## Gate 3 — Scope Compliance
 
 Verify:
@@ -154,7 +273,7 @@ DISCOVER_MORE != DO_MORE
 
 ## Gate 4 — Diff Review
 
-Only after Gates 0–3 pass, review implementation correctness, maintainability, and exact changes.
+Only after PRE-GATE and Gates 0–3 pass, review implementation correctness, maintainability, and exact changes.
 
 ## Gate 5 — Test Review
 
@@ -207,6 +326,8 @@ add a new ownership layer because wiring is absent
 promote future-phase closure into current-phase scope
 accept architecture drift because tests are green
 convert missing information into design freedom
+trust author self-check PASS without evidence verification
+permit implementation Agent to invent cross-boundary semantic mapping
 ```
 
 When uncertain:
