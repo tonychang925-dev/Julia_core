@@ -185,6 +185,7 @@ Every task author and reviewer must use:
 ```text
 docs/governance/RD1_AGENT_TASK_AUTHORITY_HEADER_TEMPLATE.md
 docs/governance/RD1_TASK_CARD_AUTHOR_PRE_SUBMISSION_SELF_CHECK.md
+docs/governance/RD1_TASK_CARD_CI_PARSER_GATE.md
 docs/governance/RD1_ARCHITECTURE_AUTHORITY_PRECHECK.md
 ```
 
@@ -197,6 +198,7 @@ TASK_CARD_DRAFT
 → AUTHOR_SELF_CHECK
 → MACHINE_VERIFIABLE_SELF_CHECK_EVIDENCE
 → SELF_CHECK_PASS
+→ CI / PARSER GATE
 → INDEPENDENT_ARCHITECTURE_PRECHECK
 → OWNER / AUTHORIZED REVIEW
 → POSSIBLE IMPLEMENTATION AUTHORIZATION
@@ -208,6 +210,14 @@ Hard law:
 NO_SELF_CHECK_EVIDENCE = NO_TASK_SUBMISSION
 SELF_CHECK_PASS != OWNER_APPROVAL
 SELF_CHECK_PASS != IMPLEMENTATION_AUTHORIZATION
+TASK_CARD_GOVERNANCE_GATE_FAIL = NO_MERGE_WHILE_REQUIRED_CHECK_IS_ENFORCED
+```
+
+The parser gate runs inside the already-required `NO_CRITICAL_FALLBACK_GATE` GitHub check. It validates structure/self-check evidence, residual decision counts, cross-boundary semantic mapping, and declared task-base SHA against the current `main` SHA of the declared repository.
+
+```text
+PARSER = GOVERNANCE_ENFORCER
+PARSER != ARCHITECTURE_LAW
 ```
 
 ## 10. Anti-free-form Agent rule
