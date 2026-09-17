@@ -180,6 +180,107 @@ ARCHITECTURE_FREEDOM = NO
 NO_FROZEN_ANSWER_FOUND != PERMISSION_TO_INVENT
 ```
 
+## Mandatory author pre-submission self-check
+
+Every task-card author MUST execute:
+
+```text
+docs/governance/RD1_TASK_CARD_AUTHOR_PRE_SUBMISSION_SELF_CHECK.md
+```
+
+before submitting the task card to an Owner, independent reviewer, Codex, Claude, Mira, automation, or implementation Agent.
+
+The author is the first-line governance reviewer.
+
+```text
+TASK_CARD_DRAFT
+→ AUTHOR_SELF_CHECK
+→ MACHINE_VERIFIABLE_SELF_CHECK_EVIDENCE
+→ PASS
+→ ELIGIBLE_FOR_SUBMISSION
+```
+
+Without the evidence block:
+
+```text
+NO_SELF_CHECK_EVIDENCE = NO_TASK_SUBMISSION
+TASK_CARD_STATUS = INVALID_FOR_SUBMISSION
+```
+
+Every submitted task card MUST append a completed `TASK_CARD_AUTHOR_SELF_CHECK` record containing at minimum:
+
+```text
+AUTHOR_ROLE
+TASK_ID
+TASK_CARD_VERSION
+AUTHORITY_SOURCE_FILES_CHECKED
+CURRENT_MAIN_SHAS
+MANDATORY_TASK_FIELDS_PRESENT
+AUTHORIZED_PATH_COUNT
+DEFERRED_FINDING_COUNT
+AUTHORITY_IDENTITY
+MANDATORY_HEADER
+RULE11_CLASSIFICATION_CHECK
+PHASE_SCOPE_CHECK
+RESIDUAL_DECISION_AUDIT
+RESIDUAL_ARCHITECTURE_DECISIONS
+RESIDUAL_CONTRACT_SEMANTIC_DECISIONS
+CROSS_BOUNDARY_SEMANTICS
+CURRENT_CODE_COMPATIBILITY
+ACCEPTANCE_EVIDENCE_CHECK
+NO_AGENT_ARCHITECTURE_DISCRETION
+SELF_CHECK_RESULT
+READY_FOR_SUBMISSION
+```
+
+Submission is legal only when:
+
+```text
+SELF_CHECK_RESULT = PASS
+READY_FOR_SUBMISSION = YES
+RESIDUAL_ARCHITECTURE_DECISIONS = 0
+RESIDUAL_CONTRACT_SEMANTIC_DECISIONS = 0
+```
+
+The author's PASS is not authority:
+
+```text
+SELF_CHECK_PASS != OWNER_APPROVAL
+SELF_CHECK_PASS != IMPLEMENTATION_AUTHORIZATION
+SELF_CHECK_PASS != MERGE_AUTHORIZATION
+```
+
+## Cross-boundary semantic mapping rule
+
+Any task that creates or changes an adapter, bridge, translator, proxy, serializer, provider wrapper, public-boundary conversion, or cross-repo contract conversion MUST freeze or cite already-frozen law for:
+
+```text
+SOURCE_CONTRACT
+TARGET_CONTRACT
+FIELD_MAPPING
+STATUS_MAPPING
+FAILURE_MAPPING
+PROVENANCE_MAPPING
+AUTHORITY_TRANSFER
+MALFORMED_INPUT_BEHAVIOR
+UNKNOWN_VALUE_BEHAVIOR
+LIFECYCLE_OWNERSHIP
+```
+
+If any required semantic mapping is unresolved:
+
+```text
+TASK_CARD_NOT_READY
+READY_FOR_SUBMISSION = NO
+```
+
+Permanent law:
+
+```text
+CROSS_BOUNDARY_SEMANTIC_MAPPING = FROZEN_BEFORE_CODING
+AGENT_CROSS_BOUNDARY_SEMANTIC_FREEDOM = NO
+```
+
 ## Mandatory opening sentence
 
 Every task card must begin with:
