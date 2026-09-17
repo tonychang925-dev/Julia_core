@@ -291,12 +291,13 @@ def test_canonical_market_binding_has_no_private_market_loading_or_transport_fal
         "/Users/admin/Desktop/ai_theme_app",
         "Phase1ReadRepository",
         "theme_service.repositories",
+        "MarketPublicFactory",
+        "database_url",
     ):
         assert forbidden not in source
         assert forbidden not in bridge_source
 
     assert "from market_public import" in source
-    assert "MarketPublicFactory.create" in source
 
 
 @pytest.mark.asyncio
