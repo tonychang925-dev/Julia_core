@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-"""Mechanical RD1 task-card governance gate.
+"""Mechanical RD1 consolidated task-card governance gate.
 
-This gate enforces the active control plane before a task card may advance.
-It validates task-card structure/self-check evidence, Rule 12 architecture-
-completion declarations, permission boundaries and, in CI, the bound BASE_SHA.
-
-Architecture remains defined by frozen sources; this parser only enforces
-required governance evidence and never invents architecture.
+The parser enforces declarations and execution boundaries. It does not infer
+architecture truth from prose, code layout, tests, or keywords.
 """
 from __future__ import annotations
 
@@ -21,31 +17,25 @@ import urllib.request
 from pathlib import Path
 from typing import Iterable
 
-MANDATORY_TASK_FIELDS = (
-    "FROZEN_AUTHORITY_TRACE", "RULE11_CLASSIFICATION", "CURRENT_PHASE",
-    "TARGET_REQUIREMENT", "DEFERRED_FINDINGS", "TASK_ID", "REPO",
-    "TARGET_BRANCH", "BASE_SHA", "AUTHORIZED_PATHS", "FORBIDDEN_PATHS",
-    "REQUIRED_BEHAVIOR", "FORBIDDEN_BEHAVIOR", "ACCEPTANCE_EVIDENCE",
-)
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+VERSION_RE = re.compile(r"^\d+$")
 
-RULE12_ZERO_FIELDS = (
-    "TASK_AUTHOR_NEW_ARCHITECTURE_DECISIONS",
-    "NEW_OWNER_COUNT", "NEW_DOMAIN_COUNT", "NEW_COMPOSITION_ROOT_COUNT",
-    "NEW_BINDING_AUTHORITY_COUNT", "NEW_PACKAGE_BOUNDARY_COUNT",
-    "NEW_DEPENDENCY_DIRECTION_COUNT", "NEW_RUNTIME_AUTHORITY_COUNT",
-    "NEW_TRANSPORT_COUNT",
+MANDATORY_TASK_FIELDS = (
+    "TASK_ID", "TASK_TYPE", "REPO", "BASE_SHA", "TARGET_BRANCH",
+    "CONTROL_PLANE_COMPATIBILITY_VERSION", "CONTROL_PLANE_SHA_OBSERVED",
+    "CURRENT_PHASE", "RULE11_CLASSIFICATION", "FROZEN_AUTHORITY_BINDING",
+    "ARCHITECTURE_DELTA", "TARGET_REQUIREMENT", "SEMANTIC_ATOM",
+    "VALID_MERGE_END_STATE", "DEFERRED_FINDINGS", "AUTHORIZED_PATHS",
+    "FORBIDDEN_PATHS", "REQUIRED_BEHAVIOR", "FORBIDDEN_BEHAVIOR",
+    "ACCEPTANCE_EVIDENCE",
 )
 
 MANDATORY_SELF_CHECK_FIELDS = (
-    "AUTHOR_ROLE", "TASK_ID", "TASK_CARD_VERSION", "AUTHORITY_SOURCE_FILES_CHECKED",
-    "CURRENT_MAIN_SHAS", "MANDATORY_TASK_FIELDS_PRESENT", "AUTHORIZED_PATH_COUNT",
-    "DEFERRED_FINDING_COUNT", "AUTHORITY_IDENTITY", "MANDATORY_HEADER",
-    "RULE11_CLASSIFICATION_CHECK", "TASK_AUTHOR_ARCHITECTURE_COMPLETION_CHECK",
-    "FROZEN_SOURCE_BINDING_COMPLETE", *RULE12_ZERO_FIELDS,
-    "PHASE_SCOPE_CHECK", "RESIDUAL_DECISION_AUDIT",
-    "RESIDUAL_ARCHITECTURE_DECISIONS", "RESIDUAL_CONTRACT_SEMANTIC_DECISIONS",
-    "CROSS_BOUNDARY_SEMANTICS", "CURRENT_CODE_COMPATIBILITY",
-    "ACCEPTANCE_EVIDENCE_CHECK", "NO_AGENT_ARCHITECTURE_DISCRETION",
+    "AUTHOR_ROLE", "TASK_ID", "TASK_CARD_VERSION",
+    "AUTHORITY_SOURCE_FILES_CHECKED", "CURRENT_MAIN_SHAS",
+    "AUTHORITY_GATE", "SEMANTIC_ATOMICITY_GATE", "PERMISSION_GATE",
+    "RESIDUAL_ARCHITECTURE_DECISIONS",
+    "RESIDUAL_CONTRACT_SEMANTIC_DECISIONS",
     "SELF_CHECK_RESULT", "READY_FOR_SUBMISSION",
 )
 
@@ -65,11 +55,6 @@ MANDATORY_DENY_PERMISSION_FIELDS = (
     "FALLBACK", "SYNTHETIC_SUCCESS", "FUTURE_PHASE_SCOPE",
 )
 
-CROSS_BOUNDARY_TOKENS = (
-    "adapter", "bridge", "translator", "proxy", "serializer",
-    "provider wrapper", "public boundary conversion", "cross-repo contract conversion",
-)
-
 CROSS_BOUNDARY_REQUIRED = (
     "SOURCE_CONTRACT", "TARGET_CONTRACT", "FIELD_MAPPING", "STATUS_MAPPING",
     "FAILURE_MAPPING", "PROVENANCE_MAPPING", "AUTHORITY_TRANSFER",
@@ -77,6 +62,10 @@ CROSS_BOUNDARY_REQUIRED = (
 )
 
 CONTROL_PLANE_EXCLUSIONS = {
+    "docs/governance/RD1_CONTROL_PLANE_FRESHNESS_GATE.md",
+    "docs/governance/RD1_CONTROL_PLANE_COMPATIBILITY.md",
+    "docs/governance/RD1_CONTROL_PLANE_CONSOLIDATION_CONSTITUTIONAL_AMENDMENT_v1.1.md",
+    "docs/governance/RD1_V1_Control_Plane_Consolidation_and_Semantic_Atomicity_Plan_v1.1.md",
     "docs/governance/RD1_RULE12_ARCHITECTURE_COMPLETION_PROHIBITION.md",
     "docs/governance/RD1_AGENT_TASK_AUTHORITY_HEADER_TEMPLATE.md",
     "docs/governance/RD1_TASK_CARD_AUTHOR_PRE_SUBMISSION_SELF_CHECK.md",
@@ -84,8 +73,6 @@ CONTROL_PLANE_EXCLUSIONS = {
     "docs/governance/RD1_TASK_CARD_CI_PARSER_GATE.md",
     "docs/governance/RD1_AGENT_EXECUTION_PERMISSION_MATRIX.md",
 }
-
-SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _field_value(text: str, key: str) -> str | None:
@@ -102,6 +89,14 @@ def _has_field(text: str, key: str) -> bool:
     ) is not None
 
 
+def _int_value(text: str, key: str) -> int | None:
+    value = _field_value(text, key)
+    if value is None:
+        return None
+    m = re.search(r"-?\d+", value)
+    return int(m.group(0)) if m else None
+
+
 def looks_like_task_card(path: str, text: str) -> bool:
     normalized = path.replace("\\", "/")
     if normalized in CONTROL_PLANE_EXCLUSIONS:
@@ -116,51 +111,52 @@ def looks_like_task_card(path: str, text: str) -> bool:
     return by_name or by_content
 
 
-def is_cross_boundary_task(text: str) -> bool:
-    lower = text.lower()
-    return any(token in lower for token in CROSS_BOUNDARY_TOKENS)
-
-
-def _int_value(text: str, key: str) -> int | None:
-    value = _field_value(text, key)
-    if value is None:
-        return None
-    m = re.search(r"-?\d+", value)
-    return int(m.group(0)) if m else None
-
-
 def validate_task_card(text: str, *, path: str = "<memory>") -> list[str]:
     errors: list[str] = []
-
     missing_task = [key for key in MANDATORY_TASK_FIELDS if not _has_field(text, key)]
     if missing_task:
         errors.append("missing mandatory task fields: " + ", ".join(missing_task))
 
     if "TASK_CARD_AUTHOR_SELF_CHECK" not in text:
         errors.append("missing TASK_CARD_AUTHOR_SELF_CHECK block")
-
     missing_self = [key for key in MANDATORY_SELF_CHECK_FIELDS if not _has_field(text, key)]
     if missing_self:
         errors.append("missing self-check fields: " + ", ".join(missing_self))
 
     if "AGENT_EXECUTION_PERMISSION_MATRIX" not in text:
         errors.append("missing AGENT_EXECUTION_PERMISSION_MATRIX block")
-
     missing_permissions = [key for key in MANDATORY_PERMISSION_FIELDS if not _has_field(text, key)]
     if missing_permissions:
         errors.append("missing permission-matrix fields: " + ", ".join(missing_permissions))
 
-    expected_values = {
-        "AUTHORITY_IDENTITY": "PASS",
-        "MANDATORY_HEADER": "PASS",
-        "RULE11_CLASSIFICATION_CHECK": "PASS",
-        "TASK_AUTHOR_ARCHITECTURE_COMPLETION_CHECK": "PASS",
-        "FROZEN_SOURCE_BINDING_COMPLETE": "PASS",
-        "PHASE_SCOPE_CHECK": "PASS",
-        "RESIDUAL_DECISION_AUDIT": "PASS",
-        "CURRENT_CODE_COMPATIBILITY": "PASS",
-        "ACCEPTANCE_EVIDENCE_CHECK": "PASS",
-        "NO_AGENT_ARCHITECTURE_DISCRETION": "PASS",
+    classification = _field_value(text, "RULE11_CLASSIFICATION")
+    if classification is not None and classification not in {"A", "B", "C", "D", "NO_ACTIVE_FINDING"}:
+        errors.append(f"RULE11_CLASSIFICATION has illegal value {classification!r}")
+
+    task_type = _field_value(text, "TASK_TYPE")
+    if task_type is not None and task_type not in {"STANDARD", "CROSS_BOUNDARY"}:
+        errors.append(f"TASK_TYPE must be STANDARD or CROSS_BOUNDARY, got {task_type!r}")
+
+    architecture_delta = _field_value(text, "ARCHITECTURE_DELTA")
+    if architecture_delta is not None and architecture_delta.upper() != "NONE":
+        errors.append("ARCHITECTURE_DELTA must be NONE for a normal implementation task")
+
+    base_sha = _field_value(text, "BASE_SHA")
+    if base_sha is not None and not SHA_RE.fullmatch(base_sha):
+        errors.append(f"BASE_SHA must be exact 40-hex, got {base_sha!r}")
+
+    observed = _field_value(text, "CONTROL_PLANE_SHA_OBSERVED")
+    if observed is not None and not SHA_RE.fullmatch(observed):
+        errors.append(f"CONTROL_PLANE_SHA_OBSERVED must be exact 40-hex, got {observed!r}")
+
+    cp_version = _field_value(text, "CONTROL_PLANE_COMPATIBILITY_VERSION")
+    if cp_version is not None and not VERSION_RE.fullmatch(cp_version):
+        errors.append(f"CONTROL_PLANE_COMPATIBILITY_VERSION must be integer, got {cp_version!r}")
+
+    expected_pass = {
+        "AUTHORITY_GATE": "PASS",
+        "SEMANTIC_ATOMICITY_GATE": "PASS",
+        "PERMISSION_GATE": "PASS",
         "SELF_CHECK_RESULT": "PASS",
         "READY_FOR_SUBMISSION": "YES",
         "PERMISSION_MODEL": "DEFAULT_DENY",
@@ -168,7 +164,7 @@ def validate_task_card(text: str, *, path: str = "<memory>") -> list[str]:
         "BRANCH_CREATION": "EXACT_TARGET_ONLY",
         "COMMIT": "TASK_BRANCH_ONLY",
     }
-    for key, expected in expected_values.items():
+    for key, expected in expected_pass.items():
         value = _field_value(text, key)
         if value is not None and value.upper() != expected:
             errors.append(f"{key} must be {expected}, got {value!r}")
@@ -204,35 +200,15 @@ def validate_task_card(text: str, *, path: str = "<memory>") -> list[str]:
         if permission_value is not None and task_value is not None and permission_value != task_value:
             errors.append(f"{permission_key} must exactly equal {task_key}")
 
-    for key in (*RULE12_ZERO_FIELDS, "RESIDUAL_ARCHITECTURE_DECISIONS", "RESIDUAL_CONTRACT_SEMANTIC_DECISIONS"):
+    for key in ("RESIDUAL_ARCHITECTURE_DECISIONS", "RESIDUAL_CONTRACT_SEMANTIC_DECISIONS"):
         value = _int_value(text, key)
         if value is not None and value != 0:
             errors.append(f"{key} must be 0, got {value}")
 
-    classification = _field_value(text, "RULE11_CLASSIFICATION")
-    if classification is not None and classification not in {"A", "B", "C", "D", "NO_ACTIVE_FINDING"}:
-        errors.append(f"RULE11_CLASSIFICATION has illegal value {classification!r}")
-
-    base_sha = _field_value(text, "BASE_SHA")
-    if base_sha is not None and not SHA_RE.fullmatch(base_sha):
-        errors.append(f"BASE_SHA must be an exact 40-hex SHA, got {base_sha!r}")
-
-    if is_cross_boundary_task(text):
+    if task_type == "CROSS_BOUNDARY":
         missing_mapping = [key for key in CROSS_BOUNDARY_REQUIRED if not _has_field(text, key)]
         if missing_mapping:
             errors.append("cross-boundary task missing frozen mappings: " + ", ".join(missing_mapping))
-        semantic_result = _field_value(text, "CROSS_BOUNDARY_SEMANTICS")
-        if semantic_result is not None and semantic_result.upper() != "PASS":
-            errors.append(f"CROSS_BOUNDARY_SEMANTICS must be PASS, got {semantic_result!r}")
-
-    mandatory_count = _field_value(text, "MANDATORY_TASK_FIELDS_PRESENT")
-    if mandatory_count is not None:
-        expected = len(MANDATORY_TASK_FIELDS)
-        m = re.match(r"\s*(\d+)\s*/\s*(\d+)\s*$", mandatory_count)
-        if not m or int(m.group(1)) != expected or int(m.group(2)) != expected:
-            errors.append(
-                f"MANDATORY_TASK_FIELDS_PRESENT must be {expected}/{expected}, got {mandatory_count!r}"
-            )
 
     return [f"{path}: {error}" for error in errors]
 
