@@ -118,7 +118,7 @@ class ControlPlaneCompatibilityGateTests(unittest.TestCase):
              patch.object(mod, "current_head_compatibility_version", return_value=2):
             errors = mod.validate_governance_transition(
                 base_ref="origin/main", event_path="event.json",
-                changed=["tools/example.py"],
+                changed=["docs/governance/example.md"],
             )
         self.assertTrue(any("forbids version movement" in e for e in errors))
 
