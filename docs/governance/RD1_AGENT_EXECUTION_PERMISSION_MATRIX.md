@@ -29,14 +29,14 @@ AGENT_EXECUTION_PERMISSION_MATRIX
 PERMISSION_MODEL
 = DEFAULT_DENY
 
-REPOSITORY
-= <exact repo>
+PERMISSION_REPOSITORY
+= <must exactly equal REPO>
 
-BASE_SHA
-= <exact 40-hex authorized base>
+PERMISSION_BASE_SHA
+= <must exactly equal BASE_SHA>
 
-TARGET_BRANCH
-= <exact task branch>
+PERMISSION_TARGET_BRANCH
+= <must exactly equal TARGET_BRANCH>
 
 READ_SCOPE
 = <exact allowed read scope or explicit bounded rule>
@@ -100,19 +100,7 @@ MISSING_PERMISSION_FIELD = TASK_CARD_NOT_READY
 AMBIGUOUS_PERMISSION_VALUE = TASK_CARD_NOT_READY
 ```
 
-The Agent MUST NOT infer permission from:
-
-```text
-implementation convenience
-repository write access
-branch write access
-test expectations
-current code shape
-prior task behavior
-historical branches
-PR comments
-Agent consensus
-```
+The Agent MUST NOT infer permission from implementation convenience, repository write access, branch write access, tests, current code shape, prior tasks, historical branches, PR comments, or Agent consensus.
 
 ## 4. Architecture and semantic authority
 
@@ -185,7 +173,9 @@ A newly discovered future-phase concern must be recorded under `DEFERRED_FINDING
 AGENT_EXECUTION_PERMISSION_MATRIX is missing
 PERMISSION_MODEL != DEFAULT_DENY
 high-risk mandatory DENY values are weakened
-REPOSITORY / BASE_SHA / TARGET_BRANCH do not match task identity
+PERMISSION_REPOSITORY != REPO
+PERMISSION_BASE_SHA != BASE_SHA
+PERMISSION_TARGET_BRANCH != TARGET_BRANCH
 WRITE_SCOPE is missing
 READ_SCOPE is missing
 BRANCH_CREATION != EXACT_TARGET_ONLY
