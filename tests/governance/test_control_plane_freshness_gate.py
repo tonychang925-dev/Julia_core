@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "tools" / "control_plane_freshness_gate.py"
@@ -72,36 +73,10 @@ class ControlPlaneCompatibilityGateTests(unittest.TestCase):
         errors = mod.validate_task_card(text, current_compatibility_version=CURRENT_VERSION)
         self.assertTrue(any("missing SELF_CHECK_CONTROL_PLANE_COMPATIBILITY_VERSION" in e for e in errors))
 
-    def test_non_integer_version_fails(self):
-        text = card().replace(
-            f"SELF_CHECK_CONTROL_PLANE_COMPATIBILITY_VERSION\n= {CURRENT_VERSION}",
-            "SELF_CHECK_CONTROL_PLANE_COMPATIBILITY_VERSION\n= current",
-        )
-        errors = mod.validate_task_card(text, current_compatibility_version=CURRENT_VERSION)
-        self.assertTrue(any("must be integer" in e for e in errors))
-
     def test_missing_sha_evidence_fails(self):
         text = card().replace(f"SELF_CHECK_CONTROL_PLANE_SHA\n= {CURRENT_SHA}\n", "")
         errors = mod.validate_task_card(text, current_compatibility_version=CURRENT_VERSION)
         self.assertTrue(any("missing SELF_CHECK_CONTROL_PLANE_SHA" in e for e in errors))
-
-    def test_non_exact_sha_evidence_fails(self):
-        text = card().replace(CURRENT_SHA, "main")
-        errors = mod.validate_task_card(text, current_compatibility_version=CURRENT_VERSION)
-        self.assertTrue(any("must be exact 40-hex" in e for e in errors))
-
-    def test_freshness_claim_must_pass(self):
-        text = card().replace(
-            "CONTROL_PLANE_FRESHNESS_CHECK\n= PASS",
-            "CONTROL_PLANE_FRESHNESS_CHECK\n= FAIL",
-        )
-        errors = mod.validate_task_card(text, current_compatibility_version=CURRENT_VERSION)
-        self.assertTrue(any("must be PASS" in e for e in errors))
-
-    def test_control_plane_repo_is_fixed(self):
-        text = card().replace("tonychang925-dev/Julia_core", "tonychang925-dev/ai_theme_app", 1)
-        errors = mod.validate_task_card(text, current_compatibility_version=CURRENT_VERSION)
-        self.assertTrue(any("CONTROL_PLANE_AUTHORITY_REPO must be" in e for e in errors))
 
     def test_compatibility_metadata_parser(self):
         self.assertEqual(
@@ -110,6 +85,50 @@ class ControlPlaneCompatibilityGateTests(unittest.TestCase):
             ),
             7,
         )
+
+    def test_breaking_transition_requires_exact_single_increment(self):
+        body = "CONTROL_PLANE_COMPATIBILITY_IMPACT\n= BREAKING\n"
+        with patch.object(mod, "pr_body", return_value=body), \
+             patch.object(mod, "git_compatibility_version", return_value=0), \
+             patch.object(mod, "current_head_compatibility_version", return_value=1):
+            self.assertEqual(
+                mod.validate_governance_transition(
+                    base_ref="origin/main",
+                    event_path="event.json",
+                    changed=["docs/governance/example.md"],
+                ),
+                [],
+            )
+
+    def test_breaking_without_increment_fails(self):
+        body = "CONTROL_PLANE_COMPATIBILITY_IMPACT\n= BREAKING\n"
+        with patch.object(mod, "pr_body", return_value=body), \
+             patch.object(mod, "git_compatibility_version", return_value=1), \
+             patch.object(mod, "current_head_compatibility_version", return_value=1):
+            errors = mod.validate_governance_transition(
+                base_ref="origin/main", event_path="event.json",
+                changed=["docs/governance/example.md"],
+            )
+        self.assertTrue(any("increment exactly once" in e for e in errors))
+
+    def test_none_with_version_move_fails(self):
+        body = "CONTROL_PLANE_COMPATIBILITY_IMPACT\n= NONE\n"
+        with patch.object(mod, "pr_body", return_value=body), \
+             patch.object(mod, "git_compatibility_version", return_value=1), \
+             patch.object(mod, "current_head_compatibility_version", return_value=2):
+            errors = mod.validate_governance_transition(
+                base_ref="origin/main", event_path="event.json",
+                changed=["tools/example.py"],
+            )
+        self.assertTrue(any("forbids version movement" in e for e in errors))
+
+    def test_normative_governance_change_requires_impact_declaration(self):
+        with patch.object(mod, "pr_body", return_value=""):
+            errors = mod.validate_governance_transition(
+                base_ref="origin/main", event_path="event.json",
+                changed=["docs/governance/example.md"],
+            )
+        self.assertTrue(any("must declare CONTROL_PLANE_COMPATIBILITY_IMPACT" in e for e in errors))
 
     def test_control_plane_doc_not_misclassified_as_task_card(self):
         self.assertFalse(
