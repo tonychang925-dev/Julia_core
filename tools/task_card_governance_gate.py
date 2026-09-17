@@ -80,16 +80,20 @@ CROSS_BOUNDARY_REQUIRED = (
     "LIFECYCLE_OWNERSHIP",
 )
 
+CONTROL_PLANE_EXCLUSIONS = {
+    "docs/governance/RD1_AGENT_TASK_AUTHORITY_HEADER_TEMPLATE.md",
+    "docs/governance/RD1_TASK_CARD_AUTHOR_PRE_SUBMISSION_SELF_CHECK.md",
+    "docs/governance/RD1_ARCHITECTURE_AUTHORITY_PRECHECK.md",
+    "docs/governance/RD1_TASK_CARD_CI_PARSER_GATE.md",
+}
+
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _field_value(text: str, key: str) -> str | None:
-    # Canonical task-card style:
-    # KEY\n= value
     m = re.search(rf"(?m)^\s*{re.escape(key)}\s*\n\s*=\s*([^\n]+)", text)
     if m:
         return m.group(1).strip()
-    # Also accept KEY = value on one line.
     m = re.search(rf"(?m)^\s*{re.escape(key)}\s*=\s*([^\n]+)", text)
     return m.group(1).strip() if m else None
 
@@ -101,6 +105,9 @@ def _has_field(text: str, key: str) -> bool:
 
 
 def looks_like_task_card(path: str, text: str) -> bool:
+    normalized = path.replace("\\", "/")
+    if normalized in CONTROL_PLANE_EXCLUSIONS:
+        return False
     name = Path(path).name.lower()
     by_name = "task_card" in name or "task-card" in name or "task card" in name
     by_content = "TASK_CARD_AUTHOR_SELF_CHECK" in text or (
@@ -207,7 +214,7 @@ def validate_remote_base(text: str, *, token: str | None) -> list[str]:
     repo = _field_value(text, "REPO")
     base_sha = _field_value(text, "BASE_SHA")
     if not repo or not base_sha or not SHA_RE.fullmatch(base_sha):
-        return []  # structural validation reports this already.
+        return []
     current = github_main_sha(repo, token)
     if current != base_sha:
         return [f"BASE_DRIFT: {repo}/main={current}, task BASE_SHA={base_sha}"]
@@ -234,8 +241,6 @@ def validate_pr_body(event_path: str | None) -> list[str]:
     body = ((payload.get("pull_request") or {}).get("body") or "")
     if not body:
         return []
-    # Only treat PR body as a task-card submission if it actually declares a
-    # task identity/base/repo or embeds the self-check block.
     if not looks_like_task_card("PR_BODY", body):
         return []
     return validate_task_card(body, path="PR_BODY")
