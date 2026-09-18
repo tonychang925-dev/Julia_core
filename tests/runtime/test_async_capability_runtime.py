@@ -64,6 +64,36 @@ class MarketLoopAffineProvider(LoopAffineProvider):
         }
 
 
+class BlockingLoopAffineProvider(LoopAffineProvider):
+    def __init__(self) -> None:
+        super().__init__()
+        self.execution_started = threading.Event()
+        self.may_complete = asyncio.Event()
+        self.execution_completed = threading.Event()
+        self.execution_loop = None
+        self.order = []
+
+    async def execute(self, request):
+        self.execution_loop = asyncio.get_running_loop()
+        self.order.append("execute-start")
+        self.execution_started.set()
+        await self.may_complete.wait()
+        self.order.append("execute-complete")
+        self.execution_completed.set()
+        self.execute_loops.append(id(self.execution_loop))
+        self.execute_threads.append(threading.get_ident())
+        self.call_count += 1
+        return ProviderExecutionOutcome(
+            status=ToolResultStatus.SUCCESS,
+            structured_output={"call": self.call_count},
+            side_effect_state=SideEffectState.NONE,
+        )
+
+    async def close(self) -> None:
+        self.order.append("provider-close")
+        await super().close()
+
+
 def _bridge(provider: LoopAffineProvider) -> RuntimeCapabilityBridge:
     bridge = RuntimeCapabilityBridge()
     bridge.register_provider("local", provider)
@@ -95,6 +125,47 @@ def test_repeated_capability_calls_and_close_use_same_live_loop():
 
     assert provider.close_loops == [provider.execute_loops[0]]
     assert bridge.async_runtime.is_closed is True
+
+
+def test_concurrent_close_waits_for_accepted_in_flight_execution():
+    provider = BlockingLoopAffineProvider()
+    bridge = _bridge(provider)
+    execute_errors = []
+
+    def execute() -> None:
+        try:
+            bridge.execute_tool_typed(_tool_json(1))
+        except BaseException as exc:
+            execute_errors.append(exc)
+
+    execute_thread = threading.Thread(target=execute)
+    execute_thread.start()
+    assert provider.execution_started.wait(timeout=5)
+
+    close_thread = threading.Thread(target=bridge.close)
+    close_thread.start()
+    assert bridge.async_runtime.wait_for_state("CLOSING")
+
+    assert provider.close_loops == []
+    assert provider.order == ["execute-start"]
+    assert execute_thread.is_alive()
+    assert close_thread.is_alive()
+
+    provider.execution_loop.call_soon_threadsafe(provider.may_complete.set)
+    execute_thread.join(timeout=5)
+    close_thread.join(timeout=5)
+
+    assert execute_errors == []
+    assert provider.order == ["execute-start", "execute-complete", "provider-close"]
+    assert provider.close_loops == provider.execute_loops
+    assert bridge.async_runtime.state == "CLOSED"
+
+    try:
+        bridge.execute_tool_typed(_tool_json(2))
+    except RuntimeError as exc:
+        assert str(exc) == "async capability runtime is CLOSED"
+    else:
+        raise AssertionError("closed runtime recreated itself")
 
 
 def test_concurrent_first_use_shares_one_runtime_thread_and_loop():
@@ -141,6 +212,17 @@ def test_synchronous_bridge_api_works_inside_running_caller_loop():
     bridge.close()
 
 
+def test_close_before_first_execute_still_closes_provider():
+    provider = LoopAffineProvider()
+    bridge = _bridge(provider)
+
+    bridge.close()
+
+    assert provider.execute_loops == []
+    assert provider.close_loops
+    assert bridge.async_runtime.is_closed is True
+
+
 def test_market_adapter_forwards_close_on_capability_runtime_loop():
     provider = MarketLoopAffineProvider()
     adapter = MarketPublicProviderAdapter(
@@ -168,9 +250,26 @@ def test_closed_runtime_fails_visibly_without_recreation():
     try:
         bridge.execute_tool_typed(_tool_json(1))
     except RuntimeError as exc:
-        assert str(exc) == "async capability runtime is closed"
+        assert str(exc) == "async capability runtime is CLOSED"
     else:
         raise AssertionError("closed runtime recreated itself or silently succeeded")
+
+
+def test_provider_registration_after_bridge_close_is_rejected():
+    provider = LoopAffineProvider()
+    bridge = _bridge(provider)
+    bridge.close()
+    late_provider = LoopAffineProvider()
+
+    try:
+        bridge.register_provider("market", late_provider)
+    except RuntimeError as exc:
+        assert str(exc) == "runtime capability bridge is closing or closed"
+    else:
+        raise AssertionError("terminal bridge accepted a new provider")
+
+    assert "market" not in bridge._providers
+    assert "market" not in bridge.manager.providers
 
 
 def test_canonical_sync_delivery_has_no_per_call_loop_or_executor():

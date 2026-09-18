@@ -121,6 +121,8 @@ class RuntimeCapabilityBridge:
         self._manager: Optional[CapabilityManager] = None
         self._initialized = False
         self.async_runtime = AsyncCapabilityRuntime()
+        self._closing = False
+        self._closed = False
         self._provider_lock = _threading.RLock()
 
     def register_provider(self, provider_name: str, provider: object) -> None:
@@ -142,6 +144,9 @@ class RuntimeCapabilityBridge:
             raise TypeError("provider must implement health()")
 
         with self._provider_lock:
+            if self._closing or self._closed:
+                raise RuntimeError("runtime capability bridge is closing or closed")
+
             existing = self._providers.get(provider_name)
             if existing is not None and existing is not provider:
                 raise ProviderAlreadyRegisteredError(
@@ -365,8 +370,14 @@ class RuntimeCapabilityBridge:
 
     def close(self) -> None:
         """Close async providers and terminate the generic capability loop."""
-        self.initialize()
-        self.async_runtime.close(self._providers)
+        with self._provider_lock:
+            if self._closed:
+                return
+
+            self._closing = True
+            self.initialize()
+            self.async_runtime.close(self._providers)
+            self._closed = True
 
     # ── Evidence Gate (backward compat) ─────────────────────────────────
 

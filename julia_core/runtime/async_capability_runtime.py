@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 import concurrent.futures
+from enum import Enum
 import inspect
 import threading
 from typing import TypeVar
@@ -13,19 +14,23 @@ from typing import TypeVar
 T = TypeVar("T")
 
 
-class AsyncCapabilityRuntime:
-    """Run generic async capability work on one process-lifetime loop.
+class AsyncCapabilityRuntimeState(Enum):
+    OPEN = "OPEN"
+    CLOSING = "CLOSING"
+    CLOSED = "CLOSED"
 
-    The runtime owns no provider semantics. It only keeps async provider
-    resources attached to one live loop and provides a deterministic lifecycle
-    for closing providers before that loop stops.
-    """
+
+class AsyncCapabilityRuntime:
+    """Run generic async capability work on one process-lifetime loop."""
 
     def __init__(self) -> None:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._lifecycle_lock = threading.RLock()
-        self._closed = False
+        self._lifecycle_condition = threading.Condition(self._lifecycle_lock)
+        self._shutdown_lock = threading.Lock()
+        self._state = AsyncCapabilityRuntimeState.OPEN
+        self._in_flight_executions = 0
 
     @property
     def loop_identity(self) -> int | None:
@@ -40,37 +45,60 @@ class AsyncCapabilityRuntime:
     @property
     def is_closed(self) -> bool:
         with self._lifecycle_lock:
-            return self._closed
+            return self._state is AsyncCapabilityRuntimeState.CLOSED
+
+    @property
+    def state(self) -> str:
+        with self._lifecycle_lock:
+            return self._state.value
 
     def run(self, operation: Callable[[], Awaitable[T]]) -> T:
         """Block the synchronous caller until the persistent loop finishes work."""
         with self._lifecycle_lock:
-            if self._closed:
-                raise RuntimeError("async capability runtime is closed")
+            if self._state is not AsyncCapabilityRuntimeState.OPEN:
+                raise RuntimeError(f"async capability runtime is {self._state.value}")
+
             self._ensure_loop()
             loop = self._loop
             assert loop is not None
             future = asyncio.run_coroutine_threadsafe(operation(), loop)
+            self._in_flight_executions += 1
+            future.add_done_callback(self._finish_execution)
 
         try:
             return future.result(timeout=30)
         except concurrent.futures.TimeoutError as exc:
             future.cancel()
+            try:
+                future.result(timeout=5)
+            except BaseException:
+                pass
             raise TimeoutError("capability execution exceeded 30 seconds") from exc
 
     def close(self, providers: object) -> None:
-        """Close awaitable providers on their loop, then stop that loop."""
-        with self._lifecycle_lock:
-            if self._closed:
-                return
+        """Drain executions, close providers, then stop the persistent loop."""
+        with self._shutdown_lock:
+            with self._lifecycle_lock:
+                if self._state is AsyncCapabilityRuntimeState.CLOSED:
+                    return
 
-            if self._thread is None:
-                self._closed = True
-                return
+                self._state = AsyncCapabilityRuntimeState.CLOSING
+                self._lifecycle_condition.notify_all()
+                self._ensure_loop()
+                loop = self._loop
+                thread = self._thread
+                assert loop is not None and thread is not None
 
-            loop = self._loop
-            thread = self._thread
-            assert loop is not None and thread is not None
+                drained = self._lifecycle_condition.wait_for(
+                    lambda: self._in_flight_executions == 0,
+                    timeout=30,
+                )
+
+            if not drained:
+                raise TimeoutError(
+                    "timed out waiting for in-flight capability executions"
+                )
+
             close_error: BaseException | None = None
             try:
                 close_future = asyncio.run_coroutine_threadsafe(
@@ -80,6 +108,10 @@ class AsyncCapabilityRuntime:
                     close_future.result(timeout=30)
                 except concurrent.futures.TimeoutError as exc:
                     close_future.cancel()
+                    try:
+                        close_future.result(timeout=5)
+                    except BaseException:
+                        pass
                     raise TimeoutError(
                         "async capability provider close exceeded 30 seconds"
                     ) from exc
@@ -88,14 +120,29 @@ class AsyncCapabilityRuntime:
             finally:
                 loop.call_soon_threadsafe(loop.stop)
                 thread.join(timeout=5)
-                self._loop = None
-                self._thread = None
-                self._closed = True
+                with self._lifecycle_lock:
+                    self._loop = None
+                    self._thread = None
+                    self._state = AsyncCapabilityRuntimeState.CLOSED
+                    self._lifecycle_condition.notify_all()
 
             if thread.is_alive():
                 raise RuntimeError("async capability runtime thread did not stop")
             if close_error is not None:
                 raise close_error
+
+    def wait_for_state(self, state: str, timeout: float = 5) -> bool:
+        target = AsyncCapabilityRuntimeState(state)
+        with self._lifecycle_lock:
+            return self._lifecycle_condition.wait_for(
+                lambda: self._state is target,
+                timeout=timeout,
+            )
+
+    def _finish_execution(self, future: concurrent.futures.Future) -> None:
+        with self._lifecycle_lock:
+            self._in_flight_executions -= 1
+            self._lifecycle_condition.notify_all()
 
     def _ensure_loop(self) -> None:
         if self._thread is not None and self._thread.is_alive():
