@@ -3,6 +3,7 @@ name = "julia_core"
 version = "0.1.0"
 description = "Julia Agent Core OS — Runtime-owned cognitive agent infrastructure"
 requires-python = ">=3.10"
+dependencies = ["anthropic>=1.6,<2"]
 
 [build-system]
 requires = ["setuptools>=75.8.2"]
