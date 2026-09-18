@@ -20,7 +20,7 @@ class RecordingClient:
         self.error = error
         self.calls = []
 
-    def messages_create(self, **kwargs):
+    async def messages_create(self, **kwargs):
         self.calls.append(kwargs)
         if self.error is not None:
             raise self.error
@@ -74,6 +74,49 @@ def provider_for(response=None, error=None):
     client = RecordingClient(response=response, error=error)
     client.messages = MessagesNamespace(client)
     return AnthropicWebResearchProvider(client=client, model=DEFAULT_CLAUDE_MODEL), client
+
+
+@pytest.mark.asyncio
+async def test_typed_sdk_response_objects_are_parsed_as_source_bearing_evidence():
+    source = SimpleNamespace(
+        type="web_search_result",
+        url="https://example.com/typed-sdk",
+        title="Typed SDK Source",
+        page_age="2026-09-18",
+    )
+    citation = SimpleNamespace(
+        type="web_search_result_location",
+        url="https://example.com/typed-sdk",
+        title="Typed SDK Source",
+    )
+    text = SimpleNamespace(
+        type="text",
+        text="Typed SDK response contains a cited fact.",
+        citations=[citation],
+    )
+    blocks = [
+        SimpleNamespace(type="server_tool_use", id="srvu", name="web_search", input={}),
+        SimpleNamespace(type="web_search_tool_result", tool_use_id="srvu", content=[source]),
+        text,
+    ]
+    provider, _ = provider_for(response(blocks))
+
+    outcome = await provider.execute(request())
+
+    assert outcome.status is ToolResultStatus.SUCCESS
+    assert outcome.structured_output["sources"] == [
+        {
+            "url": "https://example.com/typed-sdk",
+            "title": "Typed SDK Source",
+            "page_age": "2026-09-18",
+        }
+    ]
+    assert outcome.structured_output["findings"] == [
+        {
+            "statement": "Typed SDK response contains a cited fact.",
+            "source_refs": ["https://example.com/typed-sdk"],
+        }
+    ]
 
 
 def request(query="latest robotics industry external catalysts"):
@@ -186,6 +229,28 @@ async def test_search_error_with_no_cited_finding_never_becomes_success():
 
 
 @pytest.mark.asyncio
+async def test_official_single_object_search_error_inside_tool_result_is_partial_truth():
+    blocks = cited_blocks("https://example.com/source")
+    blocks[1] = {
+        "type": "web_search_tool_result",
+        "tool_use_id": "srvu",
+        "content": {
+            "type": "web_search_tool_result_error",
+            "error_code": "api_error",
+        },
+    }
+    provider, _ = provider_for(response(blocks))
+
+    outcome = await provider.execute(request())
+
+    assert outcome.status is ToolResultStatus.PARTIAL
+    assert any(
+        item == "web_search_tool_result_error: api_error"
+        for item in outcome.structured_output["limitations"]
+    )
+
+
+@pytest.mark.asyncio
 async def test_pause_turn_with_valid_material_is_partial_and_makes_no_second_call():
     blocks = cited_blocks("https://example.com/source", pause=True)
     provider, client = provider_for(response(blocks, stop_reason="pause_turn"))
@@ -220,14 +285,15 @@ def test_factory_reads_credential_and_model_without_exposing_key(monkeypatch):
     monkeypatch.setenv("JULIA_RESEARCH_CLAUDE_MODEL", "claude-custom-model")
     constructed = []
 
-    class FakeSDKAnthropic:
-        def __init__(self, *, api_key):
+    class FakeSDKAsyncAnthropic:
+        def __init__(self, *, api_key, max_retries):
             assert api_key == credential
+            assert max_retries == 0
             constructed.append(api_key)
             self.messages = object()
 
     module = types.ModuleType("anthropic")
-    module.Anthropic = FakeSDKAnthropic
+    module.AsyncAnthropic = FakeSDKAsyncAnthropic
     monkeypatch.setitem(sys.modules, "anthropic", module)
 
     provider = AnthropicWebResearchProviderFactory.from_environment()
