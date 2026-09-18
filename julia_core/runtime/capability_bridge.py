@@ -410,10 +410,17 @@ class RuntimeCapabilityBridge:
 
 _bridge: Optional[RuntimeCapabilityBridge] = None
 
+# Construction + initialize() must publish one fully initialized bridge.
+# RLock keeps this safe if initialization ever reaches a helper that asks for
+# the singleton again on the same thread.
+import threading as _threading
+_bridge_lock = _threading.RLock()
+
 
 def get_capability_bridge() -> RuntimeCapabilityBridge:
     global _bridge
-    if _bridge is None:
-        _bridge = RuntimeCapabilityBridge()
+    with _bridge_lock:
+        if _bridge is None:
+            _bridge = RuntimeCapabilityBridge()
         _bridge.initialize()
-    return _bridge
+        return _bridge
