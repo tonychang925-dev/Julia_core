@@ -6,8 +6,10 @@ repositories, cognitive callables, providers, or private runtime objects.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from julia_core.conversation_state.storage_v2_repository import StorageV2ConversationRepository
@@ -19,6 +21,60 @@ from julia_core.conversation_state.repository import (
 )
 from julia_core.runtime.conversation_runtime import ConversationRuntime
 from julia_core.runtime.julia_session import JuliaSession
+
+
+logger = logging.getLogger("julia.public.conversation")
+
+_MARKET_BINDING_LOCK = threading.Lock()
+_market_binding_adapter: object | None = None
+_market_binding_attempted = False
+
+
+def _ensure_market_public_binding() -> None:
+    """Bind Market's public provider to Core exactly once per process.
+
+    Market owns provider construction and configuration through
+    MarketPublicFactory. Core owns only the mechanical binding into its generic
+    capability namespace. If the Market public package is unavailable, Core
+    leaves the namespace unbound so capability execution produces the existing
+    typed UNAVAILABLE/provider_not_found result. Non-Market conversations remain
+    available; there is no synthetic provider or fallback data source.
+    """
+    global _market_binding_adapter, _market_binding_attempted
+
+    from julia_core.runtime.capability_bridge import get_capability_bridge
+
+    bridge = get_capability_bridge()
+    if _market_binding_adapter is not None:
+        bridge.register_provider("market", _market_binding_adapter)
+        return
+    if _market_binding_attempted:
+        return
+
+    with _MARKET_BINDING_LOCK:
+        if _market_binding_adapter is not None:
+            bridge.register_provider("market", _market_binding_adapter)
+            return
+        if _market_binding_attempted:
+            return
+
+        _market_binding_attempted = True
+        try:
+            from market_public import MarketPublicFactory
+            from julia_core.capability.providers.market_public import (
+                MarketPublicProviderAdapter,
+            )
+
+            public_provider = MarketPublicFactory.create()
+            adapter = MarketPublicProviderAdapter(public_provider)
+            bridge.register_provider("market", adapter)
+            _market_binding_adapter = adapter
+        except Exception as exc:
+            logger.warning(
+                "Market public binding unavailable; market capabilities remain "
+                "typed-unavailable: %s",
+                exc,
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +123,11 @@ class CoreConversationIngress:
             provider = _get_cognition_provider("production")
             if provider is None:
                 raise CoreConversationProviderUnavailable("configured Core provider is unavailable")
+
+            # Core composes only the Market public boundary. Market constructs
+            # its own provider/configuration; Assistant is not involved.
+            _ensure_market_public_binding()
+
             self._session = JuliaSession(provider=provider)
         except Exception as exc:
             self._composition_error = exc
