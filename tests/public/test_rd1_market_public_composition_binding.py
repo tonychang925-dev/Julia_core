@@ -313,3 +313,136 @@ def test_market_namespace_collision_fails_canonical_ingress_closed(monkeypatch, 
     assert response.status == "failed"
     assert response.error_code == "CORE_COMPOSITION_UNAVAILABLE"
     assert response.assistant_content == ""
+
+
+def test_concurrent_ingress_waits_for_inflight_market_binding(monkeypatch):
+    bridge = FakeBridge()
+    monkeypatch.setattr(
+        "julia_core.runtime.capability_bridge.get_capability_bridge",
+        lambda: bridge,
+    )
+
+    factory_started = threading.Event()
+    release_factory = threading.Event()
+    second_finished = threading.Event()
+    errors = []
+
+    class Factory:
+        @staticmethod
+        def create():
+            factory_started.set()
+            assert release_factory.wait(timeout=2)
+            return FakePublicProvider()
+
+    _install_fake_market_public(monkeypatch, factory_impl=Factory)
+
+    def first():
+        try:
+            conversation._ensure_market_public_binding()
+        except Exception as exc:
+            errors.append(exc)
+
+    def second():
+        try:
+            conversation._ensure_market_public_binding()
+        except Exception as exc:
+            errors.append(exc)
+        finally:
+            second_finished.set()
+
+    t1 = threading.Thread(target=first)
+    t1.start()
+    assert factory_started.wait(timeout=2)
+
+    t2 = threading.Thread(target=second)
+    t2.start()
+    time.sleep(0.02)
+
+    # The second ingress must be blocked on the binding lock until the first
+    # attempt reaches a terminal state.
+    assert second_finished.is_set() is False
+
+    release_factory.set()
+    t1.join(timeout=2)
+    t2.join(timeout=2)
+
+    assert errors == []
+    assert second_finished.is_set() is True
+    assert "market" in bridge.providers
+    assert len(bridge.register_calls) == 1
+
+
+def test_optional_binding_failure_rechecks_namespace_on_later_ingress(monkeypatch):
+    bridge = FakeBridge()
+    monkeypatch.setattr(
+        "julia_core.runtime.capability_bridge.get_capability_bridge",
+        lambda: bridge,
+    )
+
+    monkeypatch.delitem(sys.modules, "market_public", raising=False)
+    real_import = __import__
+
+    def fail_market_import(name, *args, **kwargs):
+        if name == "market_public":
+            raise ModuleNotFoundError("market_public unavailable")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", fail_market_import)
+
+    conversation._ensure_market_public_binding()
+    assert conversation._market_binding_attempted is True
+    assert bridge.providers.get("market") is None
+
+    # A later foreign registration must be detected even though canonical
+    # construction is not retried after the optional failure.
+    bridge.providers["market"] = object()
+
+    with pytest.raises(conversation.CoreConversationConfigurationError):
+        conversation._ensure_market_public_binding()
+
+    assert conversation._market_binding_error is not None
+
+
+def test_runtime_bridge_provider_registration_is_atomic_under_race():
+    from julia_core.runtime.capability_bridge import (
+        ProviderAlreadyRegisteredError,
+        RuntimeCapabilityBridge,
+    )
+
+    class Provider:
+        async def execute(self, request):
+            return {"ok": True}
+
+        async def health(self):
+            return True, "ok"
+
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+
+    first = Provider()
+    second = Provider()
+    start = threading.Barrier(3)
+    successes = []
+    failures = []
+
+    def bind(provider):
+        start.wait(timeout=2)
+        try:
+            bridge.register_provider("market", provider)
+            successes.append(provider)
+        except ProviderAlreadyRegisteredError as exc:
+            failures.append(exc)
+
+    t1 = threading.Thread(target=bind, args=(first,))
+    t2 = threading.Thread(target=bind, args=(second,))
+    t1.start()
+    t2.start()
+    start.wait(timeout=2)
+    t1.join(timeout=2)
+    t2.join(timeout=2)
+
+    assert len(successes) == 1
+    assert len(failures) == 1
+    winner = successes[0]
+    assert bridge._providers["market"] is winner
+    assert bridge.manager.providers["market"] is winner
