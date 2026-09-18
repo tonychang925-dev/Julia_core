@@ -31,6 +31,94 @@ _market_binding_attempted = False
 _market_binding_error: Exception | None = None
 
 
+_RESEARCH_BINDING_LOCK = threading.Lock()
+_research_binding_provider: object | None = None
+_research_binding_attempted = False
+_research_binding_error: Exception | None = None
+
+
+def _ensure_research_provider_binding() -> None:
+    """Bind the Research-owned Anthropic provider exactly once per process."""
+    global _research_binding_provider, _research_binding_attempted, _research_binding_error
+
+    with _RESEARCH_BINDING_LOCK:
+        if _research_binding_error is not None:
+            raise _research_binding_error
+
+        from julia_core.runtime.capability_bridge import get_capability_bridge
+
+        bridge = get_capability_bridge()
+        existing = bridge.manager.providers.get("research")
+        if _research_binding_provider is not None:
+            if existing is _research_binding_provider:
+                return
+            error = CoreConversationConfigurationError(
+                "canonical Research binding no longer owns the research provider namespace"
+            )
+            _research_binding_error = error
+            raise error
+
+        if _research_binding_attempted:
+            if existing is None:
+                return
+            error = CoreConversationConfigurationError(
+                "research provider namespace became occupied after canonical binding failed"
+            )
+            _research_binding_error = error
+            raise error
+
+        if existing is not None:
+            error = CoreConversationConfigurationError(
+                "research provider namespace is already occupied before canonical binding"
+            )
+            _research_binding_error = error
+            raise error
+
+        _research_binding_attempted = True
+        try:
+            from julia_core.research.anthropic_web import (
+                AnthropicWebResearchProviderFactory,
+            )
+
+            provider = AnthropicWebResearchProviderFactory.from_environment()
+            if provider is None:
+                return
+            bridge.register_provider("research", provider)
+            if bridge.manager.providers.get("research") is not provider:
+                error = CoreConversationConfigurationError(
+                    "canonical Research provider did not win the research namespace"
+                )
+                _research_binding_error = error
+                raise error
+            _research_binding_provider = provider
+        except Exception as exc:
+            from julia_core.runtime.capability_bridge import (
+                ProviderAlreadyRegisteredError,
+            )
+
+            if isinstance(
+                exc,
+                (ProviderAlreadyRegisteredError, CoreConversationConfigurationError),
+            ):
+                error = (
+                    exc
+                    if isinstance(exc, CoreConversationConfigurationError)
+                    else CoreConversationConfigurationError(
+                        "canonical Research provider registration was rejected"
+                    )
+                )
+                _research_binding_error = error
+                raise error from exc
+
+            credential = os.environ.get("ANTHROPIC_API_KEY", "")
+            message = str(exc).replace(credential, "[redacted]") if credential else str(exc)
+            logger.warning(
+                "Research Anthropic provider binding unavailable; research "
+                "capabilities remain typed-unavailable: %s",
+                message,
+            )
+
+
 def _ensure_market_public_binding() -> None:
     """Bind Market's public provider to Core exactly once per process.
 
@@ -173,9 +261,10 @@ class CoreConversationIngress:
             if provider is None:
                 raise CoreConversationProviderUnavailable("configured Core provider is unavailable")
 
-            # Core composes only the Market public boundary. Market constructs
-            # its own provider/configuration; Assistant is not involved.
+            # Product-owned providers construct/configure themselves. Core only
+            # performs mechanical namespace binding; Assistant is not involved.
             _ensure_market_public_binding()
+            _ensure_research_provider_binding()
 
             self._session = JuliaSession(provider=provider)
         except Exception as exc:
