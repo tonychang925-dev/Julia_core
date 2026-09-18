@@ -6,10 +6,12 @@ from .conversation import (
     CoreConversationRequest,
     CoreConversationResponse,
 )
+from .lifecycle import shutdown_core_runtime
 
 __all__ = [
     "CoreConversationConfig",
     "CoreConversationIngress",
     "CoreConversationRequest",
     "CoreConversationResponse",
+    "shutdown_core_runtime",
 ]
