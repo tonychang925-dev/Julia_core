@@ -205,42 +205,61 @@ class CognitiveContextPackage:
             if depth >= self._RENDER_MAX_DEPTH:
                 compact = "[…]" + marker
                 return compact if len(compact) <= budget else compact[:budget]
-            all_items = list(value)
-            visible_items = all_items[: self._RENDER_MAX_ITEMS]
+
+            total_items = len(value)
+            visible_items = value[: self._RENDER_MAX_ITEMS]
             if budget <= 2:
                 return "[]"[:budget]
+
             remaining = budget - 2
+            omitted_count = total_items - len(visible_items)
+            omission_note = marker + (f"[{omitted_count} more]" if omitted_count else "")
+
+            # Always reserve enough space for an explicit container-level
+            # truncation marker before allocating child budgets. This prevents
+            # a bounded prefix from looking like a complete list when tail
+            # items were omitted or rendering stopped early.
+            note_reserve = min(remaining, len(omission_note) + 2)
+            content_remaining = max(0, remaining - note_reserve)
+
             parts: list[str] = []
-            truncated = len(all_items) > len(visible_items)
+            stopped_early = False
             for index, child in enumerate(visible_items):
                 separator = ", " if parts else ""
-                if remaining <= len(separator):
-                    truncated = True
+                if content_remaining <= len(separator):
+                    stopped_early = True
                     break
                 remaining_items = max(len(visible_items) - index, 1)
-                fair_share = max(1, (remaining - len(separator)) // remaining_items)
+                fair_share = max(
+                    1,
+                    (content_remaining - len(separator)) // remaining_items,
+                )
                 child_text = self._render_value(
                     child,
                     depth=depth + 1,
                     char_budget=fair_share,
                 )
                 part = separator + child_text
-                if len(part) > remaining:
-                    truncated = True
+                if len(part) > content_remaining:
+                    stopped_early = True
                     break
                 parts.append(part)
-                remaining -= len(part)
-                if marker in child_text:
-                    truncated = True
+                content_remaining -= len(part)
+
             if len(parts) < len(visible_items):
-                truncated = True
+                stopped_early = True
+
             body = "".join(parts)
-            if truncated:
-                note = (", " if body else "") + marker
-                if len(all_items) > len(visible_items):
-                    note += f"[{len(all_items) - len(visible_items)} more]"
-                if len(note) <= remaining:
+            if omitted_count or stopped_early:
+                note = (", " if body else "") + omission_note
+                available = remaining - len(body)
+                if len(note) <= available:
                     body += note
+                else:
+                    # Extreme tiny-budget case: prefer an explicit truncation
+                    # signal over a normal-looking but incomplete prefix.
+                    body = bounded_scalar(omission_note, remaining)
+
             return "[" + body + "]"
 
         return bounded_scalar(str(value), budget)
