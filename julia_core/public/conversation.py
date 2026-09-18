@@ -28,6 +28,7 @@ logger = logging.getLogger("julia.public.conversation")
 _MARKET_BINDING_LOCK = threading.Lock()
 _market_binding_adapter: object | None = None
 _market_binding_attempted = False
+_market_binding_error: Exception | None = None
 
 
 def _ensure_market_public_binding() -> None:
@@ -35,28 +36,44 @@ def _ensure_market_public_binding() -> None:
 
     Market owns provider construction and configuration through
     MarketPublicFactory. Core owns only the mechanical binding into its generic
-    capability namespace. If the Market public package is unavailable, Core
-    leaves the namespace unbound so capability execution produces the existing
-    typed UNAVAILABLE/provider_not_found result. Non-Market conversations remain
-    available; there is no synthetic provider or fallback data source.
+    capability namespace.
+
+    Missing Market packaging/configuration leaves Market capabilities
+    typed-unavailable without breaking non-Market conversations. A provider
+    authority collision is different: it is persisted as a Core composition
+    error so the canonical ingress cannot continue on an older/different Market
+    provider.
     """
-    global _market_binding_adapter, _market_binding_attempted
+    global _market_binding_adapter, _market_binding_attempted, _market_binding_error
 
-    from julia_core.runtime.capability_bridge import get_capability_bridge
-
-    bridge = get_capability_bridge()
+    if _market_binding_error is not None:
+        raise _market_binding_error
     if _market_binding_adapter is not None:
-        bridge.register_provider("market", _market_binding_adapter)
         return
     if _market_binding_attempted:
         return
 
     with _MARKET_BINDING_LOCK:
+        if _market_binding_error is not None:
+            raise _market_binding_error
         if _market_binding_adapter is not None:
-            bridge.register_provider("market", _market_binding_adapter)
             return
         if _market_binding_attempted:
             return
+
+        # get_capability_bridge() now returns only after its singleton has
+        # completed initialize(), so registration cannot land in a partially
+        # constructed manager.
+        from julia_core.runtime.capability_bridge import get_capability_bridge
+
+        bridge = get_capability_bridge()
+        existing = bridge.manager.providers.get("market")
+        if existing is not None:
+            error = CoreConversationConfigurationError(
+                "market provider namespace is already occupied before canonical binding"
+            )
+            _market_binding_error = error
+            raise error
 
         _market_binding_attempted = True
         try:
@@ -65,11 +82,26 @@ def _ensure_market_public_binding() -> None:
                 MarketPublicProviderAdapter,
             )
 
+            # No Core DB/repository/private configuration crosses this boundary.
             public_provider = MarketPublicFactory.create()
             adapter = MarketPublicProviderAdapter(public_provider)
             bridge.register_provider("market", adapter)
             _market_binding_adapter = adapter
         except Exception as exc:
+            # A namespace collision is an authority failure, not an optional
+            # Market dependency failure. Persist it so every later canonical
+            # ingress also fails closed instead of using a prior provider.
+            from julia_core.runtime.capability_bridge import (
+                ProviderAlreadyRegisteredError,
+            )
+
+            if isinstance(exc, ProviderAlreadyRegisteredError):
+                error = CoreConversationConfigurationError(
+                    "canonical Market provider registration was rejected"
+                )
+                _market_binding_error = error
+                raise error from exc
+
             logger.warning(
                 "Market public binding unavailable; market capabilities remain "
                 "typed-unavailable: %s",
