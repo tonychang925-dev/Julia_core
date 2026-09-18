@@ -129,3 +129,31 @@ def test_market_domain_failure_reenters_as_market_failure_not_core_error():
     assert projected_market["data_state"] == "NOT_APPLICABLE"
     assert projected_market["failures"][0]["kind"] == "MarketObjectNotFound"
     assert "error" not in projected_tool
+
+
+def test_sequence_tail_omission_is_always_explicit_at_budget_edge():
+    values = ["x" * 397 for _ in range(21)]
+    rendered = CognitiveContextPackage()._render_value(
+        values,
+        depth=0,
+        char_budget=8000,
+    )
+
+    assert "…[truncated]" in rendered
+    assert "[1 more]" in rendered
+
+
+def test_sequence_renderer_slices_bounded_prefix_without_full_materialization():
+    class NoIterList(list):
+        def __iter__(self):
+            raise AssertionError("renderer must not materialize the full sequence")
+
+    values = NoIterList(["x" * 50 for _ in range(100)])
+    rendered = CognitiveContextPackage()._render_value(
+        values,
+        depth=0,
+        char_budget=8000,
+    )
+
+    assert "…[truncated]" in rendered
+    assert "[80 more]" in rendered
