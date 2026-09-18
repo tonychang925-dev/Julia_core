@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import inspect
+import json
+import sys
+import types
 
 from julia_core.public.conversation import (
     CoreConversationConfig,
     CoreConversationIngress,
     CoreConversationRequest,
+    _ensure_market_public_binding,
 )
+from julia_core.runtime.capability_bridge import get_capability_bridge
 
 
 def _request() -> CoreConversationRequest:
@@ -39,8 +44,10 @@ def test_public_ingress_processes_typed_turn_through_core_runtime(monkeypatch, t
                 "status": "completed",
             })()
 
+    market_bind_calls = []
     monkeypatch.setattr("julia_core.public.conversation.JuliaSession", FakeSession)
     monkeypatch.setattr("julia_core.public.conversation.ConversationRuntime", FakeRuntime)
+    monkeypatch.setattr("julia_core.public.conversation._ensure_market_public_binding", lambda: market_bind_calls.append(True) or True)
     monkeypatch.setattr("julia_core.providers.core_cognition._get_cognition_provider", lambda _name: object())
     ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
     response = ingress.process(_request())
@@ -49,6 +56,7 @@ def test_public_ingress_processes_typed_turn_through_core_runtime(monkeypatch, t
     assert response.status == "completed"
     assert len(calls) == 1
     assert "cognitive_fn" in calls[0]
+    assert market_bind_calls == [True]
 
 
 def test_public_ingress_missing_configuration_fails_closed():
@@ -112,3 +120,60 @@ def test_public_response_is_typed_and_private_object_free():
     """TC-RC25-04: public response contains scalar transport-safe fields only."""
     response_fields = set(CoreConversationIngress().process(_request()).__dataclass_fields__)
     assert response_fields == {"conversation_id", "turn_id", "assistant_content", "status", "error_code"}
+
+def test_market_public_factory_is_bound_once(monkeypatch):
+    import julia_core.runtime.capability_bridge as bridge_module
+
+    monkeypatch.setattr(bridge_module, "_bridge", None)
+
+    class RequestType:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeMarketProvider:
+        async def execute(self, capability_id, request, **kwargs):
+            raise AssertionError("binding test must not execute Market")
+
+    class FakeFactory:
+        calls = 0
+
+        @classmethod
+        def create(cls):
+            cls.calls += 1
+            return FakeMarketProvider()
+
+    module = types.ModuleType("market_public")
+    module.MarketPublicFactory = FakeFactory
+    module.EventReadRequest = RequestType
+    module.EventResolveRequest = RequestType
+    module.ProductReadRequest = RequestType
+    monkeypatch.setitem(sys.modules, "market_public", module)
+
+    assert _ensure_market_public_binding() is True
+    assert _ensure_market_public_binding() is True
+
+    bridge = get_capability_bridge()
+    assert FakeFactory.calls == 1
+    assert "market" in bridge.manager.providers
+    assert bridge.manager.providers["market"].__class__.__name__ == "MarketPublicProviderAdapter"
+
+
+def test_missing_market_public_package_becomes_typed_unavailable(monkeypatch):
+    import julia_core.runtime.capability_bridge as bridge_module
+
+    monkeypatch.setattr(bridge_module, "_bridge", None)
+    monkeypatch.setitem(sys.modules, "market_public", None)
+
+    assert _ensure_market_public_binding() is False
+
+    bridge = get_capability_bridge()
+    execution = bridge.execute_tool_typed(json.dumps({
+        "name": "market.event.resolve",
+        "arguments": {"feed_date": "2026-09-18", "limit": 1},
+    }))
+
+    assert execution is not None
+    assert execution.tool_result is not None
+    assert execution.tool_result.status.value == "unavailable"
+    assert execution.tool_result.error["code"] == "provider_not_found"
+    assert execution.tool_result.structured_output == {}
