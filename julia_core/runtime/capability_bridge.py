@@ -231,6 +231,16 @@ class RuntimeCapabilityBridge:
                 status=CapabilityStatus.AVAILABLE,
             ))
 
+        self.registry.register_definition(CapabilityDefinition(
+            name="research.web.query",
+            description="Query source-bearing external web research evidence",
+            layer=CapabilityLayer.INTELLIGENCE,
+            provider="research",
+            permission_scope="research.observe",
+            input_schema={"query": "research question"},
+            status=CapabilityStatus.AVAILABLE,
+        ))
+
         # External Code Review capability (Core semantic contract).
         # The provider (external_review) is implemented cross-repo in
         # Julia-AI-Assistant; Core registers only the CapabilityDefinition and
@@ -301,16 +311,23 @@ class RuntimeCapabilityBridge:
                 params = ", ".join(f'"{k}": {v}' for k, v in d.input_schema.items())
                 lines.append(f'  参数: {{{params}}}')
 
+        # Research tools
+        for d in self.registry.by_provider("research"):
+            params = ", ".join(f'"{k}": {v}' for k, v in d.input_schema.items())
+            lines.append(f'- {d.name}: {d.description}。参数: {{{params}}}')
+
         lines.extend([
             "",
             "工具调用后会收到执行结果。基于结果回答，不要编造。",
             "",
             "[工具规则 — 必须遵守]",
-            "1. 只有用户明确要求读取/搜索/列出时才使用工具。",
-            '2. 没有工具调用时，禁止说"我读了""我找到了""我搜索了"。',
-            "3. 文件不存在 → 直接告知用户，不猜测内容。",
-            "4. 工具调用格式: ```tool_call\\n{JSON}\\n```",
-            "5. 一个回复最多一个工具调用。",
+            "1. file.* 只有在Tony明确要求读取/搜索/列出文件时才可以调用。",
+            "2. market.* / research.* 是READ_ONLY证据能力；当回答当前问题缺少外部证据时，Julia可以主动发起结构化调用。",
+            '3. 没有工具调用时，禁止说"我读了""我找到了""我搜索了"。',
+            "4. 工具结果只是证据，不是最终判断；Julia必须在第二次思考中独立解读。",
+            "5. 文件不存在 → 直接告知用户，不猜测内容。",
+            "6. 工具调用格式: ```tool_call\\n{JSON}\\n```",
+            "7. 一个回复最多一个工具调用。",
         ])
         return "\n".join(lines)
 
