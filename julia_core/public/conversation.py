@@ -6,8 +6,10 @@ repositories, cognitive callables, providers, or private runtime objects.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from julia_core.conversation_state.storage_v2_repository import StorageV2ConversationRepository
@@ -19,6 +21,54 @@ from julia_core.conversation_state.repository import (
 )
 from julia_core.runtime.conversation_runtime import ConversationRuntime
 from julia_core.runtime.julia_session import JuliaSession
+
+
+logger = logging.getLogger(__name__)
+_market_binding_lock = threading.Lock()
+
+
+def _ensure_market_public_binding() -> bool:
+    """Ensure the process-wide Core capability bridge has one Market binding.
+
+    Market owns provider construction through its public factory. Core only
+    imports the public package, wraps the returned public provider mechanically,
+    and binds it to the generic market namespace.
+
+    Market is an optional external dependency for Core startup. If the public
+    package is absent or cannot be constructed, ordinary Julia cognition remains
+    available. A later Market capability invocation then fails through the
+    existing typed Core execution plane as provider_not_found/UNAVAILABLE; no
+    alternate provider or synthetic Market success is installed here.
+    """
+    try:
+        from julia_core.runtime.capability_bridge import get_capability_bridge
+
+        bridge = get_capability_bridge()
+        if "market" in bridge.manager.providers:
+            return True
+
+        with _market_binding_lock:
+            if "market" in bridge.manager.providers:
+                return True
+
+            from market_public import MarketPublicFactory
+            from julia_core.capability.providers.market_public import (
+                MarketPublicProviderAdapter,
+            )
+
+            public_provider = MarketPublicFactory.create()
+            bridge.register_provider(
+                "market",
+                MarketPublicProviderAdapter(public_provider),
+            )
+            return True
+    except Exception as exc:
+        logger.warning(
+            "Market public provider binding unavailable; Market capabilities "
+            "will remain typed-unavailable: %s",
+            exc,
+        )
+        return False
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +117,12 @@ class CoreConversationIngress:
             provider = _get_cognition_provider("production")
             if provider is None:
                 raise CoreConversationProviderUnavailable("configured Core provider is unavailable")
+
+            # Optional external capability composition. Market constructs its
+            # own public provider; Core only binds the public object. Failure to
+            # bind Market must not take down unrelated Julia cognition.
+            _ensure_market_public_binding()
+
             self._session = JuliaSession(provider=provider)
         except Exception as exc:
             self._composition_error = exc
