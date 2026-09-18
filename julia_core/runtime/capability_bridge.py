@@ -32,6 +32,7 @@ from julia_core.capability.models import (
 )
 from julia_core.capability.policy import PermissionPolicy
 from julia_core.capability.registry import CapabilityRegistry
+from julia_core.runtime.async_capability_runtime import AsyncCapabilityRuntime
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +120,9 @@ class RuntimeCapabilityBridge:
         self._providers: dict = {}
         self._manager: Optional[CapabilityManager] = None
         self._initialized = False
+        self.async_runtime = AsyncCapabilityRuntime()
+        self._closing = False
+        self._closed = False
         self._provider_lock = _threading.RLock()
 
     def register_provider(self, provider_name: str, provider: object) -> None:
@@ -140,6 +144,9 @@ class RuntimeCapabilityBridge:
             raise TypeError("provider must implement health()")
 
         with self._provider_lock:
+            if self._closing or self._closed:
+                raise RuntimeError("runtime capability bridge is closing or closed")
+
             existing = self._providers.get(provider_name)
             if existing is not None and existing is not provider:
                 raise ProviderAlreadyRegisteredError(
@@ -359,18 +366,18 @@ class RuntimeCapabilityBridge:
             reason=f"LLM tool call: {name}",
         )
 
-        # Execute through manager (sync wrapper around async)
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, self.manager.execute_typed(request))
-                    return future.result(timeout=30)
-            return asyncio.run(self.manager.execute_typed(request))
-        except RuntimeError:
-            return asyncio.run(self.manager.execute_typed(request))
+        return self.async_runtime.run(lambda: self.manager.execute_typed(request))
+
+    def close(self) -> None:
+        """Close async providers and terminate the generic capability loop."""
+        with self._provider_lock:
+            if self._closed:
+                return
+
+            self._closing = True
+            self.initialize()
+            self.async_runtime.close(self._providers)
+            self._closed = True
 
     # ── Evidence Gate (backward compat) ─────────────────────────────────
 
