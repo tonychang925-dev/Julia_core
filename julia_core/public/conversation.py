@@ -34,40 +34,46 @@ _market_binding_error: Exception | None = None
 def _ensure_market_public_binding() -> None:
     """Bind Market's public provider to Core exactly once per process.
 
-    Market owns provider construction and configuration through
-    MarketPublicFactory. Core owns only the mechanical binding into its generic
-    capability namespace.
+    Market owns provider construction/configuration. Core owns only the
+    mechanical binding into its generic capability namespace.
 
-    Missing Market packaging/configuration leaves Market capabilities
-    typed-unavailable without breaking non-Market conversations. A provider
-    authority collision is different: it is persisted as a Core composition
-    error so the canonical ingress cannot continue on an older/different Market
-    provider.
+    The whole Market binding state transition is serialized. A completed
+    optional-unavailable state still rechecks the provider namespace on every
+    later ingress, so a foreign provider can never appear after failure without
+    becoming a sticky Core composition error.
     """
     global _market_binding_adapter, _market_binding_attempted, _market_binding_error
-
-    if _market_binding_error is not None:
-        raise _market_binding_error
-    if _market_binding_adapter is not None:
-        return
-    if _market_binding_attempted:
-        return
 
     with _MARKET_BINDING_LOCK:
         if _market_binding_error is not None:
             raise _market_binding_error
-        if _market_binding_adapter is not None:
-            return
-        if _market_binding_attempted:
-            return
 
-        # get_capability_bridge() now returns only after its singleton has
-        # completed initialize(), so registration cannot land in a partially
-        # constructed manager.
         from julia_core.runtime.capability_bridge import get_capability_bridge
 
         bridge = get_capability_bridge()
         existing = bridge.manager.providers.get("market")
+
+        if _market_binding_adapter is not None:
+            if existing is _market_binding_adapter:
+                return
+            error = CoreConversationConfigurationError(
+                "canonical Market binding no longer owns the market provider namespace"
+            )
+            _market_binding_error = error
+            raise error
+
+        # A prior optional binding failure is terminal for construction in this
+        # process, but not for authority checks. Never retry the factory; always
+        # verify that no foreign provider has appeared later.
+        if _market_binding_attempted:
+            if existing is None:
+                return
+            error = CoreConversationConfigurationError(
+                "market provider namespace became occupied after canonical binding failed"
+            )
+            _market_binding_error = error
+            raise error
+
         if existing is not None:
             error = CoreConversationConfigurationError(
                 "market provider namespace is already occupied before canonical binding"
@@ -86,18 +92,29 @@ def _ensure_market_public_binding() -> None:
             public_provider = MarketPublicFactory.create()
             adapter = MarketPublicProviderAdapter(public_provider)
             bridge.register_provider("market", adapter)
+
+            # register_provider is atomic. Verify the exact object actually won
+            # the namespace before publishing BOUND state.
+            if bridge.manager.providers.get("market") is not adapter:
+                error = CoreConversationConfigurationError(
+                    "canonical Market provider did not win the market namespace"
+                )
+                _market_binding_error = error
+                raise error
+
             _market_binding_adapter = adapter
         except Exception as exc:
-            # A namespace collision is an authority failure, not an optional
-            # Market dependency failure. Persist it so every later canonical
-            # ingress also fails closed instead of using a prior provider.
             from julia_core.runtime.capability_bridge import (
                 ProviderAlreadyRegisteredError,
             )
 
-            if isinstance(exc, ProviderAlreadyRegisteredError):
-                error = CoreConversationConfigurationError(
-                    "canonical Market provider registration was rejected"
+            if isinstance(exc, (ProviderAlreadyRegisteredError, CoreConversationConfigurationError)):
+                error = (
+                    exc
+                    if isinstance(exc, CoreConversationConfigurationError)
+                    else CoreConversationConfigurationError(
+                        "canonical Market provider registration was rejected"
+                    )
                 )
                 _market_binding_error = error
                 raise error from exc
