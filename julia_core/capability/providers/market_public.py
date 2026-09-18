@@ -14,6 +14,7 @@ from __future__ import annotations
 import copy
 from dataclasses import asdict, is_dataclass
 from enum import Enum
+import inspect
 from typing import Any, Callable, Mapping
 
 from julia_core.capability.models import (
@@ -59,6 +60,15 @@ class MarketPublicProviderAdapter:
         result by probing Market private dependencies itself.
         """
         return True, "Market public provider bound"
+
+    async def close(self) -> None:
+        """Forward lifecycle ownership to the already-bound Market provider."""
+        close = getattr(self._public_provider, "close", None)
+        if close is None:
+            return
+        result = close()
+        if inspect.isawaitable(result):
+            await result
 
     async def execute(self, request: CapabilityRequest) -> ProviderExecutionOutcome:
         builder = self._request_builders.get(request.capability_id)

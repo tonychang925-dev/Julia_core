@@ -32,6 +32,7 @@ from julia_core.capability.models import (
 )
 from julia_core.capability.policy import PermissionPolicy
 from julia_core.capability.registry import CapabilityRegistry
+from julia_core.runtime.async_capability_runtime import AsyncCapabilityRuntime
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +120,7 @@ class RuntimeCapabilityBridge:
         self._providers: dict = {}
         self._manager: Optional[CapabilityManager] = None
         self._initialized = False
+        self.async_runtime = AsyncCapabilityRuntime()
         self._provider_lock = _threading.RLock()
 
     def register_provider(self, provider_name: str, provider: object) -> None:
@@ -359,18 +361,12 @@ class RuntimeCapabilityBridge:
             reason=f"LLM tool call: {name}",
         )
 
-        # Execute through manager (sync wrapper around async)
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, self.manager.execute_typed(request))
-                    return future.result(timeout=30)
-            return asyncio.run(self.manager.execute_typed(request))
-        except RuntimeError:
-            return asyncio.run(self.manager.execute_typed(request))
+        return self.async_runtime.run(lambda: self.manager.execute_typed(request))
+
+    def close(self) -> None:
+        """Close async providers and terminate the generic capability loop."""
+        self.initialize()
+        self.async_runtime.close(self._providers)
 
     # ── Evidence Gate (backward compat) ─────────────────────────────────
 
