@@ -40,7 +40,7 @@ class AnthropicWebResearchProvider:
 
         response = None
         try:
-            response = self.client.messages.create(
+            response = await self.client.messages.create(
                 model=self.model,
                 max_tokens=1024,
                 system=(
@@ -163,6 +163,14 @@ class AnthropicWebResearchProvider:
         return list(value)
 
     @classmethod
+    def _content_items(cls, value: Any) -> list[Any]:
+        if isinstance(value, (list, tuple)):
+            return list(value)
+        if value is None:
+            return []
+        return [value]
+
+    @classmethod
     def _source_registry(cls, content: list[Any]) -> dict[str, dict[str, Any]]:
         registry: dict[str, dict[str, Any]] = {}
 
@@ -182,7 +190,7 @@ class AnthropicWebResearchProvider:
         for block in content:
             block_type = cls._field(block, "type")
             if block_type == "web_search_tool_result":
-                for item in cls._items(cls._field(block, "content")):
+                for item in cls._content_items(cls._field(block, "content")):
                     item_type = cls._field(item, "type")
                     if item_type in {"web_search_result", "web_search_result_error"}:
                         admit(cls._mapping(item))
@@ -221,7 +229,7 @@ class AnthropicWebResearchProvider:
             if block_type == "web_search_tool_result_error":
                 errors.append(cls._error_text(block))
             elif block_type == "web_search_tool_result":
-                for item in cls._items(cls._field(block, "content")):
+                for item in cls._content_items(cls._field(block, "content")):
                     if cls._field(item, "type") in {
                         "web_search_tool_result_error",
                         "web_search_result_error",
@@ -236,16 +244,17 @@ class AnthropicWebResearchProvider:
             message = cls._optional_str(error.get("message")) or str(error)
         else:
             message = cls._optional_str(error) or cls._optional_str(cls._field(value, "message"))
+        error_code = cls._optional_str(cls._field(value, "error_code"))
+        if error_code and (not message or error_code not in message):
+            message = f"{message}; error_code={error_code}" if message else error_code
         return f"web_search_tool_result_error: {message or 'unknown search error'}"
 
     @classmethod
     def _mapping(cls, value: Any) -> dict[str, Any]:
-        if not isinstance(value, dict):
-            return {}
         return {
-            key: item
-            for key, item in value.items()
-            if key in {"url", "title", "page_age", "published_at"}
+            key: cls._field(value, key)
+            for key in ("url", "title", "page_age", "published_at")
+            if cls._field(value, key) is not None
         }
 
     @staticmethod
@@ -265,7 +274,10 @@ class AnthropicWebResearchProviderFactory:
         import anthropic
 
         model = os.environ.get("JULIA_RESEARCH_CLAUDE_MODEL", "").strip() or DEFAULT_CLAUDE_MODEL
-        return AnthropicWebResearchProvider(client=anthropic.Anthropic(api_key=api_key), model=model)
+        return AnthropicWebResearchProvider(
+            client=anthropic.AsyncAnthropic(api_key=api_key, max_retries=0),
+            model=model,
+        )
 
 
 __all__ = [

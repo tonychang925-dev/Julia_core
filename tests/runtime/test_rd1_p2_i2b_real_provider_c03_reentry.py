@@ -22,7 +22,7 @@ class FakeMessages:
         self._response = response
         self.calls = []
 
-    def create(self, **kwargs):
+    async def create(self, **kwargs):
         self.calls.append(kwargs)
         return self._response
 
