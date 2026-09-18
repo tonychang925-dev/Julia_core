@@ -216,7 +216,7 @@ async def test_search_error_with_no_cited_finding_never_becomes_success():
         {"type": "server_tool_use", "id": "srvu", "name": "web_search", "input": {}},
         {
             "type": "web_search_tool_result_error",
-            "error": {"type": "search_error", "message": "search rejected"},
+            "error_code": "unavailable",
         },
     ]
     provider, _ = provider_for(response(blocks))
@@ -225,7 +225,8 @@ async def test_search_error_with_no_cited_finding_never_becomes_success():
 
     assert outcome.status is ToolResultStatus.ERROR
     assert outcome.structured_output == {}
-    assert outcome.error["code"] == "anthropic_web_search_no_source_bearing_search_result"
+    assert outcome.error["code"] == "anthropic_web_search_tool_error"
+    assert outcome.error["provider_error_codes"] == ["unavailable"]
 
 
 @pytest.mark.asyncio
@@ -244,6 +245,7 @@ async def test_official_single_object_search_error_inside_tool_result_is_partial
     outcome = await provider.execute(request())
 
     assert outcome.status is ToolResultStatus.PARTIAL
+    assert outcome.structured_output["provider_error_codes"] == ["api_error"]
     assert any(
         item == "web_search_tool_result_error: api_error"
         for item in outcome.structured_output["limitations"]
