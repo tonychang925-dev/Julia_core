@@ -6,8 +6,10 @@ repositories, cognitive callables, providers, or private runtime objects.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from julia_core.conversation_state.storage_v2_repository import StorageV2ConversationRepository
@@ -19,6 +21,109 @@ from julia_core.conversation_state.repository import (
 )
 from julia_core.runtime.conversation_runtime import ConversationRuntime
 from julia_core.runtime.julia_session import JuliaSession
+
+
+logger = logging.getLogger("julia.public.conversation")
+
+_MARKET_BINDING_LOCK = threading.Lock()
+_market_binding_adapter: object | None = None
+_market_binding_attempted = False
+_market_binding_error: Exception | None = None
+
+
+def _ensure_market_public_binding() -> None:
+    """Bind Market's public provider to Core exactly once per process.
+
+    Market owns provider construction/configuration. Core owns only the
+    mechanical binding into its generic capability namespace.
+
+    The whole Market binding state transition is serialized. A completed
+    optional-unavailable state still rechecks the provider namespace on every
+    later ingress, so a foreign provider can never appear after failure without
+    becoming a sticky Core composition error.
+    """
+    global _market_binding_adapter, _market_binding_attempted, _market_binding_error
+
+    with _MARKET_BINDING_LOCK:
+        if _market_binding_error is not None:
+            raise _market_binding_error
+
+        from julia_core.runtime.capability_bridge import get_capability_bridge
+
+        bridge = get_capability_bridge()
+        existing = bridge.manager.providers.get("market")
+
+        if _market_binding_adapter is not None:
+            if existing is _market_binding_adapter:
+                return
+            error = CoreConversationConfigurationError(
+                "canonical Market binding no longer owns the market provider namespace"
+            )
+            _market_binding_error = error
+            raise error
+
+        # A prior optional binding failure is terminal for construction in this
+        # process, but not for authority checks. Never retry the factory; always
+        # verify that no foreign provider has appeared later.
+        if _market_binding_attempted:
+            if existing is None:
+                return
+            error = CoreConversationConfigurationError(
+                "market provider namespace became occupied after canonical binding failed"
+            )
+            _market_binding_error = error
+            raise error
+
+        if existing is not None:
+            error = CoreConversationConfigurationError(
+                "market provider namespace is already occupied before canonical binding"
+            )
+            _market_binding_error = error
+            raise error
+
+        _market_binding_attempted = True
+        try:
+            from market_public import MarketPublicFactory
+            from julia_core.capability.providers.market_public import (
+                MarketPublicProviderAdapter,
+            )
+
+            # No Core DB/repository/private configuration crosses this boundary.
+            public_provider = MarketPublicFactory.create()
+            adapter = MarketPublicProviderAdapter(public_provider)
+            bridge.register_provider("market", adapter)
+
+            # register_provider is atomic. Verify the exact object actually won
+            # the namespace before publishing BOUND state.
+            if bridge.manager.providers.get("market") is not adapter:
+                error = CoreConversationConfigurationError(
+                    "canonical Market provider did not win the market namespace"
+                )
+                _market_binding_error = error
+                raise error
+
+            _market_binding_adapter = adapter
+        except Exception as exc:
+            from julia_core.runtime.capability_bridge import (
+                ProviderAlreadyRegisteredError,
+            )
+
+            if isinstance(exc, (ProviderAlreadyRegisteredError, CoreConversationConfigurationError)):
+                error = (
+                    exc
+                    if isinstance(exc, CoreConversationConfigurationError)
+                    else CoreConversationConfigurationError(
+                        "canonical Market provider registration was rejected"
+                    )
+                )
+                _market_binding_error = error
+                raise error from exc
+
+            logger.warning(
+                "Market public binding unavailable; market capabilities remain "
+                "typed-unavailable: %s",
+                exc,
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +172,11 @@ class CoreConversationIngress:
             provider = _get_cognition_provider("production")
             if provider is None:
                 raise CoreConversationProviderUnavailable("configured Core provider is unavailable")
+
+            # Core composes only the Market public boundary. Market constructs
+            # its own provider/configuration; Assistant is not involved.
+            _ensure_market_public_binding()
+
             self._session = JuliaSession(provider=provider)
         except Exception as exc:
             self._composition_error = exc

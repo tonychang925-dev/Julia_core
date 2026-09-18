@@ -18,6 +18,7 @@ ADR-026 P4: Provider supplies capability, not cognition.
 from __future__ import annotations
 
 import json as _json
+import threading as _threading
 from dataclasses import dataclass
 from typing import Optional
 
@@ -118,6 +119,7 @@ class RuntimeCapabilityBridge:
         self._providers: dict = {}
         self._manager: Optional[CapabilityManager] = None
         self._initialized = False
+        self._provider_lock = _threading.RLock()
 
     def register_provider(self, provider_name: str, provider: object) -> None:
         """Bind one product-owned implementation to a Core provider namespace.
@@ -126,6 +128,9 @@ class RuntimeCapabilityBridge:
         grants no scope, changes no provider selection, and imports no product
         transport type. ``CapabilityDefinition.provider`` remains the sole
         selector and ``PermissionPolicy`` remains the sole authorization owner.
+
+        Namespace check + Manager bind + bridge-map write are one atomic bridge
+        operation so concurrent composition binders cannot both succeed.
         """
         if not isinstance(provider_name, str) or not provider_name:
             raise ValueError("provider_name must be a non-empty string")
@@ -134,25 +139,30 @@ class RuntimeCapabilityBridge:
         if not callable(getattr(provider, "health", None)):
             raise TypeError("provider must implement health()")
 
-        existing = self._providers.get(provider_name)
-        if existing is not None and existing is not provider:
-            raise ProviderAlreadyRegisteredError(
-                f"provider namespace '{provider_name}' is already bound"
-            )
-
-        if self._initialized and self._manager is not None:
-            try:
-                self._manager.bind_provider(provider_name, provider)
-            except ProviderAlreadyBoundError as exc:
+        with self._provider_lock:
+            existing = self._providers.get(provider_name)
+            if existing is not None and existing is not provider:
                 raise ProviderAlreadyRegisteredError(
-                    f"manager provider namespace '{provider_name}' is already bound"
-                ) from exc
-        self._providers[provider_name] = provider
+                    f"provider namespace '{provider_name}' is already bound"
+                )
+
+            if self._initialized and self._manager is not None:
+                try:
+                    self._manager.bind_provider(provider_name, provider)
+                except ProviderAlreadyBoundError as exc:
+                    raise ProviderAlreadyRegisteredError(
+                        f"manager provider namespace '{provider_name}' is already bound"
+                    ) from exc
+            self._providers[provider_name] = provider
 
     # ── Initialization ──────────────────────────────────────────────────
 
     def initialize(self):
         """Register all providers. Call once at session start."""
+        with self._provider_lock:
+            self._initialize_locked()
+
+    def _initialize_locked(self):
         if self._initialized:
             return
 
@@ -230,6 +240,7 @@ class RuntimeCapabilityBridge:
         )
 
         self._initialized = True
+
 
     def _flatten_providers(self) -> dict:
         """Flatten nested provider dict into manager-compatible flat dict."""
@@ -410,10 +421,16 @@ class RuntimeCapabilityBridge:
 
 _bridge: Optional[RuntimeCapabilityBridge] = None
 
+# Construction + initialize() must publish one fully initialized bridge.
+# RLock keeps this safe if initialization ever reaches a helper that asks for
+# the singleton again on the same thread.
+_bridge_lock = _threading.RLock()
+
 
 def get_capability_bridge() -> RuntimeCapabilityBridge:
     global _bridge
-    if _bridge is None:
-        _bridge = RuntimeCapabilityBridge()
+    with _bridge_lock:
+        if _bridge is None:
+            _bridge = RuntimeCapabilityBridge()
         _bridge.initialize()
-    return _bridge
+        return _bridge
