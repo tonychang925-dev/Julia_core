@@ -235,6 +235,9 @@ def test_p3_capability_frame_canonical_state_is_structured_not_truncated_text():
         def tool_manifest(self):
             return "file.read: Read file\nfile.search: Search files"
 
+        def invocation_policy(self):
+            return {"invocation_protocol": {"structured_call_required": True}}
+
     class _Persona:
         def get_traits_for_injection(self):
             return ""

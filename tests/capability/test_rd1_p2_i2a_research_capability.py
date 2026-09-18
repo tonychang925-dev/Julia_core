@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from julia_core.capability.models import CapabilityStatus, ProviderExecutionOutcome, SideEffectState, ToolResultStatus
 from julia_core.capability.policy import AuthorizationStatus
 from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
@@ -56,6 +58,17 @@ class DeterministicResearchProvider:
         )
 
 
+class MalformedResearchProvider:
+    def __init__(self, result: dict) -> None:
+        self.result = result
+
+    async def health(self) -> tuple[bool, str]:
+        return True, "malformed research fixture bound"
+
+    async def execute(self, request):
+        return self.result
+
+
 def test_research_capability_registry_contract_and_permission():
     bridge = RuntimeCapabilityBridge()
     bridge.initialize()
@@ -106,6 +119,33 @@ def test_source_bearing_research_result_is_preserved_without_semantic_normalizat
     }
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda result: result.pop("sources"),
+        lambda result: result.update(sources=[]),
+        lambda result: result.update(sources=[{"title": "No inspectable reference"}]),
+        lambda result: result.pop("provider"),
+        lambda result: result.pop("produced_at"),
+    ],
+)
+def test_malformed_research_success_fails_closed_before_evidence_admission(mutation):
+    result = research_result()
+    mutation(result)
+    bridge = RuntimeCapabilityBridge()
+    bridge.register_provider("research", MalformedResearchProvider(result))
+    bridge.initialize()
+
+    execution = bridge.execute_tool_typed(TOOL_JSON)
+    tool_result = execution.tool_result
+
+    assert tool_result.status.value == "error"
+    assert tool_result.structured_output == {}
+    assert tool_result.error["code"] == "research_contract_invalid"
+    assert tool_result.evidence_refs == ()
+    assert bridge.manager.canonical_evidence == []
+
+
 def test_tool_manifest_distinguishes_file_privacy_from_research_evidence_need():
     bridge = RuntimeCapabilityBridge()
     manifest = bridge.tool_manifest()
@@ -127,6 +167,10 @@ def test_raw_user_text_cannot_route_to_research_without_structured_cognition_cal
 
     assert bridge.requires_tool("robotics sector external catalysts") is False
     assert bridge.requires_tool("请读取 README.md") is True
+    assert bridge.requires_tool("帮我看看这个文件") is True
+    assert bridge.requires_tool("搜索一下最近的机器人新闻") is False
+    assert bridge.requires_tool("找一下机器人板块的外部催化") is False
+    assert bridge.requires_tool("/Users/tony/notes/robotics.md") is True
     assert "research" not in requires_tool_source
     assert bridge.detect_tool_call("robotics sector external catalysts") is None
     assert bridge.detect_tool_call(f"```tool_call\n{TOOL_JSON}\n```") == TOOL_JSON

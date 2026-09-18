@@ -500,7 +500,25 @@ class ContextExecutionRuntime:
                     key=lambda entry: entry["capability_id"],
                 )
                 if entries:
-                    pkg.capability_frame = {"available_tools": entries}
+                    capability_frame: dict[str, Any] = {
+                        "available_tools": entries,
+                    }
+                    policy_provider = getattr(
+                        self._js.capability,
+                        "invocation_policy",
+                        None,
+                    )
+                    if not callable(policy_provider):
+                        pkg.mark_frame_failure(
+                            "capability:invocation_policy",
+                            "capability runtime does not expose invocation_policy",
+                            required=True,
+                        )
+                    else:
+                        capability_frame["invocation_policy"] = copy.deepcopy(
+                            policy_provider()
+                        )
+                    pkg.capability_frame = capability_frame
                     pkg.add_provenance("capability", "capability:registry",
                                       reason="structured capability catalog", stage=0,
                                       token_estimate=len(entries))
