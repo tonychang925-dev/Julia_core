@@ -251,3 +251,65 @@ def test_capability_bridge_singleton_is_not_visible_before_initialize_completes(
     assert len({bridge_id for bridge_id, _ in observed}) == 1
     assert all(initialized for _, initialized in observed)
     assert bridge_module._bridge.initialize_started == 1
+
+
+def test_missing_market_package_does_not_break_non_market_ingress(monkeypatch, tmp_path):
+    monkeypatch.delitem(sys.modules, "market_public", raising=False)
+    real_import = __import__
+
+    def fail_market_import(name, *args, **kwargs):
+        if name == "market_public":
+            raise ModuleNotFoundError("market_public unavailable")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", fail_market_import)
+    monkeypatch.setattr(
+        "julia_core.providers.core_cognition._get_cognition_provider",
+        lambda _name: object(),
+    )
+
+    class FakeSession:
+        def __init__(self, provider=None):
+            self.provider = provider
+
+    monkeypatch.setattr(conversation, "JuliaSession", FakeSession)
+
+    ingress = conversation.CoreConversationIngress(
+        conversation.CoreConversationConfig(tmp_path / "conversations")
+    )
+
+    assert ingress._composition_error is None
+    assert ingress._session is not None
+
+
+def test_market_namespace_collision_fails_canonical_ingress_closed(monkeypatch, tmp_path):
+    bridge = FakeBridge()
+    bridge.providers["market"] = object()
+    monkeypatch.setattr(
+        "julia_core.runtime.capability_bridge.get_capability_bridge",
+        lambda: bridge,
+    )
+    monkeypatch.setattr(
+        "julia_core.providers.core_cognition._get_cognition_provider",
+        lambda _name: object(),
+    )
+
+    ingress = conversation.CoreConversationIngress(
+        conversation.CoreConversationConfig(tmp_path / "conversations")
+    )
+
+    assert isinstance(
+        ingress._composition_error,
+        conversation.CoreConversationConfigurationError,
+    )
+    response = ingress.process(
+        conversation.CoreConversationRequest(
+            "conv-1",
+            "turn-1",
+            "text",
+            "hello",
+        )
+    )
+    assert response.status == "failed"
+    assert response.error_code == "CORE_COMPOSITION_UNAVAILABLE"
+    assert response.assistant_content == ""
