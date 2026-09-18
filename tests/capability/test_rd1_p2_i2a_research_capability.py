@@ -69,6 +69,17 @@ class MalformedResearchProvider:
         return self.result
 
 
+class TypedResearchOutcomeProvider:
+    def __init__(self, outcome: ProviderExecutionOutcome) -> None:
+        self.outcome = outcome
+
+    async def health(self) -> tuple[bool, str]:
+        return True, "typed research fixture bound"
+
+    async def execute(self, request):
+        return self.outcome
+
+
 def test_research_capability_registry_contract_and_permission():
     bridge = RuntimeCapabilityBridge()
     bridge.initialize()
@@ -144,6 +155,62 @@ def test_malformed_research_success_fails_closed_before_evidence_admission(mutat
     assert tool_result.error["code"] == "research_contract_invalid"
     assert tool_result.evidence_refs == ()
     assert bridge.manager.canonical_evidence == []
+
+
+@pytest.mark.parametrize(
+    "outcome_factory",
+    [
+        lambda: ProviderExecutionOutcome(
+            status=ToolResultStatus.PARTIAL,
+            structured_output={"answer": "source-less partial research answer"},
+            side_effect_state=SideEffectState.NONE,
+        ),
+        lambda: ProviderExecutionOutcome(
+            status=ToolResultStatus.SUCCESS,
+            structured_output={**research_result(), "query": "stale robotics query"},
+            side_effect_state=SideEffectState.NONE,
+        ),
+        lambda: ProviderExecutionOutcome(
+            status=ToolResultStatus.SUCCESS,
+            structured_output=research_result(),
+            side_effect_state=SideEffectState.SUCCEEDED,
+        ),
+    ],
+)
+def test_invalid_partial_query_mismatch_or_write_result_gets_no_evidence(outcome_factory):
+    bridge = RuntimeCapabilityBridge()
+    bridge.register_provider("research", TypedResearchOutcomeProvider(outcome_factory()))
+    bridge.initialize()
+
+    execution = bridge.execute_tool_typed(TOOL_JSON)
+    tool_result = execution.tool_result
+
+    assert tool_result.status.value == "error"
+    assert tool_result.structured_output == {}
+    assert tool_result.error["code"] == "research_contract_invalid"
+    assert tool_result.evidence_refs == ()
+    assert bridge.manager.canonical_evidence == []
+
+
+def test_valid_source_bearing_partial_remains_incomplete_evidence():
+    outcome = ProviderExecutionOutcome(
+        status=ToolResultStatus.PARTIAL,
+        structured_output=research_result(),
+        side_effect_state=SideEffectState.NONE,
+    )
+    bridge = RuntimeCapabilityBridge()
+    bridge.register_provider("research", TypedResearchOutcomeProvider(outcome))
+    bridge.initialize()
+
+    execution = bridge.execute_tool_typed(TOOL_JSON)
+    tool_result = execution.tool_result
+
+    assert tool_result.status.value == "partial"
+    assert tool_result.structured_output == research_result()
+    assert tool_result.side_effect_state is SideEffectState.NONE
+    assert len(tool_result.evidence_refs) == 1
+    assert len(bridge.manager.canonical_evidence) == 1
+    assert bridge.manager.canonical_evidence[0].provenance["incomplete"] is True
 
 
 def test_tool_manifest_distinguishes_file_privacy_from_research_evidence_need():

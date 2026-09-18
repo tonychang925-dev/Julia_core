@@ -102,7 +102,7 @@ class LocalProviderRouter:
 
 
 class _ResearchProviderContractAdapter:
-    """Validate the minimal source-bearing Research SUCCESS contract."""
+    """Validate the minimal source-bearing READ_ONLY Research evidence contract."""
 
     def __init__(self, provider: object):
         self._provider = provider
@@ -113,20 +113,35 @@ class _ResearchProviderContractAdapter:
     async def execute(self, request):
         outcome = await self._provider.execute(request)
         if isinstance(outcome, ProviderExecutionOutcome):
-            if outcome.status is not ToolResultStatus.SUCCESS:
+            if outcome.status not in (
+                ToolResultStatus.SUCCESS,
+                ToolResultStatus.PARTIAL,
+            ):
                 return outcome
-            if self._invalid_success_reason(outcome.structured_output) is None:
+            invalid_reason = self._invalid_evidence_reason(
+                outcome.structured_output,
+                request.arguments.get("query"),
+            )
+            if (
+                invalid_reason is None
+                and outcome.side_effect_state is SideEffectState.NONE
+            ):
                 return outcome
+            if invalid_reason is None:
+                invalid_reason = "READ_ONLY research evidence requires side_effect_state=NONE"
         elif isinstance(outcome, dict):
             declared_status = str(outcome.get("status", "")).strip().lower()
-            failure_declared = declared_status in {
+            non_evidence_failure = declared_status in {
                 ToolResultStatus.UNAVAILABLE.value,
                 ToolResultStatus.ERROR.value,
                 ToolResultStatus.TIMEOUT.value,
                 ToolResultStatus.CANCELLED.value,
-                ToolResultStatus.PARTIAL.value,
             }
-            if failure_declared or self._invalid_success_reason(outcome) is None:
+            invalid_reason = self._invalid_evidence_reason(
+                outcome,
+                request.arguments.get("query"),
+            )
+            if non_evidence_failure or invalid_reason is None:
                 return outcome
         else:
             return outcome
@@ -136,17 +151,21 @@ class _ResearchProviderContractAdapter:
             structured_output={},
             error={
                 "code": "research_contract_invalid",
-                "message": "research.web.query SUCCESS requires query, findings, non-empty source-bearing sources, limitations, provider, and produced_at",
+                "message": f"research.web.query evidence contract invalid: {invalid_reason}",
             },
             side_effect_state=SideEffectState.UNKNOWN,
         )
 
     @staticmethod
-    def _invalid_success_reason(output: object) -> str | None:
+    def _invalid_evidence_reason(output: object, requested_query: object) -> str | None:
         if not isinstance(output, dict):
             return "structured_output must be a mapping"
         if not isinstance(output.get("query"), str) or not output["query"].strip():
             return "query must be a non-empty string"
+        if not isinstance(requested_query, str) or not requested_query.strip():
+            return "request query must be a non-empty string"
+        if output["query"].strip() != requested_query.strip():
+            return "returned query must exactly match requested query"
         if not isinstance(output.get("findings"), list):
             return "findings must be a list"
         sources = output.get("sources")
