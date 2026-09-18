@@ -42,6 +42,7 @@ class CognitiveContextPackage:
     situation_frame: dict[str, Any] = field(default_factory=dict)
     evidence_frame: dict[str, Any] = field(default_factory=dict)
     capability_frame: dict[str, Any] = field(default_factory=dict)
+    validated_invocation_policy: dict[str, Any] = field(default_factory=dict)
     control_frame: dict[str, Any] = field(default_factory=dict)
     continuity_frame: dict[str, Any] = field(default_factory=dict)
 
@@ -302,6 +303,53 @@ class ContextExecutionRuntime:
     def __init__(self, julia_session=None):
         self._js = julia_session
 
+    @staticmethod
+    def _invocation_policy_failure(policy: Any) -> str | None:
+        if not isinstance(policy, dict):
+            return "invocation policy must be a structured mapping"
+        for section in ("invocation_protocol", "epistemic_rules", "evidence_role", "limits"):
+            if not isinstance(policy.get(section), dict):
+                return f"invocation policy section '{section}' must be a mapping"
+        protocol = policy["invocation_protocol"]
+        if not isinstance(protocol.get("format"), str) or not protocol["format"].strip():
+            return "invocation protocol format must be a non-empty string"
+        if protocol.get("structured_call_required") is not True:
+            return "structured_call_required must be True"
+        if protocol.get("raw_user_text_routing") is not False:
+            return "raw_user_text_routing must be False"
+        epistemic_rules = policy["epistemic_rules"]
+        file_rule = epistemic_rules.get("file")
+        if not isinstance(file_rule, dict):
+            return "epistemic_rules.file must be a mapping"
+        if file_rule.get("capability_prefix") != "file.*":
+            return "file capability_prefix must be 'file.*'"
+        if file_rule.get("requires_explicit_user_intent") is not True:
+            return "file requires_explicit_user_intent must be True"
+        external_rule = epistemic_rules.get("external_evidence")
+        if not isinstance(external_rule, dict):
+            return "epistemic_rules.external_evidence must be a mapping"
+        prefixes = external_rule.get("capability_prefixes")
+        if (
+            not isinstance(prefixes, list)
+            or not all(isinstance(prefix, str) and prefix.strip() for prefix in prefixes)
+            or "market.*" not in prefixes
+            or "research.*" not in prefixes
+            or any(prefix == "file.*" or prefix.startswith("file.") for prefix in prefixes)
+        ):
+            return "external evidence capability_prefixes must include market.* and research.* without file namespaces"
+        if external_rule.get("read_only") is not True:
+            return "external evidence read_only must be True"
+        if external_rule.get("julia_may_request_when_evidence_missing") is not True:
+            return "julia_may_request_when_evidence_missing must be True"
+        evidence_role = policy["evidence_role"]
+        if evidence_role.get("tool_result_is_evidence_not_final_judgment") is not True:
+            return "tool_result_is_evidence_not_final_judgment must be True"
+        if evidence_role.get("julia_second_pass_interpretation_required") is not True:
+            return "julia_second_pass_interpretation_required must be True"
+        if policy["limits"].get("max_tool_calls_per_model_response") != 1:
+            return "max_tool_calls_per_model_response must be 1"
+        return None
+
     def _get_bootstrap_frames(self) -> dict[str, str]:
         """Load classified bootstrap once per session, then cache.
 
@@ -500,7 +548,45 @@ class ContextExecutionRuntime:
                     key=lambda entry: entry["capability_id"],
                 )
                 if entries:
-                    pkg.capability_frame = {"available_tools": entries}
+                    capability_frame: dict[str, Any] = {}
+                    policy_provider = getattr(
+                        self._js.capability,
+                        "invocation_policy",
+                        None,
+                    )
+                    invocation_policy = None
+                    if not callable(policy_provider):
+                        pkg.mark_frame_failure(
+                            "capability:invocation_policy",
+                            "capability runtime does not expose invocation_policy",
+                            required=True,
+                        )
+                    else:
+                        try:
+                            invocation_policy = policy_provider()
+                        except Exception as exc:
+                            pkg.mark_frame_failure(
+                                "capability:invocation_policy",
+                                f"invocation policy failed: {exc}",
+                                required=True,
+                            )
+                        else:
+                            policy_failure = self._invocation_policy_failure(
+                                invocation_policy
+                            )
+                            if policy_failure is not None:
+                                pkg.mark_frame_failure(
+                                    "capability:invocation_policy",
+                                policy_failure,
+                                required=True,
+                            )
+                            else:
+                                capability_frame["invocation_policy"] = copy.deepcopy(
+                                    invocation_policy
+                                )
+                                pkg.validated_invocation_policy = copy.deepcopy(invocation_policy)
+                    capability_frame["available_tools"] = entries
+                    pkg.capability_frame = capability_frame
                     pkg.add_provenance("capability", "capability:registry",
                                       reason="structured capability catalog", stage=0,
                                       token_estimate=len(entries))
@@ -561,6 +647,19 @@ class ContextExecutionRuntime:
             "evidence": [self._project_evidence_view(e) for e in resolved_evidence],
             "source": "capability_execution",
         }
+        if parent_package is not None and parent_package.validated_invocation_policy:
+            pkg.validated_invocation_policy = copy.deepcopy(
+                parent_package.validated_invocation_policy
+            )
+            pkg.capability_frame = {
+                "invocation_policy": copy.deepcopy(pkg.validated_invocation_policy)
+            }
+            pkg.add_provenance(
+                "capability",
+                "capability:validated_invocation_policy",
+                reason="validated invocation policy retained for tool continuation",
+                stage=2,
+            )
         pkg.situation_frame = {"mode": "tool_continuation"}
         pkg.add_provenance("evidence", "capability:tool_result",
                           reason="tool execution result (typed)", stage=2)
@@ -683,6 +782,19 @@ class ContextExecutionRuntime:
             turn_id=parent_package.turn_id,
             generation_id=generation_id,
         )
+        if parent_package.validated_invocation_policy:
+            pkg.validated_invocation_policy = copy.deepcopy(
+                parent_package.validated_invocation_policy
+            )
+            pkg.capability_frame = {
+                "invocation_policy": copy.deepcopy(pkg.validated_invocation_policy)
+            }
+            pkg.add_provenance(
+                "capability",
+                "capability:validated_invocation_policy",
+                reason="validated invocation policy retained for retry control",
+                stage=2,
+            )
         pkg.control_frame = {
             "kind": "retry_control",
             "reason": reason,

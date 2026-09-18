@@ -87,6 +87,8 @@ class PermissionPolicy:
                                reason="System information is read-only"),
             "market.observe":  PermissionRule("market.observe", allow=True,
                                reason="Read-only market observation"),
+            "research.observe": PermissionRule("research.observe", allow=True,
+                               reason="Read-only research observation"),
             "market.trade.execute": PermissionRule("market.trade.execute", allow=False,
                                reason="Julia never trades — core safety boundary"),
             "file.read":       PermissionRule("file.read", allow=True,

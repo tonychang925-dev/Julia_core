@@ -18,8 +18,10 @@ ADR-026 P4: Provider supplies capability, not cognition.
 from __future__ import annotations
 
 import json as _json
+import re as _re
 import threading as _threading
 from dataclasses import dataclass
+from dataclasses import replace
 from typing import Optional
 
 from julia_core.capability.manager import CapabilityExecution, CapabilityManager
@@ -29,6 +31,9 @@ from julia_core.capability.models import (
     CapabilityLayer,
     CapabilityRequest,
     CapabilityStatus,
+    ProviderExecutionOutcome,
+    SideEffectState,
+    ToolResultStatus,
 )
 from julia_core.capability.policy import PermissionPolicy
 from julia_core.capability.registry import CapabilityRegistry
@@ -97,6 +102,157 @@ class LocalProviderRouter:
         return True, "local filesystem namespace — available"
 
 
+class _ResearchProviderContractAdapter:
+    """Validate the minimal source-bearing READ_ONLY Research evidence contract."""
+
+    def __init__(self, provider: object):
+        self._provider = provider
+
+    async def health(self) -> tuple[bool, str]:
+        return await self._provider.health()
+
+    async def execute(self, request):
+        outcome = await self._provider.execute(request)
+        if isinstance(outcome, ProviderExecutionOutcome):
+            if outcome.status not in (
+                ToolResultStatus.SUCCESS,
+                ToolResultStatus.PARTIAL,
+            ):
+                return replace(outcome, structured_output={})
+            invalid_reason = self._invalid_evidence_reason(
+                outcome.structured_output,
+                request.arguments.get("query"),
+            )
+            if (
+                invalid_reason is None
+                and outcome.side_effect_state is SideEffectState.NONE
+            ):
+                return outcome
+            if invalid_reason is None:
+                invalid_reason = "READ_ONLY research evidence requires side_effect_state=NONE"
+        elif isinstance(outcome, dict):
+            declared_status = str(outcome.get("status", "")).strip().lower()
+            non_evidence_failure = declared_status in {
+                ToolResultStatus.UNAVAILABLE.value,
+                ToolResultStatus.ERROR.value,
+                ToolResultStatus.TIMEOUT.value,
+                ToolResultStatus.CANCELLED.value,
+            }
+            if non_evidence_failure:
+                error = outcome.get("error")
+                return ProviderExecutionOutcome(
+                    status=ToolResultStatus(declared_status),
+                    structured_output={},
+                    error=(
+                        dict(error)
+                        if isinstance(error, dict)
+                        else {"code": declared_status, "message": str(error or declared_status)}
+                    ),
+                )
+            invalid_reason = self._invalid_evidence_reason(
+                outcome,
+                request.arguments.get("query"),
+            )
+            if invalid_reason is None and self._legacy_side_effect_is_read_only(outcome):
+                return outcome
+            if invalid_reason is None:
+                invalid_reason = (
+                    "explicit legacy research side_effect_state must be none or absent"
+                )
+        else:
+            return outcome
+
+        return ProviderExecutionOutcome(
+            status=ToolResultStatus.ERROR,
+            structured_output={},
+            error={
+                "code": "research_contract_invalid",
+                "message": f"research.web.query evidence contract invalid: {invalid_reason}",
+            },
+            side_effect_state=SideEffectState.UNKNOWN,
+        )
+
+    @staticmethod
+    def _invalid_evidence_reason(output: object, requested_query: object) -> str | None:
+        if not isinstance(output, dict):
+            return "structured_output must be a mapping"
+        if not isinstance(output.get("query"), str) or not output["query"].strip():
+            return "query must be a non-empty string"
+        if not isinstance(requested_query, str) or not requested_query.strip():
+            return "request query must be a non-empty string"
+        if output["query"].strip() != requested_query.strip():
+            return "returned query must exactly match requested query"
+        if not isinstance(output.get("findings"), list):
+            return "findings must be a list"
+        sources = output.get("sources")
+        if not isinstance(sources, list) or not sources:
+            return "sources must be a non-empty list"
+        finding_binding_failure = _ResearchProviderContractAdapter._invalid_finding_binding_reason(
+            output["findings"],
+            sources,
+        )
+        if finding_binding_failure is not None:
+            return finding_binding_failure
+        if any(
+            not isinstance(source, dict)
+            or not (
+                (isinstance(source.get("ref"), str) and source["ref"].strip())
+                or (isinstance(source.get("url"), str) and source["url"].strip())
+            )
+            for source in sources
+        ):
+            return "every source must have a non-empty ref or url"
+        if "limitations" not in output or not isinstance(output["limitations"], list):
+            return "limitations must be present as a list"
+        if not isinstance(output.get("provider"), str) or not output["provider"].strip():
+            return "provider must be a non-empty string"
+        if not isinstance(output.get("produced_at"), str) or not output["produced_at"].strip():
+            return "produced_at must be non-empty"
+        return None
+
+    @staticmethod
+    def _legacy_side_effect_is_read_only(output: dict) -> bool:
+        declared_side_effect = output.get("side_effect_state")
+        return declared_side_effect is None or (
+            isinstance(declared_side_effect, str)
+            and declared_side_effect.strip().lower() == SideEffectState.NONE.value
+        )
+
+    @staticmethod
+    def _invalid_finding_binding_reason(findings: list, sources: list) -> str | None:
+        declared_refs = {
+            token
+            for source in sources
+            if isinstance(source, dict)
+            for key in ("ref", "url")
+            if isinstance(source.get(key), str) and source[key].strip()
+            for token in (source[key],)
+        }
+        for finding in findings:
+            if not isinstance(finding, dict):
+                return "every finding must be a mapping"
+            source_ref = finding.get("source_ref")
+            source_refs = finding.get("source_refs")
+            refs = []
+            if "source_ref" in finding:
+                if not isinstance(source_ref, str) or not source_ref.strip():
+                    return "finding source_ref must be a non-empty string when present"
+                refs.append(source_ref)
+            if source_refs is not None:
+                if not isinstance(source_refs, list) or not source_refs:
+                    return "finding source_refs must be a non-empty list when present"
+                if any(
+                    not isinstance(ref, str) or not ref.strip() for ref in source_refs
+                ):
+                    return "finding source_refs entries must be non-empty strings"
+                refs.extend(source_refs)
+            if not refs:
+                return "every finding must declare source_ref or non-empty source_refs"
+            if any(ref not in declared_refs for ref in refs):
+                return "every finding source reference must resolve to a declared source ref or url"
+        return None
+
+
 class RuntimeCapabilityBridge:
     """Unified capability facade for JuliaSession.
 
@@ -152,10 +308,15 @@ class RuntimeCapabilityBridge:
                 raise ProviderAlreadyRegisteredError(
                     f"provider namespace '{provider_name}' is already bound"
                 )
+            if existing is provider:
+                return
 
             if self._initialized and self._manager is not None:
                 try:
-                    self._manager.bind_provider(provider_name, provider)
+                    self._manager.bind_provider(
+                        provider_name,
+                        self._provider_for_manager(provider_name, provider),
+                    )
                 except ProviderAlreadyBoundError as exc:
                     raise ProviderAlreadyRegisteredError(
                         f"manager provider namespace '{provider_name}' is already bound"
@@ -231,6 +392,16 @@ class RuntimeCapabilityBridge:
                 status=CapabilityStatus.AVAILABLE,
             ))
 
+        self.registry.register_definition(CapabilityDefinition(
+            name="research.web.query",
+            description="Query source-bearing external web research evidence",
+            layer=CapabilityLayer.INTELLIGENCE,
+            provider="research",
+            permission_scope="research.observe",
+            input_schema={"query": "research question"},
+            status=CapabilityStatus.AVAILABLE,
+        ))
+
         # External Code Review capability (Core semantic contract).
         # The provider (external_review) is implemented cross-repo in
         # Julia-AI-Assistant; Core registers only the CapabilityDefinition and
@@ -249,6 +420,13 @@ class RuntimeCapabilityBridge:
         self._initialized = True
 
 
+    @staticmethod
+    def _provider_for_manager(provider_name: str, provider: object) -> object:
+        if provider_name == "research":
+            return _ResearchProviderContractAdapter(provider)
+        return provider
+
+
     def _flatten_providers(self) -> dict:
         """Flatten nested provider dict into manager-compatible flat dict."""
         flat = {}
@@ -258,6 +436,8 @@ class RuntimeCapabilityBridge:
                     flat[f"{namespace}_{name}"] = provider
             else:
                 flat[namespace] = providers
+            if namespace == "research":
+                flat[namespace] = _ResearchProviderContractAdapter(providers)
         # Override: ai_theme_app → flat key
         if "ai_theme_app" in self._providers and not isinstance(self._providers["ai_theme_app"], dict):
             flat["ai_theme_app"] = self._providers["ai_theme_app"]
@@ -301,18 +481,64 @@ class RuntimeCapabilityBridge:
                 params = ", ".join(f'"{k}": {v}' for k, v in d.input_schema.items())
                 lines.append(f'  参数: {{{params}}}')
 
+        # Research tools
+        for d in self.registry.by_provider("research"):
+            params = ", ".join(f'"{k}": {v}' for k, v in d.input_schema.items())
+            lines.append(f'- {d.name}: {d.description}。参数: {{{params}}}')
+
+        policy = self.invocation_policy()
+        file_policy = policy["epistemic_rules"]["file"]
+        external_policy = policy["epistemic_rules"]["external_evidence"]
+        evidence_policy = policy["evidence_role"]
+        limits = policy["limits"]
+
         lines.extend([
             "",
             "工具调用后会收到执行结果。基于结果回答，不要编造。",
             "",
             "[工具规则 — 必须遵守]",
-            "1. 只有用户明确要求读取/搜索/列出时才使用工具。",
-            '2. 没有工具调用时，禁止说"我读了""我找到了""我搜索了"。',
-            "3. 文件不存在 → 直接告知用户，不猜测内容。",
-            "4. 工具调用格式: ```tool_call\\n{JSON}\\n```",
-            "5. 一个回复最多一个工具调用。",
+            f"1. {file_policy['rule']}",
+            f"2. {external_policy['rule']}",
+            '3. 没有工具调用时，禁止说"我读了""我找到了""我搜索了"。',
+            f"4. {evidence_policy['rule']}",
+            "5. 文件不存在 → 直接告知用户，不猜测内容。",
+            f"6. 工具调用格式: {policy['invocation_protocol']['format']}",
+            f"7. {limits['rule']}",
         ])
         return "\n".join(lines)
+
+    def invocation_policy(self) -> dict:
+        """Return Core's structured model-visible capability invocation policy."""
+        self.initialize()
+        return {
+            "invocation_protocol": {
+                "format": "```tool_call\\n{JSON}\\n```",
+                "structured_call_required": True,
+                "raw_user_text_routing": False,
+            },
+            "epistemic_rules": {
+                "file": {
+                    "capability_prefix": "file.*",
+                    "requires_explicit_user_intent": True,
+                    "rule": "file.* 只有在Tony明确要求读取/搜索/列出文件时才可以调用。",
+                },
+                "external_evidence": {
+                    "capability_prefixes": ["market.*", "research.*"],
+                    "read_only": True,
+                    "julia_may_request_when_evidence_missing": True,
+                    "rule": "market.* / research.* 是READ_ONLY证据能力；当回答当前问题缺少外部证据时，Julia可以主动发起结构化调用。",
+                },
+            },
+            "evidence_role": {
+                "tool_result_is_evidence_not_final_judgment": True,
+                "julia_second_pass_interpretation_required": True,
+                "rule": "工具结果只是证据，不是最终判断；Julia必须在第二次思考中独立解读。",
+            },
+            "limits": {
+                "max_tool_calls_per_model_response": 1,
+                "rule": "一个回复最多一个工具调用。",
+            },
+        }
 
     def execute_tool_typed(
         self,
@@ -381,28 +607,21 @@ class RuntimeCapabilityBridge:
 
     # ── Evidence Gate (backward compat) ─────────────────────────────────
 
+    _EXPLICIT_FILE_INTENT = _re.compile(
+        r"(?:读取|读一下|打开|查看|看看|列出|搜索|找)"
+        r"(?:一下|这个|该|下)?\s*"
+        r"(?:文件|目录|日志|日记|README(?:\.md)?|源码)"
+    )
+
     def requires_tool(self, user_text: str) -> bool:
-        """Check if user question needs external evidence (file/market read).
-
-        Backward compatible with old runtime/capability.py requires_tool().
-        """
-        lower = user_text.lower()
-
-        # File access triggers
-        file_triggers = [
-            "读一下", "读取", "打开", "看看文件", "帮我看看", "查看文件",
-            "列出目录", "有什么文件", "搜索一下", "找一下",
-            "最新日志", "日记", "昨天的", "代码", "README", "源码",
-        ]
-        for kw in file_triggers:
-            if kw in user_text:
-                return True
-
-        # File paths
-        if "/Users/" in user_text or "/tmp/" in user_text:
-            return True
-
-        return False
+        """Force retry only for explicit private-file intent."""
+        stripped = user_text.strip()
+        return bool(
+            self._EXPLICIT_FILE_INTENT.search(stripped)
+            or "/Users/" in stripped
+            or "/tmp/" in stripped
+            or stripped.startswith(("~/", "./"))
+        )
 
     def detect_tool_call(self, text: str) -> Optional[str]:
         """Detect structured tool_call block in LLM output.

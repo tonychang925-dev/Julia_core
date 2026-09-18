@@ -19,9 +19,11 @@ Resolving phase: R2-P3.
 
 from __future__ import annotations
 
+import copy
 import inspect
 from dataclasses import fields
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, get_type_hints
 
 import pytest
@@ -45,6 +47,32 @@ from julia_core.runtime.context_execution_runtime import (
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _valid_invocation_policy() -> dict:
+    return {
+        "invocation_protocol": {
+            "format": "```tool_call\\n{JSON}\\n```",
+            "structured_call_required": True,
+            "raw_user_text_routing": False,
+        },
+        "epistemic_rules": {
+            "file": {
+                "capability_prefix": "file.*",
+                "requires_explicit_user_intent": True,
+            },
+            "external_evidence": {
+                "capability_prefixes": ["market.*", "research.*"],
+                "read_only": True,
+                "julia_may_request_when_evidence_missing": True,
+            },
+        },
+        "evidence_role": {
+            "tool_result_is_evidence_not_final_judgment": True,
+            "julia_second_pass_interpretation_required": True,
+        },
+        "limits": {"max_tool_calls_per_model_response": 1},
+    }
 
 
 def _tool_result(
@@ -112,6 +140,40 @@ def test_p3_context_os_accepts_canonical_tool_result_and_evidence_refs():
     assert delta.evidence_frame["evidence"][0]["evidence_id"] == "ev-call-a"
     assert delta.evidence_frame["evidence"][0]["source_ref"] == "capability:file.read:provider:local"
     assert delta.evidence_frame["evidence"][0]["provenance"]["capability_call_id"] == "call-a"
+
+
+def test_validated_invocation_policy_is_retained_by_tool_and_retry_continuations():
+    policy = _valid_invocation_policy()
+    runtime = ContextExecutionRuntime()
+    parent = CognitiveContextPackage(
+        conversation_id="conv-p3",
+        turn_id="turn-p3",
+        generation_id="gen-before",
+        validated_invocation_policy=copy.deepcopy(policy),
+    )
+    evidence = _evidence("ev-call-a", "call-a")
+    tool_delta = runtime.project_tool_result(
+        parent_package=parent,
+        tool_result=_tool_result("call-a", evidence_refs=("ev-call-a",), output={"content": "x"}),
+        evidence=[evidence],
+        generation_id="gen-tool",
+    )
+    retry_delta = runtime.project_retry_control(
+        parent_package=parent,
+        reason="required_tool_call_missing",
+        generation_id="gen-retry",
+    )
+
+    assert tool_delta.validated_invocation_policy == policy
+    assert retry_delta.validated_invocation_policy == policy
+    assert tool_delta.capability_frame["invocation_policy"] == policy
+    assert retry_delta.capability_frame["invocation_policy"] == policy
+    for delta in (tool_delta, retry_delta):
+        rendered = _rendered(delta)
+        assert "structured_call_required=True" in rendered
+        assert "raw_user_text_routing=False" in rendered
+        assert "tool_result_is_evidence_not_final_judgment=True" in rendered
+        assert "julia_second_pass_interpretation_required=True" in rendered
 
 
 def test_p3_projection_uses_exact_id_association_not_latest_artifact_order():
@@ -235,6 +297,9 @@ def test_p3_capability_frame_canonical_state_is_structured_not_truncated_text():
         def tool_manifest(self):
             return "file.read: Read file\nfile.search: Search files"
 
+        def invocation_policy(self):
+            return _valid_invocation_policy()
+
     class _Persona:
         def get_traits_for_injection(self):
             return ""
@@ -263,6 +328,174 @@ def test_p3_capability_frame_canonical_state_is_structured_not_truncated_text():
     assert {"capability_id", "description", "input_schema"}.issubset(entries[0])
     assert "[:600]" not in inspect.getsource(ContextExecutionRuntime.prepare)
     assert pkg.evidence_frame == {}
+
+
+@pytest.mark.parametrize(
+    "policy_mode",
+    ["missing", "raises", "none", "non-mapping", "missing-top-section"],
+)
+def test_c03_required_invocation_policy_failures_are_required(policy_mode):
+    registry = CapabilityRegistry()
+    registry.register_definition(CapabilityDefinition(
+        name="file.read",
+        description="Read file contents",
+        layer=CapabilityLayer.KNOWLEDGE,
+        provider="local",
+        permission_scope="file.read",
+        status=CapabilityStatus.AVAILABLE,
+    ))
+
+    def raise_policy():
+        raise RuntimeError("policy unavailable")
+
+    policies = {
+        "raises": raise_policy,
+        "none": lambda: None,
+        "non-mapping": lambda: [],
+        "missing-top-section": lambda: {
+            "invocation_protocol": {
+                "structured_call_required": True,
+                "raw_user_text_routing": False,
+            },
+            "epistemic_rules": {},
+            "evidence_role": {},
+        },
+    }
+    capability = SimpleNamespace(registry=registry)
+    if policy_mode != "missing":
+        capability.invocation_policy = policies[policy_mode]
+
+    session = SimpleNamespace(
+        persona=SimpleNamespace(get_traits_for_injection=lambda: ""),
+        capability=capability,
+        _load_recent_experiences=lambda: "",
+        _resolve_market_context=lambda _text: "",
+    )
+    pkg = ContextExecutionRuntime(session).prepare(
+        conversation_id="conv",
+        turn_id="turn",
+        user_text="read file",
+        history=[],
+    )
+
+    assert pkg.validate() == ["capability:invocation_policy"]
+    assert "invocation_policy" not in pkg.capability_frame
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda policy: policy["epistemic_rules"].pop("file"),
+        lambda policy: policy["epistemic_rules"]["file"].update(
+            requires_explicit_user_intent=False
+        ),
+        lambda policy: policy["epistemic_rules"].pop("external_evidence"),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            read_only=False
+        ),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            capability_prefixes=["market.*"]
+        ),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            capability_prefixes=["market.*", "research.*", "file.*"]
+        ),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            capability_prefixes=["market.*", "research.*", {"file": True}]
+        ),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            julia_may_request_when_evidence_missing=False
+        ),
+        lambda policy: policy["evidence_role"].pop(
+            "tool_result_is_evidence_not_final_judgment"
+        ),
+        lambda policy: policy["evidence_role"].update(
+            julia_second_pass_interpretation_required=False
+        ),
+        lambda policy: policy["invocation_protocol"].update(format=""),
+    ],
+)
+def test_c03_nested_policy_weakening_fails_closed_before_cognition(mutation):
+    policy = _valid_invocation_policy()
+    mutation(policy)
+    registry = CapabilityRegistry()
+    registry.register_definition(CapabilityDefinition(
+        name="file.read",
+        description="Read file contents",
+        layer=CapabilityLayer.KNOWLEDGE,
+        provider="local",
+        permission_scope="file.read",
+        status=CapabilityStatus.AVAILABLE,
+    ))
+    session = SimpleNamespace(
+        persona=SimpleNamespace(get_traits_for_injection=lambda: ""),
+        capability=SimpleNamespace(registry=registry, invocation_policy=lambda: policy),
+        _load_recent_experiences=lambda: "",
+        _resolve_market_context=lambda _text: "",
+    )
+
+    pkg = ContextExecutionRuntime(session).prepare(
+        conversation_id="conv",
+        turn_id="turn",
+        user_text="read file",
+        history=[],
+    )
+
+    assert pkg.validate() == ["capability:invocation_policy"]
+    assert "invocation_policy" not in pkg.capability_frame
+
+
+def test_large_catalog_cannot_hide_model_visible_invocation_policy(monkeypatch):
+    registry = CapabilityRegistry()
+    for index in range(200):
+        registry.register_definition(CapabilityDefinition(
+            name=f"tool.{index:03d}",
+            description="x" * 200,
+            layer=CapabilityLayer.KNOWLEDGE,
+            provider="local",
+            permission_scope="tool.read",
+            status=CapabilityStatus.AVAILABLE,
+        ))
+    session = SimpleNamespace(
+        persona=SimpleNamespace(get_traits_for_injection=lambda: ""),
+        capability=SimpleNamespace(
+            registry=registry,
+            invocation_policy=lambda: _valid_invocation_policy(),
+        ),
+        _load_recent_experiences=lambda: "",
+        _resolve_market_context=lambda _text: "",
+    )
+    runtime = ContextExecutionRuntime(session)
+    monkeypatch.setattr(runtime, "_get_bootstrap_frames", lambda: {})
+    pkg = runtime.prepare(
+        conversation_id="conv",
+        turn_id="turn",
+        user_text="read file",
+        history=[],
+    )
+    rendered = _rendered(pkg)
+
+    assert list(pkg.capability_frame) == ["invocation_policy", "available_tools"]
+    assert rendered.index("structured_call_required=True") < rendered.index("tool.000")
+    for marker in (
+        "raw_user_text_routing=False",
+        "tool_result_is_evidence_not_final_judgment=True",
+        "julia_second_pass_interpretation_required=True",
+    ):
+        assert marker in rendered
+
+
+def test_malformed_external_prefixes_fail_closed_without_validator_exception():
+    policy = _valid_invocation_policy()
+    policy["epistemic_rules"]["external_evidence"]["capability_prefixes"] = [
+        "market.*",
+        "research.*",
+        {"file": True},
+    ]
+
+    failure = ContextExecutionRuntime._invocation_policy_failure(policy)
+
+    assert isinstance(failure, str)
+    assert "without file namespaces" in failure
 
 
 def test_p3_legacy_capability_result_remains_compatibility_not_canonical_tool_result():
