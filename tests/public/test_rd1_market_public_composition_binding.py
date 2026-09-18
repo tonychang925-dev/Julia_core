@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import sys
+import threading
+import time
 import types
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 import pytest
 
@@ -13,6 +16,7 @@ import julia_core.public.conversation as conversation
 class FakeBridge:
     def __init__(self):
         self.providers = {}
+        self.manager = SimpleNamespace(providers=self.providers)
         self.register_calls = []
 
     def register_provider(self, name, provider):
@@ -62,6 +66,7 @@ class FakePublicProvider:
 def reset_market_binding(monkeypatch):
     monkeypatch.setattr(conversation, "_market_binding_adapter", None)
     monkeypatch.setattr(conversation, "_market_binding_attempted", False)
+    monkeypatch.setattr(conversation, "_market_binding_error", None)
     yield
 
 
@@ -99,6 +104,7 @@ def test_market_factory_constructs_once_and_reuses_same_adapter(monkeypatch):
     assert calls == ["create"]
     assert first is second
     assert conversation._market_binding_adapter is first
+    assert bridge.register_calls == [("market", first)]
 
 
 def test_market_factory_receives_no_core_database_or_repository_configuration(monkeypatch):
@@ -178,3 +184,70 @@ def test_core_ingress_calls_market_binding_before_session_construction(monkeypat
 
     assert ingress._composition_error is None
     assert order == ["runtime", "market", "session"]
+
+
+def test_market_namespace_collision_persists_as_composition_failure(monkeypatch):
+    bridge = FakeBridge()
+    bridge.providers["market"] = object()
+    monkeypatch.setattr(
+        "julia_core.runtime.capability_bridge.get_capability_bridge",
+        lambda: bridge,
+    )
+
+    class Factory:
+        @staticmethod
+        def create():
+            raise AssertionError("Market factory must not run after namespace collision")
+
+    _install_fake_market_public(monkeypatch, factory_impl=Factory)
+
+    with pytest.raises(conversation.CoreConversationConfigurationError):
+        conversation._ensure_market_public_binding()
+
+    # The authority error must be sticky. A later ingress cannot silently
+    # continue on the pre-existing provider.
+    with pytest.raises(conversation.CoreConversationConfigurationError):
+        conversation._ensure_market_public_binding()
+
+    assert conversation._market_binding_adapter is None
+    assert conversation._market_binding_error is not None
+
+
+def test_capability_bridge_singleton_is_not_visible_before_initialize_completes(monkeypatch):
+    import julia_core.runtime.capability_bridge as bridge_module
+
+    class SlowBridge:
+        def __init__(self):
+            self.initialized = False
+            self.initialize_started = 0
+
+        def initialize(self):
+            if self.initialized:
+                return
+            self.initialize_started += 1
+            time.sleep(0.02)
+            self.initialized = True
+
+    monkeypatch.setattr(bridge_module, "_bridge", None)
+    monkeypatch.setattr(bridge_module, "RuntimeCapabilityBridge", SlowBridge)
+
+    observed = []
+    errors = []
+
+    def worker():
+        try:
+            bridge = bridge_module.get_capability_bridge()
+            observed.append((id(bridge), bridge.initialized))
+        except Exception as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert len({bridge_id for bridge_id, _ in observed}) == 1
+    assert all(initialized for _, initialized in observed)
+    assert bridge_module._bridge.initialize_started == 1
