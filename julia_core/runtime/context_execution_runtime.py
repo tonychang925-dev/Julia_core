@@ -42,6 +42,7 @@ class CognitiveContextPackage:
     situation_frame: dict[str, Any] = field(default_factory=dict)
     evidence_frame: dict[str, Any] = field(default_factory=dict)
     capability_frame: dict[str, Any] = field(default_factory=dict)
+    validated_invocation_policy: dict[str, Any] = field(default_factory=dict)
     control_frame: dict[str, Any] = field(default_factory=dict)
     continuity_frame: dict[str, Any] = field(default_factory=dict)
 
@@ -579,6 +580,7 @@ class ContextExecutionRuntime:
                                 capability_frame["invocation_policy"] = copy.deepcopy(
                                     invocation_policy
                                 )
+                                pkg.validated_invocation_policy = copy.deepcopy(invocation_policy)
                     pkg.capability_frame = capability_frame
                     pkg.add_provenance("capability", "capability:registry",
                                       reason="structured capability catalog", stage=0,
@@ -640,6 +642,19 @@ class ContextExecutionRuntime:
             "evidence": [self._project_evidence_view(e) for e in resolved_evidence],
             "source": "capability_execution",
         }
+        if parent_package is not None and parent_package.validated_invocation_policy:
+            pkg.validated_invocation_policy = copy.deepcopy(
+                parent_package.validated_invocation_policy
+            )
+            pkg.capability_frame = {
+                "invocation_policy": copy.deepcopy(pkg.validated_invocation_policy)
+            }
+            pkg.add_provenance(
+                "capability",
+                "capability:validated_invocation_policy",
+                reason="validated invocation policy retained for tool continuation",
+                stage=2,
+            )
         pkg.situation_frame = {"mode": "tool_continuation"}
         pkg.add_provenance("evidence", "capability:tool_result",
                           reason="tool execution result (typed)", stage=2)
@@ -762,6 +777,19 @@ class ContextExecutionRuntime:
             turn_id=parent_package.turn_id,
             generation_id=generation_id,
         )
+        if parent_package.validated_invocation_policy:
+            pkg.validated_invocation_policy = copy.deepcopy(
+                parent_package.validated_invocation_policy
+            )
+            pkg.capability_frame = {
+                "invocation_policy": copy.deepcopy(pkg.validated_invocation_policy)
+            }
+            pkg.add_provenance(
+                "capability",
+                "capability:validated_invocation_policy",
+                reason="validated invocation policy retained for retry control",
+                stage=2,
+            )
         pkg.control_frame = {
             "kind": "retry_control",
             "reason": reason,

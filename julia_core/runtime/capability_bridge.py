@@ -21,6 +21,7 @@ import json as _json
 import re as _re
 import threading as _threading
 from dataclasses import dataclass
+from dataclasses import replace
 from typing import Optional
 
 from julia_core.capability.manager import CapabilityExecution, CapabilityManager
@@ -117,7 +118,7 @@ class _ResearchProviderContractAdapter:
                 ToolResultStatus.SUCCESS,
                 ToolResultStatus.PARTIAL,
             ):
-                return outcome
+                return replace(outcome, structured_output={})
             invalid_reason = self._invalid_evidence_reason(
                 outcome.structured_output,
                 request.arguments.get("query"),
@@ -137,12 +138,27 @@ class _ResearchProviderContractAdapter:
                 ToolResultStatus.TIMEOUT.value,
                 ToolResultStatus.CANCELLED.value,
             }
+            if non_evidence_failure:
+                error = outcome.get("error")
+                return ProviderExecutionOutcome(
+                    status=ToolResultStatus(declared_status),
+                    structured_output={},
+                    error=(
+                        dict(error)
+                        if isinstance(error, dict)
+                        else {"code": declared_status, "message": str(error or declared_status)}
+                    ),
+                )
             invalid_reason = self._invalid_evidence_reason(
                 outcome,
                 request.arguments.get("query"),
             )
-            if non_evidence_failure or invalid_reason is None:
+            if invalid_reason is None and self._legacy_side_effect_is_read_only(outcome):
                 return outcome
+            if invalid_reason is None:
+                invalid_reason = (
+                    "explicit legacy research side_effect_state must be none or absent"
+                )
         else:
             return outcome
 
@@ -171,6 +187,12 @@ class _ResearchProviderContractAdapter:
         sources = output.get("sources")
         if not isinstance(sources, list) or not sources:
             return "sources must be a non-empty list"
+        finding_binding_failure = _ResearchProviderContractAdapter._invalid_finding_binding_reason(
+            output["findings"],
+            sources,
+        )
+        if finding_binding_failure is not None:
+            return finding_binding_failure
         if any(
             not isinstance(source, dict)
             or not (
@@ -186,6 +208,41 @@ class _ResearchProviderContractAdapter:
             return "provider must be a non-empty string"
         if not isinstance(output.get("produced_at"), str) or not output["produced_at"].strip():
             return "produced_at must be non-empty"
+        return None
+
+    @staticmethod
+    def _legacy_side_effect_is_read_only(output: dict) -> bool:
+        declared_side_effect = output.get("side_effect_state")
+        return declared_side_effect is None or (
+            isinstance(declared_side_effect, str)
+            and declared_side_effect.strip().lower() == SideEffectState.NONE.value
+        )
+
+    @staticmethod
+    def _invalid_finding_binding_reason(findings: list, sources: list) -> str | None:
+        declared_refs = {
+            token
+            for source in sources
+            if isinstance(source, dict)
+            for key in ("ref", "url")
+            if isinstance(source.get(key), str) and source[key].strip()
+            for token in (source[key],)
+        }
+        for finding in findings:
+            if not isinstance(finding, dict):
+                return "every finding must be a mapping"
+            source_ref = finding.get("source_ref")
+            source_refs = finding.get("source_refs")
+            if isinstance(source_ref, str) and source_ref.strip():
+                refs = [source_ref]
+            elif isinstance(source_refs, list) and source_refs:
+                if any(not isinstance(ref, str) or not ref.strip() for ref in source_refs):
+                    return "finding source_refs entries must be non-empty strings"
+                refs = source_refs
+            else:
+                return "every finding must declare source_ref or non-empty source_refs"
+            if any(ref not in declared_refs for ref in refs):
+                return "every finding source reference must resolve to a declared source ref or url"
         return None
 
 

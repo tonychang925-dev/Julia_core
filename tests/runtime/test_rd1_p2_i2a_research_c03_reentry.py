@@ -123,3 +123,11 @@ def test_research_evidence_reenters_julia_second_pass_through_c03(monkeypatch, t
         "max_tool_calls_per_model_response=1",
     ):
         assert marker in first_pass_system
+
+    for marker in (
+        "structured_call_required=True",
+        "raw_user_text_routing=False",
+        "工具结果只是证据，不是最终判断",
+        "julia_second_pass_interpretation_required=True",
+    ):
+        assert marker in second_pass_system

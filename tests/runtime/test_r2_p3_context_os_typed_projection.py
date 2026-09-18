@@ -19,6 +19,7 @@ Resolving phase: R2-P3.
 
 from __future__ import annotations
 
+import copy
 import inspect
 from dataclasses import fields
 from pathlib import Path
@@ -139,6 +140,40 @@ def test_p3_context_os_accepts_canonical_tool_result_and_evidence_refs():
     assert delta.evidence_frame["evidence"][0]["evidence_id"] == "ev-call-a"
     assert delta.evidence_frame["evidence"][0]["source_ref"] == "capability:file.read:provider:local"
     assert delta.evidence_frame["evidence"][0]["provenance"]["capability_call_id"] == "call-a"
+
+
+def test_validated_invocation_policy_is_retained_by_tool_and_retry_continuations():
+    policy = _valid_invocation_policy()
+    runtime = ContextExecutionRuntime()
+    parent = CognitiveContextPackage(
+        conversation_id="conv-p3",
+        turn_id="turn-p3",
+        generation_id="gen-before",
+        validated_invocation_policy=copy.deepcopy(policy),
+    )
+    evidence = _evidence("ev-call-a", "call-a")
+    tool_delta = runtime.project_tool_result(
+        parent_package=parent,
+        tool_result=_tool_result("call-a", evidence_refs=("ev-call-a",), output={"content": "x"}),
+        evidence=[evidence],
+        generation_id="gen-tool",
+    )
+    retry_delta = runtime.project_retry_control(
+        parent_package=parent,
+        reason="required_tool_call_missing",
+        generation_id="gen-retry",
+    )
+
+    assert tool_delta.validated_invocation_policy == policy
+    assert retry_delta.validated_invocation_policy == policy
+    assert tool_delta.capability_frame["invocation_policy"] == policy
+    assert retry_delta.capability_frame["invocation_policy"] == policy
+    for delta in (tool_delta, retry_delta):
+        rendered = _rendered(delta)
+        assert "structured_call_required=True" in rendered
+        assert "raw_user_text_routing=False" in rendered
+        assert "tool_result_is_evidence_not_final_judgment=True" in rendered
+        assert "julia_second_pass_interpretation_required=True" in rendered
 
 
 def test_p3_projection_uses_exact_id_association_not_latest_artifact_order():

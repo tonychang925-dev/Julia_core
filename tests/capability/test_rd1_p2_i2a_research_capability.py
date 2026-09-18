@@ -8,6 +8,10 @@ import pytest
 from julia_core.capability.models import CapabilityStatus, ProviderExecutionOutcome, SideEffectState, ToolResultStatus
 from julia_core.capability.policy import AuthorizationStatus
 from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
+from julia_core.runtime.context_execution_runtime import (
+    CognitiveContextPackage,
+    ContextExecutionRuntime,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -136,6 +140,16 @@ def test_source_bearing_research_result_is_preserved_without_semantic_normalizat
         lambda result: result.pop("sources"),
         lambda result: result.update(sources=[]),
         lambda result: result.update(sources=[{"title": "No inspectable reference"}]),
+        lambda result: result["findings"][0].pop("source_ref"),
+        lambda result: result["findings"][0].update(source_ref="source:unknown"),
+        lambda result: (
+            result["findings"][0].pop("source_ref"),
+            result["findings"][0].update(source_refs=["source:unknown"]),
+        ),
+        lambda result: (
+            result["findings"][0].pop("source_ref"),
+            result["findings"][0].update(source_refs=[]),
+        ),
         lambda result: result.pop("provider"),
         lambda result: result.pop("produced_at"),
     ],
@@ -211,6 +225,110 @@ def test_valid_source_bearing_partial_remains_incomplete_evidence():
     assert len(tool_result.evidence_refs) == 1
     assert len(bridge.manager.canonical_evidence) == 1
     assert bridge.manager.canonical_evidence[0].provenance["incomplete"] is True
+
+
+def test_finding_source_refs_resolve_to_declared_refs_or_urls():
+    result = research_result()
+    result["findings"][0].pop("source_ref")
+    result["findings"][0]["source_refs"] = [
+        "source:robotics-catalysts-2026",
+        "https://example.com/robotics-catalysts",
+    ]
+    bridge = RuntimeCapabilityBridge()
+    bridge.register_provider("research", MalformedResearchProvider(result))
+    bridge.initialize()
+
+    execution = bridge.execute_tool_typed(TOOL_JSON)
+
+    assert execution.tool_result.status.value == "success"
+    assert execution.tool_result.structured_output == result
+
+
+@pytest.mark.parametrize("side_effect", ["succeeded", "planned", "failed", "unknown", "mutation"])
+def test_explicit_non_none_legacy_side_effect_gets_no_research_evidence(side_effect):
+    result = {"status": "partial", **research_result(), "side_effect_state": side_effect}
+    bridge = RuntimeCapabilityBridge()
+    bridge.register_provider("research", MalformedResearchProvider(result))
+    bridge.initialize()
+
+    execution = bridge.execute_tool_typed(TOOL_JSON)
+    tool_result = execution.tool_result
+
+    assert tool_result.status.value == "error"
+    assert tool_result.error["code"] == "research_contract_invalid"
+    assert tool_result.evidence_refs == ()
+    assert bridge.manager.canonical_evidence == []
+
+
+def test_explicit_none_and_absent_legacy_side_effects_remain_read_only():
+    for side_effect in (None, "none"):
+        result = {"status": "success", **research_result()}
+        if side_effect is not None:
+            result["side_effect_state"] = side_effect
+        bridge = RuntimeCapabilityBridge()
+        bridge.register_provider("research", MalformedResearchProvider(result))
+        bridge.initialize()
+
+        execution = bridge.execute_tool_typed(TOOL_JSON)
+
+        assert execution.tool_result.status.value == "success"
+        assert execution.tool_result.side_effect_state is SideEffectState.NONE
+
+
+@pytest.mark.parametrize("status", list(ToolResultStatus))
+def test_failed_research_payload_is_quarantined(status):
+    if status in (
+        ToolResultStatus.SUCCESS,
+        ToolResultStatus.PARTIAL,
+        ToolResultStatus.DENIED,
+        ToolResultStatus.UNKNOWN,
+    ):
+        return
+    outcome = ProviderExecutionOutcome(
+        status=status,
+        structured_output={"answer": "fabricated unsupported research material"},
+        error={"code": status.value, "message": "execution failed"},
+    )
+    bridge = RuntimeCapabilityBridge()
+    bridge.register_provider("research", TypedResearchOutcomeProvider(outcome))
+    bridge.initialize()
+
+    execution = bridge.execute_tool_typed(TOOL_JSON)
+
+    assert execution.tool_result.status is status
+    assert execution.tool_result.structured_output == {}
+    assert execution.tool_result.error == {"code": status.value, "message": "execution failed"}
+    assert execution.tool_result.evidence_refs == ()
+    assert bridge.manager.canonical_evidence == []
+
+
+def test_failed_research_payload_is_not_model_visible_through_c03():
+    outcome = ProviderExecutionOutcome(
+        status=ToolResultStatus.ERROR,
+        structured_output={"answer": "fabricated unsupported research material"},
+        error={"code": "error", "message": "execution failed"},
+    )
+    bridge = RuntimeCapabilityBridge()
+    bridge.register_provider("research", TypedResearchOutcomeProvider(outcome))
+    bridge.initialize()
+
+    execution = bridge.execute_tool_typed(TOOL_JSON)
+    delta = ContextExecutionRuntime().project_tool_result(
+        parent_package=CognitiveContextPackage(
+            conversation_id="research-c03",
+            turn_id="research-turn",
+            generation_id="gen-before",
+        ),
+        tool_result=execution.tool_result,
+        generation_id="gen-after",
+    )
+    rendered = "\n".join(
+        str(message.get("content", "")) for message in delta.to_messages([], "")
+    )
+
+    assert "code=error" in rendered
+    assert "message=execution failed" in rendered
+    assert "fabricated unsupported research material" not in rendered
 
 
 def test_tool_manifest_distinguishes_file_privacy_from_research_evidence_need():
