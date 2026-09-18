@@ -163,83 +163,83 @@ class RuntimeCapabilityBridge:
             self._initialize_locked()
 
     def _initialize_locked(self):
-            if self._initialized:
-                return
+        if self._initialized:
+            return
 
-            # Local providers (R0.1)
-            from julia_core.capability.providers.local.file_read import FileReadProvider
-            from julia_core.capability.providers.local.file_search import FileSearchProvider
-            from julia_core.capability.providers.local.directory_list import DirectoryListProvider
+        # Local providers (R0.1)
+        from julia_core.capability.providers.local.file_read import FileReadProvider
+        from julia_core.capability.providers.local.file_search import FileSearchProvider
+        from julia_core.capability.providers.local.directory_list import DirectoryListProvider
 
-            if "local" not in self._providers:
-                self._providers["local"] = LocalProviderRouter({
-                    "file.read": FileReadProvider(),
-                    "file.search": FileSearchProvider(),
-                    "file.list": DirectoryListProvider(),
-                })
+        if "local" not in self._providers:
+            self._providers["local"] = LocalProviderRouter({
+                "file.read": FileReadProvider(),
+                "file.search": FileSearchProvider(),
+                "file.list": DirectoryListProvider(),
+            })
 
-            # Register local capabilities
+        # Register local capabilities
+        self.registry.register_definition(CapabilityDefinition(
+            name="file.read",
+            description="Read file contents from the local filesystem",
+            layer=CapabilityLayer.KNOWLEDGE,
+            provider="local",
+            permission_scope="file.read",
+            input_schema={"path": "file path"},
+            status=CapabilityStatus.AVAILABLE,
+        ))
+        self.registry.register_definition(CapabilityDefinition(
+            name="file.search",
+            description="Search for files by name pattern",
+            layer=CapabilityLayer.KNOWLEDGE,
+            provider="local",
+            permission_scope="file.read",
+            input_schema={"pattern": "search pattern"},
+            status=CapabilityStatus.AVAILABLE,
+        ))
+        self.registry.register_definition(CapabilityDefinition(
+            name="file.list",
+            description="List directory contents",
+            layer=CapabilityLayer.KNOWLEDGE,
+            provider="local",
+            permission_scope="file.read",
+            input_schema={"path": "directory path"},
+            status=CapabilityStatus.AVAILABLE,
+        ))
+
+        # Market is a generic provider namespace. The public Market provider is
+        # bound by the application/runtime composition root; Core never imports
+        # Market private code or manufactures an unavailable substitute.
+        for name, description in {
+            "market.event.resolve": "Resolve structured Market event criteria",
+            "market.event.read": "Read one structured Market event",
+            "market.product.read": "Read one structured Market product",
+        }.items():
             self.registry.register_definition(CapabilityDefinition(
-                name="file.read",
-                description="Read file contents from the local filesystem",
-                layer=CapabilityLayer.KNOWLEDGE,
-                provider="local",
-                permission_scope="file.read",
-                input_schema={"path": "file path"},
+                name=name,
+                description=description,
+                layer=CapabilityLayer.INTELLIGENCE,
+                provider="market",
+                permission_scope="market.observe",
                 status=CapabilityStatus.AVAILABLE,
             ))
-            self.registry.register_definition(CapabilityDefinition(
-                name="file.search",
-                description="Search for files by name pattern",
-                layer=CapabilityLayer.KNOWLEDGE,
-                provider="local",
-                permission_scope="file.read",
-                input_schema={"pattern": "search pattern"},
-                status=CapabilityStatus.AVAILABLE,
-            ))
-            self.registry.register_definition(CapabilityDefinition(
-                name="file.list",
-                description="List directory contents",
-                layer=CapabilityLayer.KNOWLEDGE,
-                provider="local",
-                permission_scope="file.read",
-                input_schema={"path": "directory path"},
-                status=CapabilityStatus.AVAILABLE,
-            ))
 
-            # Market is a generic provider namespace. The public Market provider is
-            # bound by the application/runtime composition root; Core never imports
-            # Market private code or manufactures an unavailable substitute.
-            for name, description in {
-                "market.event.resolve": "Resolve structured Market event criteria",
-                "market.event.read": "Read one structured Market event",
-                "market.product.read": "Read one structured Market product",
-            }.items():
-                self.registry.register_definition(CapabilityDefinition(
-                    name=name,
-                    description=description,
-                    layer=CapabilityLayer.INTELLIGENCE,
-                    provider="market",
-                    permission_scope="market.observe",
-                    status=CapabilityStatus.AVAILABLE,
-                ))
+        # External Code Review capability (Core semantic contract).
+        # The provider (external_review) is implemented cross-repo in
+        # Julia-AI-Assistant; Core registers only the CapabilityDefinition and
+        # permission scope. Until that provider is bound, invocation returns a
+        # typed UNAVAILABLE outcome (fail-closed, no fallback).
+        from julia_core.review.registration import register_external_review_capability
+        register_external_review_capability(self.registry, policy=self.policy)
 
-            # External Code Review capability (Core semantic contract).
-            # The provider (external_review) is implemented cross-repo in
-            # Julia-AI-Assistant; Core registers only the CapabilityDefinition and
-            # permission scope. Until that provider is bound, invocation returns a
-            # typed UNAVAILABLE outcome (fail-closed, no fallback).
-            from julia_core.review.registration import register_external_review_capability
-            register_external_review_capability(self.registry, policy=self.policy)
+        # Build the manager
+        self._manager = CapabilityManager(
+            self.registry,
+            self.policy,
+            self._flatten_providers(),
+        )
 
-            # Build the manager
-            self._manager = CapabilityManager(
-                self.registry,
-                self.policy,
-                self._flatten_providers(),
-            )
-
-            self._initialized = True
+        self._initialized = True
 
 
     def _flatten_providers(self) -> dict:
