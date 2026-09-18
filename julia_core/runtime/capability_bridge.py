@@ -18,6 +18,7 @@ ADR-026 P4: Provider supplies capability, not cognition.
 from __future__ import annotations
 
 import json as _json
+import threading as _threading
 from dataclasses import dataclass
 from typing import Optional
 
@@ -118,6 +119,7 @@ class RuntimeCapabilityBridge:
         self._providers: dict = {}
         self._manager: Optional[CapabilityManager] = None
         self._initialized = False
+        self._provider_lock = _threading.RLock()
 
     def register_provider(self, provider_name: str, provider: object) -> None:
         """Bind one product-owned implementation to a Core provider namespace.
@@ -126,6 +128,9 @@ class RuntimeCapabilityBridge:
         grants no scope, changes no provider selection, and imports no product
         transport type. ``CapabilityDefinition.provider`` remains the sole
         selector and ``PermissionPolicy`` remains the sole authorization owner.
+
+        Namespace check + Manager bind + bridge-map write are one atomic bridge
+        operation so concurrent composition binders cannot both succeed.
         """
         if not isinstance(provider_name, str) or not provider_name:
             raise ValueError("provider_name must be a non-empty string")
@@ -134,102 +139,108 @@ class RuntimeCapabilityBridge:
         if not callable(getattr(provider, "health", None)):
             raise TypeError("provider must implement health()")
 
-        existing = self._providers.get(provider_name)
-        if existing is not None and existing is not provider:
-            raise ProviderAlreadyRegisteredError(
-                f"provider namespace '{provider_name}' is already bound"
-            )
-
-        if self._initialized and self._manager is not None:
-            try:
-                self._manager.bind_provider(provider_name, provider)
-            except ProviderAlreadyBoundError as exc:
+        with self._provider_lock:
+            existing = self._providers.get(provider_name)
+            if existing is not None and existing is not provider:
                 raise ProviderAlreadyRegisteredError(
-                    f"manager provider namespace '{provider_name}' is already bound"
-                ) from exc
-        self._providers[provider_name] = provider
+                    f"provider namespace '{provider_name}' is already bound"
+                )
+
+            if self._initialized and self._manager is not None:
+                try:
+                    self._manager.bind_provider(provider_name, provider)
+                except ProviderAlreadyBoundError as exc:
+                    raise ProviderAlreadyRegisteredError(
+                        f"manager provider namespace '{provider_name}' is already bound"
+                    ) from exc
+            self._providers[provider_name] = provider
 
     # ── Initialization ──────────────────────────────────────────────────
 
     def initialize(self):
         """Register all providers. Call once at session start."""
-        if self._initialized:
-            return
+        with self._provider_lock:
+            self._initialize_locked()
 
-        # Local providers (R0.1)
-        from julia_core.capability.providers.local.file_read import FileReadProvider
-        from julia_core.capability.providers.local.file_search import FileSearchProvider
-        from julia_core.capability.providers.local.directory_list import DirectoryListProvider
+    def _initialize_locked(self):
+            if self._initialized:
+                return
 
-        if "local" not in self._providers:
-            self._providers["local"] = LocalProviderRouter({
-                "file.read": FileReadProvider(),
-                "file.search": FileSearchProvider(),
-                "file.list": DirectoryListProvider(),
-            })
+            # Local providers (R0.1)
+            from julia_core.capability.providers.local.file_read import FileReadProvider
+            from julia_core.capability.providers.local.file_search import FileSearchProvider
+            from julia_core.capability.providers.local.directory_list import DirectoryListProvider
 
-        # Register local capabilities
-        self.registry.register_definition(CapabilityDefinition(
-            name="file.read",
-            description="Read file contents from the local filesystem",
-            layer=CapabilityLayer.KNOWLEDGE,
-            provider="local",
-            permission_scope="file.read",
-            input_schema={"path": "file path"},
-            status=CapabilityStatus.AVAILABLE,
-        ))
-        self.registry.register_definition(CapabilityDefinition(
-            name="file.search",
-            description="Search for files by name pattern",
-            layer=CapabilityLayer.KNOWLEDGE,
-            provider="local",
-            permission_scope="file.read",
-            input_schema={"pattern": "search pattern"},
-            status=CapabilityStatus.AVAILABLE,
-        ))
-        self.registry.register_definition(CapabilityDefinition(
-            name="file.list",
-            description="List directory contents",
-            layer=CapabilityLayer.KNOWLEDGE,
-            provider="local",
-            permission_scope="file.read",
-            input_schema={"path": "directory path"},
-            status=CapabilityStatus.AVAILABLE,
-        ))
+            if "local" not in self._providers:
+                self._providers["local"] = LocalProviderRouter({
+                    "file.read": FileReadProvider(),
+                    "file.search": FileSearchProvider(),
+                    "file.list": DirectoryListProvider(),
+                })
 
-        # Market is a generic provider namespace. The public Market provider is
-        # bound by the application/runtime composition root; Core never imports
-        # Market private code or manufactures an unavailable substitute.
-        for name, description in {
-            "market.event.resolve": "Resolve structured Market event criteria",
-            "market.event.read": "Read one structured Market event",
-            "market.product.read": "Read one structured Market product",
-        }.items():
+            # Register local capabilities
             self.registry.register_definition(CapabilityDefinition(
-                name=name,
-                description=description,
-                layer=CapabilityLayer.INTELLIGENCE,
-                provider="market",
-                permission_scope="market.observe",
+                name="file.read",
+                description="Read file contents from the local filesystem",
+                layer=CapabilityLayer.KNOWLEDGE,
+                provider="local",
+                permission_scope="file.read",
+                input_schema={"path": "file path"},
+                status=CapabilityStatus.AVAILABLE,
+            ))
+            self.registry.register_definition(CapabilityDefinition(
+                name="file.search",
+                description="Search for files by name pattern",
+                layer=CapabilityLayer.KNOWLEDGE,
+                provider="local",
+                permission_scope="file.read",
+                input_schema={"pattern": "search pattern"},
+                status=CapabilityStatus.AVAILABLE,
+            ))
+            self.registry.register_definition(CapabilityDefinition(
+                name="file.list",
+                description="List directory contents",
+                layer=CapabilityLayer.KNOWLEDGE,
+                provider="local",
+                permission_scope="file.read",
+                input_schema={"path": "directory path"},
                 status=CapabilityStatus.AVAILABLE,
             ))
 
-        # External Code Review capability (Core semantic contract).
-        # The provider (external_review) is implemented cross-repo in
-        # Julia-AI-Assistant; Core registers only the CapabilityDefinition and
-        # permission scope. Until that provider is bound, invocation returns a
-        # typed UNAVAILABLE outcome (fail-closed, no fallback).
-        from julia_core.review.registration import register_external_review_capability
-        register_external_review_capability(self.registry, policy=self.policy)
+            # Market is a generic provider namespace. The public Market provider is
+            # bound by the application/runtime composition root; Core never imports
+            # Market private code or manufactures an unavailable substitute.
+            for name, description in {
+                "market.event.resolve": "Resolve structured Market event criteria",
+                "market.event.read": "Read one structured Market event",
+                "market.product.read": "Read one structured Market product",
+            }.items():
+                self.registry.register_definition(CapabilityDefinition(
+                    name=name,
+                    description=description,
+                    layer=CapabilityLayer.INTELLIGENCE,
+                    provider="market",
+                    permission_scope="market.observe",
+                    status=CapabilityStatus.AVAILABLE,
+                ))
 
-        # Build the manager
-        self._manager = CapabilityManager(
-            self.registry,
-            self.policy,
-            self._flatten_providers(),
-        )
+            # External Code Review capability (Core semantic contract).
+            # The provider (external_review) is implemented cross-repo in
+            # Julia-AI-Assistant; Core registers only the CapabilityDefinition and
+            # permission scope. Until that provider is bound, invocation returns a
+            # typed UNAVAILABLE outcome (fail-closed, no fallback).
+            from julia_core.review.registration import register_external_review_capability
+            register_external_review_capability(self.registry, policy=self.policy)
 
-        self._initialized = True
+            # Build the manager
+            self._manager = CapabilityManager(
+                self.registry,
+                self.policy,
+                self._flatten_providers(),
+            )
+
+            self._initialized = True
+
 
     def _flatten_providers(self) -> dict:
         """Flatten nested provider dict into manager-compatible flat dict."""
@@ -413,7 +424,6 @@ _bridge: Optional[RuntimeCapabilityBridge] = None
 # Construction + initialize() must publish one fully initialized bridge.
 # RLock keeps this safe if initialization ever reaches a helper that asks for
 # the singleton again on the same thread.
-import threading as _threading
 _bridge_lock = _threading.RLock()
 
 
