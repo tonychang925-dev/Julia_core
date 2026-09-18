@@ -22,6 +22,7 @@ from __future__ import annotations
 import inspect
 from dataclasses import fields
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, get_type_hints
 
 import pytest
@@ -236,7 +237,15 @@ def test_p3_capability_frame_canonical_state_is_structured_not_truncated_text():
             return "file.read: Read file\nfile.search: Search files"
 
         def invocation_policy(self):
-            return {"invocation_protocol": {"structured_call_required": True}}
+            return {
+                "invocation_protocol": {
+                    "structured_call_required": True,
+                    "raw_user_text_routing": False,
+                },
+                "epistemic_rules": {},
+                "evidence_role": {},
+                "limits": {"max_tool_calls_per_model_response": 1},
+            }
 
     class _Persona:
         def get_traits_for_injection(self):
@@ -266,6 +275,58 @@ def test_p3_capability_frame_canonical_state_is_structured_not_truncated_text():
     assert {"capability_id", "description", "input_schema"}.issubset(entries[0])
     assert "[:600]" not in inspect.getsource(ContextExecutionRuntime.prepare)
     assert pkg.evidence_frame == {}
+
+
+@pytest.mark.parametrize(
+    "policy_mode",
+    ["missing", "raises", "none", "non-mapping", "missing-top-section"],
+)
+def test_c03_required_invocation_policy_failures_are_required(policy_mode):
+    registry = CapabilityRegistry()
+    registry.register_definition(CapabilityDefinition(
+        name="file.read",
+        description="Read file contents",
+        layer=CapabilityLayer.KNOWLEDGE,
+        provider="local",
+        permission_scope="file.read",
+        status=CapabilityStatus.AVAILABLE,
+    ))
+
+    def raise_policy():
+        raise RuntimeError("policy unavailable")
+
+    policies = {
+        "raises": raise_policy,
+        "none": lambda: None,
+        "non-mapping": lambda: [],
+        "missing-top-section": lambda: {
+            "invocation_protocol": {
+                "structured_call_required": True,
+                "raw_user_text_routing": False,
+            },
+            "epistemic_rules": {},
+            "evidence_role": {},
+        },
+    }
+    capability = SimpleNamespace(registry=registry)
+    if policy_mode != "missing":
+        capability.invocation_policy = policies[policy_mode]
+
+    session = SimpleNamespace(
+        persona=SimpleNamespace(get_traits_for_injection=lambda: ""),
+        capability=capability,
+        _load_recent_experiences=lambda: "",
+        _resolve_market_context=lambda _text: "",
+    )
+    pkg = ContextExecutionRuntime(session).prepare(
+        conversation_id="conv",
+        turn_id="turn",
+        user_text="read file",
+        history=[],
+    )
+
+    assert pkg.validate() == ["capability:invocation_policy"]
+    assert "invocation_policy" not in pkg.capability_frame
 
 
 def test_p3_legacy_capability_result_remains_compatibility_not_canonical_tool_result():

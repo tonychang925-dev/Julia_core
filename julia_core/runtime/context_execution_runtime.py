@@ -302,6 +302,22 @@ class ContextExecutionRuntime:
     def __init__(self, julia_session=None):
         self._js = julia_session
 
+    @staticmethod
+    def _invocation_policy_failure(policy: Any) -> str | None:
+        if not isinstance(policy, dict):
+            return "invocation policy must be a structured mapping"
+        for section in ("invocation_protocol", "epistemic_rules", "evidence_role", "limits"):
+            if not isinstance(policy.get(section), dict):
+                return f"invocation policy section '{section}' must be a mapping"
+        protocol = policy["invocation_protocol"]
+        if protocol.get("structured_call_required") is not True:
+            return "structured_call_required must be True"
+        if protocol.get("raw_user_text_routing") is not False:
+            return "raw_user_text_routing must be False"
+        if policy["limits"].get("max_tool_calls_per_model_response") != 1:
+            return "max_tool_calls_per_model_response must be 1"
+        return None
+
     def _get_bootstrap_frames(self) -> dict[str, str]:
         """Load classified bootstrap once per session, then cache.
 
@@ -508,6 +524,7 @@ class ContextExecutionRuntime:
                         "invocation_policy",
                         None,
                     )
+                    invocation_policy = None
                     if not callable(policy_provider):
                         pkg.mark_frame_failure(
                             "capability:invocation_policy",
@@ -515,9 +532,28 @@ class ContextExecutionRuntime:
                             required=True,
                         )
                     else:
-                        capability_frame["invocation_policy"] = copy.deepcopy(
-                            policy_provider()
-                        )
+                        try:
+                            invocation_policy = policy_provider()
+                        except Exception as exc:
+                            pkg.mark_frame_failure(
+                                "capability:invocation_policy",
+                                f"invocation policy failed: {exc}",
+                                required=True,
+                            )
+                        else:
+                            policy_failure = self._invocation_policy_failure(
+                                invocation_policy
+                            )
+                            if policy_failure is not None:
+                                pkg.mark_frame_failure(
+                                    "capability:invocation_policy",
+                                policy_failure,
+                                required=True,
+                            )
+                            else:
+                                capability_frame["invocation_policy"] = copy.deepcopy(
+                                    invocation_policy
+                                )
                     pkg.capability_frame = capability_frame
                     pkg.add_provenance("capability", "capability:registry",
                                       reason="structured capability catalog", stage=0,

@@ -168,6 +168,10 @@ def test_raw_user_text_cannot_route_to_research_without_structured_cognition_cal
     assert bridge.requires_tool("robotics sector external catalysts") is False
     assert bridge.requires_tool("请读取 README.md") is True
     assert bridge.requires_tool("帮我看看这个文件") is True
+    assert bridge.requires_tool("列出这个目录") is True
+    assert bridge.requires_tool("/tmp/runtime.log") is True
+    assert bridge.requires_tool("找一下英伟达的股票代码") is False
+    assert bridge.requires_tool("搜索一下这家公司代码") is False
     assert bridge.requires_tool("搜索一下最近的机器人新闻") is False
     assert bridge.requires_tool("找一下机器人板块的外部催化") is False
     assert bridge.requires_tool("/Users/tony/notes/robotics.md") is True

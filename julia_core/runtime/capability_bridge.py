@@ -18,6 +18,7 @@ ADR-026 P4: Provider supplies capability, not cognition.
 from __future__ import annotations
 
 import json as _json
+import re as _re
 import threading as _threading
 from dataclasses import dataclass
 from typing import Optional
@@ -523,18 +524,21 @@ class RuntimeCapabilityBridge:
 
     # ── Evidence Gate (backward compat) ─────────────────────────────────
 
+    _EXPLICIT_FILE_INTENT = _re.compile(
+        r"(?:读取|读一下|打开|查看|看看|列出|搜索|找)"
+        r"(?:一下|这个|该|下)?\s*"
+        r"(?:文件|目录|日志|日记|README(?:\.md)?|源码)"
+    )
+
     def requires_tool(self, user_text: str) -> bool:
         """Force retry only for explicit private-file intent."""
-        if "/Users/" in user_text or "/tmp/" in user_text:
-            return True
-
-        file_signals = ("文件", "目录", "日志", "日记", "README", "源码", "代码")
-        file_actions = ("读取", "读一下", "打开", "看看", "查看", "列出", "搜索", "找")
-        return any(signal in user_text for signal in file_signals) and any(
-            action in user_text for action in file_actions
+        stripped = user_text.strip()
+        return bool(
+            self._EXPLICIT_FILE_INTENT.search(stripped)
+            or "/Users/" in stripped
+            or "/tmp/" in stripped
+            or stripped.startswith(("~/", "./"))
         )
-
-        return False
 
     def detect_tool_call(self, text: str) -> Optional[str]:
         """Detect structured tool_call block in LLM output.
