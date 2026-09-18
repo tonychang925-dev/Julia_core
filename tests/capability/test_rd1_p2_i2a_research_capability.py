@@ -150,6 +150,8 @@ def test_source_bearing_research_result_is_preserved_without_semantic_normalizat
             result["findings"][0].pop("source_ref"),
             result["findings"][0].update(source_refs=[]),
         ),
+        lambda result: result["findings"][0].update(source_refs=["source:unknown"]),
+        lambda result: result["findings"][0].update(source_ref=" ", source_refs=[]),
         lambda result: result.pop("provider"),
         lambda result: result.pop("produced_at"),
     ],

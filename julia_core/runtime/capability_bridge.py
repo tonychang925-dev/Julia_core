@@ -233,13 +233,20 @@ class _ResearchProviderContractAdapter:
                 return "every finding must be a mapping"
             source_ref = finding.get("source_ref")
             source_refs = finding.get("source_refs")
-            if isinstance(source_ref, str) and source_ref.strip():
-                refs = [source_ref]
-            elif isinstance(source_refs, list) and source_refs:
-                if any(not isinstance(ref, str) or not ref.strip() for ref in source_refs):
+            refs = []
+            if "source_ref" in finding:
+                if not isinstance(source_ref, str) or not source_ref.strip():
+                    return "finding source_ref must be a non-empty string when present"
+                refs.append(source_ref)
+            if source_refs is not None:
+                if not isinstance(source_refs, list) or not source_refs:
+                    return "finding source_refs must be a non-empty list when present"
+                if any(
+                    not isinstance(ref, str) or not ref.strip() for ref in source_refs
+                ):
                     return "finding source_refs entries must be non-empty strings"
-                refs = source_refs
-            else:
+                refs.extend(source_refs)
+            if not refs:
                 return "every finding must declare source_ref or non-empty source_refs"
             if any(ref not in declared_refs for ref in refs):
                 return "every finding source reference must resolve to a declared source ref or url"

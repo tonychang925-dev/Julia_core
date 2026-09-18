@@ -329,8 +329,14 @@ class ContextExecutionRuntime:
         if not isinstance(external_rule, dict):
             return "epistemic_rules.external_evidence must be a mapping"
         prefixes = external_rule.get("capability_prefixes")
-        if not isinstance(prefixes, list) or not {"market.*", "research.*"}.issubset(prefixes):
-            return "external evidence capability_prefixes must include market.* and research.*"
+        if (
+            not isinstance(prefixes, list)
+            or not all(isinstance(prefix, str) and prefix.strip() for prefix in prefixes)
+            or "market.*" not in prefixes
+            or "research.*" not in prefixes
+            or any(prefix == "file.*" or prefix.startswith("file.") for prefix in prefixes)
+        ):
+            return "external evidence capability_prefixes must include market.* and research.* without file namespaces"
         if external_rule.get("read_only") is not True:
             return "external evidence read_only must be True"
         if external_rule.get("julia_may_request_when_evidence_missing") is not True:
@@ -542,9 +548,7 @@ class ContextExecutionRuntime:
                     key=lambda entry: entry["capability_id"],
                 )
                 if entries:
-                    capability_frame: dict[str, Any] = {
-                        "available_tools": entries,
-                    }
+                    capability_frame: dict[str, Any] = {}
                     policy_provider = getattr(
                         self._js.capability,
                         "invocation_policy",
@@ -581,6 +585,7 @@ class ContextExecutionRuntime:
                                     invocation_policy
                                 )
                                 pkg.validated_invocation_policy = copy.deepcopy(invocation_policy)
+                    capability_frame["available_tools"] = entries
                     pkg.capability_frame = capability_frame
                     pkg.add_provenance("capability", "capability:registry",
                                       reason="structured capability catalog", stage=0,

@@ -397,6 +397,12 @@ def test_c03_required_invocation_policy_failures_are_required(policy_mode):
             capability_prefixes=["market.*"]
         ),
         lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            capability_prefixes=["market.*", "research.*", "file.*"]
+        ),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            capability_prefixes=["market.*", "research.*", {"file": True}]
+        ),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
             julia_may_request_when_evidence_missing=False
         ),
         lambda policy: policy["evidence_role"].pop(
@@ -436,6 +442,60 @@ def test_c03_nested_policy_weakening_fails_closed_before_cognition(mutation):
 
     assert pkg.validate() == ["capability:invocation_policy"]
     assert "invocation_policy" not in pkg.capability_frame
+
+
+def test_large_catalog_cannot_hide_model_visible_invocation_policy(monkeypatch):
+    registry = CapabilityRegistry()
+    for index in range(200):
+        registry.register_definition(CapabilityDefinition(
+            name=f"tool.{index:03d}",
+            description="x" * 200,
+            layer=CapabilityLayer.KNOWLEDGE,
+            provider="local",
+            permission_scope="tool.read",
+            status=CapabilityStatus.AVAILABLE,
+        ))
+    session = SimpleNamespace(
+        persona=SimpleNamespace(get_traits_for_injection=lambda: ""),
+        capability=SimpleNamespace(
+            registry=registry,
+            invocation_policy=lambda: _valid_invocation_policy(),
+        ),
+        _load_recent_experiences=lambda: "",
+        _resolve_market_context=lambda _text: "",
+    )
+    runtime = ContextExecutionRuntime(session)
+    monkeypatch.setattr(runtime, "_get_bootstrap_frames", lambda: {})
+    pkg = runtime.prepare(
+        conversation_id="conv",
+        turn_id="turn",
+        user_text="read file",
+        history=[],
+    )
+    rendered = _rendered(pkg)
+
+    assert list(pkg.capability_frame) == ["invocation_policy", "available_tools"]
+    assert rendered.index("structured_call_required=True") < rendered.index("tool.000")
+    for marker in (
+        "raw_user_text_routing=False",
+        "tool_result_is_evidence_not_final_judgment=True",
+        "julia_second_pass_interpretation_required=True",
+    ):
+        assert marker in rendered
+
+
+def test_malformed_external_prefixes_fail_closed_without_validator_exception():
+    policy = _valid_invocation_policy()
+    policy["epistemic_rules"]["external_evidence"]["capability_prefixes"] = [
+        "market.*",
+        "research.*",
+        {"file": True},
+    ]
+
+    failure = ContextExecutionRuntime._invocation_policy_failure(policy)
+
+    assert isinstance(failure, str)
+    assert "without file namespaces" in failure
 
 
 def test_p3_legacy_capability_result_remains_compatibility_not_canonical_tool_result():
