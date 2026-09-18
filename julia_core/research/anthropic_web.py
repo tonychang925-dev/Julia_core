@@ -72,16 +72,25 @@ class AnthropicWebResearchProvider:
             if hasattr(result, "__await__"):
                 await result
 
-    def _failure(self, code: str, message: str) -> ProviderExecutionOutcome:
+    def _failure(
+        self,
+        code: str,
+        message: str,
+        *,
+        provider_error_codes: list[str] | None = None,
+    ) -> ProviderExecutionOutcome:
+        error = {
+            "code": code,
+            "message": message,
+            "provider": PROVIDER_IDENTITY,
+            "model": self.model,
+        }
+        if provider_error_codes is not None:
+            error["provider_error_codes"] = provider_error_codes
         return ProviderExecutionOutcome(
             status=ToolResultStatus.ERROR,
             structured_output={},
-            error={
-                "code": code,
-                "message": message,
-                "provider": PROVIDER_IDENTITY,
-                "model": self.model,
-            },
+            error=error,
             side_effect_state=SideEffectState.NONE,
         )
 
@@ -108,12 +117,19 @@ class AnthropicWebResearchProvider:
             and self._field(block, "name") == "web_search"
         )
         search_errors = self._search_errors(content)
+        provider_error_codes = self._search_error_codes(content)
         pause = (
             self._field(response, "stop_reason") == "pause_turn"
             or any(self._field(block, "type") == "pause_turn" for block in content)
         )
 
         if not findings or not sources or search_request_count != 1:
+            if search_errors:
+                return self._failure(
+                    "anthropic_web_search_tool_error",
+                    "Anthropic Web Search reported a provider search error",
+                    provider_error_codes=provider_error_codes,
+                )
             reason = "pause_turn" if pause else "no_source_bearing_search_result"
             return self._failure(
                 f"anthropic_web_search_{reason}",
@@ -140,6 +156,8 @@ class AnthropicWebResearchProvider:
             "produced_at": datetime.now(timezone.utc).isoformat(),
             "search_request_count": search_request_count,
         }
+        if search_errors:
+            structured_output["provider_error_codes"] = provider_error_codes
         usage = self._field(response, "usage")
         if isinstance(usage, dict):
             structured_output["usage"] = dict(usage)
@@ -236,6 +254,32 @@ class AnthropicWebResearchProvider:
                     }:
                         errors.append(cls._error_text(item))
         return list(dict.fromkeys(errors))
+
+    @classmethod
+    def _search_error_codes(cls, content: list[Any]) -> list[str]:
+        codes: list[str] = []
+
+        def admit(value: Any) -> None:
+            code = cls._optional_str(cls._field(value, "error_code"))
+            if code is None:
+                error = cls._field(value, "error")
+                if isinstance(error, dict):
+                    code = cls._optional_str(error.get("error_code"))
+            if code is not None and code not in codes:
+                codes.append(code)
+
+        for block in content:
+            block_type = cls._field(block, "type")
+            if block_type == "web_search_tool_result_error":
+                admit(block)
+            elif block_type == "web_search_tool_result":
+                for item in cls._content_items(cls._field(block, "content")):
+                    if cls._field(item, "type") in {
+                        "web_search_tool_result_error",
+                        "web_search_result_error",
+                    }:
+                        admit(item)
+        return codes
 
     @classmethod
     def _error_text(cls, value: Any) -> str:
