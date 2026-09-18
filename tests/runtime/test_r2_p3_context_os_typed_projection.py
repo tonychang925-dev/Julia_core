@@ -48,6 +48,32 @@ from julia_core.runtime.context_execution_runtime import (
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def _valid_invocation_policy() -> dict:
+    return {
+        "invocation_protocol": {
+            "format": "```tool_call\\n{JSON}\\n```",
+            "structured_call_required": True,
+            "raw_user_text_routing": False,
+        },
+        "epistemic_rules": {
+            "file": {
+                "capability_prefix": "file.*",
+                "requires_explicit_user_intent": True,
+            },
+            "external_evidence": {
+                "capability_prefixes": ["market.*", "research.*"],
+                "read_only": True,
+                "julia_may_request_when_evidence_missing": True,
+            },
+        },
+        "evidence_role": {
+            "tool_result_is_evidence_not_final_judgment": True,
+            "julia_second_pass_interpretation_required": True,
+        },
+        "limits": {"max_tool_calls_per_model_response": 1},
+    }
+
+
 def _tool_result(
     call_id: str,
     *,
@@ -237,15 +263,7 @@ def test_p3_capability_frame_canonical_state_is_structured_not_truncated_text():
             return "file.read: Read file\nfile.search: Search files"
 
         def invocation_policy(self):
-            return {
-                "invocation_protocol": {
-                    "structured_call_required": True,
-                    "raw_user_text_routing": False,
-                },
-                "epistemic_rules": {},
-                "evidence_role": {},
-                "limits": {"max_tool_calls_per_model_response": 1},
-            }
+            return _valid_invocation_policy()
 
     class _Persona:
         def get_traits_for_injection(self):
@@ -318,6 +336,62 @@ def test_c03_required_invocation_policy_failures_are_required(policy_mode):
         _load_recent_experiences=lambda: "",
         _resolve_market_context=lambda _text: "",
     )
+    pkg = ContextExecutionRuntime(session).prepare(
+        conversation_id="conv",
+        turn_id="turn",
+        user_text="read file",
+        history=[],
+    )
+
+    assert pkg.validate() == ["capability:invocation_policy"]
+    assert "invocation_policy" not in pkg.capability_frame
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda policy: policy["epistemic_rules"].pop("file"),
+        lambda policy: policy["epistemic_rules"]["file"].update(
+            requires_explicit_user_intent=False
+        ),
+        lambda policy: policy["epistemic_rules"].pop("external_evidence"),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            read_only=False
+        ),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            capability_prefixes=["market.*"]
+        ),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            julia_may_request_when_evidence_missing=False
+        ),
+        lambda policy: policy["evidence_role"].pop(
+            "tool_result_is_evidence_not_final_judgment"
+        ),
+        lambda policy: policy["evidence_role"].update(
+            julia_second_pass_interpretation_required=False
+        ),
+        lambda policy: policy["invocation_protocol"].update(format=""),
+    ],
+)
+def test_c03_nested_policy_weakening_fails_closed_before_cognition(mutation):
+    policy = _valid_invocation_policy()
+    mutation(policy)
+    registry = CapabilityRegistry()
+    registry.register_definition(CapabilityDefinition(
+        name="file.read",
+        description="Read file contents",
+        layer=CapabilityLayer.KNOWLEDGE,
+        provider="local",
+        permission_scope="file.read",
+        status=CapabilityStatus.AVAILABLE,
+    ))
+    session = SimpleNamespace(
+        persona=SimpleNamespace(get_traits_for_injection=lambda: ""),
+        capability=SimpleNamespace(registry=registry, invocation_policy=lambda: policy),
+        _load_recent_experiences=lambda: "",
+        _resolve_market_context=lambda _text: "",
+    )
+
     pkg = ContextExecutionRuntime(session).prepare(
         conversation_id="conv",
         turn_id="turn",
