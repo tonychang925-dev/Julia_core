@@ -397,12 +397,10 @@ External evidence can support or contradict the causal mechanism behind leadersh
    - defines StrategyCard `possible_states`, required data, research questions, invalidations, and source references;
    - rejects single-answer cards and strategy knowledge overriding market facts.
 
-2. Historical `leader_divergence.json` StrategyCard artifacts available under workspace `ai_theme_app_c1f_* / ai_theme_app_c1h_evaluator`
-   - enumerate `normal_adjustment`, `active_divergence`, `leader_failure`, and `leader_rotation`;
-   - require leader return/drawdown/volume/key-level, peer strength, theme breadth, capital persistence, market regime, and new-leader evidence;
-   - define state invalidations rather than one terminal conclusion;
-   - mark numeric 5%/15% thresholds as engineer-derived and unvalidated pending calibration;
-   - cite source text warning that good-market passive divergence and bad-market divergence must not receive the same treatment.
+2. `HISTORICAL_LOCAL_NONCANONICAL` — historical local `leader_divergence.json` StrategyCard artifacts were consulted during curation under workspace `ai_theme_app_c1f_* / ai_theme_app_c1h_evaluator`.
+   - These paths are not canonical GitHub-resolvable sources and do not establish frozen FACT claims for this unit.
+   - They serve only as historical curation provenance; every normative state, evidence-family, invalidation, and missing-evidence claim above is instead bound to items 1 and 3–9.
+   - Any historical numeric thresholds or source-text interpretations remain noncanonical and must be re-bound to an exact stable source before reuse.
 
 3. `Julia_core/julia_core/capability/financial/research/requirement_bindings.py`
    - maps leader/theme/capital abstract requirements to typed capability requests;
@@ -442,10 +440,11 @@ External evidence can support or contradict the causal mechanism behind leadersh
    - rejects conflicting subject/config `as_of`;
    - demonstrates unavailable leader evidence and provenance survival.
 
-10. RD1 frozen authority records in the enclosing governed workspace
-    - `julia_core_p3cc_gov/docs/architecture/JULIA_PHASE5_FOUR_REPO_DEVELOPMENT_PLAN_v1.2.md` freezes Julia Core as the canonical conversation/context authority and forbids alternate client/S2S cognition authority;
-    - `NEW_RD1_V1_ARCHITECTURE_BASELINE_2026-09-14.md` records Julia cognition as semantic authority, Runtime as structural orchestration, and capability selection originating from Julia rather than raw-text deterministic routing;
-    - `RD1_V1_ACCEPTED_CORE_ARCHITECTURE_CONFORMANCE_2026-09-14.md` records the accepted capability-selection and governed-provider invariants.
+10. `Julia_core/docs/architecture/RD1_V1_ARCHITECTURE_CONSTITUTION_LITE.md`
+    - defines the product flow from Julia cognition through Julia-selected tools, structured evidence re-entry, and Julia final judgment;
+    - assigns Assistant transport/presentation responsibility while Julia Core retains cognition, tool selection, evidence re-entry, and final-response responsibility;
+    - assigns Market and Research subordinate evidence/domain responsibilities rather than Julia judgment authority;
+    - records the no-hidden-fallback, tool-evidence-before-final-answer, and public-boundary invariants.
 
 ### INFERENCE — proposed cognition abstraction
 
