@@ -1,0 +1,26 @@
+{
+  "case_id": "W2S-002361-20260407",
+  "family": "weak_to_strong",
+  "question": "Using only this historical replay identity and sparse visible facts, explain what evidence would be required to qualify or reject a next-session weak-to-strong interpretation; do not assume absent evidence is positive or negative.",
+  "source": {
+    "repository": "tonychang925-dev/ai_theme_app",
+    "commit": "f1bc3def72e0c4184799201aaf1ac5d02d6084d6",
+    "path": "reports/replay/20260407/replay_matrix.json",
+    "record_identity": "rows[] where case_name=shenjian_2026_04_07",
+    "as_of": "2026-04-07 historical replay case identity",
+    "provenance": "historical replay report"
+  },
+  "evidence_snapshot": {
+    "trade_date": "2026-04-07",
+    "stock_id": "002361.SZ",
+    "case_name": "shenjian_2026_04_07",
+    "prior_role_available": false,
+    "prior_weakness_quality_available": false,
+    "predeclared_level_available": false,
+    "auction_observation_available": false,
+    "volume_available": false,
+    "follower_response_available": false,
+    "market_regime_available": false
+  },
+  "coverage": ["meaningful_missing_evidence_case"]
+}

@@ -1,0 +1,14 @@
+{
+  "status": "BLOCKED",
+  "as_of": "2026-09-19T00:00:00Z",
+  "reason": "No real model provider credentials were configured in this execution environment. No A/B/C outputs were fabricated and no fallback/mock/synthetic success was used.",
+  "required_before_execution": [
+    "JIC_R0_PROVIDER=openai",
+    "JIC_R0_MODEL=<configured real model>",
+    "OPENAI_API_KEY=<configured secret supplied at runtime>",
+    "local Julia_core checkout containing the three exact frozen GIC SHAs",
+    "local ai_theme_app checkout containing f1bc3def72e0c4184799201aaf1ac5d02d6084d6"
+  ],
+  "primary_case_count": 6,
+  "abc_run_completeness": "0/18 real model calls completed"
+}

@@ -1,0 +1,30 @@
+{
+  "case_id": "W2S-605060-20260415",
+  "family": "weak_to_strong",
+  "question": "Using only this historical watch record, explain what evidence would be required to qualify or reject a weak-to-strong repair candidate, especially where a support label exists but timing and participation are absent.",
+  "source": {
+    "repository": "tonychang925-dev/ai_theme_app",
+    "commit": "f1bc3def72e0c4184799201aaf1ac5d02d6084d6",
+    "path": "reports/replay/20260415/legacy_layer_c_output.json",
+    "record_identity": "effective.target where stock_id=605060.SH",
+    "as_of": "2026-04-15 legacy Layer C snapshot",
+    "provenance": "historical strong-watch output"
+  },
+  "evidence_snapshot": {
+    "trade_date": "2026-04-15",
+    "stock_id": "605060.SH",
+    "subject_key": "9028694",
+    "prior_7d_limit_up_days": 2,
+    "prior_7d_strong_days": 2,
+    "support_type": "prev_low_support",
+    "support_score": 78.0,
+    "rank_in_effective_c_pool": 38,
+    "source_weakness_quality_available": false,
+    "predeclared_level_available": false,
+    "auction_observation_available": false,
+    "volume_available": false,
+    "follower_response_available": false,
+    "market_regime_available": false
+  },
+  "coverage": ["strong_counterevidence_case"]
+}

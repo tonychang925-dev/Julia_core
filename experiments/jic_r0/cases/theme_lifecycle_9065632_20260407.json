@@ -1,0 +1,28 @@
+{
+  "case_id": "TL-9065632-20260407",
+  "family": "theme_lifecycle",
+  "question": "Given only this cutoff-visible evidence, interpret the current theme state, separate acceptance from lifecycle certainty, identify missing evidence, and provide concrete falsifiers.",
+  "source": {
+    "repository": "tonychang925-dev/ai_theme_app",
+    "commit": "f1bc3def72e0c4184799201aaf1ac5d02d6084d6",
+    "path": "tmp/layer_a/2026-04-07_baseline/replay.json",
+    "record_identity": "results[] where subject_key=9065632 and base_judgement.trade_date=2026-04-07",
+    "as_of": "2026-04-07 post-market replay input",
+    "provenance": "historical Layer A replay snapshot"
+  },
+  "evidence_snapshot": {
+    "trade_date": "2026-04-07",
+    "subject_key": "9065632",
+    "limit_up_count": 14,
+    "strong_stock_count": 16,
+    "leader_return_pct": 10.69,
+    "leader_limit_up": true,
+    "linked_stock_count": 62,
+    "front_row_survival_ratio": 0.25806451612903225,
+    "event_count_7d": 0,
+    "distinct_event_days_7d": 0,
+    "theme_return_3d_available": false,
+    "market_regime_available": false
+  },
+  "coverage": ["regime_contrast_pair", "strong_counterevidence_case"]
+}
