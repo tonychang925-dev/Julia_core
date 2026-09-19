@@ -1,0 +1,11 @@
+{
+  "evaluation_only": true,
+  "case_coverage": {
+    "TL-AI-HARDWARE-20260701": ["regime_contrast_pair"],
+    "TL-AI-HARDWARE-20260707": ["regime_contrast_pair"],
+    "LD-605060-20260415": ["meaningful_missing_evidence_case"],
+    "LD-600152-20260415": ["strong_counterevidence_case"],
+    "W2S-002361-20260407": ["meaningful_missing_evidence_case"],
+    "W2S-605060-20260415": ["strong_counterevidence_case"]
+  }
+}

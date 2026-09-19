@@ -33,7 +33,7 @@ Only the condition-specific cognition context differs. No condition label appear
 
 There are six real, source-bound primary cases, two for each family:
 
-- Theme Lifecycle `9065632` on 2026-04-07 and 2026-04-15 form a breadth/depth contrast pair.
+- Theme Lifecycle `人工智能硬件` on 2026-07-01 and 2026-07-07 forms the required regime-contrast pair: the same subject is listed in hot-money attention while cutoff-visible breadth changes from 78.4% up / 221 limit-up / 17 limit-down to 12.4% up / 33 limit-up / 69 limit-down.
 - Leader Divergence uses two 2026-04-15 strong-watch records with materially incomplete weakness and follower evidence.
 - Weak-to-Strong uses two historical replay identities with different evidence completeness.
 
@@ -43,6 +43,8 @@ No synthetic case is used as primary evidence. The sparse Leader Divergence and 
 
 - No future outcome, expected replay assertion, final action, candidate verdict, or answer label enters a model input.
 - Case files contain only source identity, cutoff-visible facts, and explicit missing-evidence fields.
+- Evaluation-only coverage tags, expected assertions, outcome labels, and condition names never enter model-visible prompts.
+- Prompt construction exposes only the fixed question, source provenance, evidence snapshot, and condition-specific historical cognition source.
 - Replay assertions and generated conclusions remain outside `evidence_snapshot`.
 - Generic output must provide hypotheses, evidence mapping, missing evidence, counterevidence, falsifiers, and a non-trading research interpretation.
 - Outputs must not request or imply trading authorization.
@@ -51,12 +53,13 @@ No synthetic case is used as primary evidence. The sparse Leader Divergence and 
 
 Each output receives 0 or 1 on each measure. Partial credit is not allowed.
 
-1. `strategy_transfer_without_conclusion_copy`: structure transfers without copying a card/GIC state, action, or conclusion.
+1. `strategy_transfer_without_conclusion_copy`: all required sections are present, at least three hypotheses are explicit, and no frozen historical state/action marker appears. The pre-frozen marker set contains the Strategy Card states/actions and representative GIC prohibited conclusion templates; ordinary boundary wording such as “not a buy recommendation” does not fail.
 2. `fresh_judgment`: interpretation is grounded in case facts and acknowledges material gaps.
 3. `regime_sensitivity`: regime and breadth/market context are separated from subject evidence, or missing regime data is explicitly blocking.
 4. `counterevidence_handling`: at least one case-specific counterevidence family is actively weighed.
 5. `hypothesis_diversity`: at least three materially distinct hypotheses remain active or are rejected with case evidence.
 6. `falsification_quality`: at least two concrete, time-bound falsifiers are supplied.
+7. `provenance_and_missing_evidence`: source boundary, exact date/as-of style provenance, and at least one explicit missing evidence family are present.
 
 The evaluator applies lexical/structural checks only. It does not mutate the rubric based on results and reports the rule version `jic-r0-rubric-v1`.
 

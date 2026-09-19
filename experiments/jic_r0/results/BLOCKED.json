@@ -1,5 +1,7 @@
 {
   "status": "BLOCKED",
+  "execution_readiness": "READY_FOR_REAL_EXECUTION_AFTER_THIS_REVISION",
+  "current_run_state": "BLOCKED_BY_CREDENTIALS",
   "as_of": "2026-09-19T00:00:00Z",
   "reason": "No real model provider credentials were configured in this execution environment. No A/B/C outputs were fabricated and no fallback/mock/synthetic success was used.",
   "required_before_execution": [

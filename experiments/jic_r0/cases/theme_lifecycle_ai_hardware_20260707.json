@@ -1,0 +1,30 @@
+{
+  "case_id": "TL-AI-HARDWARE-20260707",
+  "family": "theme_lifecycle",
+  "question": "The same subject remains listed in hot-money attention while cutoff-visible market breadth is materially weaker. Interpret lifecycle implications, separate subject attention from market permission, identify missing evidence, and provide concrete falsifiers.",
+  "source": {
+    "repository": "tonychang925-dev/ai_theme_app",
+    "commit": "f1bc3def72e0c4184799201aaf1ac5d02d6084d6",
+    "path": "frontend/public/api/analyst-charts/2026-07-07.json",
+    "record_identity": "hot_money_style.data.directions[] where name=人工智能硬件; market_breadth.data",
+    "as_of": "2026-07-07 analyst-chart cutoff snapshot",
+    "provenance": "historical public analyst chart snapshot"
+  },
+  "evidence_snapshot": {
+    "trade_date": "2026-07-07",
+    "subject_name": "人工智能硬件",
+    "subject_listed_in_hot_money_directions": true,
+    "market_up_count": 633,
+    "market_down_count": 4482,
+    "market_up_ratio": 0.124,
+    "market_limit_up_count": 33,
+    "market_limit_down_count": 69,
+    "market_chain_board_count": 3,
+    "market_turnover_yi": 25000,
+    "market_turnover_available": true,
+    "market_breadth_composite_score": -3,
+    "causal_event_chain_available": false,
+    "subject_breadth_available": false,
+    "leader_hierarchy_available": false
+  }
+}

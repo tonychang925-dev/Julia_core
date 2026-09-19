@@ -53,13 +53,33 @@ def validate_sources(core_repo: Path, market_repo: Path) -> None:
 
 def prompt_for(case: dict, condition: str, core_repo: Path, market_repo: Path) -> str:
     prompt = SHELL.read_text(encoding="utf-8") + "\n\n# Question\n" + case["question"]
-    prompt += "\n\n# Case evidence and source\n```json\n" + json.dumps(case, ensure_ascii=False, indent=2) + "\n```"
+    model_visible_case = {
+        "question": case["question"],
+        "source": case["source"],
+        "evidence_snapshot": case["evidence_snapshot"],
+    }
+    prompt += "\n\n# Case evidence and source\n```json\n" + json.dumps(model_visible_case, ensure_ascii=False, indent=2) + "\n```"
     if condition == "B":
         prompt += "\n\n# Historical cognition context (exact frozen source)\n```json\n" + blob_at(market_repo, CARD_SHA, CARD_SOURCES[case["family"]]) + "\n```"
     elif condition == "C":
         commit, path = CORE_SOURCES[case["family"]]
         prompt += "\n\n# Historical cognition context (exact frozen source)\n```markdown\n" + blob_at(core_repo, commit, path) + "\n```"
     return prompt
+
+
+def extract_response_text(payload: dict) -> str:
+    output_items = payload.get("output", [])
+    if any(item.get("type") == "refusal" for item in output_items):
+        raise ValueError("model returned a refusal item")
+    texts = []
+    for item in output_items:
+        for content in item.get("content", []):
+            content_type = content.get("type")
+            if content_type == "refusal":
+                raise ValueError("model returned refusal content")
+            if content_type == "output_text":
+                texts.append(content.get("text", ""))
+    return "\n".join(texts)
 
 
 def call_openai(prompt: str, model: str, api_key: str) -> dict:
@@ -80,10 +100,79 @@ def call_openai(prompt: str, model: str, api_key: str) -> dict:
         with urllib.request.urlopen(request, timeout=180) as response:
             body = json.loads(response.read().decode("utf-8"))
             status = response.status
+        if body.get("status") not in (None, "completed"):
+            return {
+                "http_status": status,
+                "elapsed_ms": int((time.time() - started) * 1000),
+                "response": body,
+                "failure_kind": "incomplete_response_status",
+                "failure_detail": str(body.get("status")),
+            }
+        try:
+            output_text = extract_response_text(body)
+        except ValueError as error:
+            return {
+                "http_status": status,
+                "elapsed_ms": int((time.time() - started) * 1000),
+                "response": body,
+                "failure_kind": "refusal_or_non_text_response",
+                "failure_detail": str(error),
+            }
+        if not output_text.strip():
+            return {
+                "http_status": status,
+                "elapsed_ms": int((time.time() - started) * 1000),
+                "response": body,
+                "failure_kind": "empty_output_text",
+            }
+        return {
+            "http_status": status,
+            "elapsed_ms": int((time.time() - started) * 1000),
+            "response": body,
+            "output_text": output_text,
+        }
     except urllib.error.HTTPError as error:
-        body = json.loads(error.read().decode("utf-8"))
+        try:
+            body = json.loads(error.read().decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            body = {}
         status = error.code
-    return {"http_status": status, "elapsed_ms": int((time.time() - started) * 1000), "response": body}
+        return {
+            "http_status": status,
+            "elapsed_ms": int((time.time() - started) * 1000),
+            "response": body,
+            "failure_kind": "http_error",
+        }
+    except urllib.error.URLError as error:
+        return {
+            "http_status": None,
+            "elapsed_ms": int((time.time() - started) * 1000),
+            "response": {},
+            "failure_kind": "url_error",
+            "failure_detail": type(error.reason).__name__,
+        }
+    except TimeoutError:
+        return {
+            "http_status": None,
+            "elapsed_ms": int((time.time() - started) * 1000),
+            "response": {},
+            "failure_kind": "timeout",
+        }
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return {
+            "http_status": None,
+            "elapsed_ms": int((time.time() - started) * 1000),
+            "response": {},
+            "failure_kind": "json_decode",
+        }
+    except OSError as error:
+        return {
+            "http_status": None,
+            "elapsed_ms": int((time.time() - started) * 1000),
+            "response": {},
+            "failure_kind": "transport_error",
+            "failure_detail": type(error).__name__,
+        }
 
 
 def main() -> int:
@@ -118,19 +207,22 @@ def main() -> int:
             prompt = prompt_for(case, condition, args.core_repo.resolve(), args.market_repo.resolve())
             result = call_openai(prompt, model, api_key)
             response_key = "r_" + uuid.uuid4().hex
-            payload = result["response"]
-            output_text = ""
-            if result["http_status"] == 200:
-                output_text = "\n".join(part.get("text", "") for part in payload.get("output", []))
-            if result["http_status"] != 200 or not output_text.strip():
+            failure_kind = result.get("failure_kind")
+            if failure_kind:
                 write_json(output / "BLOCKED.json", {
                     "status": "BLOCKED",
                     "run_id": run_id,
-                    "blocking_reasons": ["real OpenAI request failed or returned empty output; no fallback permitted"],
-                    "last_request": {"case_id": case["case_id"], "condition": condition, "http_status": result["http_status"]},
+                    "blocking_reasons": [f"real OpenAI request failed with {failure_kind}; no fallback permitted"],
+                    "last_request": {
+                        "case_id": case["case_id"],
+                        "condition": condition,
+                        "http_status": result["http_status"],
+                        "failure_kind": failure_kind,
+                        **({"failure_detail": result["failure_detail"]} if result.get("failure_detail") else {}),
+                    },
                 })
                 return 3
-            write_json(output / "raw" / f"{response_key}.json", {"response_key": response_key, "verbatim_output": output_text, "http_status": result["http_status"]})
+            write_json(output / "raw" / f"{response_key}.json", {"response_key": response_key, "verbatim_output": result["output_text"], "http_status": result["http_status"]})
             write_json(output / "prompts" / f"{response_key}.json", {
                 "response_key": response_key,
                 "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),

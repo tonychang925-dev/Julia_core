@@ -24,6 +24,5 @@
     "follower_response_available": false,
     "volume_available": false,
     "market_regime_available": false
-  },
-  "coverage": ["strong_counterevidence_case"]
+  }
 }

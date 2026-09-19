@@ -9,6 +9,12 @@ from pathlib import Path
 
 RUBRIC_VERSION = "jic-r0-rubric-v1"
 REQUIRED_SECTIONS = ("Current interpretation", "Competing hypotheses", "Counterevidence", "Missing evidence", "Falsifiers", "Source and action boundary")
+CONCLUSION_COPY_MARKERS = (
+    "初期试错", "发酵进场", "高潮警惕", "分歧关注", "弱转强切入", "分歧补涨", "退潮放弃",
+    "轻仓试探打板", "低吸前排人气股", "加仓龙头", "止盈离场", "彻底观望",
+    "entry_on_confirmation", "avoid_or_exit", "wait_for_next_session",
+    "confirmed_weak_to_strong", "false_weak_to_strong", "confirmed mainline", "theme dead",
+)
 
 
 def load_json(path: Path) -> object:
@@ -21,15 +27,37 @@ def score_output(text: str) -> dict:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     hypotheses = max(0, sum(1 for line in lines if re.match(r"^[-*]\s+|\d+\.\s+", line) and any(word in line.lower() for word in ("hypothesis", "h-a", "active", "supported", "rejected", "insufficient"))))
     falsifiers = max(0, sum(1 for line in lines if re.match(r"^[-*]\s+|\d+\.\s+", line) and any(word in line.lower() for word in ("within", "next", "if", "when"))))
+    copied_markers = [marker for marker in CONCLUSION_COPY_MARKERS if marker.lower() in lowered]
+    has_iso_date = re.search(r"\b20\d{2}-\d{2}-\d{2}\b", text) is not None
+    has_missing_boundary = "missing" in lowered or "unavailable" in lowered or "insufficient" in lowered
     scores = {
-        "strategy_transfer_without_conclusion_copy": int(all(section.lower() in lowered for section in REQUIRED_SECTIONS) and "buy" not in lowered and "sell" not in lowered),
+        "strategy_transfer_without_conclusion_copy": int(
+            all(section.lower() in lowered for section in REQUIRED_SECTIONS)
+            and not copied_markers
+            and hypotheses >= 3
+        ),
         "fresh_judgment": int("only" in lowered and ("insufficient" in lowered or "missing" in lowered)),
         "regime_sensitivity": int("regime" in lowered),
         "counterevidence_handling": int("counterevidence" in lowered and len(missing) >= 1),
         "hypothesis_diversity": int(hypotheses >= 3),
         "falsification_quality": int(falsifiers >= 2),
+        "provenance_and_missing_evidence": int(
+            "source and action boundary" in lowered
+            and has_iso_date
+            and has_missing_boundary
+            and len(missing) >= 1
+        ),
     }
-    return {"rubric_version": RUBRIC_VERSION, "scores": scores, "machine_readable_reasoning": {"recognized_hypothesis_rows": hypotheses, "recognized_falsifier_rows": falsifiers, "recognized_missing_families": missing}}
+    return {
+        "rubric_version": RUBRIC_VERSION,
+        "scores": scores,
+        "machine_readable_reasoning": {
+            "recognized_hypothesis_rows": hypotheses,
+            "recognized_falsifier_rows": falsifiers,
+            "recognized_missing_families": missing,
+            "copied_source_markers": copied_markers,
+        },
+    }
 
 
 def main() -> int:

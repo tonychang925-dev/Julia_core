@@ -21,6 +21,5 @@
     "volume_available": false,
     "follower_response_available": false,
     "market_regime_available": false
-  },
-  "coverage": ["meaningful_missing_evidence_case"]
+  }
 }

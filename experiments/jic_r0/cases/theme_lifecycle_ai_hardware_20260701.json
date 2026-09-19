@@ -1,0 +1,29 @@
+{
+  "case_id": "TL-AI-HARDWARE-20260701",
+  "family": "theme_lifecycle",
+  "question": "The same subject is listed in hot-money attention under materially different cutoff-visible market breadth. Interpret lifecycle implications, separate subject attention from market permission, identify missing evidence, and provide concrete falsifiers.",
+  "source": {
+    "repository": "tonychang925-dev/ai_theme_app",
+    "commit": "f1bc3def72e0c4184799201aaf1ac5d02d6084d6",
+    "path": "frontend/public/api/analyst-charts/2026-07-01.json",
+    "record_identity": "hot_money_style.data.directions[] where name=人工智能硬件; market_breadth.data",
+    "as_of": "2026-07-01 analyst-chart cutoff snapshot",
+    "provenance": "historical public analyst chart snapshot"
+  },
+  "evidence_snapshot": {
+    "trade_date": "2026-07-01",
+    "subject_name": "人工智能硬件",
+    "subject_listed_in_hot_money_directions": true,
+    "market_up_count": 3994,
+    "market_down_count": 1103,
+    "market_up_ratio": 0.784,
+    "market_limit_up_count": 221,
+    "market_limit_down_count": 17,
+    "market_chain_board_count": 35,
+    "market_turnover_yi": 363171.13,
+    "market_breadth_composite_score": 10,
+    "causal_event_chain_available": false,
+    "subject_breadth_available": false,
+    "leader_hierarchy_available": false
+  }
+}
