@@ -39,7 +39,7 @@ The turn-local owner is `JuliaSession`, acting as the C1 cognitive executor. It 
 - The two limits are independent. A missing structured call retry or duplicate rejection consumes a cognition pass but no capability execution.
 - The v0.1 budget intentionally admits the canonical first composite investigation: five Market reads followed by one Research query and Julia's final judgment. It must not be reduced below six executions / seven passes without replacing the affected acceptance path.
 - Hitting the cognition-pass limit terminates immediately and fail-closed: no further model pass and no fabricated Julia judgment.
-- Hitting the tool-execution limit executes no over-budget capability and projects typed `tool_call_budget_exceeded` control through C03. If cognition budget remains, Julia may make one governed limitation response using already admitted evidence. That response is `LIMITATION`, not a fresh evidence-backed investment judgment.
+- Hitting the tool-execution limit executes no over-budget capability and projects typed `tool_call_budget_exceeded` control exactly once. If cognition budget remains, Julia may make at most one governed limitation response using already admitted evidence. If that continuation emits another tool request instead, the turn terminates immediately and fail closed. A limitation response is `LIMITATION`, not a fresh evidence-backed investment judgment.
 
 ## Cognition and tool contract
 
@@ -129,6 +129,7 @@ The executable contract is `tests/runtime/test_rd1_p2_i3a_iterative_reasoning_co
 | I3A-11 | validated policy visible on every continuation | harness target |
 | I3A-12 | evidence does not mutate identity/continuity/memory authority | harness target |
 | I3A-13 | event.resolve → event.read → product.read → product.linkage.read → state.read → research.query → Julia final | canonical composite target |
-| I3A-14 | hard tool-call budget terminates without fabricated judgment | harness target |
+| I3A-14 | tool-call budget permits one governed limitation response without fabricated judgment | harness target |
+| I3A-15 | post-limitation tool request terminates immediately without execution or another continuation | forbidden behavior |
 
 The harness is deliberately test-only. Green harness tests define the target contract; strict expected-failure tests identify production gaps that must not be hidden by implementing this design before PR #117 merges.

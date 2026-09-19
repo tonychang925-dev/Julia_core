@@ -120,6 +120,14 @@ class IterativeReasoningHarness:
                     termination = "final_without_required_c03_reentry"
                 break
 
+            budget_control_alreadyProjected = (
+                current.control is not None
+                and current.control.get("kind") == "tool_call_budget_exceeded"
+            )
+            if budget_control_alreadyProjected:
+                termination = "post_limit_tool_request"
+                break
+
             if pass_index == self.max_cognition_passes:
                 termination = "cognition_pass_limit"
                 break
@@ -535,6 +543,47 @@ def test_i3a_14_tool_call_budget_stops_execution_and_requires_c03_for_limit_repl
     assert result.final_response_kind == "LIMITATION"
     assert result.termination == "completed_with_limit_control"
     assert result.reply == "JULIA_LIMITATION_AFTER_TYPED_BUDGET_CONTROL"
+
+
+def test_i3a_15_post_limitation_tool_request_terminates_immediately():
+    first = market_request()
+    second = ToolRequest("market.event.read", {"query": "over-budget call"})
+    result = IterativeReasoningHarness(
+        [
+            _tool(
+                json.dumps({"name": first.capability_id, "arguments": first.arguments})
+            ),
+            _tool(
+                json.dumps(
+                    {"name": second.capability_id, "arguments": second.arguments}
+                )
+            ),
+            _tool(
+                json.dumps(
+                    {
+                        "name": research_request().capability_id,
+                        "arguments": research_request().arguments,
+                    }
+                )
+            ),
+        ],
+        [success(first, "market")],
+        max_tool_calls=1,
+    ).run("Assess JYHF")
+
+    assert [request.capability_id for request in result.executions] == [
+        "market.event.resolve"
+    ]
+    assert result.event_trace.count("c03_projection_tool_budget_exceeded") == 1
+    assert result.event_trace[-2:] == [
+        "c03_projection_tool_budget_exceeded",
+        "cognition_pass_3",
+    ]
+    assert len(result.cognition_passes) == 3
+    assert result.termination == "post_limit_tool_request"
+    assert result.final_judgment is False
+    assert result.final_response_kind == "NONE"
+    assert result.reply == ""
 
 
 @pytest.mark.xfail(
