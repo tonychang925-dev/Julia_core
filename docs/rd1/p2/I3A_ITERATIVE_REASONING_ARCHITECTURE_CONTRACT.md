@@ -33,16 +33,17 @@ The turn-local owner is `JuliaSession`, acting as the C1 cognitive executor. It 
 
 ## Fixed limits
 
-- Maximum total Julia cognition passes per user turn: **4**.
-- Maximum total capability executions per user turn: **2**.
+- Maximum total Julia cognition passes per user turn: **7**.
+- Maximum total capability executions per user turn: **6**.
 - Maximum structured tool calls per model response: **1**, exactly as in the validated invocation policy.
-- The two limits are independent. A missing structured call retry consumes a cognition pass but no capability execution.
+- The two limits are independent. A missing structured call retry or duplicate rejection consumes a cognition pass but no capability execution.
+- The v0.1 budget intentionally admits the canonical first composite investigation: five Market reads followed by one Research query and Julia's final judgment. It must not be reduced below six executions / seven passes without replacing the affected acceptance path.
 - Hitting either limit is a fail-closed turn termination with a typed iteration-limit outcome. The runtime must not synthesize a Julia judgment after the cap.
 
 ## Cognition and tool contract
 
 1. Each model response is parsed as either exactly one fenced structured call or no structured call. A response containing a second call, mixed final text plus a call, malformed JSON, or an unrecognized capability is rejected before execution.
-2. Raw user text never selects a capability. In particular, `requires_tool(raw_user_text)` and keyword market intent routing must not be conditions for tool admission in the I3 loop.
+2. Raw user text never selects, authorizes, or routes a capability. In particular, `requires_tool(raw_user_text)` and keyword market intent routing must not be conditions for tool admission in the I3 loop. The governed active question may remain visible to every Julia continuation through C03; this prohibition is about capability selection, not erasing Tony's question.
 3. Authorization and execution use the existing typed capability path. A non-ALLOW decision or pre-authorization failure is projected as control, never disguised as provider evidence.
 4. A successful Market or Research execution returns its envelope unchanged as `ToolResult.structured_output`. Domain `PARTIAL`, `FAILURE`, and provider absence remain visible inside that envelope; Core does not normalize them into success.
 5. Every continuation is built solely by C03 from the explicit parent package. No direct prompt concatenation, assistant-message fabrication, raw user re-routing, or hidden model-visible bypass is permitted.
@@ -91,7 +92,7 @@ Already true on the core base:
 Expected P2-I3 gaps:
 
 - the current loop is hard-coded to at most one execution and one continuation;
-- no two-tool or evidence-ledger continuation exists;
+- no six-tool evidence-ledger continuation exists;
 - two tool projections can reuse the same `gen_tool_{turn_count}`;
 - raw text still reaches `requires_tool(text)`;
 - deterministic market keyword routing remains in legacy synchronous preparation;
@@ -126,6 +127,7 @@ The executable contract is `tests/runtime/test_rd1_p2_i3a_iterative_reasoning_co
 | I3A-10 | final only after evidence C03 re-entry | harness target |
 | I3A-11 | validated policy visible on every continuation | harness target |
 | I3A-12 | evidence does not mutate identity/continuity/memory authority | harness target |
+| I3A-13 | event.resolve → event.read → product.read → product.linkage.read → state.read → research.query → Julia final | canonical composite target |
+| I3A-14 | hard tool-call budget terminates without fabricated judgment | harness target |
 
 The harness is deliberately test-only. Green harness tests define the target contract; strict expected-failure tests identify production gaps that must not be hidden by implementing this design before PR #117 merges.
-# RD1-P2-I3A Iterative Reasoning Architecture and Acceptance Contract

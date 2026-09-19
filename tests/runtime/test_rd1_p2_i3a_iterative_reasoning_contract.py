@@ -57,22 +57,30 @@ class TurnResult:
     termination: str
     final_judgment: bool
     authority_snapshots: list[dict[str, dict[str, Any]]]
+    event_trace: list[str]
 
 
 class IterativeReasoningHarness:
     """Test-only executable form of the P2-I3 contract; not production code."""
 
-    max_cognition_passes = 4
-    max_tool_calls = 2
-
-    def __init__(self, responses: list[str], outcomes: list[ToolOutcome]) -> None:
+    def __init__(
+        self,
+        responses: list[str],
+        outcomes: list[ToolOutcome],
+        *,
+        max_cognition_passes: int = 7,
+        max_tool_calls: int = 6,
+    ) -> None:
         self.responses = list(responses)
         self.outcomes = list(outcomes)
+        self.max_cognition_passes = max_cognition_passes
+        self.max_tool_calls = max_tool_calls
         self.cognition_passes: list[list[dict[str, Any]]] = []
         self.executions: list[ToolRequest] = []
         self.lineage: list[ContextPackage] = []
         self.seen_fingerprints: set[tuple[str, str]] = set()
         self.authority_snapshots: list[dict[str, dict[str, Any]]] = []
+        self.event_trace: list[str] = []
 
     def run(self, user_text: str) -> TurnResult:
         current = self._project("gen_pass_1", None)
@@ -82,6 +90,7 @@ class IterativeReasoningHarness:
         reply = ""
 
         for pass_index in range(1, self.max_cognition_passes + 1):
+            self.event_trace.append(f"cognition_pass_{pass_index}")
             self._snapshot_authorities(current)
             messages = [
                 {"role": "system", "content": self._render_system(current)},
@@ -102,12 +111,22 @@ class IterativeReasoningHarness:
                     termination = "final_without_required_c03_reentry"
                 break
 
-            if len(self.executions) >= self.max_tool_calls:
-                termination = "tool_call_limit"
-                break
             if pass_index == self.max_cognition_passes:
                 termination = "cognition_pass_limit"
                 break
+
+            if len(self.executions) >= self.max_tool_calls:
+                current = self._project(
+                    f"gen_pass_{pass_index}_tool_budget_exceeded",
+                    current,
+                    control={
+                        "kind": "tool_call_budget_exceeded",
+                        "limit": self.max_tool_calls,
+                    },
+                )
+                self.lineage.append(current)
+                self.event_trace.append("c03_projection_tool_budget_exceeded")
+                continue
 
             fingerprint = (
                 request.capability_id,
@@ -120,6 +139,7 @@ class IterativeReasoningHarness:
                     control={"kind": "duplicate_rejected", "request": request.__dict__},
                 )
                 self.lineage.append(current)
+                self.event_trace.append("c03_projection_duplicate_rejected")
                 continue
 
             self.seen_fingerprints.add(fingerprint)
@@ -136,6 +156,7 @@ class IterativeReasoningHarness:
                 evidence=evidence,
             )
             self.lineage.append(current)
+            self.event_trace.append(f"c03_projection_{current.generation_id}")
         else:
             termination = "cognition_pass_limit"
 
@@ -147,6 +168,7 @@ class IterativeReasoningHarness:
             termination=termination,
             final_judgment=final_judgment,
             authority_snapshots=self.authority_snapshots,
+            event_trace=self.event_trace,
         )
 
     def _outcome_for(self, request: ToolRequest) -> ToolOutcome:
@@ -413,13 +435,93 @@ def test_i3a_07_hard_cognition_limit_fails_closed_without_fabricated_judgment():
         json.dumps({"name": request.capability_id, "arguments": request.arguments})
     )
     result = IterativeReasoningHarness(
-        [call, call, call, call],
+        [call, call, call, call, call, call, call],
         [success(request, "market")],
     ).run("Assess JYHF")
 
     assert result.termination == "cognition_pass_limit"
     assert result.final_judgment is False
     assert result.reply == ""
+
+
+def test_i3a_13_full_composite_chain_selects_each_tool_then_reenters_c03():
+    capability_ids = [
+        "market.event.resolve",
+        "market.event.read",
+        "market.product.read",
+        "market.product.linkage.read",
+        "market.state.read",
+        "research.web.query",
+    ]
+    requests = [
+        ToolRequest(capability_id, {"query": f"JYHF step {index + 1}"})
+        for index, capability_id in enumerate(capability_ids)
+    ]
+    responses = [
+        _tool(
+            json.dumps({"name": request.capability_id, "arguments": request.arguments})
+        )
+        for request in requests
+    ] + ["JULIA_FINAL_AFTER_RESEARCH_REENTRY"]
+    outcomes = [success(request, request.capability_id) for request in requests]
+
+    result = IterativeReasoningHarness(responses, outcomes).run(
+        "Form Julia's investment judgment for JYHF."
+    )
+
+    assert [request.capability_id for request in result.executions] == capability_ids
+    assert len(result.cognition_passes) == 7
+    assert result.termination == "completed"
+    assert result.final_judgment is True
+    assert all(
+        messages[-1]["content"] == "Form Julia's investment judgment for JYHF."
+        for messages in result.cognition_passes
+    )
+    assert len(result.lineage) == 7
+    assert len({package.generation_id for package in result.lineage}) == 7
+    for index, capability_id in enumerate(capability_ids):
+        projection_id = result.lineage[index + 1].generation_id
+        assert capability_id in result.cognition_passes[index + 1][0]["content"]
+        assert result.event_trace[index * 2 : index * 2 + 2] == [
+            f"cognition_pass_{index + 1}",
+            f"c03_projection_{projection_id}",
+        ]
+    assert result.event_trace[-1] == "cognition_pass_7"
+
+
+def test_i3a_14_tool_call_budget_stops_execution_and_requires_c03_for_limit_reply():
+    first = market_request()
+    second = ToolRequest("market.event.read", {"query": "over-budget call"})
+    result = IterativeReasoningHarness(
+        [
+            _tool(
+                json.dumps({"name": first.capability_id, "arguments": first.arguments})
+            ),
+            _tool(
+                json.dumps(
+                    {"name": second.capability_id, "arguments": second.arguments}
+                )
+            ),
+            "JULIA_LIMITATION_AFTER_TYPED_BUDGET_CONTROL",
+        ],
+        [success(first, "market")],
+        max_tool_calls=1,
+    ).run("Assess JYHF")
+
+    assert [request.capability_id for request in result.executions] == [
+        "market.event.resolve"
+    ]
+    assert result.lineage[-1].control == {
+        "kind": "tool_call_budget_exceeded",
+        "limit": 1,
+    }
+    assert result.event_trace[-3:] == [
+        "cognition_pass_2",
+        "c03_projection_tool_budget_exceeded",
+        "cognition_pass_3",
+    ]
+    assert result.final_judgment is True
+    assert result.reply == "JULIA_LIMITATION_AFTER_TYPED_BUDGET_CONTROL"
 
 
 @pytest.mark.xfail(
