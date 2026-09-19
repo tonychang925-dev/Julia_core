@@ -108,13 +108,29 @@ class MarketPublicProviderAdapter:
 
 def _load_public_request_builders() -> dict[str, RequestBuilder]:
     """Load only request types exported by the Market public contract package."""
-    from market_public import EventReadRequest, EventResolveRequest, ProductReadRequest
+    from importlib import import_module
 
-    return {
+    market_public = import_module("market_public")
+    EventResolveRequest = market_public.EventResolveRequest
+    EventReadRequest = market_public.EventReadRequest
+    ProductReadRequest = market_public.ProductReadRequest
+    ProductLinkageReadRequest = getattr(
+        market_public,
+        "ProductLinkageReadRequest",
+        None,
+    )
+    MarketStateReadRequest = getattr(market_public, "MarketStateReadRequest", None)
+
+    builders = {
         "market.event.resolve": EventResolveRequest,
         "market.event.read": EventReadRequest,
         "market.product.read": ProductReadRequest,
     }
+    if ProductLinkageReadRequest is not None:
+        builders["market.product.linkage.read"] = ProductLinkageReadRequest
+    if MarketStateReadRequest is not None:
+        builders["market.state.read"] = MarketStateReadRequest
+    return builders
 
 
 def _to_plain_mapping(value: Any) -> dict[str, Any]:
