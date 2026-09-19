@@ -205,9 +205,7 @@ prior strength creates leadership expectation
 → attention and capital can reorganize around the core
 → continuation depends on regime, capacity, and fresh contradiction
 ```
-``+
 
-```
 
 Weak-to-strong is not a moral transition from "weak" to "strong." It is a causal claim that sellers were absorbed and the prior organizing object regained conditional market authority.
 
@@ -510,11 +508,15 @@ A confirmed weak-to-strong candidate is not an order. Execution requires separat
    - requires research questions rather than preset conclusions.
 
 3. `Julia_core/docs/rd1/cognition/GIC-001_THEME_LIFECYCLE.md`
+   - accepted exact candidate source: `bcf91d547d247e25016037d70d99dcdef227dc40`;
+   - source status: pending merge into Core main at the `52cacb1e7e61acc5c48335303df2c51db9f8dd5c` review baseline.
    - places weak-to-strong inside theme divergence/repair/fade reasoning rather than making it a standalone theme conclusion;
    - requires confirmation and regime gates before a repair can revive a lifecycle hypothesis;
    - preserves separation between setup viability and whole-theme health.
 
 4. `Julia_core/docs/rd1/cognition/GIC-002_LEADER_DIVERGENCE.md`
+   - accepted exact candidate source: `ef1f4137faa7ac16f3e58e9cbaa8c5231f7725f0`;
+   - source status: pending merge into Core main at the `52cacb1e7e61acc5c48335303df2c51db9f8dd5c` review baseline.
    - classifies prior weakness before repair evaluation;
    - distinguishes repair candidate from confirmed repair;
    - delegates auction/open confirmation, weakness quality, volume/support, timing, and invalidation to GIC-003;
