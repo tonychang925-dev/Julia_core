@@ -38,7 +38,8 @@ The turn-local owner is `JuliaSession`, acting as the C1 cognitive executor. It 
 - Maximum structured tool calls per model response: **1**, exactly as in the validated invocation policy.
 - The two limits are independent. A missing structured call retry or duplicate rejection consumes a cognition pass but no capability execution.
 - The v0.1 budget intentionally admits the canonical first composite investigation: five Market reads followed by one Research query and Julia's final judgment. It must not be reduced below six executions / seven passes without replacing the affected acceptance path.
-- Hitting either limit is a fail-closed turn termination with a typed iteration-limit outcome. The runtime must not synthesize a Julia judgment after the cap.
+- Hitting the cognition-pass limit terminates immediately and fail-closed: no further model pass and no fabricated Julia judgment.
+- Hitting the tool-execution limit executes no over-budget capability and projects typed `tool_call_budget_exceeded` control through C03. If cognition budget remains, Julia may make one governed limitation response using already admitted evidence. That response is `LIMITATION`, not a fresh evidence-backed investment judgment.
 
 ## Cognition and tool contract
 
@@ -52,7 +53,7 @@ The turn-local owner is `JuliaSession`, acting as the C1 cognitive executor. It 
 8. Repeated execution is prevented by a fingerprint of validated capability identity plus normalized arguments. A duplicate request is rejected safely, projected as control, and may receive one Julia continuation; it is never executed as a second observation.
 9. Provider `SUCCESS`, `PARTIAL`, and `UNAVAILABLE` all re-enter Julia. `PARTIAL` may lead Julia to request complementary evidence. `UNAVAILABLE` may lead Julia to revise its plan or state the limitation, but never to a fallback provider, direct raw-text research, or hidden substitute workflow.
 10. Tool evidence never mutates identity, persona, relationship, continuity, canonical conversation, or memory authority. Memory admission, if ever added, is a separate governed admission decision after the turn.
-11. Final user-visible Julia judgment is produced only by a cognition pass following the necessary C03 projection. Tool workers never author it. Hard-limit termination is explicitly not a Julia judgment.
+11. Final user-visible Julia judgment is produced only by a cognition pass following the necessary C03 projection. Tool workers never author it. A cognition-pass hard limit is explicitly not a Julia judgment; a tool-budget limitation response is a distinct `LIMITATION`, also not a fresh investment judgment.
 12. Async execution is serial within the turn. Each capability has a bounded lifecycle and must be cancelled/awaited on user cancellation or runtime shutdown before the turn ends; no background acquisition can attach later.
 
 ## Lineage

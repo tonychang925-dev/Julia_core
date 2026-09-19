@@ -56,6 +56,7 @@ class TurnResult:
     lineage: list[ContextPackage]
     termination: str
     final_judgment: bool
+    final_response_kind: str
     authority_snapshots: list[dict[str, dict[str, Any]]]
     event_trace: list[str]
 
@@ -87,6 +88,7 @@ class IterativeReasoningHarness:
         self.lineage.append(current)
         termination = "completed"
         final_judgment = False
+        final_response_kind = "NONE"
         reply = ""
 
         for pass_index in range(1, self.max_cognition_passes + 1):
@@ -102,12 +104,19 @@ class IterativeReasoningHarness:
 
             if request is None:
                 reply = response
+                budget_control = (
+                    current.control is not None
+                    and current.control.get("kind") == "tool_call_budget_exceeded"
+                )
                 final_judgment = (
                     pass_index == 1
                     or bool(current.evidence)
                     or current.control is not None
-                )
-                if not final_judgment:
+                ) and not budget_control
+                final_response_kind = "LIMITATION" if budget_control else "JUDGMENT"
+                if budget_control:
+                    termination = "completed_with_limit_control"
+                elif not final_judgment:
                     termination = "final_without_required_c03_reentry"
                 break
 
@@ -126,6 +135,7 @@ class IterativeReasoningHarness:
                 )
                 self.lineage.append(current)
                 self.event_trace.append("c03_projection_tool_budget_exceeded")
+                termination = "tool_call_budget_exceeded"
                 continue
 
             fingerprint = (
@@ -167,6 +177,7 @@ class IterativeReasoningHarness:
             lineage=self.lineage,
             termination=termination,
             final_judgment=final_judgment,
+            final_response_kind=final_response_kind,
             authority_snapshots=self.authority_snapshots,
             event_trace=self.event_trace,
         )
@@ -520,7 +531,9 @@ def test_i3a_14_tool_call_budget_stops_execution_and_requires_c03_for_limit_repl
         "c03_projection_tool_budget_exceeded",
         "cognition_pass_3",
     ]
-    assert result.final_judgment is True
+    assert result.final_judgment is False
+    assert result.final_response_kind == "LIMITATION"
+    assert result.termination == "completed_with_limit_control"
     assert result.reply == "JULIA_LIMITATION_AFTER_TYPED_BUDGET_CONTROL"
 
 
