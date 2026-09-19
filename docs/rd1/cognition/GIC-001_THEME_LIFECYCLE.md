@@ -2,8 +2,8 @@
 
 ## IDENTITY / SCOPE
 
-**Cognition unit:** `GIC-001.theme_lifecycle`  
-**Primary question:** How should Julia reason when a market theme appears, gains acceptance, diffuses, diverges, repairs, accelerates, fades, or rotates?  
+**Cognition unit:** `GIC-001.theme_lifecycle`
+**Primary question:** How should Julia reason when a market theme appears, gains acceptance, diffuses, diverges, repairs, accelerates, fades, or rotates?
 **Transfer principle:** `strategy_transfer_without_conclusion_copy`
 
 This unit is a reusable causal-reasoning scaffold, not a trading rule, replay verdict, or fixed state machine. Its output is a set of competing lifecycle interpretations, required observations, regime gates, counterevidence, and falsifiers. Julia must preserve the distinction between:
@@ -148,8 +148,8 @@ Julia should not map a score directly to a lifecycle state. A valid interpretati
 - event continuity untested;
 - regime may be supportive or unresolved.
 
-**Supports:** candidate status and observation requirement.  
-**Counterevidence:** no market response after visible stimulus; event is only recycled news; response confined to unrelated labels.  
+**Supports:** candidate status and observation requirement.
+**Counterevidence:** no market response after visible stimulus; event is only recycled news; response confined to unrelated labels.
 **Forbidden shortcut:** "new and strong" does not imply durable mainline.
 
 ### H-B — Fermenting / repeatedly accepted theme
@@ -162,8 +162,8 @@ Julia should not map a score directly to a lifecycle state. A valid interpretati
 - emerging front row or leader;
 - related subjects begin responding.
 
-**Supports:** mainline candidacy or early lifecycle development.  
-**Counterevidence:** strength disappears when the market normalizes; participation is broad but shallow; leader is not credible; event chain breaks.  
+**Supports:** mainline candidacy or early lifecycle development.
+**Counterevidence:** strength disappears when the market normalizes; participation is broad but shallow; leader is not credible; event chain breaks.
 **Forbidden shortcut:** heat persistence alone does not prove mainline.
 
 ### H-C — Acceleration / climax risk
@@ -176,8 +176,8 @@ Julia should not map a score directly to a lifecycle state. A valid interpretati
 - high attention and turnover;
 - rapid laggard catch-up.
 
-**Supports:** later-stage interpretation and risk-awareness.  
-**Counterevidence:** acceleration begins from a fresh structural driver with little prior recognition; breadth is deep rather than shallow; continuation remains organized.  
+**Supports:** later-stage interpretation and risk-awareness.
+**Counterevidence:** acceleration begins from a fresh structural driver with little prior recognition; breadth is deep rather than shallow; continuation remains organized.
 **Forbidden shortcut:** high heat does not itself require immediate exit, nor does it justify automatic chasing.
 
 ### H-D — Healthy divergence or repair
@@ -190,8 +190,8 @@ Julia should not map a score directly to a lifecycle state. A valid interpretati
 - branch survives;
 - market regime is not hostile.
 
-**Supports:** still-alive divergence/repair interpretation.  
-**Counterevidence:** repair fails within the declared window; successor vacuum appears; support breaks broadly; event chain contradicts the story.  
+**Supports:** still-alive divergence/repair interpretation.
+**Counterevidence:** repair fails within the declared window; successor vacuum appears; support breaks broadly; event chain contradicts the story.
 **Relation:** this overlaps GIC-002 Leader Divergence and GIC-003 Weak-to-Strong, but this unit asks about the whole theme; those units ask leader-relative and repair-entry questions.
 
 ### H-E — Rotation / branch succession
@@ -203,7 +203,7 @@ Julia should not map a score directly to a lifecycle state. A valid interpretati
 - causal story continues;
 - total family capital remains organized.
 
-**Supports:** rotation rather than whole-theme death.  
+**Supports:** rotation rather than whole-theme death.
 **Counterevidence:** only one unrelated stock rises; branch strength is shallow; causal continuity ends; old core and branches all lose support.
 
 ### H-F — Fade watch / fade confirmed
@@ -217,8 +217,8 @@ Julia should not map a score directly to a lifecycle state. A valid interpretati
 - repairs repeatedly fail;
 - risk appetite migrates elsewhere.
 
-**Supports:** fade-watch then, if hard conditions hold, fade-confirmed.  
-**Counterevidence:** new event revives causal chain; core repairs; a credible successor organizes breadth; market regime turns supportive.  
+**Supports:** fade-watch then, if hard conditions hold, fade-confirmed.
+**Counterevidence:** new event revives causal chain; core repairs; a credible successor organizes breadth; market regime turns supportive.
 **Required distinction:** one weak session, weak event continuity, or divergence is not equivalent to confirmed fade.
 
 ### H-G — Rotation chaos / attention artifact
@@ -231,7 +231,7 @@ Julia should not map a score directly to a lifecycle state. A valid interpretati
 - participation is shallow;
 - no credible hierarchy.
 
-**Supports:** no-theme-lifecycle or observation-only interpretation.  
+**Supports:** no-theme-lifecycle or observation-only interpretation.
 **Counterevidence:** later repeated events and market payment establish a durable family.
 
 ### H-H — Data/provenance artifact
@@ -240,8 +240,8 @@ Julia should not map a score directly to a lifecycle state. A valid interpretati
 
 - apparent lifecycle transition relies on missing leader data, duplicate labels, stale snapshots, source gap, or version mismatch.
 
-**Supports:** insufficient evidence, not market conclusion.  
-**Counterevidence:** independent source or corrected data supports the transition.  
+**Supports:** insufficient evidence, not market conclusion.
+**Counterevidence:** independent source or corrected data supports the transition.
 **Required result:** label missing/unavailable and preserve the question; do not convert absent evidence into a negative market fact.
 
 ## REGIME_APPLICABILITY
@@ -335,16 +335,16 @@ At least three concrete falsifiers are required. Each should be evaluated with a
 
 ### GIC-002 — Leader Divergence
 
-**Boundary:** GIC-001 interprets the whole theme family; GIC-002 interprets whether leader weakness is normal adjustment, active divergence, leader failure, or leader rotation.  
-**Interaction:** Leader divergence is one counterevidence/falsifier lane for theme lifecycle, but leader weakness alone cannot decide whole-theme death.  
-**Shared observations:** leader strength, follower response, successor formation, theme breadth, regime, and liquidity.  
+**Boundary:** GIC-001 interprets the whole theme family; GIC-002 interprets whether leader weakness is normal adjustment, active divergence, leader failure, or leader rotation.
+**Interaction:** Leader divergence is one counterevidence/falsifier lane for theme lifecycle, but leader weakness alone cannot decide whole-theme death.
+**Shared observations:** leader strength, follower response, successor formation, theme breadth, regime, and liquidity.
 **Different conclusion:** GIC-001 may conclude "theme family remains alive"; GIC-002 may simultaneously conclude "old leader has failed." Both can be true if rotation is credible.
 
 ### GIC-003 — Weak-to-Strong
 
-**Boundary:** GIC-001 asks which lifecycle state explains the theme; GIC-003 asks whether a specific weak core/stock is conditionally repairing and whether that repair is tradable.  
-**Interaction:** Weak-to-strong is one repair mechanism inside divergence/fade-watch. It can revive a lifecycle hypothesis, but only after confirmation and regime gates.  
-**Shared observations:** prior strength, weakness quality, auction/open confirmation, volume/support, leader position, theme acceptance, and market regime.  
+**Boundary:** GIC-001 asks which lifecycle state explains the theme; GIC-003 asks whether a specific weak core/stock is conditionally repairing and whether that repair is tradable.
+**Interaction:** Weak-to-strong is one repair mechanism inside divergence/fade-watch. It can revive a lifecycle hypothesis, but only after confirmation and regime gates.
+**Shared observations:** prior strength, weakness quality, auction/open confirmation, volume/support, leader position, theme acceptance, and market regime.
 **Different conclusion:** A successful weak-to-strong setup can occur while the broader theme remains only watch-only; theme health does not automatically validate a setup.
 
 ### Market structure and regime cognition
@@ -420,25 +420,25 @@ These traces demonstrate reasoning, not mandatory conclusions.
 
 ### Trace A — New event, one strong day, unknown acceptance
 
-**Facts:** A major policy event appears. One related stock rises sharply. Other related subjects do not respond. Market structure is broad but shallow.  
+**Facts:** A major policy event appears. One related stock rises sharply. Other related subjects do not respond. Market structure is broad but shallow.
 
-**Reasoning:** The event gives causal plausibility, but hierarchy and breadth are absent. Broad-but-shallow structure lowers confidence in spontaneous diffusion. H-A and H-G remain active. Julia should request multi-day event continuity, related-subject response, turnover, and front-row formation.  
+**Reasoning:** The event gives causal plausibility, but hierarchy and breadth are absent. Broad-but-shallow structure lowers confidence in spontaneous diffusion. H-A and H-G remain active. Julia should request multi-day event continuity, related-subject response, turnover, and front-row formation.
 
 **Not allowed:** "Major event + one strong stock = confirmed mainline" or "buy followers tomorrow."
 
 ### Trace B — Repeated acceptance, leader and branches emerge
 
-**Facts:** Related events continue over several sessions. Theme relative strength persists. A credible leader appears, second-row stocks respond, and one branch begins forming. Market regime is supportive.  
+**Facts:** Related events continue over several sessions. Theme relative strength persists. A credible leader appears, second-row stocks respond, and one branch begins forming. Market regime is supportive.
 
-**Reasoning:** H-B is favored because continuity, acceptance, breadth, and hierarchy align. H-C remains possible if participation becomes indiscriminate. Julia should track whether breadth remains deeper than shallow and whether the leader survives the first divergence.  
+**Reasoning:** H-B is favored because continuity, acceptance, breadth, and hierarchy align. H-C remains possible if participation becomes indiscriminate. Julia should track whether breadth remains deeper than shallow and whether the leader survives the first divergence.
 
 **Not allowed:** Treating the current state as guaranteed acceleration or copying a historical theme's later trajectory.
 
 ### Trace C — Core weakens in adverse regime
 
-**Facts:** The original leader opens weak. Related stocks fall. Broad market is bearish/adverse. No successor has emerged. Event chain is stale.  
+**Facts:** The original leader opens weak. Related stocks fall. Broad market is bearish/adverse. No successor has emerged. Event chain is stale.
 
-**Reasoning:** H-F and H-E compete. Adverse regime makes repair less plausible, while successor vacuum argues against internal rotation. Julia should inspect support, repair attempt, branch depth, and whether event contradiction explains the weakness. GIC-002 is needed to distinguish old-leader failure from healthy rotation; GIC-003 is relevant only if repair evidence appears.  
+**Reasoning:** H-F and H-E compete. Adverse regime makes repair less plausible, while successor vacuum argues against internal rotation. Julia should inspect support, repair attempt, branch depth, and whether event contradiction explains the weakness. GIC-002 is needed to distinguish old-leader failure from healthy rotation; GIC-003 is relevant only if repair evidence appears.
 
 **Not allowed:** "Leader weak → theme dead" or "theme still alive → trade weak-to-strong" without separate confirmation.
 
