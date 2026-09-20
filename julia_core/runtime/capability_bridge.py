@@ -382,6 +382,8 @@ class RuntimeCapabilityBridge:
             "market.event.resolve": "Resolve structured Market event criteria",
             "market.event.read": "Read one structured Market event",
             "market.product.read": "Read one structured Market product",
+            "market.product.linkage.read": "Read product-to-stock relationship evidence",
+            "market.state.read": "Read exact-date whole-market state evidence",
         }.items():
             self.registry.register_definition(CapabilityDefinition(
                 name=name,
