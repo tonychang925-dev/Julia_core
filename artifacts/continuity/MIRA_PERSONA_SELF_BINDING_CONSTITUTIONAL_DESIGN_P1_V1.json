@@ -40,13 +40,12 @@
       "source_digest": "nullable SHA-256",
       "projected_digest": "nullable SHA-256"
     },
-    "execution_substrate_contract": {
+    "execution_substrate_policy": {
       "role": "EXECUTION_SUBSTRATE",
       "provider_is_persona_self": false,
       "provider_neutral": true,
-      "provider_id": "runtime-attested descriptor",
-      "model_id": "runtime-attested descriptor",
-      "provider_special_cases": []
+      "provider_special_cases": [],
+      "concrete_provider_or_model_fields": "FORBIDDEN"
     },
     "binding_version": "positive integer",
     "predecessor_binding_version": "nullable positive integer",
@@ -87,9 +86,10 @@
     "identity": "active binding must exactly match the canonical IdentityFrameSet source digest",
     "experience": "active binding must exactly match the canonical ExperienceFrameSet source digest",
     "relationship": "future bound set must exactly match its source digest; ABSENT is valid",
-    "provider": "provider/model descriptor is excluded from durable persona lineage digest",
+    "provider": "concrete provider/model identity is runtime-only and excluded from durable PersonaSelfBinding fields and lineage digest",
     "c03_parent": "covers exact semantic unit types, order, roles, visible projected digests, and active binding digest",
-    "dispatch_receipt": "covers C03 parent digest, exact task-context digest, and attested provider descriptor"
+    "execution_substrate_descriptor": "covers runtime provider/model/provenance fields",
+    "dispatch_receipt": "covers active PersonaSelfBinding digest, C03 parent digest, exact task-context digest, and ExecutionSubstrateDescriptor digest"
   },
   "precedence_rules": [
     "ACTIVE_PERSONA_SELF_BINDING_INTEGRITY_AND_OWNERSHIP_SCOPE",
@@ -104,9 +104,9 @@
     "provider_role": "NON_SELF_EXECUTION_SUBSTRATE",
     "persona_identity_source": "governed PersonaSelfBinding lineage plus admitted Identity authority",
     "provider_identity_source": "runtime-attested transport descriptor",
-    "provider_change_effect": "execution descriptor and dispatch receipt change only; no identity supersession",
+    "provider_change_effect": "runtime descriptor and dispatch evidence change only; durable binding bytes and lineage remain unchanged; no identity supersession",
     "provider_specific_special_cases": [],
-    "example": {
+    "runtime_descriptor_example": {
       "provider_id": "deepseek",
       "model_id": "deepseek-chat",
       "role": "EXECUTION_SUBSTRATE",
@@ -122,8 +122,51 @@
     "user": "external participant and data source; not persona identity governor",
     "canonical_authority_owner_governor": "owner-approved admission/supersession process"
   },
+  "object_layering": {
+    "durable_persona_self_binding": {
+      "execution_substrate_policy": {
+        "role": "EXECUTION_SUBSTRATE",
+        "provider_is_persona_self": false,
+        "provider_neutral": true,
+        "provider_special_cases": []
+      },
+      "contains_concrete_provider_or_model_identity": false
+    },
+    "runtime_execution_substrate_descriptor": {
+      "provider_id": "required runtime-attested value",
+      "model_id": "required runtime-attested value",
+      "runtime_provenance": "required transport/runtime attestation",
+      "descriptor_digest": "required SHA-256"
+    },
+    "dispatch_receipt": {
+      "persona_self_binding_digest": "active canonical binding digest",
+      "c03_parent_digest": "C03 parent digest",
+      "task_context_digest": "exact current task digest",
+      "execution_substrate_descriptor_digest": "runtime descriptor digest",
+      "dispatch_receipt_digest": "SHA-256 over deterministic receipt fields"
+    }
+  },
   "contradiction_policy": {
-    "selected": "COMBINATION_OF_ADMISSION_CLASSIFICATION_EXPLICIT_ANNOTATION_MODEL_VISIBLE_AUTHORITY_METADATA_AND_DETERMINISTIC_RUNTIME_INTEGRITY_CORRECTION",
+    "classification_model": "GENERAL_PROVIDER_NEUTRAL_SCHEMA_LEVEL",
+    "fixture_role": "REGRESSION_TESTS_ONLY_NOT_RECOGNITION_GRAMMAR_OR_IDENTITY_AUTHORITY_BOUNDARY",
+    "typed_assertion_schema": {
+      "assertion_scope": "SELF_IDENTITY | IDENTITY_OWNERSHIP | RELATIONSHIP_OWNERSHIP",
+      "asserted_subject": "PERSONA_SELF_OR_ALTERNATIVE_SUBJECT",
+      "asserted_classification": "IDENTITY | IMPLEMENTATION | SUBSTRATE | OTHER",
+      "asserted_value": "TYPED_VALUE",
+      "conflict_against_active_binding": "boolean",
+      "source_spans": "exact input spans",
+      "classifier_version": "deterministic version",
+      "disposition": "RESOLVED_CONTRADICTION | UNRESOLVED_IDENTITY_OVERRIDE",
+      "evidence_digest": "SHA-256 over typified assertion serialization"
+    },
+    "valid_outcomes": [
+      "NO_IDENTITY_AUTHORITY_CONFLICT",
+      "RESOLVED_CONTRADICTION",
+      "UNRESOLVED_IDENTITY_OVERRIDE"
+    ],
+    "unresolved_novel_override": "FAIL_CLOSED_NO_C03_NO_PROVIDER_DISPATCH",
+    "selected": "COMBINATION_OF_GENERAL_SCHEMA_LEVEL_ADMISSION_CLASSIFICATION_EXPLICIT_ANNOTATION_MODEL_VISIBLE_AUTHORITY_METADATA_AND_DETERMINISTIC_RUNTIME_INTEGRITY_CORRECTION",
     "current_user_text": "preserved verbatim as task content and cannot mutate admitted persona identity",
     "recognized_contradiction": "dispatch allowed only with valid parent, explicit annotation, exact text, and ownership metadata",
     "response_string_rewrite": "FORBIDDEN",
@@ -238,6 +281,14 @@
         "ownership metadata present"
       ],
       "incomplete_guard_error": "PSB_CONTRADICTION_GUARD_INCOMPLETE"
+    },
+    {
+      "condition": "unresolved novel identity override",
+      "startup_allowed": true,
+      "c03_allowed": false,
+      "provider_dispatch_allowed": false,
+      "explicit_error_code": "PSB_UNRESOLVED_IDENTITY_OVERRIDE",
+      "evidence_required": "typed unresolved assertion evidence, classifier version, and exact source spans"
     },
     {
       "condition": "binding superseded",
@@ -473,5 +524,5 @@
   "runtime_code_changed": false,
   "implementation_authorized": false,
   "rd1_changed_files": 0,
-  "final_result": "PASS_READY_FOR_PERSONA_SELF_BINDING_CONSTITUTIONAL_OWNER_REVIEW"
+  "final_result": "PASS_READY_FOR_PERSONA_SELF_BINDING_OWNER_DECISION"
 }

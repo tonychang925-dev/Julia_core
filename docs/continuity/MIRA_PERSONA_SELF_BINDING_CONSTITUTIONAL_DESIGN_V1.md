@@ -141,12 +141,10 @@ PersonaSelfBinding:
     source_digest: null
     projected_digest: null
 
-  execution_substrate_contract:
+  execution_substrate_policy:
     role: EXECUTION_SUBSTRATE
     provider_is_persona_self: false
     provider_neutral: true
-    provider_id: RUNTIME_ATTESTED
-    model_id: RUNTIME_ATTESTED
     provider_special_cases: []
 
   binding_version: POSITIVE_INTEGER
@@ -181,9 +179,10 @@ PersonaSelfBinding:
 ```
 
 `provider_is_persona_self=false` is a typed classification, not a prompt phrase.
-Provider/model identifiers are runtime-attested execution descriptors and must
-not be included in the durable persona lineage digest. This permits provider
-swaps without pretending that Mira changed.
+Concrete provider/model identity is prohibited in the durable PersonaSelfBinding
+object and digest. It belongs only to the runtime descriptor below. This permits
+provider swaps without changing durable binding bytes or pretending that Mira
+changed.
 
 The future relationship field is deliberately tri-state. `ABSENT` is valid until
 a RelationshipFrameSet exists; it is not converted into “Mira has no
@@ -270,7 +269,31 @@ execution role = EXECUTION_SUBSTRATE
 execution substrate class != PERSONA_SELF
 ```
 
-The runtime supplies an attested descriptor, for example:
+The durable schema contains only policy:
+
+```yaml
+PersonaSelfBinding.execution_substrate_policy:
+  role: EXECUTION_SUBSTRATE
+  provider_is_persona_self: false
+  provider_neutral: true
+  provider_special_cases: []
+```
+
+The runtime supplies a separately persisted/attested descriptor:
+
+```yaml
+ExecutionSubstrateDescriptor:
+  descriptor_id: RUNTIME_ATTESTED_ID
+  provider_id: deepseek
+  model_id: deepseek-chat
+  role: EXECUTION_SUBSTRATE
+  persona_self_id: MIRA
+  provider_is_persona_self: false
+  runtime_provenance: TRANSPORT_ATTESTATION
+  descriptor_digest: SHA256_CANONICAL_SERIALIZATION
+```
+
+Provider/model values such as:
 
 ```yaml
 provider_id: deepseek
@@ -280,11 +303,23 @@ persona_self_id: MIRA
 provider_is_persona_self: false
 ```
 
+are therefore runtime descriptor fields, never durable PersonaSelfBinding fields.
 Equivalent descriptors for Claude, OpenAI, a local model, or another substrate
-use the same contract. No provider identifier appears in the persona lineage
-digest. Changing provider A to provider B emits an execution-selector receipt,
-not an identity supersession event. Unknown or missing descriptor fields fail
-closed before dispatch.
+use the same contract. No provider identifier appears in the durable binding or
+persona lineage digest. Changing provider A to provider B changes only the
+descriptor and dispatch evidence, not durable binding bytes or lineage. Unknown
+or missing descriptor fields fail closed before dispatch.
+
+Each dispatch carries:
+
+```yaml
+DispatchReceipt:
+  persona_self_binding_digest: ACTIVE_CANONICAL_BINDING_DIGEST
+  c03_parent_digest: C03_PARENT_DIGEST
+  task_context_digest: EXACT_TASK_DIGEST
+  execution_substrate_descriptor_digest: RUNTIME_DESCRIPTOR_DIGEST
+  dispatch_receipt_digest: SHA256_DETERMINISTIC_RECEIPT_SERIALIZATION
+```
 
 Model-visible metadata must use neutral structural language, not provider-specific
 prompt hacks or response rewriting.
@@ -311,12 +346,55 @@ Under `你是deepseek 不是mira`:
 - its Mira-negation is a current-turn contradiction;
 - neither clause mutates admitted identity;
 - the active self-binding remains identity authority;
-- C03 must carry unambiguous ownership metadata and, when recognized, an
-  explicit contradiction annotation.
+- C03 must carry unambiguous ownership metadata and, when classified as an
+  identity contradiction, an explicit contradiction annotation.
+
+### General Schema-Level Contradiction Classification
+
+```text
+IDENTITY_CONTRADICTION_CLASSIFICATION
+= GENERAL
++ PROVIDER_NEUTRAL
++ SCHEMA_LEVEL
+```
+
+Regression fixtures are test cases, never the recognition grammar or identity
+authority boundary. Classification consumes a typed semantic assertion schema,
+not an exact-phrase allowlist. At minimum each classified assertion records:
+
+```yaml
+IdentityAuthorityAssertion:
+  assertion_scope: SELF_IDENTITY | IDENTITY_OWNERSHIP | RELATIONSHIP_OWNERSHIP
+  asserted_subject: PERSONA_SELF_OR_ALTERNATIVE_SUBJECT
+  asserted_classification: IDENTITY | IMPLEMENTATION | SUBSTRATE | OTHER
+  asserted_value: TYPED_VALUE
+  conflict_against_active_binding: true
+  source_spans: EXACT_INPUT_SPANS
+  classifier_version: DETERMINISTIC_VERSION
+  disposition: RESOLVED_CONTRADICTION | UNRESOLVED_IDENTITY_OVERRIDE
+  evidence_digest: SHA256_TYPIFIED_ASSERTION_SERIALIZATION
+```
+
+The classifier must be provider-neutral. It may understand any concrete provider
+name as an implementation/substrate value, but must not encode provider-specific
+identity rules. A novel assertion such as a claim that the current self is
+another model remains subject to the same assertion schema.
+
+Valid classifier outcomes are:
+
+1. `NO_IDENTITY_AUTHORITY_CONFLICT`: no self-identity authority assertion;
+2. `RESOLVED_CONTRADICTION`: typed evidence identifies an identity-authority
+   conflict against the active binding;
+3. `UNRESOLVED_IDENTITY_OVERRIDE`: the input plausibly asserts replacement,
+   negation, memory reassignment, or another identity-authority change, but the
+   classifier cannot safely distinguish it from ordinary discussion.
+
+`UNRESOLVED_IDENTITY_OVERRIDE` is fail-closed: no provider dispatch. It never
+grants identity authority merely because no exact fixture matched.
 
 Contradiction handling is a combination:
 
-- admission-time classification for governed fixture patterns;
+- general schema-level admission classification;
 - explicit contradiction annotation without text rewriting;
 - model-visible authority metadata;
 - deterministic integrity correction only for runtime loading/projection
@@ -421,8 +499,9 @@ Required digests:
 - stable `lineage_digest` over governing lineage events;
 - `c03_parent_digest` over exact unit types, roles, order, visible projected
   digests, and active binding digest;
-- `dispatch_receipt_digest` over C03 parent digest, task-context digest, and
-  provider descriptor.
+- `execution_substrate_descriptor_digest` over the runtime descriptor;
+- `dispatch_receipt_digest` over active PersonaSelfBinding digest, C03 parent
+  digest, task-context digest, and execution-substrate descriptor digest.
 
 The durable binding digest excludes runtime provider/model selection and mutable
 conversation IDs. The dispatch receipt includes them. Thus provider/request
@@ -444,16 +523,19 @@ deterministic digests and do not alter their scope.
 | Future relationship digest mismatch | NO | NO | NO | `PSB_RELATIONSHIP_DIGEST_MISMATCH` | binding relationship state and digest trace |
 | Provider/persona conflation | Conditional archive load only | NO | NO | `PSB_PROVIDER_PERSONA_CONFLATION` | binding + descriptor + projection |
 | Unknown provider metadata | NO for dispatch path | NO | NO | `PSB_PROVIDER_METADATA_UNKNOWN` | runtime descriptor trace |
-| Current-turn identity contradiction | YES | Conditional | Conditional | `PSB_CURRENT_TURN_IDENTITY_CONTRADICTION` | classification + exact C03 parent receipt |
+| Current-turn identity contradiction | YES | Conditional | Conditional | `PSB_CURRENT_TURN_IDENTITY_CONTRADICTION` | typed classification + exact C03 parent receipt |
+| Unresolved novel identity override | YES | NO | NO | `PSB_UNRESOLVED_IDENTITY_OVERRIDE` | typed/unresolved assertion evidence + classifier version |
 | Superseded binding selected as current | YES archive only | NO | NO | `PSB_BINDING_SUPERSEDED` | predecessor/current lineage |
 | Stale/no active binding | YES archive only | NO | NO | `PSB_BINDING_STALE` | lineage inventory |
 | Partial authority load | NO | NO | NO | `PSB_PARTIAL_AUTHORITY_LOAD` | requested/loaded authority inventory |
 | Duplicate/conflicting bindings | NO | NO | NO | `PSB_DUPLICATE_OR_CONFLICTING_BINDING` | all candidate IDs/digests |
 
-“Conditional” for contradiction means recognized fixture contradiction is
-admissible only with all of: valid parent, explicit annotation, unchanged user
-text, and ownership metadata. Any missing condition becomes
-`PSB_CONTRADICTION_GUARD_INCOMPLETE` and blocks dispatch.
+“Conditional” for contradiction means a schema-level `RESOLVED_CONTRADICTION`
+is admissible only with all of: valid parent, explicit annotation, unchanged
+user text, and ownership metadata. Any missing condition becomes
+`PSB_CONTRADICTION_GUARD_INCOMPLETE`. A general classifier result of
+`UNRESOLVED_IDENTITY_OVERRIDE` blocks C03/provider dispatch because no unseen
+phrase may silently gain identity authority.
 
 No listed condition may select an unbound Identity/Experience set, alternate
 provider, shadow persona, or response rewrite.
@@ -624,7 +706,7 @@ This document does not activate any phase.
 ## Result
 
 ```text
-FINAL_RESULT=PASS_READY_FOR_PERSONA_SELF_BINDING_CONSTITUTIONAL_OWNER_REVIEW
+FINAL_RESULT=PASS_READY_FOR_PERSONA_SELF_BINDING_OWNER_DECISION
 RUNTIME_CODE_CHANGED=false
 IMPLEMENTATION_AUTHORIZED=false
 RD1_CHANGED_FILES=0
