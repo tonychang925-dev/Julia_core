@@ -29,6 +29,10 @@ _MARKET_BINDING_LOCK = threading.Lock()
 _market_binding_adapter: object | None = None
 _market_binding_attempted = False
 _market_binding_error: Exception | None = None
+_RESEARCH_BINDING_LOCK = threading.Lock()
+_research_binding_provider: object | None = None
+_research_binding_attempted = False
+_research_binding_error: Exception | None = None
 
 
 def _ensure_market_public_binding() -> None:
@@ -126,6 +130,85 @@ def _ensure_market_public_binding() -> None:
             )
 
 
+def _ensure_claude_client_research_binding() -> None:
+    """Bind the configured Claude_client Research provider once per process."""
+    global _research_binding_provider, _research_binding_attempted, _research_binding_error
+
+    with _RESEARCH_BINDING_LOCK:
+        if _research_binding_error is not None:
+            raise _research_binding_error
+
+        from julia_core.runtime.capability_bridge import get_capability_bridge
+
+        bridge = get_capability_bridge()
+        existing = bridge.manager.providers.get("research")
+
+        if _research_binding_provider is not None:
+            if existing is not None:
+                return
+            error = CoreConversationConfigurationError(
+                "canonical Research binding no longer owns the research provider namespace"
+            )
+            _research_binding_error = error
+            raise error
+
+        if _research_binding_attempted:
+            if existing is None:
+                return
+            error = CoreConversationConfigurationError(
+                "research provider namespace became occupied after canonical binding was unavailable"
+            )
+            _research_binding_error = error
+            raise error
+
+        if existing is not None:
+            error = CoreConversationConfigurationError(
+                "research provider namespace is already occupied before canonical binding"
+            )
+            _research_binding_error = error
+            raise error
+
+        _research_binding_attempted = True
+        from julia_core.research import (
+            ClaudeClientExecutionConfig,
+            ClaudeClientWebResearchProvider,
+        )
+
+        config = ClaudeClientExecutionConfig.from_environment()
+        if config is None:
+            return
+
+        try:
+            provider = ClaudeClientWebResearchProvider(config)
+            bridge.register_provider("research", provider)
+            if bridge._providers.get("research") is not provider:
+                raise CoreConversationConfigurationError(
+                    "canonical Research provider did not win the research namespace"
+                )
+            _research_binding_provider = provider
+        except Exception as exc:
+            from julia_core.runtime.capability_bridge import (
+                ProviderAlreadyRegisteredError,
+            )
+
+            if isinstance(exc, (ProviderAlreadyRegisteredError, CoreConversationConfigurationError)):
+                error = (
+                    exc
+                    if isinstance(exc, CoreConversationConfigurationError)
+                    else CoreConversationConfigurationError(
+                        "canonical Research provider registration was rejected"
+                    )
+                )
+                _research_binding_error = error
+                raise error from exc
+
+            logger.warning(
+                "Claude_client Research binding unavailable; research capability "
+                "remains typed-unavailable: %s",
+                exc,
+            )
+
+
 @dataclass(frozen=True, slots=True)
 class CoreConversationConfig:
     """Deployment configuration; dependency construction remains Core-owned."""
@@ -173,9 +256,10 @@ class CoreConversationIngress:
             if provider is None:
                 raise CoreConversationProviderUnavailable("configured Core provider is unavailable")
 
-            # Core composes only the Market public boundary. Market constructs
-            # its own provider/configuration; Assistant is not involved.
+            # Core mechanically composes external evidence providers. Provider
+            # owners construct their own configuration; Assistant is not involved.
             _ensure_market_public_binding()
+            _ensure_claude_client_research_binding()
 
             self._session = JuliaSession(provider=provider)
         except Exception as exc:
