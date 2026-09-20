@@ -1,0 +1,2065 @@
+[
+  {
+    "classification": "REAL_PRIMARY",
+    "capability_id": "market.event.resolve",
+    "request_id": "core-ccaafba65e794123a916c39c3ce24647",
+    "correlation_id": "i1e-377d4ee338a74650b8ec11a6b7f67c74",
+    "request_arguments": {
+      "feed_date": "2026-05-19",
+      "stock_id": null,
+      "limit": 200
+    },
+    "case_source": "real exact-date structured event feed; identity selected only from READY resolve payload",
+    "core_execution_outcome": "success",
+    "core_error": null,
+    "market_envelope": {
+      "contract_version": "0.3.0",
+      "capability_id": "market.event.resolve",
+      "request_id": "core-ccaafba65e794123a916c39c3ce24647",
+      "correlation_id": "i1e-377d4ee338a74650b8ec11a6b7f67c74",
+      "operation_status": "SUCCESS",
+      "data_state": "READY",
+      "payload": [
+        {
+          "item_id": "event:jyhf_cdp:166793",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T15:32:00",
+          "title": "谷歌AI眼镜",
+          "summary": "【新题材更新：谷歌AI眼镜】\n谷歌新一代AI眼镜即将发布，深度融合Gemini人工智能模型，Android XR成为AI眼镜通用系统，AI眼镜的安卓时刻要来了\n（新闻来源：环球时报）",
+          "theme_subject_keys": [
+            "谷歌AI眼镜"
+          ],
+          "theme_names": [
+            "谷歌AI眼镜"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "1.7000",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166794",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T14:46:00",
+          "title": "半导体-材料-硅片",
+          "summary": "【驱动事件：AI服务器、先进封装及HBM技术迭代带动硅片与电子特气用量激增】\nAI服务器、先进封装及HBM技术迭代带动硅片与电子特气用量激增，叠加中东能源危机推高化工原料成本，半导体材料全品类进入量价齐升阶段。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "半导体-材料-硅片"
+          ],
+          "theme_names": [
+            "半导体-材料-硅片"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "8.1400",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166795",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T14:31:00",
+          "title": "AI眼镜",
+          "summary": "【驱动事件：谷歌新一代AI眼镜即将发布】\n谷歌新一代AI眼镜即将发布，深度融合Gemini人工智能模型，Android XR成为AI眼镜通用系统，AI眼镜的安卓时刻要来了\n（新闻来源：环球时报）",
+          "theme_subject_keys": [
+            "AI眼镜"
+          ],
+          "theme_names": [
+            "AI眼镜"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "1.2500",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166796",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T14:01:00",
+          "title": "生猪",
+          "summary": "【驱动事件：新一轮生猪产能调控目标确定 严查产能逆势扩张行为】\n记者从相关知情人士处获悉，全国划定3750万头能繁母猪总调控目标，按区域实际情况逐级分解下达至各省市。在5月18日召开的全国生猪产业调控专项工作会议上，主管部门同时明确多项硬性管控举措与考核监管机制，并表示将严查产能逆势扩张行为。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "生猪"
+          ],
+          "theme_names": [
+            "生猪"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "0.5300",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166797",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T13:52:00",
+          "title": "共封装光学CPO",
+          "summary": "【驱动事件：近日硅光产业链催化密集】\n近日硅光产业链催化密集：Tower 13亿美元硅光订单落地；POET获Lumilens 5000万美元光引擎订单，未来五年累计采购额有望突破5亿美元。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "共封装光学CPO"
+          ],
+          "theme_names": [
+            "共封装光学CPO"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "1.1200",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166780",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T13:14:00",
+          "title": "电力运营",
+          "summary": "【驱动事件：四部门联合印发，明确要求将绿电使用占比作为算力设施项目布局的重要参考指标】\n近日国家发改委、国家能源局、工信部、国家数据局四部门联合印发，明确要求将绿电使用占比作为算力设施项目布局的重要参考指标，支持算力设施通过参与绿证绿电交易提升绿电消费比例，构建绿电供给、高效用能、碳排放管控协同的全链条绿色低碳发展体系。该政策将“算电协同”从概念推向落地阶段，为绿色电力运营商打开了来自AI算力产业的增量需求和稳定收益预期。\n（新闻来源：新浪财经）",
+          "theme_subject_keys": [
+            "电力运营"
+          ],
+          "theme_names": [
+            "电力运营"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "2.4900",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166444",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T11:10:00",
+          "title": "电力设备",
+          "summary": "【驱动事件：大摩预计数据中心将面临55GW的电力缺口】\n受Token需求飙升350%的推动，超大规模云服务商（Hyperscalers）的2026年资本支出预测从4500亿美元大幅上调至8000亿美元。大摩预计数据中心将面临55GW的电力缺口。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "电力设备"
+          ],
+          "theme_names": [
+            "电力设备"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "0.7100",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166191",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T10:49:00",
+          "title": "半导体设备",
+          "summary": "【驱动事件：“中国刻蚀机之父”尹志尧表示已经有能力来做最先进的设备】",
+          "theme_subject_keys": [
+            "半导体设备"
+          ],
+          "theme_names": [
+            "半导体设备"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "1.4700",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166091",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T10:26:00",
+          "title": "算力网络主导者",
+          "summary": "【新题材更新：算力网络主导者】\n三大运营商是国家算力网络的核心主导者与全域调度中枢；广电系（有线电视运营商）是区域性文化算力 + 边缘接入的特色补充，两者定位、能力、商业模式完全不同但互补。",
+          "theme_subject_keys": [
+            "算力网络主导者"
+          ],
+          "theme_names": [
+            "算力网络主导者"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "3.0000",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166092",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T10:05:00",
+          "title": "算电协同",
+          "summary": "【驱动事件：我国大型数据中心以虚拟电厂形式参与电力现货交易】\n据中国电力报，5月14日，我国大型数据中心以虚拟电厂形式参与电力现货交易，实现“算随电动”，为国内首次。\n（新闻来源：中国电力报）",
+          "theme_subject_keys": [
+            "算电协同"
+          ],
+          "theme_names": [
+            "算电协同"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "1.0800",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166093",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:56:00",
+          "title": "数据中心-管理运维-电信运营商",
+          "summary": "【驱动事件：国内三大运营商均已开启Token工厂业务模式落地】\n国内三大运营商均已开启Token工厂业务模式落地。东方证券研报指出，国内Token工厂将迎来快速发展期，具备一定算力资源和推理优化、云服务能力的公司将积极布局和落地。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "数据中心-管理运维-电信运营商"
+          ],
+          "theme_names": [
+            "数据中心-管理运维-电信运营商"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "2.7200",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166094",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:51:00",
+          "title": "太空光伏",
+          "summary": "【驱动事件：恒星力量在北京未来科学城能源谷开工建设全球首条钙钛矿太空光伏中试线】\n恒星力量5月18日发布消息，公司在北京未来科学城能源谷开工建设全球首条钙钛矿太空光伏中试线，项目总投资额约1.5亿元，预计于今年8月建成投产，将填补钙钛矿太空光伏规模化验证的空白。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "太空光伏"
+          ],
+          "theme_names": [
+            "太空光伏"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "-1.1300",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166095",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:49:00",
+          "title": "影视-影视院线",
+          "summary": "【驱动事件：《给阿嬷的情书》连续九天蝉联单日票房榜首】\n据票务平台数据，2026年电影票房已超145亿元。五一档新片长尾效应持续释放，其中《给阿嬷的情书》连续九天蝉联单日票房榜首。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "影视-影视院线"
+          ],
+          "theme_names": [
+            "影视-影视院线"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "3.4000",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166096",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:44:00",
+          "title": "MLCC电容",
+          "summary": "【驱动事件：根据GPU\\TPU在2027年和2028年的预计出货量，芯片电感和芯片电容行业将出现爆发式增长】\n中信建投研报称，随着AI服务器功率的不断增长，为GPU\\TPU服务的芯片电感和芯片电容数量质量要求都大幅提升，根据GPU\\TPU在2027年和2028年的预计出货量，芯片电感和芯片电容行业将出现爆发式增长。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "MLCC电容"
+          ],
+          "theme_names": [
+            "MLCC电容"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "2.5900",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166097",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:39:00",
+          "title": "Token工厂",
+          "summary": "【驱动事件：国内三大运营商均已开启Token工厂业务模式落地】\n国内三大运营商均已开启Token工厂业务模式落地。东方证券研报指出，国内Token工厂将迎来快速发展期，具备一定算力资源和推理优化、云服务能力的公司将积极布局和落地。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "Token工厂"
+          ],
+          "theme_names": [
+            "Token工厂"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "3.8300",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166098",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:35:00",
+          "title": "生成式物理AI",
+          "summary": "【驱动事件：F.03机器人已在直播状态下连续工作超过30小时】\nFigure创始人布雷特·阿德科克(Brett Adcock)宣布，F.03机器人已在直播状态下连续工作超过30小时，中途未曾出现任何停机现象，从直播开始算起已处理了超过38000个包裹。截至目前，直播仍未停止。近日，Figure为在流水线分拣小型包裹的F.03开启直播，当某个机器人电量过低时，它会自主请求另一台机器人接替自己。\n（新闻来源：新浪财经）",
+          "theme_subject_keys": [
+            "生成式物理AI"
+          ],
+          "theme_names": [
+            "生成式物理AI"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "2.8100",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166099",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:01:00",
+          "title": "脑机接口",
+          "summary": "【驱动事件：我国正式启动首个128通道全植入式脑机接口系统多中心临床试验】\n我国正式启动首个128通道全植入式脑机接口系统多中心临床试验，这项试验由首都医科大学附属北京天坛医院担任组长单位，这也标志着我国自主研发的高通量侵入式脑机接口技术进入临床转化的快车道。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "脑机接口"
+          ],
+          "theme_names": [
+            "脑机接口"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "0.9400",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166100",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:00:00",
+          "title": "人形机器人",
+          "summary": "【驱动事件：国务院总理李强5月18日在北京调研时强调，积极促进智能机器人迭代升】\n国务院总理李强5月18日在北京调研时强调，推动人工智能与先进制造业深度融合，坚持创新发展，突出应用导向，积极促进智能机器人迭代升级，大力推进人工智能全方位、深层次赋能制造业，加快培育塑造经济发展新动能新优势。\n（新闻来源：央视新闻）",
+          "theme_subject_keys": [
+            "人形机器人"
+          ],
+          "theme_names": [
+            "人形机器人"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "0.2400",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        }
+      ],
+      "provenance": {
+        "produced_at": "2026-09-20T00:59:40.391830+00:00",
+        "market_release_identity": null,
+        "data_cutoff": null,
+        "source_refs": [
+          "jyhf_cdp",
+          "jyhf_cdp_dom"
+        ],
+        "evidence_refs": [],
+        "public_object_refs": [
+          "event:jyhf_cdp:166091",
+          "event:jyhf_cdp:166092",
+          "event:jyhf_cdp:166093",
+          "event:jyhf_cdp:166094",
+          "event:jyhf_cdp:166095",
+          "event:jyhf_cdp:166096",
+          "event:jyhf_cdp:166097",
+          "event:jyhf_cdp:166098",
+          "event:jyhf_cdp:166099",
+          "event:jyhf_cdp:166100",
+          "event:jyhf_cdp:166191",
+          "event:jyhf_cdp:166444",
+          "event:jyhf_cdp:166780",
+          "event:jyhf_cdp:166793",
+          "event:jyhf_cdp:166794",
+          "event:jyhf_cdp:166795",
+          "event:jyhf_cdp:166796",
+          "event:jyhf_cdp:166797"
+        ],
+        "capability_call_ref": "market.event.resolve",
+        "correlation_id": "i1e-377d4ee338a74650b8ec11a6b7f67c74",
+        "governance_ref": null,
+        "provenance_status": "PROVENANCE_INCOMPLETE"
+      },
+      "failures": [],
+      "boundary_identity_ref": "market.public",
+      "runtime_observation": null,
+      "produced_at": "2026-09-20T00:59:40.391830+00:00"
+    },
+    "core_structured_output": {
+      "contract_version": "0.3.0",
+      "capability_id": "market.event.resolve",
+      "request_id": "core-ccaafba65e794123a916c39c3ce24647",
+      "correlation_id": "i1e-377d4ee338a74650b8ec11a6b7f67c74",
+      "operation_status": "SUCCESS",
+      "data_state": "READY",
+      "payload": [
+        {
+          "item_id": "event:jyhf_cdp:166793",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T15:32:00",
+          "title": "谷歌AI眼镜",
+          "summary": "【新题材更新：谷歌AI眼镜】\n谷歌新一代AI眼镜即将发布，深度融合Gemini人工智能模型，Android XR成为AI眼镜通用系统，AI眼镜的安卓时刻要来了\n（新闻来源：环球时报）",
+          "theme_subject_keys": [
+            "谷歌AI眼镜"
+          ],
+          "theme_names": [
+            "谷歌AI眼镜"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "1.7000",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166794",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T14:46:00",
+          "title": "半导体-材料-硅片",
+          "summary": "【驱动事件：AI服务器、先进封装及HBM技术迭代带动硅片与电子特气用量激增】\nAI服务器、先进封装及HBM技术迭代带动硅片与电子特气用量激增，叠加中东能源危机推高化工原料成本，半导体材料全品类进入量价齐升阶段。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "半导体-材料-硅片"
+          ],
+          "theme_names": [
+            "半导体-材料-硅片"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "8.1400",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166795",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T14:31:00",
+          "title": "AI眼镜",
+          "summary": "【驱动事件：谷歌新一代AI眼镜即将发布】\n谷歌新一代AI眼镜即将发布，深度融合Gemini人工智能模型，Android XR成为AI眼镜通用系统，AI眼镜的安卓时刻要来了\n（新闻来源：环球时报）",
+          "theme_subject_keys": [
+            "AI眼镜"
+          ],
+          "theme_names": [
+            "AI眼镜"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "1.2500",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166796",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T14:01:00",
+          "title": "生猪",
+          "summary": "【驱动事件：新一轮生猪产能调控目标确定 严查产能逆势扩张行为】\n记者从相关知情人士处获悉，全国划定3750万头能繁母猪总调控目标，按区域实际情况逐级分解下达至各省市。在5月18日召开的全国生猪产业调控专项工作会议上，主管部门同时明确多项硬性管控举措与考核监管机制，并表示将严查产能逆势扩张行为。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "生猪"
+          ],
+          "theme_names": [
+            "生猪"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "0.5300",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166797",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T13:52:00",
+          "title": "共封装光学CPO",
+          "summary": "【驱动事件：近日硅光产业链催化密集】\n近日硅光产业链催化密集：Tower 13亿美元硅光订单落地；POET获Lumilens 5000万美元光引擎订单，未来五年累计采购额有望突破5亿美元。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "共封装光学CPO"
+          ],
+          "theme_names": [
+            "共封装光学CPO"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "1.1200",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166780",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T13:14:00",
+          "title": "电力运营",
+          "summary": "【驱动事件：四部门联合印发，明确要求将绿电使用占比作为算力设施项目布局的重要参考指标】\n近日国家发改委、国家能源局、工信部、国家数据局四部门联合印发，明确要求将绿电使用占比作为算力设施项目布局的重要参考指标，支持算力设施通过参与绿证绿电交易提升绿电消费比例，构建绿电供给、高效用能、碳排放管控协同的全链条绿色低碳发展体系。该政策将“算电协同”从概念推向落地阶段，为绿色电力运营商打开了来自AI算力产业的增量需求和稳定收益预期。\n（新闻来源：新浪财经）",
+          "theme_subject_keys": [
+            "电力运营"
+          ],
+          "theme_names": [
+            "电力运营"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "2.4900",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166444",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T11:10:00",
+          "title": "电力设备",
+          "summary": "【驱动事件：大摩预计数据中心将面临55GW的电力缺口】\n受Token需求飙升350%的推动，超大规模云服务商（Hyperscalers）的2026年资本支出预测从4500亿美元大幅上调至8000亿美元。大摩预计数据中心将面临55GW的电力缺口。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "电力设备"
+          ],
+          "theme_names": [
+            "电力设备"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "0.7100",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166191",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T10:49:00",
+          "title": "半导体设备",
+          "summary": "【驱动事件：“中国刻蚀机之父”尹志尧表示已经有能力来做最先进的设备】",
+          "theme_subject_keys": [
+            "半导体设备"
+          ],
+          "theme_names": [
+            "半导体设备"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "1.4700",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166091",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T10:26:00",
+          "title": "算力网络主导者",
+          "summary": "【新题材更新：算力网络主导者】\n三大运营商是国家算力网络的核心主导者与全域调度中枢；广电系（有线电视运营商）是区域性文化算力 + 边缘接入的特色补充，两者定位、能力、商业模式完全不同但互补。",
+          "theme_subject_keys": [
+            "算力网络主导者"
+          ],
+          "theme_names": [
+            "算力网络主导者"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "3.0000",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166092",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T10:05:00",
+          "title": "算电协同",
+          "summary": "【驱动事件：我国大型数据中心以虚拟电厂形式参与电力现货交易】\n据中国电力报，5月14日，我国大型数据中心以虚拟电厂形式参与电力现货交易，实现“算随电动”，为国内首次。\n（新闻来源：中国电力报）",
+          "theme_subject_keys": [
+            "算电协同"
+          ],
+          "theme_names": [
+            "算电协同"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "1.0800",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166093",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:56:00",
+          "title": "数据中心-管理运维-电信运营商",
+          "summary": "【驱动事件：国内三大运营商均已开启Token工厂业务模式落地】\n国内三大运营商均已开启Token工厂业务模式落地。东方证券研报指出，国内Token工厂将迎来快速发展期，具备一定算力资源和推理优化、云服务能力的公司将积极布局和落地。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "数据中心-管理运维-电信运营商"
+          ],
+          "theme_names": [
+            "数据中心-管理运维-电信运营商"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "2.7200",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166094",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:51:00",
+          "title": "太空光伏",
+          "summary": "【驱动事件：恒星力量在北京未来科学城能源谷开工建设全球首条钙钛矿太空光伏中试线】\n恒星力量5月18日发布消息，公司在北京未来科学城能源谷开工建设全球首条钙钛矿太空光伏中试线，项目总投资额约1.5亿元，预计于今年8月建成投产，将填补钙钛矿太空光伏规模化验证的空白。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "太空光伏"
+          ],
+          "theme_names": [
+            "太空光伏"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "-1.1300",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166095",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:49:00",
+          "title": "影视-影视院线",
+          "summary": "【驱动事件：《给阿嬷的情书》连续九天蝉联单日票房榜首】\n据票务平台数据，2026年电影票房已超145亿元。五一档新片长尾效应持续释放，其中《给阿嬷的情书》连续九天蝉联单日票房榜首。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "影视-影视院线"
+          ],
+          "theme_names": [
+            "影视-影视院线"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "3.4000",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166096",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:44:00",
+          "title": "MLCC电容",
+          "summary": "【驱动事件：根据GPU\\TPU在2027年和2028年的预计出货量，芯片电感和芯片电容行业将出现爆发式增长】\n中信建投研报称，随着AI服务器功率的不断增长，为GPU\\TPU服务的芯片电感和芯片电容数量质量要求都大幅提升，根据GPU\\TPU在2027年和2028年的预计出货量，芯片电感和芯片电容行业将出现爆发式增长。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "MLCC电容"
+          ],
+          "theme_names": [
+            "MLCC电容"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "2.5900",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166097",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:39:00",
+          "title": "Token工厂",
+          "summary": "【驱动事件：国内三大运营商均已开启Token工厂业务模式落地】\n国内三大运营商均已开启Token工厂业务模式落地。东方证券研报指出，国内Token工厂将迎来快速发展期，具备一定算力资源和推理优化、云服务能力的公司将积极布局和落地。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "Token工厂"
+          ],
+          "theme_names": [
+            "Token工厂"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "3.8300",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166098",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:35:00",
+          "title": "生成式物理AI",
+          "summary": "【驱动事件：F.03机器人已在直播状态下连续工作超过30小时】\nFigure创始人布雷特·阿德科克(Brett Adcock)宣布，F.03机器人已在直播状态下连续工作超过30小时，中途未曾出现任何停机现象，从直播开始算起已处理了超过38000个包裹。截至目前，直播仍未停止。近日，Figure为在流水线分拣小型包裹的F.03开启直播，当某个机器人电量过低时，它会自主请求另一台机器人接替自己。\n（新闻来源：新浪财经）",
+          "theme_subject_keys": [
+            "生成式物理AI"
+          ],
+          "theme_names": [
+            "生成式物理AI"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "2.8100",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166099",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:01:00",
+          "title": "脑机接口",
+          "summary": "【驱动事件：我国正式启动首个128通道全植入式脑机接口系统多中心临床试验】\n我国正式启动首个128通道全植入式脑机接口系统多中心临床试验，这项试验由首都医科大学附属北京天坛医院担任组长单位，这也标志着我国自主研发的高通量侵入式脑机接口技术进入临床转化的快车道。\n（新闻来源：财联社）",
+          "theme_subject_keys": [
+            "脑机接口"
+          ],
+          "theme_names": [
+            "脑机接口"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "0.9400",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        },
+        {
+          "item_id": "event:jyhf_cdp:166100",
+          "item_type": "event",
+          "occurred_at": "2026-05-19T09:00:00",
+          "title": "人形机器人",
+          "summary": "【驱动事件：国务院总理李强5月18日在北京调研时强调，积极促进智能机器人迭代升】\n国务院总理李强5月18日在北京调研时强调，推动人工智能与先进制造业深度融合，坚持创新发展，突出应用导向，积极促进智能机器人迭代升级，大力推进人工智能全方位、深层次赋能制造业，加快培育塑造经济发展新动能新优势。\n（新闻来源：央视新闻）",
+          "theme_subject_keys": [
+            "人形机器人"
+          ],
+          "theme_names": [
+            "人形机器人"
+          ],
+          "stock_ids": [],
+          "stock_names": [],
+          "confidence": null,
+          "impact_score": "0.2400",
+          "source_type": "jyhf_cdp_dom",
+          "source_channel": "jyhf_cdp"
+        }
+      ],
+      "provenance": {
+        "produced_at": "2026-09-20T00:59:40.391830+00:00",
+        "market_release_identity": null,
+        "data_cutoff": null,
+        "source_refs": [
+          "jyhf_cdp",
+          "jyhf_cdp_dom"
+        ],
+        "evidence_refs": [],
+        "public_object_refs": [
+          "event:jyhf_cdp:166091",
+          "event:jyhf_cdp:166092",
+          "event:jyhf_cdp:166093",
+          "event:jyhf_cdp:166094",
+          "event:jyhf_cdp:166095",
+          "event:jyhf_cdp:166096",
+          "event:jyhf_cdp:166097",
+          "event:jyhf_cdp:166098",
+          "event:jyhf_cdp:166099",
+          "event:jyhf_cdp:166100",
+          "event:jyhf_cdp:166191",
+          "event:jyhf_cdp:166444",
+          "event:jyhf_cdp:166780",
+          "event:jyhf_cdp:166793",
+          "event:jyhf_cdp:166794",
+          "event:jyhf_cdp:166795",
+          "event:jyhf_cdp:166796",
+          "event:jyhf_cdp:166797"
+        ],
+        "capability_call_ref": "market.event.resolve",
+        "correlation_id": "i1e-377d4ee338a74650b8ec11a6b7f67c74",
+        "governance_ref": null,
+        "provenance_status": "PROVENANCE_INCOMPLETE"
+      },
+      "failures": [],
+      "boundary_identity_ref": "market.public",
+      "runtime_observation": null,
+      "produced_at": "2026-09-20T00:59:40.391830+00:00"
+    },
+    "semantic_match": true
+  },
+  {
+    "classification": "REAL_PRIMARY",
+    "capability_id": "market.event.read",
+    "request_id": "core-dcce11e0fb6b42998a06fbc712bfcea4",
+    "correlation_id": "i1e-42b527eb9eb34f4eab8d168371955292",
+    "request_arguments": {
+      "event_id": 166793
+    },
+    "case_source": "evaluate_service/output/baselines/pm_e2e_phase47_final_100_20260519/sps_payload.json item event:8410:9043089",
+    "core_execution_outcome": "success",
+    "core_error": null,
+    "market_envelope": {
+      "contract_version": "0.3.0",
+      "capability_id": "market.event.read",
+      "request_id": "core-dcce11e0fb6b42998a06fbc712bfcea4",
+      "correlation_id": "i1e-42b527eb9eb34f4eab8d168371955292",
+      "operation_status": "FAILURE",
+      "data_state": "NOT_APPLICABLE",
+      "payload": null,
+      "provenance": {
+        "produced_at": "2026-09-20T00:59:40.434655+00:00",
+        "market_release_identity": null,
+        "data_cutoff": null,
+        "source_refs": [],
+        "evidence_refs": [],
+        "public_object_refs": [],
+        "capability_call_ref": "market.event.read",
+        "correlation_id": "i1e-42b527eb9eb34f4eab8d168371955292",
+        "governance_ref": null,
+        "provenance_status": "PROVENANCE_INCOMPLETE"
+      },
+      "failures": [
+        {
+          "kind": "MarketObjectNotFound",
+          "code": "event_not_found",
+          "message": "Event was not found"
+        }
+      ],
+      "boundary_identity_ref": "market.public",
+      "runtime_observation": null,
+      "produced_at": "2026-09-20T00:59:40.434655+00:00"
+    },
+    "core_structured_output": {
+      "contract_version": "0.3.0",
+      "capability_id": "market.event.read",
+      "request_id": "core-dcce11e0fb6b42998a06fbc712bfcea4",
+      "correlation_id": "i1e-42b527eb9eb34f4eab8d168371955292",
+      "operation_status": "FAILURE",
+      "data_state": "NOT_APPLICABLE",
+      "payload": null,
+      "provenance": {
+        "produced_at": "2026-09-20T00:59:40.434655+00:00",
+        "market_release_identity": null,
+        "data_cutoff": null,
+        "source_refs": [],
+        "evidence_refs": [],
+        "public_object_refs": [],
+        "capability_call_ref": "market.event.read",
+        "correlation_id": "i1e-42b527eb9eb34f4eab8d168371955292",
+        "governance_ref": null,
+        "provenance_status": "PROVENANCE_INCOMPLETE"
+      },
+      "failures": [
+        {
+          "kind": "MarketObjectNotFound",
+          "code": "event_not_found",
+          "message": "Event was not found"
+        }
+      ],
+      "boundary_identity_ref": "market.public",
+      "runtime_observation": null,
+      "produced_at": "2026-09-20T00:59:40.434655+00:00"
+    },
+    "semantic_match": true,
+    "identity_source": "market.event.resolve READY payload"
+  },
+  {
+    "classification": "REAL_PRIMARY",
+    "capability_id": "market.product.read",
+    "request_id": "core-104e7f3b4fe5434ea1d4cea7460dd61e",
+    "correlation_id": "i1e-f189f75e32654a79a7d415e36158ac96",
+    "request_arguments": {
+      "subject_key": "9043089"
+    },
+    "case_source": "same source-bound event subject identity",
+    "core_execution_outcome": "success",
+    "core_error": null,
+    "market_envelope": {
+      "contract_version": "0.3.0",
+      "capability_id": "market.product.read",
+      "request_id": "core-104e7f3b4fe5434ea1d4cea7460dd61e",
+      "correlation_id": "i1e-f189f75e32654a79a7d415e36158ac96",
+      "operation_status": "SUCCESS",
+      "data_state": "READY",
+      "payload": {
+        "subject_key": "9043089",
+        "theme_id": 43643,
+        "theme_name": "AI智能体Manus",
+        "node_level": "1",
+        "parent_subject_key": null,
+        "ancestors": "0",
+        "binding_status": "active_binding",
+        "summary": "AI智能体Manus：一、Manus动态 2025年12月30日 Manus发布消息称，Manus将加入Meta，开启新一轮探索。",
+        "detail_html": "<p style=\"text-align: center;\"><strong>一、Manus动态</strong></p><p style=\"text-align: left;\"><strong>2025年12月30日</strong></p><p style=\"text-align: left;\">Manus发布消息称，Manus将加入Meta，开启新一轮探索。Manus首席执行官肖弘表示，该交易将不改变Manus运作方式和决策机制。此外，Manus将继续通过app和网站为用户提供产品和订阅服务，同时公司将继续在新加坡运营。根据12月初统计的数据，上线至今，Manus已处理超过147万亿个token，并创建了超过8000万台虚拟计算机。目前这一交易的具体细节尚未公布。</p><p style=\"text-align: center;\"><br></p><p style=\"text-align: center;\"><strong>二、、Manus介绍</strong></p><p>Manus是中国的创业公司Monica发布的全球首款通用Agent（自主智能体）产品。Manus以其强大的独立思考、规划并执行复杂任务的能力，直接交付完整成果，展现了前所未有的通用性和执行能力。据团队介绍，Manus在GAIA基准测试中取得了SOTA（State-of-the-Art）的成绩，显示其性能超越OpenAI的同层次大模型。</p><p>并且，不同于此前各类功能相对简单的人工智能助手，Manus拥有超强学习能力和适应性的“数字大脑”，不再局限于单一任务，而是能够理解复杂指令、自主学习、跨领域协同，真正像人一样思考和行动。<span style=\"color: rgb(34, 34, 34); background-color: rgb(255, 255, 255);\">从发布演示看，Manus在接到指令后可直接操作电脑完成一系列报告撰写、表格制作等，最后导出符合用户需求的成品。</span></p><p>据悉，该团队成员来自中国，团队计划后续开源部分技术，推动AI社区共同发展。</p><p style=\"text-align: center;\"><br></p><p style=\"text-align: center;\"><strong>二、Manus相关股权关系</strong></p><p><img src=\"https://guduoduo-app.oss-cn-beijing.aliyuncs.com/upload/rich/2025/03/06/3d1a414a-2fee-49ef-aa0c-b6c057c79f20-1741254251524.png\" alt=\"\" data-href=\"\" style=\"\"/></p>",
+        "reason_short": null,
+        "detail_version": 1,
+        "is_current": true,
+        "detail_updated_at": "2026-03-31T16:50:13.716658",
+        "history_count": 21,
+        "children_count": 4,
+        "stock_count": 27
+      },
+      "provenance": {
+        "produced_at": "2026-09-20T00:59:40.510466+00:00",
+        "market_release_identity": null,
+        "data_cutoff": null,
+        "source_refs": [],
+        "evidence_refs": [],
+        "public_object_refs": [
+          "9043089"
+        ],
+        "capability_call_ref": "market.product.read",
+        "correlation_id": "i1e-f189f75e32654a79a7d415e36158ac96",
+        "governance_ref": null,
+        "provenance_status": "PROVENANCE_INCOMPLETE"
+      },
+      "failures": [],
+      "boundary_identity_ref": "market.public",
+      "runtime_observation": null,
+      "produced_at": "2026-09-20T00:59:40.510466+00:00"
+    },
+    "core_structured_output": {
+      "contract_version": "0.3.0",
+      "capability_id": "market.product.read",
+      "request_id": "core-104e7f3b4fe5434ea1d4cea7460dd61e",
+      "correlation_id": "i1e-f189f75e32654a79a7d415e36158ac96",
+      "operation_status": "SUCCESS",
+      "data_state": "READY",
+      "payload": {
+        "subject_key": "9043089",
+        "theme_id": 43643,
+        "theme_name": "AI智能体Manus",
+        "node_level": "1",
+        "parent_subject_key": null,
+        "ancestors": "0",
+        "binding_status": "active_binding",
+        "summary": "AI智能体Manus：一、Manus动态 2025年12月30日 Manus发布消息称，Manus将加入Meta，开启新一轮探索。",
+        "detail_html": "<p style=\"text-align: center;\"><strong>一、Manus动态</strong></p><p style=\"text-align: left;\"><strong>2025年12月30日</strong></p><p style=\"text-align: left;\">Manus发布消息称，Manus将加入Meta，开启新一轮探索。Manus首席执行官肖弘表示，该交易将不改变Manus运作方式和决策机制。此外，Manus将继续通过app和网站为用户提供产品和订阅服务，同时公司将继续在新加坡运营。根据12月初统计的数据，上线至今，Manus已处理超过147万亿个token，并创建了超过8000万台虚拟计算机。目前这一交易的具体细节尚未公布。</p><p style=\"text-align: center;\"><br></p><p style=\"text-align: center;\"><strong>二、、Manus介绍</strong></p><p>Manus是中国的创业公司Monica发布的全球首款通用Agent（自主智能体）产品。Manus以其强大的独立思考、规划并执行复杂任务的能力，直接交付完整成果，展现了前所未有的通用性和执行能力。据团队介绍，Manus在GAIA基准测试中取得了SOTA（State-of-the-Art）的成绩，显示其性能超越OpenAI的同层次大模型。</p><p>并且，不同于此前各类功能相对简单的人工智能助手，Manus拥有超强学习能力和适应性的“数字大脑”，不再局限于单一任务，而是能够理解复杂指令、自主学习、跨领域协同，真正像人一样思考和行动。<span style=\"color: rgb(34, 34, 34); background-color: rgb(255, 255, 255);\">从发布演示看，Manus在接到指令后可直接操作电脑完成一系列报告撰写、表格制作等，最后导出符合用户需求的成品。</span></p><p>据悉，该团队成员来自中国，团队计划后续开源部分技术，推动AI社区共同发展。</p><p style=\"text-align: center;\"><br></p><p style=\"text-align: center;\"><strong>二、Manus相关股权关系</strong></p><p><img src=\"https://guduoduo-app.oss-cn-beijing.aliyuncs.com/upload/rich/2025/03/06/3d1a414a-2fee-49ef-aa0c-b6c057c79f20-1741254251524.png\" alt=\"\" data-href=\"\" style=\"\"/></p>",
+        "reason_short": null,
+        "detail_version": 1,
+        "is_current": true,
+        "detail_updated_at": "2026-03-31T16:50:13.716658",
+        "history_count": 21,
+        "children_count": 4,
+        "stock_count": 27
+      },
+      "provenance": {
+        "produced_at": "2026-09-20T00:59:40.510466+00:00",
+        "market_release_identity": null,
+        "data_cutoff": null,
+        "source_refs": [],
+        "evidence_refs": [],
+        "public_object_refs": [
+          "9043089"
+        ],
+        "capability_call_ref": "market.product.read",
+        "correlation_id": "i1e-f189f75e32654a79a7d415e36158ac96",
+        "governance_ref": null,
+        "provenance_status": "PROVENANCE_INCOMPLETE"
+      },
+      "failures": [],
+      "boundary_identity_ref": "market.public",
+      "runtime_observation": null,
+      "produced_at": "2026-09-20T00:59:40.510466+00:00"
+    },
+    "semantic_match": true
+  },
+  {
+    "classification": "REAL_PRIMARY",
+    "capability_id": "market.product.linkage.read",
+    "request_id": "core-4ce3a650696248278654fa9d41a9821d",
+    "correlation_id": "i1e-3fbc72163c6a406b85177cbb55e86692",
+    "request_arguments": {
+      "subject_key": "9043089",
+      "mapping_scope": "all",
+      "include_leaders": true,
+      "limit": 100
+    },
+    "case_source": "same source-bound event subject identity",
+    "core_execution_outcome": "success",
+    "core_error": null,
+    "market_envelope": {
+      "contract_version": "0.3.0",
+      "capability_id": "market.product.linkage.read",
+      "request_id": "core-4ce3a650696248278654fa9d41a9821d",
+      "correlation_id": "i1e-3fbc72163c6a406b85177cbb55e86692",
+      "operation_status": "SUCCESS",
+      "data_state": "READY",
+      "payload": [
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "600498",
+          "stock_name": "烽火通信",
+          "relation_type_candidate": "core",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 1,
+          "stock_remark": "全球唯一集“光通信系统、光纤光缆、光电子器件”光通信三大战略技术于一体的科研与产业实体"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "688316",
+          "stock_name": "青云科技",
+          "relation_type_candidate": "core",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 2,
+          "stock_remark": "技术领先的企业级云服务商与数字化解决方案提供商，无缝打通公有云和私有云"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "603220",
+          "stock_name": "中贝通信",
+          "relation_type_candidate": "core",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 3,
+          "stock_remark": "从事通信网络技术服务的高新技术企业，业务以通信网络建设为主"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "300846",
+          "stock_name": "首都在线",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 4,
+          "stock_remark": "覆盖全球的互联网数据中心服务提供商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "300058",
+          "stock_name": "蓝色光标",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 5,
+          "stock_remark": "拥抱元宇宙，出海营销龙头谱写新篇章"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "300454",
+          "stock_name": "深信服",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 6,
+          "stock_remark": "国内虚拟专用网(VPN)市占率第一"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "300348",
+          "stock_name": "长亮科技",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 7,
+          "stock_remark": "国内领先的金融核心系统解决方案供应商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "603039",
+          "stock_name": "泛微网络",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 8,
+          "stock_remark": "业界领先的协同管理软件及相关解决方案供应商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "002065",
+          "stock_name": "东华软件",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 9,
+          "stock_remark": "计算机信息系统集成、信息技术服务及应用软件开发商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "000555",
+          "stock_name": "神州信息",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 10,
+          "stock_remark": "金融科技全产业链综合服务商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "688227",
+          "stock_name": "品高股份",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 11,
+          "stock_remark": "云计算及行业信息化服务提供商，深度合作云计算“国家队”"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "300311",
+          "stock_name": "ST任子行",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 12,
+          "stock_remark": "聚焦网络安全领域，深耕网络空间数据治理"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "688047",
+          "stock_name": "龙芯中科",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 13,
+          "stock_remark": "CPU国内生态体系完善度第三，推出了自主指令系统龙架构"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "301159",
+          "stock_name": "三维天地",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 14,
+          "stock_remark": "专注于检验检测信息化和数据资产管理领域的软件开发服务商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "688244",
+          "stock_name": "永信至诚",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 15,
+          "stock_remark": "主营网络安全产品及服务"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "600133",
+          "stock_name": "东湖高新",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 16,
+          "stock_remark": "主营园区运营、环保科技、工程建设的高新技术产业投资控股公司"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "601933",
+          "stock_name": "永辉超市",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 17,
+          "stock_remark": "农改超起家的全国性超市龙头，拥有领先的生鲜供应链，极少数拥有跨省份生鲜供应能力的企业"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "002212",
+          "stock_name": "天融信",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 18,
+          "stock_remark": "网络安全开拓者，传统硬件优势大，新兴赛道勇立潮头"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "600728",
+          "stock_name": "佳都科技",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 19,
+          "stock_remark": "掌握人脸识别、视频结构化、知识图谱、大数据等人工智能核心技术"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "600050",
+          "stock_name": "中国联通",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 20,
+          "stock_remark": "三大电信运营商之一，基础设施运营服务国家队，全面数字化转型助发展"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "000665",
+          "stock_name": "湖北广电",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 21,
+          "stock_remark": "经营湖北省有线数字电视产业的投资及运营管理"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "600637",
+          "stock_name": "东方明珠",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 22,
+          "stock_remark": "中国第一家生态型综合传媒娱乐集团"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "002599",
+          "stock_name": "盛通股份",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 23,
+          "stock_remark": "北京市优秀的全彩出版物综合印刷服务商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "300525",
+          "stock_name": "博思软件",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 24,
+          "stock_remark": "我国财政信息化龙头，主营政府智慧财政财务、公共采购、智慧城市+数字乡村三大业务。"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "002253",
+          "stock_name": "ST智胜",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 25,
+          "stock_remark": "国内领先的空中交通和地面智能交通系统供应商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "002602",
+          "stock_name": "世纪华通",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 26,
+          "stock_remark": "网络游戏和汽车用塑料零部件双主业的企业"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "001330",
+          "stock_name": "博纳影业",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 27,
+          "stock_remark": "主旋律电影领军者，产业链上下游全面布局，内容打造可持续"
+        }
+      ],
+      "provenance": {
+        "produced_at": "2026-09-20T00:59:40.529163+00:00",
+        "market_release_identity": null,
+        "data_cutoff": null,
+        "source_refs": [
+          "jyhf_stock_daily"
+        ],
+        "evidence_refs": [],
+        "public_object_refs": [
+          "9043089"
+        ],
+        "capability_call_ref": "market.product.linkage.read",
+        "correlation_id": "i1e-3fbc72163c6a406b85177cbb55e86692",
+        "governance_ref": null,
+        "provenance_status": "PROVENANCE_INCOMPLETE"
+      },
+      "failures": [],
+      "boundary_identity_ref": "market.public",
+      "runtime_observation": null,
+      "produced_at": "2026-09-20T00:59:40.529163+00:00"
+    },
+    "core_structured_output": {
+      "contract_version": "0.3.0",
+      "capability_id": "market.product.linkage.read",
+      "request_id": "core-4ce3a650696248278654fa9d41a9821d",
+      "correlation_id": "i1e-3fbc72163c6a406b85177cbb55e86692",
+      "operation_status": "SUCCESS",
+      "data_state": "READY",
+      "payload": [
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "600498",
+          "stock_name": "烽火通信",
+          "relation_type_candidate": "core",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 1,
+          "stock_remark": "全球唯一集“光通信系统、光纤光缆、光电子器件”光通信三大战略技术于一体的科研与产业实体"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "688316",
+          "stock_name": "青云科技",
+          "relation_type_candidate": "core",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 2,
+          "stock_remark": "技术领先的企业级云服务商与数字化解决方案提供商，无缝打通公有云和私有云"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "603220",
+          "stock_name": "中贝通信",
+          "relation_type_candidate": "core",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 3,
+          "stock_remark": "从事通信网络技术服务的高新技术企业，业务以通信网络建设为主"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "300846",
+          "stock_name": "首都在线",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 4,
+          "stock_remark": "覆盖全球的互联网数据中心服务提供商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "300058",
+          "stock_name": "蓝色光标",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 5,
+          "stock_remark": "拥抱元宇宙，出海营销龙头谱写新篇章"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "300454",
+          "stock_name": "深信服",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 6,
+          "stock_remark": "国内虚拟专用网(VPN)市占率第一"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "300348",
+          "stock_name": "长亮科技",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 7,
+          "stock_remark": "国内领先的金融核心系统解决方案供应商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "603039",
+          "stock_name": "泛微网络",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 8,
+          "stock_remark": "业界领先的协同管理软件及相关解决方案供应商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "002065",
+          "stock_name": "东华软件",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 9,
+          "stock_remark": "计算机信息系统集成、信息技术服务及应用软件开发商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "000555",
+          "stock_name": "神州信息",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 10,
+          "stock_remark": "金融科技全产业链综合服务商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "688227",
+          "stock_name": "品高股份",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 11,
+          "stock_remark": "云计算及行业信息化服务提供商，深度合作云计算“国家队”"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "300311",
+          "stock_name": "ST任子行",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 12,
+          "stock_remark": "聚焦网络安全领域，深耕网络空间数据治理"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "688047",
+          "stock_name": "龙芯中科",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 13,
+          "stock_remark": "CPU国内生态体系完善度第三，推出了自主指令系统龙架构"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "301159",
+          "stock_name": "三维天地",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 14,
+          "stock_remark": "专注于检验检测信息化和数据资产管理领域的软件开发服务商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "688244",
+          "stock_name": "永信至诚",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 15,
+          "stock_remark": "主营网络安全产品及服务"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "600133",
+          "stock_name": "东湖高新",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 16,
+          "stock_remark": "主营园区运营、环保科技、工程建设的高新技术产业投资控股公司"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "601933",
+          "stock_name": "永辉超市",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 17,
+          "stock_remark": "农改超起家的全国性超市龙头，拥有领先的生鲜供应链，极少数拥有跨省份生鲜供应能力的企业"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "002212",
+          "stock_name": "天融信",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 18,
+          "stock_remark": "网络安全开拓者，传统硬件优势大，新兴赛道勇立潮头"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "600728",
+          "stock_name": "佳都科技",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 19,
+          "stock_remark": "掌握人脸识别、视频结构化、知识图谱、大数据等人工智能核心技术"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "600050",
+          "stock_name": "中国联通",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 20,
+          "stock_remark": "三大电信运营商之一，基础设施运营服务国家队，全面数字化转型助发展"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "000665",
+          "stock_name": "湖北广电",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 21,
+          "stock_remark": "经营湖北省有线数字电视产业的投资及运营管理"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "600637",
+          "stock_name": "东方明珠",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 22,
+          "stock_remark": "中国第一家生态型综合传媒娱乐集团"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "002599",
+          "stock_name": "盛通股份",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 23,
+          "stock_remark": "北京市优秀的全彩出版物综合印刷服务商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "300525",
+          "stock_name": "博思软件",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 24,
+          "stock_remark": "我国财政信息化龙头，主营政府智慧财政财务、公共采购、智慧城市+数字乡村三大业务。"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "002253",
+          "stock_name": "ST智胜",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 25,
+          "stock_remark": "国内领先的空中交通和地面智能交通系统供应商"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "002602",
+          "stock_name": "世纪华通",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 26,
+          "stock_remark": "网络游戏和汽车用塑料零部件双主业的企业"
+        },
+        {
+          "subject_key": "9043089",
+          "theme_id": 43643,
+          "theme_name": "AI智能体Manus",
+          "stock_id": "001330",
+          "stock_name": "博纳影业",
+          "relation_type_candidate": "member",
+          "mapping_scope": "other",
+          "source_type": "jyhf_stock_daily",
+          "reason": "derived from jyhf stock daily snapshot",
+          "remark": "2026-06-15",
+          "confidence": "0.90",
+          "top": false,
+          "sort": 27,
+          "stock_remark": "主旋律电影领军者，产业链上下游全面布局，内容打造可持续"
+        }
+      ],
+      "provenance": {
+        "produced_at": "2026-09-20T00:59:40.529163+00:00",
+        "market_release_identity": null,
+        "data_cutoff": null,
+        "source_refs": [
+          "jyhf_stock_daily"
+        ],
+        "evidence_refs": [],
+        "public_object_refs": [
+          "9043089"
+        ],
+        "capability_call_ref": "market.product.linkage.read",
+        "correlation_id": "i1e-3fbc72163c6a406b85177cbb55e86692",
+        "governance_ref": null,
+        "provenance_status": "PROVENANCE_INCOMPLETE"
+      },
+      "failures": [],
+      "boundary_identity_ref": "market.public",
+      "runtime_observation": null,
+      "produced_at": "2026-09-20T00:59:40.529163+00:00"
+    },
+    "semantic_match": true
+  },
+  {
+    "classification": "REAL_PRIMARY",
+    "capability_id": "market.state.read",
+    "request_id": "core-5cbccda81bba42f680779d3d1a645142",
+    "correlation_id": "i1e-871ac5aa29584a2db08a28cff748b326",
+    "request_arguments": {
+      "trade_date": "2026-05-15"
+    },
+    "case_source": "same SPS payload exact trade_date",
+    "core_execution_outcome": "success",
+    "core_error": null,
+    "market_envelope": {
+      "contract_version": "0.3.0",
+      "capability_id": "market.state.read",
+      "request_id": "core-5cbccda81bba42f680779d3d1a645142",
+      "correlation_id": "i1e-871ac5aa29584a2db08a28cff748b326",
+      "operation_status": "FAILURE",
+      "data_state": "UNAVAILABLE",
+      "payload": null,
+      "provenance": {
+        "produced_at": "2026-09-20T00:59:40.533964+00:00",
+        "market_release_identity": null,
+        "data_cutoff": null,
+        "source_refs": [],
+        "evidence_refs": [],
+        "public_object_refs": [],
+        "capability_call_ref": "market.state.read",
+        "correlation_id": "i1e-871ac5aa29584a2db08a28cff748b326",
+        "governance_ref": null,
+        "provenance_status": "PROVENANCE_INCOMPLETE"
+      },
+      "failures": [
+        {
+          "kind": "MarketInternalFailure",
+          "code": "repository_protocol_failed",
+          "message": "invalid input for query argument $1: '2026-05-15' ('str' object has no attribute 'toordinal')"
+        }
+      ],
+      "boundary_identity_ref": "market.public",
+      "runtime_observation": null,
+      "produced_at": "2026-09-20T00:59:40.533964+00:00"
+    },
+    "core_structured_output": {
+      "contract_version": "0.3.0",
+      "capability_id": "market.state.read",
+      "request_id": "core-5cbccda81bba42f680779d3d1a645142",
+      "correlation_id": "i1e-871ac5aa29584a2db08a28cff748b326",
+      "operation_status": "FAILURE",
+      "data_state": "UNAVAILABLE",
+      "payload": null,
+      "provenance": {
+        "produced_at": "2026-09-20T00:59:40.533964+00:00",
+        "market_release_identity": null,
+        "data_cutoff": null,
+        "source_refs": [],
+        "evidence_refs": [],
+        "public_object_refs": [],
+        "capability_call_ref": "market.state.read",
+        "correlation_id": "i1e-871ac5aa29584a2db08a28cff748b326",
+        "governance_ref": null,
+        "provenance_status": "PROVENANCE_INCOMPLETE"
+      },
+      "failures": [
+        {
+          "kind": "MarketInternalFailure",
+          "code": "repository_protocol_failed",
+          "message": "invalid input for query argument $1: '2026-05-15' ('str' object has no attribute 'toordinal')"
+        }
+      ],
+      "boundary_identity_ref": "market.public",
+      "runtime_observation": null,
+      "produced_at": "2026-09-20T00:59:40.533964+00:00"
+    },
+    "semantic_match": true
+  },
+  {
+    "classification": "REAL_PRIMARY_NEGATIVE",
+    "capability_id": "market.event.resolve",
+    "request_id": "core-invalid-f248ac89c56d441c8b8b091adef5577f",
+    "correlation_id": "i1e-invalid-a83779fa533c4cc3927413d3b5148fda",
+    "request_arguments": {
+      "feed_date": "2026-05-19",
+      "stock_id": null,
+      "limit": 0
+    },
+    "case_source": "mechanically invalid contract request",
+    "core_execution_outcome": "success",
+    "market_envelope": {
+      "contract_version": "0.3.0",
+      "capability_id": "market.event.resolve",
+      "request_id": "core-invalid-f248ac89c56d441c8b8b091adef5577f",
+      "correlation_id": "i1e-invalid-a83779fa533c4cc3927413d3b5148fda",
+      "operation_status": "FAILURE",
+      "data_state": "NOT_APPLICABLE",
+      "payload": null,
+      "provenance": {
+        "produced_at": "2026-09-20T00:59:40.534469+00:00",
+        "market_release_identity": null,
+        "data_cutoff": null,
+        "source_refs": [],
+        "evidence_refs": [],
+        "public_object_refs": [],
+        "capability_call_ref": "market.event.resolve",
+        "correlation_id": "i1e-invalid-a83779fa533c4cc3927413d3b5148fda",
+        "governance_ref": null,
+        "provenance_status": "PROVENANCE_INCOMPLETE"
+      },
+      "failures": [
+        {
+          "kind": "MarketContractMismatch",
+          "code": "invalid_request",
+          "message": "Invalid event resolve request"
+        }
+      ],
+      "boundary_identity_ref": "market.public",
+      "runtime_observation": null,
+      "produced_at": "2026-09-20T00:59:40.534469+00:00"
+    },
+    "core_structured_output": {
+      "contract_version": "0.3.0",
+      "capability_id": "market.event.resolve",
+      "request_id": "core-invalid-f248ac89c56d441c8b8b091adef5577f",
+      "correlation_id": "i1e-invalid-a83779fa533c4cc3927413d3b5148fda",
+      "operation_status": "FAILURE",
+      "data_state": "NOT_APPLICABLE",
+      "payload": null,
+      "provenance": {
+        "produced_at": "2026-09-20T00:59:40.534469+00:00",
+        "market_release_identity": null,
+        "data_cutoff": null,
+        "source_refs": [],
+        "evidence_refs": [],
+        "public_object_refs": [],
+        "capability_call_ref": "market.event.resolve",
+        "correlation_id": "i1e-invalid-a83779fa533c4cc3927413d3b5148fda",
+        "governance_ref": null,
+        "provenance_status": "PROVENANCE_INCOMPLETE"
+      },
+      "failures": [
+        {
+          "kind": "MarketContractMismatch",
+          "code": "invalid_request",
+          "message": "Invalid event resolve request"
+        }
+      ],
+      "boundary_identity_ref": "market.public",
+      "runtime_observation": null,
+      "produced_at": "2026-09-20T00:59:40.534469+00:00"
+    },
+    "semantic_match": true
+  }
+]
