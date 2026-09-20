@@ -294,7 +294,7 @@ class ConversationRuntime:
                 history=history, user_msg_id=user_msg_id,
                 interaction=working, lock=lock,
             )
-        except Exception:
+        except BaseException:
             lock.release()
             raise
 
