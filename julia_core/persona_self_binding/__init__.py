@@ -25,6 +25,10 @@ from julia_core.persona_self_binding.durable import (
     PersonaSelfBindingRecord,
     PersonaSelfBindingStore,
 )
+from julia_core.persona_self_binding.projection import (
+    PersonaSelfBindingProjector,
+    PersonaSelfBindingProjection,
+)
 
 __all__ = [
     "AuthorityFamily",
@@ -41,6 +45,8 @@ __all__ = [
     "PersonaSelfBindingLifecycle",
     "PersonaSelfBindingRecord",
     "PersonaSelfBindingStore",
+    "PersonaSelfBindingProjector",
+    "PersonaSelfBindingProjection",
     "RelationshipAuthority",
     "RelationshipAuthorityState",
     "SupersessionContract",
