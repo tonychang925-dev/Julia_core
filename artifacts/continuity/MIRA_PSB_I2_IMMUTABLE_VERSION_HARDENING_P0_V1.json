@@ -1,0 +1,67 @@
+{
+  "task_id": "MIRA-PSB-I2-DURABLE-SERIALIZATION-GOVERNANCE-P0.1",
+  "execution_agent": "LOCAL_CODEX_ONLY",
+  "review_comment_id": 5756234552,
+  "implementation_base_sha": "69ba027d354f6bfe2e65f8edeb699341376a154b",
+  "implementation_parent_sha": "69ba027d354f6bfe2e65f8edeb699341376a154b",
+  "implementation_candidate_sha": "012b1ebb0725164b8117d5580c73c2371638a57f",
+  "branch": "mira/psb-i2-durable-governance-p0",
+  "selected_source_paths": [
+    "julia_core/persona_self_binding/**",
+    "tests/persona_self_binding/**"
+  ],
+  "changed_files": [
+    "julia_core/persona_self_binding/contracts.py",
+    "julia_core/persona_self_binding/durable.py",
+    "tests/persona_self_binding/test_durable_governance.py"
+  ],
+  "diffstat": "3 files changed, 176 insertions(+), 1 deletion(-)",
+  "immutable_version_contract": {
+    "result": "PASS",
+    "same_version_semantic_payload_enforced": true,
+    "allowed_evolving_fields": [
+      "lifecycle_status",
+      "governance_provenance",
+      "supersession"
+    ],
+    "new_error_code": "PSB_IMMUTABLE_VERSION_MUTATION"
+  },
+  "sabotage_tests": {
+    "result": "PASS",
+    "identity_authority_mutation_rejected": true,
+    "persona_self_id_mutation_rejected": true,
+    "relationship_authority_mutation_rejected": true,
+    "execution_substrate_policy_mutation_rejected": true,
+    "predecessor_metadata_mutation_rejected": true,
+    "legitimate_lifecycle_provenance_append_accepted": true
+  },
+  "focused_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest tests/persona_self_binding -q",
+      "result": "PASS: 41 passed"
+    }
+  ],
+  "regression_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest tests/runtime_binding/test_runtime_canonical_reference_binding.py tests/projection/test_identity_only_persona_projection.py tests/projection/test_memory_experience_to_experience_frame.py tests/context_admission/test_semantic_binding_v3_projection.py tests/runtime/test_mira_composition.py --deselect tests/projection/test_identity_only_persona_projection.py::test_changed_scope_is_limited_to_authorized_eng08_paths -q",
+      "result": "PASS: 63 passed, 1 inherited pre-existing assertion deselected"
+    }
+  ],
+  "ncf_gate": {
+    "result": "PASS",
+    "p0_new": 0,
+    "p1_new": 0,
+    "p2_new": 0
+  },
+  "git_diff_check": "PASS",
+  "runtime_wiring_changed": false,
+  "c03_changed": false,
+  "provider_transport_changed": false,
+  "projection_changed": false,
+  "relationship_frame_implemented": false,
+  "provider_descriptor_implemented": false,
+  "dispatch_receipt_implemented": false,
+  "rd1_changed_files": [],
+  "implementation_scope": "PSB_I2_IMMUTABLE_VERSION_VALIDATION_HARDENING_ONLY",
+  "final_result": "PASS_PSB_I2_IMMUTABLE_VERSION_HARDENING_READY_FOR_OWNER_REVIEW"
+}
