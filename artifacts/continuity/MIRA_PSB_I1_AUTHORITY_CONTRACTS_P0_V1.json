@@ -1,0 +1,137 @@
+{
+  "task_id": "MIRA-PSB-I1-AUTHORITY-CONTRACTS-P0",
+  "execution_agent": "LOCAL_CODEX_ONLY",
+  "design_sha": "73d5ecb1c2fc0e6dd70bccfe423c79a3370c0fa5",
+  "implementation_base_sha": "73d5ecb1c2fc0e6dd70bccfe423c79a3370c0fa5",
+  "parent_sha": "27fcc663d25892bdf9209b8ff6792231d0f634ce",
+  "candidate_sha": "a31c4576d79b916cdfcaf035558b73ffc61e3da7",
+  "branch": "mira/psb-i1-authority-contracts-p0",
+  "changed_files": [
+    "julia_core/persona_self_binding/__init__.py",
+    "julia_core/persona_self_binding/contracts.py",
+    "tests/persona_self_binding/__init__.py",
+    "tests/persona_self_binding/test_authority_contracts.py"
+  ],
+  "diffstat": "4 files changed, 1168 insertions(+)",
+  "selected_source_paths": [
+    "julia_core/persona_self_binding/**",
+    "tests/persona_self_binding/**"
+  ],
+  "forbidden_paths_respected": true,
+  "schema_contracts": {
+    "status": "PASS",
+    "paths": [
+      "julia_core/persona_self_binding/contracts.py",
+      "tests/persona_self_binding/test_authority_contracts.py"
+    ]
+  },
+  "lifecycle_states": [
+    "DRAFT",
+    "GOVERNANCE_REVIEW",
+    "ADMITTED_ACTIVE",
+    "ADMITTED_SUPERSEDED",
+    "RETIRED_HISTORICAL",
+    "REJECTED",
+    "REVOKED_INVALID",
+    "CORRUPT_QUARANTINED"
+  ],
+  "governance_events": [
+    "PROPOSE_BINDING",
+    "REVIEW_BINDING",
+    "REJECT_BINDING",
+    "ADMIT_AND_ACTIVATE",
+    "REBIND_AUTHORITY_VERSION",
+    "SUPERSEDE_BINDING",
+    "REVOKE_INVALID",
+    "RETIRE_HISTORICAL",
+    "QUARANTINE_CORRUPTION"
+  ],
+  "relationship_tri_state": {
+    "status": "PASS",
+    "states": [
+      "ABSENT",
+      "ADMITTED_BOUND",
+      "EXPLICITLY_EMPTY"
+    ]
+  },
+  "execution_substrate_policy": {
+    "status": "PASS",
+    "role": "EXECUTION_SUBSTRATE",
+    "provider_is_persona_self": false,
+    "provider_neutral": true,
+    "provider_special_cases": []
+  },
+  "authority_reference_contract": {
+    "status": "PASS",
+    "families": [
+      "IdentityFrameSet",
+      "ExperienceFrameSet",
+      "RelationshipFrameSet"
+    ]
+  },
+  "digest_contract": {
+    "status": "PASS",
+    "canonicalization": "UTF8_JSON_SORTED_KEYS_COMPACT",
+    "algorithm": "sha256"
+  },
+  "error_codes": [
+    "PSB_SCHEMA_INVALID",
+    "PSB_DIGEST_INVALID",
+    "PSB_RELATIONSHIP_STATE_INVALID",
+    "PSB_PROVIDER_FIELD_FORBIDDEN",
+    "PSB_LIFECYCLE_INVALID",
+    "PSB_GOVERNANCE_EVENT_INVALID",
+    "PSB_PREDECESSOR_INVALID",
+    "PSB_DUPLICATE_AUTHORITY_FAMILY"
+  ],
+  "identity_authority_assertion_schema": {
+    "status": "PASS",
+    "classifier_implemented": false,
+    "outcomes": [
+      "NO_IDENTITY_AUTHORITY_CONFLICT",
+      "RESOLVED_CONTRADICTION",
+      "UNRESOLVED_IDENTITY_OVERRIDE"
+    ]
+  },
+  "focused_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest tests/persona_self_binding/test_authority_contracts.py -q",
+      "result": "PASS: 19 passed"
+    },
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest tests/persona_self_binding/test_authority_contracts.py tests/governance/test_no_critical_fallback_gate.py -q",
+      "result": "PASS: 23 passed, 16 subtests passed"
+    }
+  ],
+  "regression_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest tests/runtime_binding/test_runtime_canonical_reference_binding.py tests/projection/test_identity_only_persona_projection.py tests/projection/test_memory_experience_to_experience_frame.py tests/context_admission/test_semantic_binding_v3_projection.py tests/runtime/test_mira_composition.py -q",
+      "result": "FAIL_PREEXISTING: 63 passed, 1 failed; test_changed_scope_is_limited_to_authorized_eng08_paths failed at the exact implementation base before this task"
+    },
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest tests/runtime_binding/test_runtime_canonical_reference_binding.py tests/projection/test_identity_only_persona_projection.py tests/projection/test_memory_experience_to_experience_frame.py tests/context_admission/test_semantic_binding_v3_projection.py tests/runtime/test_mira_composition.py --deselect tests/projection/test_identity_only_persona_projection.py::test_changed_scope_is_limited_to_authorized_eng08_paths -q",
+      "result": "PASS: 63 passed, 1 deselected"
+    }
+  ],
+  "ncf_gate": {
+    "result": "PASS",
+    "command": "/opt/miniconda3/bin/python tools/no_critical_fallback_gate.py --repo Julia_core --baseline ncf-baseline.json --json --fail-p2 --files julia_core/persona_self_binding/__init__.py julia_core/persona_self_binding/contracts.py",
+    "new_violations": 0,
+    "full_repository_note": "Full-repository scan has one P2 baseline mismatch inherited from the exact implementation base; the changed-file gate reports zero new violations."
+  },
+  "git_diff_check": "PASS",
+  "runtime_wiring_changed": false,
+  "c03_changed": false,
+  "provider_transport_changed": false,
+  "durable_persistence_changed": false,
+  "relationship_frame_implemented": false,
+  "rd1_changed_files": [],
+  "fallback_used": false,
+  "mock_production_used": false,
+  "stub_production_used": false,
+  "shadow_persona_used": false,
+  "synthetic_binding_used": false,
+  "prompt_patch_used": false,
+  "implementation_scope": "PSB_I1_AUTHORITY_CONTRACTS_ONLY",
+  "final_result": "PASS_PSB_I1_AUTHORITY_CONTRACTS_READY_FOR_OWNER_REVIEW"
+}
