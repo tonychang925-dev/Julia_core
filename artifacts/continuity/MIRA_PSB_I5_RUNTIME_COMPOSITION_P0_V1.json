@@ -1,0 +1,103 @@
+{
+  "task_id": "MIRA-PSB-I5-GOLDEN-MIRA-RUNTIME-COMPOSITION-P0",
+  "issue": 150,
+  "execution_agent": "LOCAL_CODEX_ONLY",
+  "authorized_phase": "PSB-I5_ONLY",
+  "implementation_base_sha": "ca3cb805de38538d52237676e9320ac1a8d6bd02",
+  "implementation_parent_sha": "ca3cb805de38538d52237676e9320ac1a8d6bd02",
+  "implementation_candidate_sha": "91d5d6c87596975b017ae2bc6bf33860e10dc5e0",
+  "evidence_parent_sha": "91d5d6c87596975b017ae2bc6bf33860e10dc5e0",
+  "branch": "mira/psb-i5-runtime-composition-p0",
+  "psb_store_root": "/Users/admin/.julia_mira_e2e/authority-runtime/persona-self-binding-store-v1",
+  "active_binding_id": "golden-mira-persona-self-binding-v1",
+  "active_binding_version": "v1",
+  "active_binding_digest": "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad",
+  "active_projection_digest": "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b",
+  "runtime_composition_path": "julia_core/runtime/mira_composition.py",
+  "runtime_semantic_binder": "ExactPersonaSelfBoundSemanticBinder",
+  "model_visible_unit_count": 4,
+  "model_visible_order": [
+    "persona_self_binding",
+    "identity_frame_set",
+    "experience_frame_set",
+    "current_task_context"
+  ],
+  "model_visible_roles": [
+    "system",
+    "system",
+    "system",
+    "user"
+  ],
+  "parent_binding_digest": "6e3febd1c9c1d88a820dba7a43e23db928be54c0b226c9f0a14fa9ea0e1121ef",
+  "identity_authority_match": {
+    "result": "PASS",
+    "source_digest": "b9c8f7af16fc7de6210df0833447503f8b3e89dc505746c2c232054f36506c69",
+    "projected_digest": "5b499e7daa97b99a87171f45c960cabef68146e167c803c4a332c9393b77984b"
+  },
+  "experience_authority_match": {
+    "result": "PASS",
+    "source_digest": "1ef2c6d15468c7695530c1a5baa2b123bdde267e0f86d2b6e236dce68b280b77",
+    "projected_digest": "5681c18438bd847a9ede3c87e24543084870626acec8163cb9e5217af809ef8a"
+  },
+  "relationship_state": "ABSENT",
+  "task_text_mutated_psb_projection": false,
+  "negative_controls": {
+    "result": "PASS",
+    "missing_store_fail_closed": true,
+    "corrupt_store_fail_closed": true,
+    "zero_active_binding_fail_closed": true,
+    "duplicate_active_binding_fail_closed": true,
+    "binding_digest_mismatch_fail_closed": true,
+    "lineage_mismatch_fail_closed": true,
+    "identity_authority_mismatch_fail_closed": true,
+    "experience_authority_mismatch_fail_closed": true,
+    "projection_mismatch_fail_closed": true,
+    "parent_binding_mismatch_fail_closed": true,
+    "old_three_unit_fallback_present": false
+  },
+  "focused_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest -q tests/runtime/test_mira_psb_composition.py tests/runtime/test_mira_composition.py",
+      "result": "PASS: 24 passed"
+    },
+    {
+      "command": "/opt/miniconda3/bin/python -m py_compile julia_core/alignment_os/adapter.py julia_core/alignment_os/contracts.py julia_core/runtime/assistant_runtime.py julia_core/runtime/mira_composition.py tests/runtime/test_mira_composition.py tests/runtime/test_mira_psb_composition.py",
+      "result": "PASS"
+    }
+  ],
+  "regression_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest -q tests/runtime/test_mira_psb_composition.py tests/runtime/test_mira_composition.py tests/persona_self_binding tests/context_admission/test_psb_c03_parent_binding.py tests/context_admission/test_semantic_binding_v3_projection.py tests/durable_authority tests/canonical_authority tests/context_admission/test_p3_n0_alignment_boundary.py tests/runtime/test_p3_n0_runtime_envelope.py tests/runtime_binding tests/test_alignment_os_independence.py tests/test_alignment_os_v1.py",
+      "result": "PASS: 189 passed"
+    }
+  ],
+  "ncf_gate": {
+    "command": "/opt/miniconda3/bin/python tools/no_critical_fallback_gate.py --repo . --files julia_core/alignment_os/adapter.py julia_core/alignment_os/contracts.py julia_core/runtime/assistant_runtime.py julia_core/runtime/mira_composition.py tests/runtime/test_mira_composition.py tests/runtime/test_mira_psb_composition.py --json",
+    "result": "PASS",
+    "p0_new": 0,
+    "p1_new": 0,
+    "p2_new": 0,
+    "baseline_expanded": false
+  },
+  "git_diff_check": "PASS",
+  "changed_files": [
+    "julia_core/alignment_os/adapter.py",
+    "julia_core/alignment_os/contracts.py",
+    "julia_core/runtime/assistant_runtime.py",
+    "julia_core/runtime/mira_composition.py",
+    "tests/runtime/test_mira_composition.py",
+    "tests/runtime/test_mira_psb_composition.py"
+  ],
+  "downstream_seam_justification": "alignment_os adapter/contracts accept and seal the exact already-accepted PSB-bound bundle; no provider transport, descriptor, dispatch, or provider call was changed.",
+  "runtime_wiring_changed": true,
+  "provider_transport_changed": false,
+  "provider_descriptor_implemented": false,
+  "dispatch_receipt_implemented": false,
+  "real_provider_called": false,
+  "relationship_frame_implemented": false,
+  "old_three_unit_fallback_present": false,
+  "raw_canonical_fallback_used": false,
+  "synthetic_psb_used": false,
+  "rd1_changed_files": 0,
+  "final_result": "PASS_PSB_I5_RUNTIME_COMPOSITION_READY_FOR_OWNER_REVIEW"
+}
