@@ -57,7 +57,7 @@ The registry only resolves an explicitly registered object and never synthesizes
 | ToolResult/Evidence → structured evidence frame | `julia_core/runtime/context_execution_runtime.py:617`, `:625` | CANONICAL projection |
 | Evidence frame → exact provider bundle | absent | UNWIRED |
 
-The current package already maintains an ordered, append-only `turn_evidence_ledger` with validated `generation_id`, exact ToolResult view, and Evidence views (`julia_core/runtime/context_execution_runtime.py:645`, `:648`, `:653`, `:894`). That carrier is the strongest existing I3 semantic source, but it currently stops at `to_messages()` rendering.
+The current package also maintains an ordered, append-only `turn_evidence_ledger` with validated `generation_id`, ToolResult views, and Evidence views (`julia_core/runtime/context_execution_runtime.py:645`, `:648`, `:653`, `:894`). That ledger is derived model context, not canonical ToolResult/Evidence authority. It may cross-check ordering and serve as a compatibility/regression oracle; its semantic bytes must not be promoted into a new authority source. Exact admission must return to the canonical capability execution lineage.
 
 ### 2.4 Exact C03/C07 chain present in Core
 
@@ -185,16 +185,16 @@ The donor transport tests prove message preservation, exact-type rejection, alig
 | Property | Assessment |
 |---|---|
 | Authority owner | Core C03 incremental gate/binder; base bundle and evidence plane remain separate |
-| Provenance source | one exact `CapabilityEvidenceSet` built from current projection: ordered `turn_evidence_ledger`, ToolResult view, resolved Evidence views, generation lineage |
+| Provenance source | exact typed ToolResult objects from the canonical capability path plus canonical Evidence objects resolved through the capability manager and exact `evidence_refs` |
 | Market/Research semantics | copy/serialize exact typed views; no domain re-authoring |
 | Conversation authority | no ConversationRuntime mutation and no bounded_state use |
 | C-07 §11 | exact base C03 plus exact incremental C03 feed one Alignment/Provider execution |
-| I3 ordered ledger | ledger is the canonical order source; entries remain inspectable by generation/call/evidence IDs |
+| I3 ordered lineage | order comes from immutable capability-call/pass/generation lineage; `turn_evidence_ledger` is only a derived ordering cross-check and compatibility oracle |
 | Contract changes | new exact evidence input/set/receipt/bundle; composition request accepting base + optional incremental bundle; ProviderExecutionEnvelope v2 with both fingerprints |
 | Compatibility risk | envelope v1 donor needs a narrow adapter; base bundle remains stable |
 | Verdict | RECOMMENDED |
 
-The no-evidence first pass can continue to use the exact base bundle. Pass N+1 receives base semantics plus the separately sealed incremental evidence bundle. Alignment cannot select, summarize, drop, or reinterpret evidence; Context OS performs any required budgeting before admission, consistent with C-09 (`docs/architecture/C-09_ALIGNMENT_CONTRACT.md:25`, `:43`, `:51`).
+The no-evidence first pass can continue to use the exact base bundle. Pass N+1 receives base semantics plus the separately sealed incremental evidence bundle. Alignment cannot select, summarize, drop, or reinterpret evidence. In P0, Core checks deterministic size/cardinality limits before admission and fails typed on overflow; it does not rebudget or compact semantics, consistent with C-09 (`docs/architecture/C-09_ALIGNMENT_CONTRACT.md:25`, `:43`, `:51`).
 
 ### Option C — Put evidence in `CurrentConversationalTaskContext.bounded_state`
 
@@ -207,23 +207,24 @@ REJECTED. Rendering is representation, not admission. `to_messages()` explicitly
 ## 8. Recommended Architecture
 
 1. Preserve the existing base three-unit admission chain unchanged for pass 1.
-2. Define an exact Core `CapabilityEvidenceSet` carrier from the already validated I3 projection:
-   - ordered `turn_evidence_ledger`;
-   - exact ToolResult view with status, provider, schema version, structured output reference/shape, and correlation IDs;
-   - resolved Evidence views with evidence IDs, source refs, provenance, observed/retrieved times, and integrity metadata;
-   - parent/base package and projection generation lineage;
-   - explicit distinction between evidence and control projections.
+2. Define an exact Core `CapabilityEvidenceSet` carrier from canonical capability lineage:
+   - exact typed ToolResult objects with immutable `tool_result_id`/`capability_call_id` correlation, status, provider, schema version, structured-output reference, and provenance fields;
+   - canonical Evidence objects resolved through the capability manager and exact `evidence_refs`, retaining `evidence_id`, source refs, provenance, timestamps, and integrity metadata;
+   - immutable `turn_id`, `generation_id`, pass index, capability-call order, and exact ID joins;
+   - explicit distinction between evidence and control projections;
+   - derived `turn_evidence_ledger` comparison only for ordering/continuity cross-check and compatibility tests, never semantic authority.
 3. Seal and bind that set through a separate exact incremental-evidence gate/binder; never mutate `CurrentConversationalTaskContext.bounded_state`.
-4. Create `ProviderExecutionEnvelope.v2` from `(base AdmittedSemanticBundle, optional AdmittedIncrementalEvidenceBundle)`:
+4. Freeze P0 admission size/cardinality limits before admission. No semantic compaction, summarization, silent truncation, silent drop, or reordering is allowed. Exact evidence beyond the frozen limit fails typed `context_evidence_budget_exceeded`; Alignment and provider transport never choose what to retain.
+5. Create `ProviderExecutionEnvelope.v2` from `(base AdmittedSemanticBundle, optional AdmittedIncrementalEvidenceBundle)`:
    - base semantic fingerprint;
    - incremental evidence fingerprint when present;
    - immutable ordered semantic units;
    - no provider-side reconstruction;
    - verification of both receipts and combined fingerprint.
-5. Replace production `provider.chat(messages)` with a Core `ModelProvider.execute(envelope)`-style exact ingress; streaming and non-streaming implement the same contract.
-6. Implement a Core-owned transport-only DeepSeek provider for the immediate correction, replaying only the donor mechanics listed above.
-7. Add Core cold-start initialization before serving; Assistant remains process/transport host and supplies no provider object.
-8. Rerun exact Issue #140 Market-only A/B acceptance only after the above slices pass focused contract tests.
+6. Replace production `provider.chat(messages)` with a Core `ModelProvider.execute(envelope)`-style exact ingress; streaming and non-streaming implement the same contract.
+7. Implement a Core-owned transport-only DeepSeek provider for the immediate correction, replaying only the donor mechanics listed above.
+8. Add Core cold-start initialization before serving; Assistant remains process/transport host and supplies no provider object.
+9. Rerun exact Issue #140 Market-only A/B acceptance only after the above slices pass focused contract tests.
 
 This recommendation follows C-07's same-turn generation model: G1 base → structured call → C08 → ToolResult → C03 → G2 provider continuation (`docs/architecture/C-07_MODEL_PROVIDER_CONTRACT.md:126`, `:130`).
 
@@ -245,15 +246,15 @@ Owner must approve:
 1. recommended Option B versus Option A;
 2. exact `ProviderExecutionEnvelope.v2` shape, message-role policy, and combined fingerprint algorithm;
 3. whether the immediate provider implementation remains a Core module or is extracted to a separate package before implementation;
-4. evidence budget/compaction policy and maximum serialized shape, provided budgeting remains in Context OS before admission;
+4. exact P0 size/cardinality limits and serialized shape, with typed `context_evidence_budget_exceeded` overflow and no compaction/truncation;
 5. sequencing and rollout of transitional `to_messages()` retirement.
 
 This document's recommendation is not implementation authorization.
 
 ## 10. Exact Implementation Slices After Approval
 
-1. **C03 evidence contract slice:** define exact `CapabilityEvidenceSet`, incremental admission request/receipt/binder, and envelope v2 composition. Contract/sabotage tests first; no runtime cutover.
-2. **Projection join slice:** convert current validated `project_tool_result()` output into the exact incremental carrier without changing Market/Research types or Conversation authority.
+1. **C03 evidence contract slice:** define exact `CapabilityEvidenceSet`, canonical ToolResult/Evidence ID joins, incremental admission request/receipt/binder, deterministic size/cardinality budget, typed overflow, and envelope v2 composition. Contract/sabotage tests first; no runtime cutover.
+2. **Canonical lineage join slice:** construct the incremental carrier directly from canonical CapabilityCall lineage, exact typed ToolResults, and canonical Evidence resolved through the capability manager; use `project_tool_result()`/`turn_evidence_ledger` only as ordering/compatibility cross-checks without changing Market/Research types or Conversation authority.
 3. **Provider contract slice:** change Core production provider ingress to exact envelope execution and add typed transport/configuration failures; no provider implementation yet.
 4. **Core DeepSeek transport slice:** implement only donor-approved mechanics in Core; prove credential fail-closed, exact envelope acceptance, payload mapping, timeout/error handling, and stream/non-stream parity.
 5. **Cold-start slice:** add one-shot Core initialization and wire the canonical Assistant process entrypoint to that public lifecycle seam; no provider object crosses conversation ingress.
@@ -265,8 +266,9 @@ This document's recommendation is not implementation authorization.
 
 | Acceptance | Required proof |
 |---|---|
-| Exact evidence admission | evidence source objects are exact types; forged/stale/duplicate/partial evidence fails closed |
-| Ordered continuity | all prior evidence entries remain in generation order and resolve to canonical ToolResult/Evidence IDs |
+| Exact evidence admission | semantic authority starts with canonical ToolResult/Evidence objects, not `turn_evidence_ledger`; forged/stale/duplicate/partial or unresolved ID joins fail closed |
+| Ordered continuity | all prior evidence entries remain in canonical capability-call/pass/generation order and resolve by immutable ToolResult/Evidence IDs; ledger order agrees or admission fails |
+| P0 evidence budget | deterministic size/cardinality check occurs before admission; overflow raises typed `context_evidence_budget_exceeded`; no semantic compaction, summarization, truncation, drop, or reordering |
 | C03 composition | base receipt and incremental receipt are verified before provider execution |
 | No authority laundering | `CurrentConversationalTaskContext.bounded_state` has no capability evidence fields |
 | No semantic reconstruction | provider source contains no Persona/history retrieval/system prompt assembly/ProviderBehaviorAdapter use |
@@ -289,6 +291,8 @@ This document's recommendation is not implementation authorization.
 - No wholesale donor file/branch cherry-pick.
 - No reuse of donor caller-supplied frames or direct OpenAI-compatible provider route.
 - No raw rendered evidence text outside exact admission.
+- No semantic evidence compaction, summarization, silent truncation, silent drop, or reordering in P0.
+- No Alignment/provider-side evidence selection when the frozen budget is exceeded.
 - No Market or Research semantic normalization.
 - No destructive retirement of transitional surfaces in this task.
 - No merge, release, or deployment.
