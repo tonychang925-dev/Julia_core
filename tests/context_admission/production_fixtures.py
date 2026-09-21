@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from hashlib import sha256
+
 from julia_core.identity import IdentityRef, IdentityStatus
 from julia_core.memory_experience import (
     MemoryExperienceRef,
@@ -18,6 +20,21 @@ from julia_core.context_admission import (
     CanonicalConversationSource,
     CurrentConversationalTaskContext,
     ExclusiveAdmissionRequest,
+)
+from julia_core.context_admission.contracts import canonical_json
+from julia_core.persona_self_binding import (
+    AuthorityFamily,
+    AuthorityReference,
+    ExecutionSubstratePolicy,
+    GovernanceEventType,
+    GovernanceProvenanceEvent,
+    IntegrityContract,
+    PersonaSelfBinding,
+    PersonaSelfBindingLifecycle,
+    PersonaSelfBindingProjector,
+    RelationshipAuthority,
+    RelationshipAuthorityState,
+    SupersessionContract,
 )
 
 
@@ -120,3 +137,56 @@ def canonical_request(
         ),
         current_task_context=current_task or canonical_current_task_context(),
     )
+
+
+def canonical_persona_self_binding(
+    *,
+    identity: IdentityFrameSet | None = None,
+    experiences: ExperienceFrameSet | None = None,
+):
+    identity_frames = identity or canonical_identity_frame_set()
+    experience_frames = experiences or canonical_experience_frame_set()
+
+    def projected_digest(frame_set) -> str:
+        return sha256(
+            canonical_json(frame_set.model_visible_projection()).encode("utf-8")
+        ).hexdigest()
+
+    binding = PersonaSelfBinding(
+        schema_version="julia_core.persona_self_binding.v1",
+        binding_id="persona-binding-eng12a",
+        persona_self_id="persona-self-eng12a",
+        identity_authority=AuthorityReference(
+            authority_type=AuthorityFamily.IDENTITY_FRAME_SET,
+            authority_id="identity-frame-set-eng12a",
+            source_digest=identity_frames.digest(),
+            projected_digest=projected_digest(identity_frames),
+        ),
+        experience_authority=AuthorityReference(
+            authority_type=AuthorityFamily.EXPERIENCE_FRAME_SET,
+            authority_id="experience-frame-set-eng12a",
+            source_digest=experience_frames.digest(),
+            projected_digest=projected_digest(experience_frames),
+        ),
+        relationship_authority=RelationshipAuthority(
+            RelationshipAuthorityState.ABSENT, None
+        ),
+        execution_substrate_policy=ExecutionSubstratePolicy(),
+        binding_version="v1",
+        predecessor_binding_id=None,
+        predecessor_binding_version=None,
+        lineage_id="persona-lineage-eng12a",
+        lifecycle_status=PersonaSelfBindingLifecycle.ADMITTED_ACTIVE,
+        supersession=SupersessionContract(None, None),
+        governance_provenance=(
+            GovernanceProvenanceEvent(
+                event_id="admit-persona-binding",
+                event_type=GovernanceEventType.ADMIT_AND_ACTIVATE,
+                actor="owner-governance",
+                reason="test fixture admission",
+                occurred_at="2026-09-21T00:00:00Z",
+            ),
+        ),
+        integrity=IntegrityContract("UTF8_JSON_SORTED_KEYS_COMPACT", "sha256"),
+    )
+    return binding, PersonaSelfBindingProjector.project(binding)
