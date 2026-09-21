@@ -190,7 +190,7 @@ def test_sync_path_executes_tool_and_reenters_through_context_os(monkeypatch):
     carrier = session.capability.outcome
     assert reply == "final answer after context projection"
     assert len(session.provider.chat_calls) == 2
-    assert len(session.capability.detect_tool_call_inputs) >= 1
+    assert session.capability.detect_tool_call_inputs == []
     assert len(session.capability.execute_tool_typed_calls) == 1
     assert len(session.context_os.project_tool_result_calls) == 1
     dispatched = session.context_os.project_tool_result_calls[0]

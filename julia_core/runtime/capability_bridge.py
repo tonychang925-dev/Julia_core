@@ -53,6 +53,13 @@ class CapabilityPreAuthorizationFailure:
     reason: str  # "UNKNOWN" | "DISABLED"
 
 
+@dataclass(frozen=True, slots=True)
+class ToolCallDecodeFailure:
+    """Bridge-local typed control outcome for an undecodable model call."""
+
+    reason: str  # "MALFORMED_JSON" | "MISSING_NAME" | "INVALID_CALL_SHAPE"
+
+
 class ProviderAlreadyRegisteredError(RuntimeError):
     """A different provider is already bound to a provider namespace."""
 
@@ -545,23 +552,36 @@ class RuntimeCapabilityBridge:
     def execute_tool_typed(
         self,
         tool_json: str,
-    ) -> CapabilityExecution | CapabilityPreAuthorizationFailure | None:
+    ) -> CapabilityExecution | CapabilityPreAuthorizationFailure | ToolCallDecodeFailure:
         """P3.2.2B typed delivery seam.
 
         Decodes the same tool-call JSON, normalizes legacy names, and delivers
         the exact CapabilityExecution from Manager for recognized, non-DISABLED
         capabilities. Returns a CapabilityPreAuthorizationFailure for
-        UNKNOWN/DISABLED and None for malformed input. Never flattens the
+        UNKNOWN/DISABLED and ToolCallDecodeFailure for malformed input. Never flattens the
         carrier, never scans Manager lists, never selects latest artifacts.
         """
         self.initialize()
 
         try:
             call = _json.loads(tool_json)
+        except (_json.JSONDecodeError, TypeError):
+            return ToolCallDecodeFailure("MALFORMED_JSON")
+        if not isinstance(call, dict):
+            return ToolCallDecodeFailure("INVALID_CALL_SHAPE")
+        if (
+            "name" not in call
+            or not isinstance(call["name"], str)
+            or not call["name"].strip()
+        ):
+            return ToolCallDecodeFailure("MISSING_NAME")
+        if "arguments" not in call or not isinstance(call["arguments"], dict):
+            return ToolCallDecodeFailure("INVALID_CALL_SHAPE")
+        try:
             name = call["name"]
             args = call.get("arguments", {})
-        except (_json.JSONDecodeError, KeyError):
-            return None
+        except (KeyError, TypeError):
+            return ToolCallDecodeFailure("INVALID_CALL_SHAPE")
 
         # Map legacy tool names to new capability names
         legacy_to_new = {

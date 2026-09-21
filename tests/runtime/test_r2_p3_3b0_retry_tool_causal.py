@@ -44,8 +44,19 @@ class _Provider:
     def chat(self, messages, cognitive_mode=""):
         self.chat_calls.append(list(messages))
         if len(self.chat_calls) == 1:
-            return "pass-1 reply (no tool)"
+            return "```tool_call\n{broken\n```"
         if len(self.chat_calls) == 2:
+            return '```tool_call\n{"name":"read_file","arguments":{"path":"x"}}\n```'
+        return "final answer"
+
+
+class _ImmediateProvider:
+    def __init__(self):
+        self.chat_calls: list[list[dict]] = []
+
+    def chat(self, messages, cognitive_mode=""):
+        self.chat_calls.append(list(messages))
+        if len(self.chat_calls) == 1:
             return '```tool_call\n{"name":"read_file","arguments":{"path":"x"}}\n```'
         return "final answer"
 
@@ -95,12 +106,18 @@ class _ImmediateToolCapability:
 class _ContextOS:
     def __init__(self):
         self.project_retry_control_calls: list[dict[str, Any]] = []
+        self.project_tool_call_decode_failure_calls: list[dict[str, Any]] = []
         self.project_tool_result_calls: list[dict[str, Any]] = []
         self.project_capability_resolution_failure_calls: list[dict[str, Any]] = []
 
     def project_retry_control(self, **kwargs):
         pkg = _DeltaPackage(RETRY_SENTINEL)
         self.project_retry_control_calls.append({**kwargs, "returned": pkg})
+        return pkg
+
+    def project_tool_call_decode_failure(self, **kwargs):
+        pkg = _DeltaPackage(RETRY_SENTINEL)
+        self.project_tool_call_decode_failure_calls.append({**kwargs, "returned": pkg})
         return pkg
 
     def project_tool_result(self, **kwargs):
@@ -177,19 +194,19 @@ def _allow_outcome() -> CapabilityExecution:
     )
 
 
-def test_retry_then_allow_projects_from_retry_parent(monkeypatch):
+def test_decode_failure_then_allow_projects_from_control_parent(monkeypatch):
     capability = _RetryThenToolCapability(_allow_outcome())
     session, captured = _session(monkeypatch, capability)
 
     session.process("need evidence", [], conversation_id="conv", turn_id="turn")
 
     p0 = captured["p0"]
-    # P1 = returned retry_control package, whose parent is P0.
-    assert len(session.context_os.project_retry_control_calls) == 1
-    retry_call = session.context_os.project_retry_control_calls[0]
-    assert retry_call["parent_package"] is p0
-    assert retry_call["generation_id"] == f"gen_retry_{captured['turn_count']}"
-    p1 = retry_call["returned"]
+    assert len(session.context_os.project_tool_call_decode_failure_calls) == 1
+    decode_call = session.context_os.project_tool_call_decode_failure_calls[0]
+    assert decode_call["parent_package"] is p0
+    assert decode_call["reason"] == "MALFORMED_JSON"
+    assert decode_call["generation_id"].startswith("gen_turn_pass_1_decode_failure_")
+    p1 = decode_call["returned"]
 
     # P2 tool projection must descend from P1, NOT P0.
     assert len(session.capability.execute_tool_typed_calls) == 1
@@ -197,7 +214,7 @@ def test_retry_then_allow_projects_from_retry_parent(monkeypatch):
     tool_call = session.context_os.project_tool_result_calls[0]
     assert tool_call["parent_package"] is p1
     assert tool_call["parent_package"] is not p0
-    assert tool_call["generation_id"] == f"gen_tool_{captured['turn_count']}"
+    assert tool_call["generation_id"].startswith("gen_turn_pass_2_tool_")
 
     # provider: pass-1 + retry + continuation == 3.
     assert len(session.provider.chat_calls) == 3
@@ -205,17 +222,17 @@ def test_retry_then_allow_projects_from_retry_parent(monkeypatch):
     assert TOOL_SENTINEL in session.provider.chat_calls[2][0]["content"]
 
 
-def test_retry_then_preauth_projects_from_retry_parent(monkeypatch):
+def test_decode_failure_then_preauth_projects_from_control_parent(monkeypatch):
     capability = _RetryThenToolCapability(CapabilityPreAuthorizationFailure("no.such", "UNKNOWN"))
     session, captured = _session(monkeypatch, capability)
 
     session.process("need evidence", [], conversation_id="conv", turn_id="turn")
 
     p0 = captured["p0"]
-    assert len(session.context_os.project_retry_control_calls) == 1
-    retry_call = session.context_os.project_retry_control_calls[0]
-    assert retry_call["parent_package"] is p0
-    p1 = retry_call["returned"]
+    assert len(session.context_os.project_tool_call_decode_failure_calls) == 1
+    decode_call = session.context_os.project_tool_call_decode_failure_calls[0]
+    assert decode_call["parent_package"] is p0
+    p1 = decode_call["returned"]
 
     assert len(session.context_os.project_capability_resolution_failure_calls) == 1
     preauth_call = session.context_os.project_capability_resolution_failure_calls[0]
@@ -226,11 +243,12 @@ def test_retry_then_preauth_projects_from_retry_parent(monkeypatch):
 def test_initial_non_retry_path_uses_original_parent(monkeypatch):
     capability = _ImmediateToolCapability(_allow_outcome())
     session, captured = _session(monkeypatch, capability)
+    session.provider = _ImmediateProvider()
 
     session.process("need evidence", [], conversation_id="conv", turn_id="turn")
 
     p0 = captured["p0"]
-    assert len(session.context_os.project_retry_control_calls) == 0
+    assert len(session.context_os.project_tool_call_decode_failure_calls) == 0
     assert len(session.context_os.project_tool_result_calls) == 1
     tool_call = session.context_os.project_tool_result_calls[0]
     assert tool_call["parent_package"] is p0

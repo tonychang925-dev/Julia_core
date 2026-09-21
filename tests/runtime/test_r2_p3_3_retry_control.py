@@ -109,22 +109,16 @@ def _retry_session(monkeypatch) -> JuliaSession:
     return session
 
 
-def test_session_retry_branch_projects_control_through_context_os(monkeypatch):
+def test_session_final_text_does_not_use_raw_text_retry_authority(monkeypatch):
     session = _retry_session(monkeypatch)
 
     session.process("question needing evidence", [], conversation_id="conv", turn_id="turn")
 
-    # Structured projection seam was used, not a direct message append.
-    assert len(session.context_os.project_retry_control_calls) == 1
+    assert len(session.context_os.project_retry_control_calls) == 0
     # No capability execution occurred for the no-tool-call branch.
     assert len(session.capability.execute_tool_typed_calls) == 0
-    # pass-1 + exactly one retry provider call.
-    assert len(session.provider.chat_calls) == 2
-    # Retry messages do not contain the raw ad-hoc system prompt.
-    retry_messages = session.provider.chat_calls[1]
-    assert not any("[系统提示]" in str(m.get("content", "")) for m in retry_messages)
-    # Continuation/retry consumed the rebuilt Context OS delta.
-    assert SENTINEL in session.provider.chat_calls[1][0]["content"]
+    assert len(session.provider.chat_calls) == 1
+    assert session.capability.requires_tool_calls == []
 
 
 def test_session_retry_branch_does_not_append_direct_system_prompt():

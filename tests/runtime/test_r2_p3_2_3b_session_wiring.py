@@ -25,7 +25,10 @@ from julia_core.capability.models import (
     ToolResultStatus,
 )
 from julia_core.capability.policy import AuthorizationDecision, AuthorizationStatus
-from julia_core.runtime.capability_bridge import CapabilityPreAuthorizationFailure
+from julia_core.runtime.capability_bridge import (
+    CapabilityPreAuthorizationFailure,
+    ToolCallDecodeFailure,
+)
 from julia_core.runtime.julia_session import JuliaSession
 
 
@@ -115,6 +118,7 @@ class _FakeTypedContextOS:
         self.project_tool_result_calls: list[dict[str, Any]] = []
         self.project_authorization_outcome_calls: list[dict[str, Any]] = []
         self.project_capability_resolution_failure_calls: list[dict[str, Any]] = []
+        self.project_tool_call_decode_failure_calls: list[dict[str, Any]] = []
 
     def project_tool_result(self, **kwargs):
         self.project_tool_result_calls.append(kwargs)
@@ -126,6 +130,10 @@ class _FakeTypedContextOS:
 
     def project_capability_resolution_failure(self, **kwargs):
         self.project_capability_resolution_failure_calls.append(kwargs)
+        return _DeltaPackage()
+
+    def project_tool_call_decode_failure(self, **kwargs):
+        self.project_tool_call_decode_failure_calls.append(kwargs)
         return _DeltaPackage()
 
 
@@ -197,7 +205,7 @@ def _evidence(evidence_id: str) -> Evidence:
 
 
 def _expected_generation(captured: dict[str, Any]) -> str:
-    return f"gen_tool_{captured['turn_count']}"
+    return "gen_turn_pass_1_tool_"
 
 
 def test_session_typed_non_allow_dispatches_authorization_outcome(monkeypatch):
@@ -212,7 +220,7 @@ def test_session_typed_non_allow_dispatches_authorization_outcome(monkeypatch):
     dispatched = session.context_os.project_authorization_outcome_calls[0]
     assert dispatched["authorization_decision"] is decision
     assert dispatched["parent_package"] is captured["package"]
-    assert dispatched["generation_id"] == _expected_generation(captured)
+    assert dispatched["generation_id"].startswith(_expected_generation(captured))
     # provider: pass-1 + continuation, continuation consumes rebuilt delta
     assert len(session.provider.chat_calls) == 2
     assert SENTINEL in session.provider.chat_calls[1][0]["content"]
@@ -239,7 +247,7 @@ def test_session_typed_allow_dispatches_exact_tool_result_and_evidence(monkeypat
     assert dispatched["evidence"] == (evidence,)
     assert dispatched["evidence"][0] is evidence
     assert dispatched["parent_package"] is captured["package"]
-    assert dispatched["generation_id"] == _expected_generation(captured)
+    assert dispatched["generation_id"].startswith(_expected_generation(captured))
     assert len(session.provider.chat_calls) == 2
     assert SENTINEL in session.provider.chat_calls[1][0]["content"]
 
@@ -255,7 +263,7 @@ def test_session_typed_unknown_dispatches_control_projection(monkeypatch):
     assert dispatched["capability_id"] == "no.such"
     assert dispatched["reason"] == "UNKNOWN"
     assert dispatched["parent_package"] is captured["package"]
-    assert dispatched["generation_id"] == _expected_generation(captured)
+    assert dispatched["generation_id"].startswith(_expected_generation(captured))
     assert len(session.provider.chat_calls) == 2
     assert SENTINEL in session.provider.chat_calls[1][0]["content"]
 
@@ -270,19 +278,21 @@ def test_session_typed_disabled_dispatches_control_projection(monkeypatch):
     assert dispatched["capability_id"] == "file.disabled"
     assert dispatched["reason"] == "DISABLED"
     assert dispatched["parent_package"] is captured["package"]
-    assert dispatched["generation_id"] == _expected_generation(captured)
+    assert dispatched["generation_id"].startswith(_expected_generation(captured))
     assert len(session.provider.chat_calls) == 2
     assert SENTINEL in session.provider.chat_calls[1][0]["content"]
 
 
-def test_session_typed_malformed_none_skips_continuation(monkeypatch):
-    session, _ = _typed_session(monkeypatch, None)
+def test_session_typed_malformed_dispatches_decode_control(monkeypatch):
+    session, _ = _typed_session(monkeypatch, ToolCallDecodeFailure("MALFORMED_JSON"))
 
     reply = session.process("read the file", [], conversation_id="conv", turn_id="turn")
 
-    # No projection, no continuation: single pass-1 provider call.
-    assert len(session.provider.chat_calls) == 1
+    assert len(session.provider.chat_calls) == 2
     assert len(session.context_os.project_tool_result_calls) == 0
     assert len(session.context_os.project_authorization_outcome_calls) == 0
     assert len(session.context_os.project_capability_resolution_failure_calls) == 0
-    assert "tool_call" in reply
+    assert len(session.context_os.project_tool_call_decode_failure_calls) == 1
+    dispatched = session.context_os.project_tool_call_decode_failure_calls[0]
+    assert dispatched["reason"] == "MALFORMED_JSON"
+    assert reply == "final answer after typed projection"
