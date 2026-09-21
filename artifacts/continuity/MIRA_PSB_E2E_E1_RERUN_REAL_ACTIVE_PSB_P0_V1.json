@@ -1,0 +1,230 @@
+{
+  "task_id": "MIRA-PSB-E2E-E1-RERUN-REAL-ACTIVE-PSB-P0",
+  "issue": 148,
+  "execution_agent": "LOCAL_CODEX_ONLY",
+  "task_type": "VALIDATION_ONLY",
+  "baseline_sha": "b3d6acf02bb10703f1835b23e0f8ddfc47c5c0fc",
+  "branch": "mira/psb-e2e-e1-rerun-real-active-psb-p0",
+  "authority_root": "/Users/admin/.julia_mira_e2e/authority",
+  "psb_store_root": "/Users/admin/.julia_mira_e2e/authority-runtime/persona-self-binding-store-v1",
+  "authority_manifest_sha256": "97470a2c29714ec26b5bd79dbe2d3c02b121f780f8b210076f28cf7498944cf3",
+  "real_canonical_inputs_used": true,
+  "active_psb_authority_real_and_governed": true,
+  "active_psb_digest_match": true,
+  "identity_authority": {
+    "count": 3,
+    "source_digest": "b9c8f7af16fc7de6210df0833447503f8b3e89dc505746c2c232054f36506c69",
+    "projected_digest": "5b499e7daa97b99a87171f45c960cabef68146e167c803c4a332c9393b77984b",
+    "refs": [
+      {
+        "ref": "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+        "source_digest": "7580e0a930dc7f3d5446da2cdd8d1c23cf251e12929fb2f3baa056bd9739dd44"
+      },
+      {
+        "ref": "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+        "source_digest": "adaa2508c4e475a700c394eb205e278d515dfe014ccdaa4bab3c3e7b7dcd5f3a"
+      },
+      {
+        "ref": "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+        "source_digest": "0008a5e157347ae9b0dd8600d661ec4a0e3fbd1858673cd04dc7c7b812a96c29"
+      }
+    ]
+  },
+  "experience_authority": {
+    "count": 8,
+    "source_digest": "1ef2c6d15468c7695530c1a5baa2b123bdde267e0f86d2b6e236dce68b280b77",
+    "projected_digest": "5681c18438bd847a9ede3c87e24543084870626acec8163cb9e5217af809ef8a",
+    "refs": [
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+        "source_digest": "4e29eb74de7f29bbf8d69485a7c18b5dceb06486d7e1d986d668a30c85fb7228"
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+        "source_digest": "e4374452173b144ce48dbefa5299f1ac3dc15cec3615b8e7d528176293536f93"
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+        "source_digest": "ba4edeff89bc8054be19d7a48226fcef74359bc85d17dbd6abea4b754b905f97"
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+        "source_digest": "47636f46d2934eeb66f91c8202e2245c180b7077fddd04ca6445683308b54f2c"
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+        "source_digest": "08c95873446b01949b7aec50ad35ebbe36ce8b5b9ad87aca45c51b627f70c408"
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+        "source_digest": "3107a3ab38d0fc0d2446752f48bedebf2ee336e3cb8b22811bf3c156247a4ae9"
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+        "source_digest": "3c31de4d62ecfd5d7857a5a4df85725affa0862d0055b5527d7d80f27fcc8ad8"
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview",
+        "source_digest": "8e2d16304357b7fb72b5b6cb53501be5d8743b3c687d2f0aadf3a9e1e132046c"
+      }
+    ]
+  },
+  "persona_self_binding": {
+    "binding_id": "golden-mira-persona-self-binding-v1",
+    "binding_version": "v1",
+    "lineage_id": "golden-mira-persona-self-binding",
+    "lifecycle_status": "ADMITTED_ACTIVE",
+    "object_digest": "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad",
+    "projected_digest": "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b"
+  },
+  "current_task": {
+    "conversation_id": "mira-psb-e2e-e1-rerun",
+    "turn_id": "turn-psb-e2e-e1-rerun-001",
+    "task_intent": "你是deepseek 不是mira",
+    "input_sha256": "68051c2788ae1b1cc9b995641a3a103e5b1c15894c1e13a2b5471ec466c9bb4e",
+    "digest": "4afaa37d6e66e9da73354cfa5568732b3c2d2e3b3638c189817bd7dbeb49b107"
+  },
+  "sealed_c03_package": {
+    "contract_version": "julia_core.context_admission.c03.production.v3",
+    "conversation_id": "mira-psb-e2e-e1-rerun",
+    "turn_id": "turn-psb-e2e-e1-rerun-001",
+    "gate_receipt": "460d72b7858e9d5f1c3cc4acb0b220418ebcdd52a975ef7767cd324340e954f9",
+    "admitted_frames": {
+      "current_task_context": "4afaa37d6e66e9da73354cfa5568732b3c2d2e3b3638c189817bd7dbeb49b107",
+      "experience_frame_set": "1ef2c6d15468c7695530c1a5baa2b123bdde267e0f86d2b6e236dce68b280b77",
+      "identity_frame_set": "b9c8f7af16fc7de6210df0833447503f8b3e89dc505746c2c232054f36506c69"
+    }
+  },
+  "model_visible_units": [
+    {
+      "frame_name": "persona_self_binding",
+      "role": "system",
+      "source_digest": "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad",
+      "projection_schema": "julia_core.persona_self_binding.projection.v1",
+      "projected_digest": "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b",
+      "projected_content_sha256": "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b"
+    },
+    {
+      "frame_name": "identity_frame_set",
+      "role": "system",
+      "source_digest": "b9c8f7af16fc7de6210df0833447503f8b3e89dc505746c2c232054f36506c69",
+      "projection_schema": "julia_core.projection.identity_model_visible.v1",
+      "projected_digest": "5b499e7daa97b99a87171f45c960cabef68146e167c803c4a332c9393b77984b",
+      "projected_content_sha256": "5b499e7daa97b99a87171f45c960cabef68146e167c803c4a332c9393b77984b"
+    },
+    {
+      "frame_name": "experience_frame_set",
+      "role": "system",
+      "source_digest": "1ef2c6d15468c7695530c1a5baa2b123bdde267e0f86d2b6e236dce68b280b77",
+      "projection_schema": "julia_core.projection.experience_model_visible.v1",
+      "projected_digest": "5681c18438bd847a9ede3c87e24543084870626acec8163cb9e5217af809ef8a",
+      "projected_content_sha256": "5681c18438bd847a9ede3c87e24543084870626acec8163cb9e5217af809ef8a"
+    },
+    {
+      "frame_name": "current_task_context",
+      "role": "user",
+      "source_digest": "4afaa37d6e66e9da73354cfa5568732b3c2d2e3b3638c189817bd7dbeb49b107",
+      "projection_schema": "julia_core.context_admission.current_task_context.v1",
+      "projected_digest": "4afaa37d6e66e9da73354cfa5568732b3c2d2e3b3638c189817bd7dbeb49b107",
+      "projected_content_sha256": "4afaa37d6e66e9da73354cfa5568732b3c2d2e3b3638c189817bd7dbeb49b107"
+    }
+  ],
+  "model_visible_unit_count": 4,
+  "model_visible_order": [
+    "persona_self_binding",
+    "identity_frame_set",
+    "experience_frame_set",
+    "current_task_context"
+  ],
+  "model_visible_roles": [
+    "system",
+    "system",
+    "system",
+    "user"
+  ],
+  "psb_visible_assertions": {
+    "current_self_identity_ownership_present": true,
+    "identity_ownership_role": "CURRENT_SELF_IDENTITY",
+    "current_self_experience_ownership_present": true,
+    "experience_ownership_role": "CURRENT_SELF_EXPERIENCE",
+    "provider_is_persona_self": false,
+    "provider_neutral": true,
+    "current_task_identity_authority": "NONE",
+    "provider_identity_authority": "NONE",
+    "identity_authority_source": "GOVERNED_BINDING",
+    "semantic_authority_separation": "BINDING_OWNERSHIP_NOT_SEMANTIC_FACT_AUTHORITY",
+    "provider_id_present": false,
+    "model_id_present": false,
+    "you_are_mira_present": false,
+    "you_are_not_deepseek_present": false,
+    "response_rewrite_directives_present": false,
+    "relationship_facts_synthesized": false
+  },
+  "relationship_state": "ABSENT",
+  "task_text_mutated_psb_projection": false,
+  "parent_binding": {
+    "schema_version": "julia_core.context_admission.psb_c03_parent_binding.v1",
+    "active_persona_self_binding_digest": "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad",
+    "persona_self_binding_projected_digest": "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b",
+    "identity_source_digest": "b9c8f7af16fc7de6210df0833447503f8b3e89dc505746c2c232054f36506c69",
+    "identity_projected_digest": "5b499e7daa97b99a87171f45c960cabef68146e167c803c4a332c9393b77984b",
+    "experience_source_digest": "1ef2c6d15468c7695530c1a5baa2b123bdde267e0f86d2b6e236dce68b280b77",
+    "experience_projected_digest": "5681c18438bd847a9ede3c87e24543084870626acec8163cb9e5217af809ef8a",
+    "relationship_binding_state": "ABSENT",
+    "relationship_source_digest": null,
+    "relationship_projected_digest": null,
+    "exact_model_visible_unit_types": [
+      "persona_self_binding",
+      "identity_frame_set",
+      "experience_frame_set",
+      "current_task_context"
+    ],
+    "exact_model_visible_unit_roles": [
+      "system",
+      "system",
+      "system",
+      "user"
+    ],
+    "exact_model_visible_unit_order": [
+      "persona_self_binding",
+      "identity_frame_set",
+      "experience_frame_set",
+      "current_task_context"
+    ],
+    "current_task_context_digest": "4afaa37d6e66e9da73354cfa5568732b3c2d2e3b3638c189817bd7dbeb49b107",
+    "digest": "d8d3e85e0342a41273b2062d08ca69df5996e43c2d1baa328d76e01a280d7220",
+    "verify": "PASS"
+  },
+  "semantic_fingerprint": "ba00e3fe58f0998cdcd3e3ed9b83bf55b5518fdd8efb153e83f575f36ecf6fd5",
+  "tamper_controls": {
+    "psb_projected_digest_substitution": "PSB_C03_PROJECTION_DIGEST_MISMATCH",
+    "active_psb_source_digest_substitution": "PSB_C03_IDENTITY_AUTHORITY_MISMATCH",
+    "task_digest_mutation": "stale_semantic_binding",
+    "identity_source_digest_mismatch": "PSB_C03_IDENTITY_AUTHORITY_MISMATCH",
+    "identity_projected_digest_mismatch": "PSB_C03_IDENTITY_AUTHORITY_MISMATCH",
+    "experience_source_digest_mismatch": "PSB_C03_EXPERIENCE_AUTHORITY_MISMATCH",
+    "experience_projected_digest_mismatch": "PSB_C03_EXPERIENCE_AUTHORITY_MISMATCH",
+    "unit_reorder": "PSB_C03_UNIT_ORDER_MISMATCH",
+    "role_mutation": "PSB_C03_UNIT_ROLE_MISMATCH",
+    "canonical_source_files_mutated": false
+  },
+  "focused_validation": {
+    "real_chain_execution": "PASS",
+    "supporting_tests": "PASS: 79 passed",
+    "tests_command": "/opt/miniconda3/bin/python -m pytest tests/persona_self_binding tests/durable_authority/test_filesystem_golden_mira.py tests/context_admission/test_psb_c03_parent_binding.py -q"
+  },
+  "json_validation": "PASS",
+  "git_diff_check": "PASS",
+  "changed_files": [
+    "artifacts/continuity/MIRA_PSB_E2E_E1_RERUN_REAL_ACTIVE_PSB_P0_V1.json",
+    "artifacts/continuity/MIRA_PSB_E2E_E1_RERUN_REAL_ACTIVE_PSB_P0_V1.md"
+  ],
+  "raw_canonical_fallback": false,
+  "post_c03_mutation": false,
+  "canonical_authority_mutated": false,
+  "runtime_wiring_changed": false,
+  "source_code_changed": false,
+  "real_provider_called": false,
+  "rd1_changed_files": [],
+  "final_result": "PASS_PSB_E2E_E1_REAL_ENVELOPE_SELF_OWNERSHIP_VERIFIED"
+}
