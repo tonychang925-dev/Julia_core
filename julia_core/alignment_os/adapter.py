@@ -1,13 +1,19 @@
 """Non-semantic alignment boundary for exact Provider execution ingress."""
+
 from __future__ import annotations
 
 from julia_core.context_admission import (
     AdmissionRejection,
     AdmittedSemanticBundle,
     C03AdmissionRejected,
+    PersonaSelfBoundSemanticBundle,
 )
 
-from .contracts import ProviderExecutionEnvelope, _ALIGNMENT_ISSUER, AlignmentExecutionMetadata
+from .contracts import (
+    ProviderExecutionEnvelope,
+    _ALIGNMENT_ISSUER,
+    AlignmentExecutionMetadata,
+)
 
 
 class ProviderBehaviorAdapter:
@@ -38,7 +44,7 @@ class ProviderAlignmentBoundary:
 
     def resolve(
         self,
-        binding: AdmittedSemanticBundle,
+        binding: AdmittedSemanticBundle | PersonaSelfBoundSemanticBundle,
         *,
         provider_id: str,
         cognitive_mode: str = "conversation",
@@ -50,7 +56,10 @@ class ProviderAlignmentBoundary:
                     message="alignment requires the exact canonical boundary",
                 )
             )
-        if type(binding) is not AdmittedSemanticBundle:
+        if type(binding) not in (
+            AdmittedSemanticBundle,
+            PersonaSelfBoundSemanticBundle,
+        ):
             raise C03AdmissionRejected(
                 AdmissionRejection(
                     code="unsealed_alignment_semantics",

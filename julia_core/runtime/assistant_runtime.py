@@ -1,24 +1,34 @@
 """Canonical Runtime transport for admitted C03 semantics."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
 from julia_core.alignment_os import ProviderAlignmentBoundary, ProviderExecutionEnvelope
-from julia_core.context_admission import AdmittedSemanticBundle
+from julia_core.context_admission import (
+    AdmittedSemanticBundle,
+    PersonaSelfBoundSemanticBundle,
+)
 
 
 @dataclass(frozen=True, slots=True)
 class RuntimeTurnRequest:
     """Exact Runtime ingress; no independent semantic source is permitted."""
 
-    binding: AdmittedSemanticBundle
+    binding: AdmittedSemanticBundle | PersonaSelfBoundSemanticBundle
     provider_id: str
     input_mode: str = "text"
 
     def __post_init__(self) -> None:
-        if type(self.binding) is not AdmittedSemanticBundle:
-            raise TypeError("Runtime requires an exact AdmittedSemanticBundle")
+        if type(self.binding) not in (
+            AdmittedSemanticBundle,
+            PersonaSelfBoundSemanticBundle,
+        ):
+            raise TypeError(
+                "Runtime requires an exact AdmittedSemanticBundle "
+                "or PersonaSelfBoundSemanticBundle"
+            )
         self.binding.verify()
         if type(self.provider_id) is not str or not self.provider_id:
             raise ValueError("provider_id is required")

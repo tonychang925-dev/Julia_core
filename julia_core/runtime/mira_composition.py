@@ -18,10 +18,10 @@ from julia_core.context_admission import (
     CanonicalConversationProvenance,
     CanonicalConversationSource,
     CurrentConversationalTaskContext,
-    ExactAdmittedSemanticBinder,
+    ExactPersonaSelfBoundSemanticBinder,
     ExclusiveAdmissionGate,
     ExclusiveAdmissionRequest,
-    SemanticBindingRequest,
+    PersonaSelfBindingSemanticBindingRequest,
 )
 from julia_core.context_admission.gate import C03_PRODUCTION_CONTRACT_VERSION
 from julia_core.durable_authority.filesystem_adapter import (
@@ -40,6 +40,12 @@ from julia_core.memory_experience import (
     MemoryExperienceRepository,
     MemoryExperienceResolver,
 )
+from julia_core.persona_self_binding import (
+    PersonaSelfBindingProjection,
+    PersonaSelfBindingProjector,
+    PersonaSelfBindingRecord,
+    PersonaSelfBindingStore,
+)
 from julia_core.projection import ExperienceFrameSet, IdentityFrameSet
 from julia_core.runtime.assistant_runtime import (
     JuliaAssistantRuntime,
@@ -50,6 +56,13 @@ from julia_core.runtime.conversation_runtime import ConversationRuntime
 
 _SHA_PATTERN = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 _PERSONA_ID = "golden-mira"
+_PSB_BINDING_ID = "golden-mira-persona-self-binding-v1"
+_PSB_BINDING_VERSION = "v1"
+_PSB_LINEAGE_ID = "golden-mira-persona-self-binding"
+_PSB_OBJECT_DIGEST = "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad"
+_PSB_PROJECTED_DIGEST = (
+    "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b"
+)
 
 
 class MiraCompositionError(RuntimeError):
@@ -117,7 +130,11 @@ class MiraCompositionEvidence:
     ordered_identity_refs: tuple[str, ...]
     ordered_memory_experience_refs: tuple[str, ...]
     c03_contract_version: str
-    binder: type[ExactAdmittedSemanticBinder]
+    binder: type[ExactPersonaSelfBoundSemanticBinder]
+    active_persona_self_binding_id: str
+    active_persona_self_binding_version: str
+    active_persona_self_binding_digest: str
+    active_persona_self_binding_projected_digest: str
     conversation_store_path: Path
     sha_pins_matched: bool
     provider_transport_called: bool
@@ -138,6 +155,9 @@ class GoldenMiraRuntimeComposition:
         conversation_runtime: ConversationRuntime,
         assistant_runtime: JuliaAssistantRuntime,
         sha_pins: MiraRuntimeShaPins,
+        psb_store_root: Path,
+        persona_self_binding: PersonaSelfBindingRecord,
+        persona_self_binding_projection: PersonaSelfBindingProjection,
     ) -> None:
         object.__setattr__(self, "_authority_root", authority_root)
         object.__setattr__(self, "_conversation_store_path", conversation_store_path)
@@ -148,6 +168,13 @@ class GoldenMiraRuntimeComposition:
         object.__setattr__(self, "_conversation_runtime", conversation_runtime)
         object.__setattr__(self, "_assistant_runtime", assistant_runtime)
         object.__setattr__(self, "_sha_pins", sha_pins)
+        object.__setattr__(self, "_psb_store_root", psb_store_root)
+        object.__setattr__(self, "_persona_self_binding", persona_self_binding)
+        object.__setattr__(
+            self,
+            "_persona_self_binding_projection",
+            persona_self_binding_projection,
+        )
         object.__setattr__(
             self,
             "_semantic_authority_source",
@@ -160,6 +187,10 @@ class GoldenMiraRuntimeComposition:
     @property
     def authority_root(self) -> Path:
         return self._authority_root
+
+    @property
+    def psb_store_root(self) -> Path:
+        return self._psb_store_root
 
     @property
     def conversation_store_path(self) -> Path:
@@ -185,6 +216,10 @@ class GoldenMiraRuntimeComposition:
     def semantic_authority_source(self) -> CanonicalSemanticAuthoritySource:
         return self._semantic_authority_source
 
+    @property
+    def persona_self_binding(self) -> PersonaSelfBindingRecord:
+        return self._persona_self_binding
+
     def evidence(self) -> MiraCompositionEvidence:
         return MiraCompositionEvidence(
             persona_id=_PERSONA_ID,
@@ -198,7 +233,17 @@ class GoldenMiraRuntimeComposition:
                 for frame in self._experience_frames.frames
             ),
             c03_contract_version=C03_PRODUCTION_CONTRACT_VERSION,
-            binder=ExactAdmittedSemanticBinder,
+            binder=ExactPersonaSelfBoundSemanticBinder,
+            active_persona_self_binding_id=self._persona_self_binding.binding.binding_id,
+            active_persona_self_binding_version=(
+                self._persona_self_binding.binding.binding_version
+            ),
+            active_persona_self_binding_digest=(
+                self._persona_self_binding.object_digest
+            ),
+            active_persona_self_binding_projected_digest=(
+                self._persona_self_binding_projection.digest()
+            ),
             conversation_store_path=self._conversation_store_path,
             sha_pins_matched=True,
             provider_transport_called=False,
@@ -217,14 +262,17 @@ class GoldenMiraRuntimeComposition:
                 current_task_context=current_task,
             )
         )
-        binding = ExactAdmittedSemanticBinder().bind(
-            SemanticBindingRequest(
+        binding = ExactPersonaSelfBoundSemanticBinder().bind(
+            PersonaSelfBindingSemanticBindingRequest(
                 package=package,
+                persona_self_binding=self._persona_self_binding.binding,
+                persona_self_binding_projection=(self._persona_self_binding_projection),
                 identity_frames=self._identity_frames,
                 experience_frames=self._experience_frames,
                 current_task_context=current_task,
             )
         )
+        binding.verify()
         return self._assistant_runtime.prepare(
             RuntimeTurnRequest(
                 binding=binding,
@@ -273,6 +321,7 @@ def compose_golden_mira_runtime(
     *,
     authority_root: Path,
     conversation_store_path: Path,
+    psb_store_root: Path,
     sha_pins: MiraRuntimeShaPins,
 ) -> GoldenMiraRuntimeComposition:
     if not isinstance(authority_root, Path) or not authority_root.is_absolute():
@@ -284,6 +333,8 @@ def compose_golden_mira_runtime(
         raise MiraCompositionError(
             "conversation_store_path must be an explicit absolute Path"
         )
+    if not isinstance(psb_store_root, Path) or not psb_store_root.is_absolute():
+        raise MiraCompositionError("psb_store_root must be an explicit absolute Path")
     if type(sha_pins) is not MiraRuntimeShaPins:
         raise MiraCompositionError("SHA pins must use the exact MiraRuntimeShaPins")
 
@@ -321,6 +372,53 @@ def compose_golden_mira_runtime(
         zip(EXPECTED_MEMORY_REFS, EXPECTED_MEMORY_VERSIONS)
     ):
         raise MiraCompositionError("durable Golden Mira ordering is inexact")
+    identity_projected_digest = _semantic_projection_digest(
+        identity_frames.model_visible_projection()
+    )
+    experience_projected_digest = _semantic_projection_digest(
+        experience_frames.model_visible_projection()
+    )
+    try:
+        persona_self_binding = PersonaSelfBindingStore(psb_store_root).resolve_active(
+            _PERSONA_ID
+        )
+        binding = persona_self_binding.binding
+        if (
+            binding.binding_id != _PSB_BINDING_ID
+            or binding.binding_version != _PSB_BINDING_VERSION
+            or binding.lineage_id != _PSB_LINEAGE_ID
+        ):
+            raise MiraCompositionError(
+                "active PersonaSelfBinding identity or lineage is inexact"
+            )
+        if persona_self_binding.object_digest != _PSB_OBJECT_DIGEST:
+            raise MiraCompositionError("active PersonaSelfBinding digest is inexact")
+        if (
+            binding.identity_authority.source_digest != identity_frames.digest()
+            or binding.identity_authority.projected_digest != identity_projected_digest
+        ):
+            raise MiraCompositionError(
+                "active PersonaSelfBinding identity authority is inexact"
+            )
+        if (
+            binding.experience_authority.source_digest != experience_frames.digest()
+            or binding.experience_authority.projected_digest
+            != experience_projected_digest
+        ):
+            raise MiraCompositionError(
+                "active PersonaSelfBinding experience authority is inexact"
+            )
+        persona_self_binding_projection = PersonaSelfBindingProjector.project(binding)
+        if persona_self_binding_projection.digest() != _PSB_PROJECTED_DIGEST:
+            raise MiraCompositionError(
+                "active PersonaSelfBinding projection digest is inexact"
+            )
+    except MiraCompositionError:
+        raise
+    except Exception as error:
+        raise MiraCompositionError(
+            "active governed PersonaSelfBinding authority failed"
+        ) from error
     repository = LegacyJsonConversationRepository(conversation_store_path)
     return GoldenMiraRuntimeComposition(
         authority_root=authority_root,
@@ -332,6 +430,9 @@ def compose_golden_mira_runtime(
         conversation_runtime=ConversationRuntime(repository),
         assistant_runtime=JuliaAssistantRuntime(),
         sha_pins=sha_pins,
+        psb_store_root=psb_store_root,
+        persona_self_binding=persona_self_binding,
+        persona_self_binding_projection=persona_self_binding_projection,
     )
 
 
@@ -364,6 +465,10 @@ def _sha256_text(value: str) -> str:
 
 def _canonical_json(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _semantic_projection_digest(value: object) -> str:
+    return _sha256_text(_canonical_json(value))
 
 
 __all__ = [

@@ -33,6 +33,9 @@ from julia_core.runtime.mira_composition import (
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 SHA = "0" * 64
+REAL_PSB_ROOT = Path(
+    "/Users/admin/.julia_mira_e2e/authority-runtime/" "persona-self-binding-store-v1"
+)
 
 
 @pytest.fixture(scope="module")
@@ -50,14 +53,22 @@ def authority_root(tmp_path_factory):
     return root
 
 
+@pytest.fixture(scope="module")
+def psb_store_root(tmp_path_factory):
+    root = tmp_path_factory.mktemp("psb-authority") / "persona-self-binding"
+    shutil.copytree(REAL_PSB_ROOT, root)
+    return root
+
+
 def test_composition_uses_durable_authority_and_isolated_store(
-    authority_root, tmp_path, monkeypatch
+    authority_root, psb_store_root, tmp_path, monkeypatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
     store = tmp_path / "isolated" / "conversations.json"
     composition = compose(
         authority_root,
         store,
+        psb_store_root,
     )
 
     assert isinstance(composition.identity_repository, IdentityRepository)
@@ -66,6 +77,7 @@ def test_composition_uses_durable_authority_and_isolated_store(
     assert isinstance(composition.assistant_runtime, JuliaAssistantRuntime)
     assert composition.conversation_store_path == store
     assert composition.authority_root == authority_root
+    assert composition.psb_store_root == psb_store_root
 
     composition.conversation_runtime.create_conversation("mira-p1b")
     assert store.is_file()
@@ -73,8 +85,12 @@ def test_composition_uses_durable_authority_and_isolated_store(
     assert "mira-p1b" in store.read_text(encoding="utf-8")
 
 
-def test_composition_evidence_is_exact_golden_mira(authority_root, tmp_path) -> None:
-    evidence = compose(authority_root, tmp_path / "conversations.json").evidence()
+def test_composition_evidence_is_exact_golden_mira(
+    authority_root, psb_store_root, tmp_path
+) -> None:
+    evidence = compose(
+        authority_root, tmp_path / "conversations.json", psb_store_root
+    ).evidence()
     assert evidence.persona_id == "golden-mira"
     assert evidence.identity_count == 3
     assert evidence.memory_experience_count == 8
@@ -84,15 +100,27 @@ def test_composition_evidence_is_exact_golden_mira(authority_root, tmp_path) -> 
         evidence.c03_contract_version
         == "julia_core.context_admission.c03.production.v3"
     )
-    assert evidence.binder.__name__ == "ExactAdmittedSemanticBinder"
+    assert evidence.binder.__name__ == "ExactPersonaSelfBoundSemanticBinder"
+    assert evidence.active_persona_self_binding_id == (
+        "golden-mira-persona-self-binding-v1"
+    )
+    assert evidence.active_persona_self_binding_version == "v1"
+    assert evidence.active_persona_self_binding_digest == (
+        "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad"
+    )
+    assert evidence.active_persona_self_binding_projected_digest == (
+        "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b"
+    )
     assert evidence.sha_pins_matched is True
     assert evidence.provider_transport_called is False
 
 
 def test_repositories_restore_exact_admitted_records_in_order(
-    authority_root, tmp_path
+    authority_root, psb_store_root, tmp_path
 ) -> None:
-    composition = compose(authority_root, tmp_path / "conversations.json")
+    composition = compose(
+        authority_root, tmp_path / "conversations.json", psb_store_root
+    )
     for canonical_ref, version in zip(
         EXPECTED_IDENTITY_REFS, EXPECTED_IDENTITY_VERSIONS
     ):
@@ -108,13 +136,15 @@ def test_repositories_restore_exact_admitted_records_in_order(
 
 
 def test_prepare_reaches_production_envelope_without_transport(
-    authority_root, tmp_path, monkeypatch
+    authority_root, psb_store_root, tmp_path, monkeypatch
 ) -> None:
     def no_network(*args, **kwargs):
         raise AssertionError("provider transport was called during P1-B preparation")
 
     monkeypatch.setattr(socket, "socket", no_network)
-    composition = compose(authority_root, tmp_path / "conversations.json")
+    composition = compose(
+        authority_root, tmp_path / "conversations.json", psb_store_root
+    )
     raw_input = "Hi Mira，还记得我吗？"
     envelope = composition.prepare_provider_envelope(
         MiraProviderEnvelopeRequest(
@@ -134,9 +164,28 @@ def test_prepare_reaches_production_envelope_without_transport(
     assert [message["role"] for message in envelope.messages] == [
         "system",
         "system",
+        "system",
         "user",
     ]
-    current_task = json.loads(envelope.messages[2]["content"])
+    psb_projection = json.loads(envelope.messages[0]["content"])
+    current_task = json.loads(envelope.messages[3]["content"])
+    assert psb_projection["identity_ownership"]["ownership_role"] == (
+        "CURRENT_SELF_IDENTITY"
+    )
+    assert psb_projection["experience_ownership"]["ownership_role"] == (
+        "CURRENT_SELF_EXPERIENCE"
+    )
+    assert psb_projection["execution_substrate_policy"] == {
+        "role": "EXECUTION_SUBSTRATE",
+        "provider_is_persona_self": False,
+        "provider_neutral": True,
+    }
+    assert psb_projection["authority_precedence"] == {
+        "identity_authority_source": "GOVERNED_BINDING",
+        "current_task_identity_authority": "NONE",
+        "provider_identity_authority": "NONE",
+        "precedence_scope": "PERSONA_IDENTITY_AUTHORITY",
+    }
     input_digest = hashlib.sha256(raw_input.encode("utf-8")).hexdigest()
     assert current_task["task_intent"] == raw_input
     assert current_task["bounded_state"]["input_sha256"] == input_digest
@@ -154,9 +203,11 @@ def test_prepare_reaches_production_envelope_without_transport(
 
 
 def test_input_text_change_changes_c03_and_final_semantics(
-    authority_root, tmp_path
+    authority_root, psb_store_root, tmp_path
 ) -> None:
-    composition = compose(authority_root, tmp_path / "conversations.json")
+    composition = compose(
+        authority_root, tmp_path / "conversations.json", psb_store_root
+    )
 
     def envelope_for(input_text: str):
         return composition.prepare_provider_envelope(
@@ -173,13 +224,15 @@ def test_input_text_change_changes_c03_and_final_semantics(
 
     first = envelope_for("first exact user input")
     second = envelope_for("second exact user input")
-    assert first.messages[2]["content"] != second.messages[2]["content"]
-    first_task_digest = _current_task_digest(first.messages[2]["content"])
-    second_task_digest = _current_task_digest(second.messages[2]["content"])
+    assert first.messages[0]["content"] == second.messages[0]["content"]
+    assert first.messages[3]["content"] != second.messages[3]["content"]
+    first_task_digest = _current_task_digest(first.messages[3]["content"])
+    second_task_digest = _current_task_digest(second.messages[3]["content"])
     assert first_task_digest != second_task_digest
     assert first.gate_receipt != second.gate_receipt
     assert first.semantic_fingerprint != second.semantic_fingerprint
     assert [message["role"] for message in second.messages] == [
+        "system",
         "system",
         "system",
         "user",
@@ -245,10 +298,15 @@ def test_composition_has_no_legacy_julia_dependency() -> None:
     )
 
 
-def compose(authority_root: Path, conversation_store_path: Path):
+def compose(
+    authority_root: Path,
+    conversation_store_path: Path,
+    psb_store_root: Path = REAL_PSB_ROOT,
+):
     return compose_golden_mira_runtime(
         authority_root=authority_root,
         conversation_store_path=conversation_store_path,
+        psb_store_root=psb_store_root,
         sha_pins=MiraRuntimeShaPins(
             expected_core_sha=SHA,
             observed_core_sha=SHA,

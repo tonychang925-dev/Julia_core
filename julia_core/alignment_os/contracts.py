@@ -13,6 +13,11 @@ from typing import Literal, Mapping
 from julia_core.context_admission.contracts import canonical_json
 
 
+_LEGACY_MESSAGE_ROLES = ("system", "system", "user")
+_PSB_MESSAGE_ROLES = ("system", "system", "system", "user")
+_SUPPORTED_MESSAGE_ROLES = (_LEGACY_MESSAGE_ROLES, _PSB_MESSAGE_ROLES)
+
+
 @dataclass(frozen=True, slots=True)
 class AlignmentRequest:
     """Request to resolve provider behavior alignment for one runtime turn."""
@@ -259,9 +264,11 @@ class ProviderExecutionEnvelope:
         ):
             if type(getattr(self, field_name)) is not str or not getattr(self, field_name):
                 raise TypeError(f"provider execution envelope {field_name} is inexact")
-        if type(self.messages) is not tuple or len(self.messages) != 3:
+        if type(self.messages) is not tuple:
             raise TypeError("provider execution messages are partial or ambiguous")
-        if [message.get("role") for message in self.messages] != ["system", "system", "user"]:
+        if tuple(message.get("role") for message in self.messages) not in (
+            _SUPPORTED_MESSAGE_ROLES
+        ):
             raise TypeError("provider execution message roles are inexact")
         if any(set(message) != {"role", "content"} for message in self.messages):
             raise TypeError("provider execution message shape is inexact")
