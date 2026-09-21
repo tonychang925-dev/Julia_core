@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from hashlib import sha256
 import json
+import math
 from types import MappingProxyType
 from typing import Any, Mapping
 
@@ -14,6 +15,7 @@ from julia_core.capability.models import (
     CapabilityCallStatus,
     Evidence,
     ToolResult,
+    ToolResultStatus,
 )
 
 from .contracts import C03AdmissionRejected, AdmissionRejection, canonical_json
@@ -25,6 +27,7 @@ INCREMENTAL_EVIDENCE_CONTRACT_VERSION = (
 MAX_INCREMENTAL_EXECUTION_ENTRIES = 6
 MAX_CANONICAL_EVIDENCE_OBJECTS = 64
 MAX_INCREMENTAL_EVIDENCE_CANONICAL_BYTES = 65536
+MAX_INCREMENTAL_EVIDENCE_CANONICAL_DEPTH = 128
 
 _TERMINAL_CAPABILITY_CALL_STATUSES = {
     status.value
@@ -36,6 +39,22 @@ _TERMINAL_CAPABILITY_CALL_STATUSES = {
         CapabilityCallStatus.TIMED_OUT,
         CapabilityCallStatus.CANCELLED,
     }
+}
+_EVIDENTIARY_TOOL_RESULT_STATUSES = {
+    ToolResultStatus.SUCCESS,
+    ToolResultStatus.PARTIAL,
+    ToolResultStatus.TIMEOUT,
+    ToolResultStatus.CANCELLED,
+    ToolResultStatus.UNAVAILABLE,
+    ToolResultStatus.ERROR,
+}
+_CALL_STATUS_FOR_TOOL_RESULT = {
+    ToolResultStatus.SUCCESS: CapabilityCallStatus.COMPLETED,
+    ToolResultStatus.PARTIAL: CapabilityCallStatus.COMPLETED,
+    ToolResultStatus.TIMEOUT: CapabilityCallStatus.TIMED_OUT,
+    ToolResultStatus.CANCELLED: CapabilityCallStatus.CANCELLED,
+    ToolResultStatus.UNAVAILABLE: CapabilityCallStatus.FAILED,
+    ToolResultStatus.ERROR: CapabilityCallStatus.FAILED,
 }
 _INCREMENTAL_GATE_ISSUER = object()
 _INCREMENTAL_BINDER_ISSUER = object()
@@ -49,7 +68,12 @@ def _digest(payload: Mapping[str, Any]) -> str:
     return sha256(canonical_json(_json_copy(payload)).encode("utf-8")).hexdigest()
 
 
-def _json_copy(value: Any) -> Any:
+def _json_copy(value: Any, _depth: int = 0, _seen: set[int] | None = None) -> Any:
+    if _depth > MAX_INCREMENTAL_EVIDENCE_CANONICAL_DEPTH:
+        raise _rejection(
+            "non_canonical_incremental_evidence_json",
+            "incremental evidence exceeds canonical JSON depth",
+        )
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, Mapping):
@@ -58,22 +82,40 @@ def _json_copy(value: Any) -> Any:
                 "inexact_incremental_evidence_serialization",
                 "incremental evidence contains non-string object keys",
             )
-        return {key: _json_copy(item) for key, item in value.items()}
+        marker = id(value)
+        seen = _seen if _seen is not None else set()
+        if marker in seen:
+            raise _rejection(
+                "non_canonical_incremental_evidence_json",
+                "incremental evidence contains a cyclic JSON value",
+            )
+        seen.add(marker)
+        copied = {
+            key: _json_copy(item, _depth + 1, seen) for key, item in value.items()
+        }
+        seen.remove(marker)
+        return copied
     if type(value) in (tuple, list):
-        return [_json_copy(item) for item in value]
+        marker = id(value)
+        seen = _seen if _seen is not None else set()
+        if marker in seen:
+            raise _rejection(
+                "non_canonical_incremental_evidence_json",
+                "incremental evidence contains a cyclic JSON value",
+            )
+        seen.add(marker)
+        copied = [_json_copy(item, _depth + 1, seen) for item in value]
+        seen.remove(marker)
+        return copied
     if type(value) not in (str, int, float, bool, type(None)):
         raise _rejection(
             "inexact_incremental_evidence_serialization",
             "incremental evidence contains a non-canonical JSON value",
         )
-    if (
-        type(value) is float
-        and value not in {float("inf"), float("-inf")}
-        and value != value
-    ):
+    if type(value) is float and not math.isfinite(value):
         raise _rejection(
-            "inexact_incremental_evidence_serialization",
-            "incremental evidence contains a non-finite float",
+            "non_canonical_incremental_evidence_json",
+            "incremental evidence contains NaN or an infinite float",
         )
     return value
 
@@ -147,10 +189,13 @@ class CapabilityEvidenceSource:
     def __post_init__(self) -> None:
         _require_string(self.turn_id, "source turn_id")
         _require_string(self.generation_id, "source generation_id")
-        if type(self.pass_index) is not int or self.pass_index < 1:
+        if (
+            type(self.pass_index) is not int
+            or not 1 <= self.pass_index <= MAX_INCREMENTAL_EXECUTION_ENTRIES
+        ):
             raise _rejection(
                 "inexact_incremental_pass_index",
-                "incremental evidence pass_index must be an integer >= 1",
+                "incremental evidence pass_index must be in 1..6",
             )
         if type(self.capability_call) is not CapabilityCall:
             raise _rejection(
@@ -191,6 +236,25 @@ class CapabilityEvidenceSource:
             raise _rejection(
                 "non_terminal_capability_call",
                 "incremental evidence requires a terminal CapabilityCall",
+            )
+        try:
+            result_status = ToolResultStatus(
+                _mechanical_string(self.tool_result.status)
+            )
+        except ValueError as error:
+            raise _rejection(
+                "non_evidentiary_tool_result_status",
+                "incremental evidence requires an evidentiary ToolResult status",
+            ) from error
+        if result_status not in _EVIDENTIARY_TOOL_RESULT_STATUSES:
+            raise _rejection(
+                "non_evidentiary_tool_result_status",
+                "incremental evidence requires an evidentiary ToolResult status",
+            )
+        if call_status != _CALL_STATUS_FOR_TOOL_RESULT[result_status].value:
+            raise _rejection(
+                "capability_tool_result_status_pair_mismatch",
+                "CapabilityCall and ToolResult terminal statuses do not pair",
             )
         if (
             self.capability_call.provider
@@ -352,17 +416,42 @@ class SealedIncrementalEvidencePackage:
 
 
 def _package_receipt(package: SealedIncrementalEvidencePackage) -> str:
+    return _incremental_gate_receipt(
+        contract_version=package.contract_version,
+        conversation_id=package.conversation_id,
+        turn_id=package.turn_id,
+        ordered_entry_digests=package.ordered_entry_digests,
+        ordered_capability_call_ids=package.ordered_capability_call_ids,
+        ordered_generation_ids=package.ordered_generation_ids,
+        ordered_pass_indexes=package.ordered_pass_indexes,
+        canonical_byte_count=package.canonical_byte_count,
+        evidence_object_count=package.evidence_object_count,
+    )
+
+
+def _incremental_gate_receipt(
+    *,
+    contract_version: str,
+    conversation_id: str,
+    turn_id: str,
+    ordered_entry_digests: tuple[str, ...],
+    ordered_capability_call_ids: tuple[str, ...],
+    ordered_generation_ids: tuple[str, ...],
+    ordered_pass_indexes: tuple[int, ...],
+    canonical_byte_count: int,
+    evidence_object_count: int,
+) -> str:
     return _digest(
         {
-            "contract_version": package.contract_version,
-            "conversation_id": package.conversation_id,
-            "turn_id": package.turn_id,
-            "ordered_entry_digests": package.ordered_entry_digests,
-            "ordered_capability_call_ids": package.ordered_capability_call_ids,
-            "ordered_generation_ids": package.ordered_generation_ids,
-            "ordered_pass_indexes": package.ordered_pass_indexes,
-            "canonical_byte_count": package.canonical_byte_count,
-            "evidence_object_count": package.evidence_object_count,
+            "contract_version": contract_version,
+            "conversation_id": conversation_id,
+            "turn_id": turn_id,
+            "ordered_entry_digests": ordered_entry_digests,
+            "ordered_capability_call_ids": ordered_capability_call_ids,
+            "ordered_generation_ids": ordered_generation_ids,
+            "ordered_pass_indexes": ordered_pass_indexes,
+            "canonical_byte_count": canonical_byte_count,
+            "evidence_object_count": evidence_object_count,
         }
     )
 
@@ -401,6 +490,12 @@ class IncrementalEvidenceAdmissionGate:
                 "incremental evidence turn IDs do not match the request",
             )
         pass_indexes = tuple(entry.pass_index for entry in request.entries)
+        generation_ids = tuple(entry.generation_id for entry in request.entries)
+        if len(generation_ids) != len(set(generation_ids)):
+            raise _rejection(
+                "duplicate_generation_id",
+                "incremental evidence generation IDs must be unique",
+            )
         if any(
             current <= previous
             for previous, current in zip(pass_indexes, pass_indexes[1:], strict=False)
@@ -448,20 +543,16 @@ class IncrementalEvidenceAdmissionGate:
                 "incremental canonical evidence exceeds the frozen P0 budget",
             )
 
-        receipt = _digest(
-            {
-                "contract_version": INCREMENTAL_EVIDENCE_CONTRACT_VERSION,
-                "conversation_id": request.conversation_id,
-                "turn_id": request.turn_id,
-                "ordered_entry_digests": entry_digests,
-                "ordered_capability_call_ids": call_ids,
-                "ordered_generation_ids": tuple(
-                    entry.generation_id for entry in request.entries
-                ),
-                "ordered_pass_indexes": pass_indexes,
-                "canonical_byte_count": byte_count,
-                "evidence_object_count": evidence_count,
-            }
+        receipt = _incremental_gate_receipt(
+            contract_version=INCREMENTAL_EVIDENCE_CONTRACT_VERSION,
+            conversation_id=request.conversation_id,
+            turn_id=request.turn_id,
+            ordered_entry_digests=entry_digests,
+            ordered_capability_call_ids=call_ids,
+            ordered_generation_ids=generation_ids,
+            ordered_pass_indexes=pass_indexes,
+            canonical_byte_count=byte_count,
+            evidence_object_count=evidence_count,
         )
         return SealedIncrementalEvidencePackage(
             contract_version=INCREMENTAL_EVIDENCE_CONTRACT_VERSION,
@@ -469,9 +560,7 @@ class IncrementalEvidenceAdmissionGate:
             turn_id=request.turn_id,
             ordered_entry_digests=entry_digests,
             ordered_capability_call_ids=call_ids,
-            ordered_generation_ids=tuple(
-                entry.generation_id for entry in request.entries
-            ),
+            ordered_generation_ids=generation_ids,
             ordered_pass_indexes=pass_indexes,
             canonical_byte_count=byte_count,
             evidence_object_count=evidence_count,
@@ -539,6 +628,12 @@ class AdmittedIncrementalEvidenceBundle:
     conversation_id: str
     turn_id: str
     gate_receipt: str
+    ordered_entry_digests: tuple[str, ...]
+    ordered_capability_call_ids: tuple[str, ...]
+    ordered_generation_ids: tuple[str, ...]
+    ordered_pass_indexes: tuple[int, ...]
+    canonical_byte_count: int
+    evidence_object_count: int
     units: tuple[AdmittedIncrementalEvidenceUnit, ...]
     issued_by: object = field(repr=False, compare=False)
 
@@ -564,7 +659,56 @@ class AdmittedIncrementalEvidenceBundle:
                 "incremental evidence bundle unit count is inexact",
             )
         for unit in self.units:
+            if type(unit) is not AdmittedIncrementalEvidenceUnit:
+                raise _rejection(
+                    "inexact_incremental_evidence_unit",
+                    "incremental evidence bundle requires exact bound units",
+                )
             unit.verify()
+        manifest_lengths = {
+            len(self.ordered_entry_digests),
+            len(self.ordered_capability_call_ids),
+            len(self.ordered_generation_ids),
+            len(self.ordered_pass_indexes),
+            len(self.units),
+        }
+        if len(manifest_lengths) != 1:
+            raise _rejection(
+                "inexact_incremental_evidence_bundle_manifest",
+                "incremental evidence bundle manifest is partial or ambiguous",
+            )
+        if (
+            tuple(unit.entry_digest for unit in self.units)
+            != self.ordered_entry_digests
+        ):
+            raise _rejection(
+                "incremental_evidence_unit_substitution",
+                "incremental evidence units do not match the sealed digest manifest",
+            )
+        if (
+            tuple(unit.capability_call_id for unit in self.units)
+            != self.ordered_capability_call_ids
+        ):
+            raise _rejection(
+                "incremental_evidence_unit_substitution",
+                "incremental evidence call IDs do not match the sealed manifest",
+            )
+        expected_receipt = _incremental_gate_receipt(
+            contract_version=self.contract_version,
+            conversation_id=self.conversation_id,
+            turn_id=self.turn_id,
+            ordered_entry_digests=self.ordered_entry_digests,
+            ordered_capability_call_ids=self.ordered_capability_call_ids,
+            ordered_generation_ids=self.ordered_generation_ids,
+            ordered_pass_indexes=self.ordered_pass_indexes,
+            canonical_byte_count=self.canonical_byte_count,
+            evidence_object_count=self.evidence_object_count,
+        )
+        if self.gate_receipt != expected_receipt:
+            raise _rejection(
+                "forged_incremental_evidence_receipt",
+                "incremental evidence bundle receipt/manifest is forged",
+            )
 
     def verify(self) -> AdmittedIncrementalEvidenceBundle:
         self.__post_init__()
@@ -674,6 +818,12 @@ class ExactAdmittedIncrementalEvidenceBinder:
             conversation_id=package.conversation_id,
             turn_id=package.turn_id,
             gate_receipt=package.gate_receipt,
+            ordered_entry_digests=package.ordered_entry_digests,
+            ordered_capability_call_ids=package.ordered_capability_call_ids,
+            ordered_generation_ids=package.ordered_generation_ids,
+            ordered_pass_indexes=package.ordered_pass_indexes,
+            canonical_byte_count=package.canonical_byte_count,
+            evidence_object_count=package.evidence_object_count,
             units=tuple(units),
             issued_by=_INCREMENTAL_BINDER_ISSUER,
         )

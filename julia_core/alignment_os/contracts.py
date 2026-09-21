@@ -369,6 +369,22 @@ class ProviderExecutionEnvelopeV2:
         if type(self.alignment) is not AlignmentExecutionMetadata:
             raise TypeError("provider execution v2 alignment metadata is inexact")
         self.alignment.__post_init__()
+        base_indices = (0, 1, 3) if has_incremental_receipt else (0, 1, 2)
+        actual_base_fingerprint = sha256(
+            canonical_json([self.messages[index] for index in base_indices]).encode(
+                "utf-8"
+            )
+        ).hexdigest()
+        if self.base_semantic_fingerprint != actual_base_fingerprint:
+            raise TypeError("provider execution v2 base semantic fingerprint is forged")
+        if has_incremental_receipt:
+            actual_incremental_fingerprint = sha256(
+                self.messages[2]["content"].encode("utf-8")
+            ).hexdigest()
+            if self.incremental_evidence_fingerprint != actual_incremental_fingerprint:
+                raise TypeError(
+                    "provider execution v2 incremental evidence fingerprint is forged"
+                )
         if self.combined_fingerprint != self._combined_fingerprint():
             raise TypeError("provider execution v2 combined fingerprint is forged")
 

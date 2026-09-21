@@ -143,7 +143,10 @@ def test_i5b_02_six_ordered_entries_are_accepted():
 
 
 def test_i5b_03_seventh_entry_exceeds_execution_budget():
-    entries = tuple(source(index, pass_index=index) for index in range(1, 8))
+    entries = [source(index, pass_index=index) for index in range(1, 7)]
+    entries.append(source(7, pass_index=6))
+    object.__setattr__(entries[-1], "pass_index", 7)
+    entries = tuple(entries)
 
     assert rejection_code(
         IncrementalEvidenceAdmissionGate().seal, request(entries)
@@ -450,8 +453,15 @@ def test_i5b_23_v2_with_evidence_uses_four_frozen_roles():
 
 
 def test_i5b_24_v2_base_incremental_turn_mismatch_rejected():
-    bundle = admitted()
-    object.__setattr__(bundle, "turn_id", "other-turn")
+    mismatched_source = source(1)
+    object.__setattr__(mismatched_source, "turn_id", "other-turn")
+    mismatched_request = IncrementalEvidenceAdmissionRequest(
+        conversation_id="conversation-eng12a",
+        turn_id="other-turn",
+        entries=(mismatched_source,),
+    )
+    package = IncrementalEvidenceAdmissionGate().seal(mismatched_request)
+    bundle = ExactAdmittedIncrementalEvidenceBinder().bind(package, mismatched_request)
 
     assert (
         rejection_code(
@@ -504,4 +514,146 @@ def test_i5b_28_control_without_canonical_evidence_rejected():
     assert (
         rejection_code(IncrementalEvidenceAdmissionGate().seal, request((item,)))
         == "control_is_not_evidence"
+    )
+
+
+def test_blocker_bundle_unit_substitution_fails_manifest_verification():
+    first = admitted((source(1, pass_index=1),))
+    second = admitted((source(2, pass_index=1),))
+    object.__setattr__(first, "units", second.units)
+
+    assert rejection_code(first.verify) == "incremental_evidence_unit_substitution"
+
+
+def test_blocker_substituted_receipt_fails_bundle_manifest_verification():
+    first = admitted((source(1, pass_index=1),))
+    second = admitted((source(2, pass_index=1),))
+    object.__setattr__(first, "gate_receipt", second.gate_receipt)
+
+    assert rejection_code(first.verify) == "forged_incremental_evidence_receipt"
+
+
+def _recompute_combined(envelope):
+    return ProviderExecutionEnvelopeV2.combined_fingerprint_for(
+        conversation_id=envelope.conversation_id,
+        turn_id=envelope.turn_id,
+        base_gate_receipt=envelope.base_gate_receipt,
+        base_semantic_fingerprint=envelope.base_semantic_fingerprint,
+        incremental_evidence_gate_receipt=envelope.incremental_evidence_gate_receipt,
+        incremental_evidence_fingerprint=envelope.incremental_evidence_fingerprint,
+        messages=envelope.messages,
+        alignment=envelope.alignment,
+    )
+
+
+def test_blocker_changed_base_message_with_recomputed_combined_still_fails():
+    envelope = ProviderAlignmentBoundary().resolve_v2(
+        bound_bundle(), admitted(), provider_id="deepseek"
+    )
+    envelope.messages[0]["content"] += "forged-base"
+    object.__setattr__(envelope, "combined_fingerprint", _recompute_combined(envelope))
+
+    with pytest.raises(TypeError, match="base semantic fingerprint is forged"):
+        envelope.verify()
+
+
+def test_blocker_changed_evidence_message_with_recomputed_combined_still_fails():
+    envelope = ProviderAlignmentBoundary().resolve_v2(
+        bound_bundle(), admitted(), provider_id="deepseek"
+    )
+    envelope.messages[2]["content"] += "forged-evidence"
+    object.__setattr__(envelope, "combined_fingerprint", _recompute_combined(envelope))
+
+    with pytest.raises(TypeError, match="incremental evidence fingerprint is forged"):
+        envelope.verify()
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_blocker_non_finite_json_floats_fail_typed(value):
+    item = source(1)
+    object.__setattr__(item.evidence[0], "confidence", value)
+
+    assert (
+        rejection_code(IncrementalEvidenceAdmissionGate().seal, request((item,)))
+        == "non_canonical_incremental_evidence_json"
+    )
+
+
+@pytest.mark.parametrize("status", ["DENIED", "UNKNOWN", "random"])
+def test_blocker_non_evidentiary_tool_statuses_fail(status):
+    item = source(1)
+    object.__setattr__(item.tool_result, "status", status)
+
+    assert (
+        rejection_code(IncrementalEvidenceAdmissionGate().seal, request((item,)))
+        == "non_evidentiary_tool_result_status"
+    )
+
+
+@pytest.mark.parametrize(
+    ("call_status", "result_status"),
+    [
+        (CapabilityCallStatus.COMPLETED, ToolResultStatus.SUCCESS),
+        (CapabilityCallStatus.COMPLETED, ToolResultStatus.PARTIAL),
+        (CapabilityCallStatus.TIMED_OUT, ToolResultStatus.TIMEOUT),
+        (CapabilityCallStatus.CANCELLED, ToolResultStatus.CANCELLED),
+        (CapabilityCallStatus.FAILED, ToolResultStatus.UNAVAILABLE),
+        (CapabilityCallStatus.FAILED, ToolResultStatus.ERROR),
+    ],
+)
+def test_blocker_valid_evidentiary_status_pairings_remain_accepted(
+    call_status, result_status
+):
+    item = source(1)
+    object.__setattr__(item.capability_call, "status", call_status)
+    object.__setattr__(item.tool_result, "status", result_status)
+
+    assert IncrementalEvidenceAdmissionGate().seal(request((item,)))
+
+
+def test_blocker_invalid_call_result_status_pairing_fails():
+    item = source(1)
+    object.__setattr__(item.capability_call, "status", CapabilityCallStatus.COMPLETED)
+    object.__setattr__(item.tool_result, "status", ToolResultStatus.ERROR)
+
+    assert (
+        rejection_code(IncrementalEvidenceAdmissionGate().seal, request((item,)))
+        == "capability_tool_result_status_pair_mismatch"
+    )
+
+
+def test_blocker_pass_index_above_executable_limit_fails():
+    assert rejection_code(source, 1, pass_index=7) == "inexact_incremental_pass_index"
+
+
+def test_blocker_duplicate_generation_id_fails():
+    entries = (source(1, pass_index=1), source(2, pass_index=2))
+    object.__setattr__(entries[1], "generation_id", entries[0].generation_id)
+
+    assert (
+        rejection_code(IncrementalEvidenceAdmissionGate().seal, request(entries))
+        == "duplicate_generation_id"
+    )
+
+
+def test_blocker_cyclic_canonical_input_fails_typed():
+    cyclic = []
+    cyclic.append(cyclic)
+    item = source(1, structured_output={"cycle": cyclic})
+
+    assert (
+        rejection_code(IncrementalEvidenceAdmissionGate().seal, request((item,)))
+        == "non_canonical_incremental_evidence_json"
+    )
+
+
+def test_blocker_excessively_deep_canonical_input_fails_typed():
+    nested = {"value": "leaf"}
+    for _ in range(200):
+        nested = {"value": nested}
+    item = source(1, structured_output=nested)
+
+    assert (
+        rejection_code(IncrementalEvidenceAdmissionGate().seal, request((item,)))
+        == "non_canonical_incremental_evidence_json"
     )
