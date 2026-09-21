@@ -3,8 +3,10 @@
   "execution_agent": "LOCAL_CODEX_ONLY",
   "design_sha": "73d5ecb1c2fc0e6dd70bccfe423c79a3370c0fa5",
   "implementation_base_sha": "73d5ecb1c2fc0e6dd70bccfe423c79a3370c0fa5",
-  "parent_sha": "27fcc663d25892bdf9209b8ff6792231d0f634ce",
-  "candidate_sha": "a31c4576d79b916cdfcaf035558b73ffc61e3da7",
+  "implementation_parent_sha": "73d5ecb1c2fc0e6dd70bccfe423c79a3370c0fa5",
+  "implementation_candidate_sha": "a31c4576d79b916cdfcaf035558b73ffc61e3da7",
+  "evidence_parent_sha": "a31c4576d79b916cdfcaf035558b73ffc61e3da7",
+  "prior_evidence_commit_sha": "d87e4140c1b8b9bbb9022025e15eece49ae8c162",
   "branch": "mira/psb-i1-authority-contracts-p0",
   "changed_files": [
     "julia_core/persona_self_binding/__init__.py",
@@ -133,5 +135,5 @@
   "synthetic_binding_used": false,
   "prompt_patch_used": false,
   "implementation_scope": "PSB_I1_AUTHORITY_CONTRACTS_ONLY",
-  "final_result": "PASS_PSB_I1_AUTHORITY_CONTRACTS_READY_FOR_OWNER_REVIEW"
+  "final_result": "PASS_PSB_I1_EVIDENCE_PROVENANCE_CLOSED_READY_FOR_OWNER_ACCEPTANCE"
 }

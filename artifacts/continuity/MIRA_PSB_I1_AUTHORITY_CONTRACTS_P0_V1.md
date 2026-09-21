@@ -6,11 +6,14 @@
 - `EXECUTION_AGENT=LOCAL_CODEX_ONLY`
 - `DESIGN_SHA=73d5ecb1c2fc0e6dd70bccfe423c79a3370c0fa5`
 - `IMPLEMENTATION_BASE_SHA=73d5ecb1c2fc0e6dd70bccfe423c79a3370c0fa5`
-- `PARENT_SHA=27fcc663d25892bdf9209b8ff6792231d0f634ce`
-- `CANDIDATE_SHA=a31c4576d79b916cdfcaf035558b73ffc61e3da7`
+- `IMPLEMENTATION_PARENT_SHA=73d5ecb1c2fc0e6dd70bccfe423c79a3370c0fa5`
+- `IMPLEMENTATION_CANDIDATE_SHA=a31c4576d79b916cdfcaf035558b73ffc61e3da7`
+- `EVIDENCE_PARENT_SHA=a31c4576d79b916cdfcaf035558b73ffc61e3da7`
+- `PRIOR_EVIDENCE_COMMIT_SHA=d87e4140c1b8b9bbb9022025e15eece49ae8c162`
 - `BRANCH=mira/psb-i1-authority-contracts-p0`
 
 The working tree was clean at the exact implementation base before the dedicated branch was created.
+The corrected evidence commit SHA is intentionally not embedded here; commit, push, remote HEAD read-back, and the Issue #134 closeout comment establish it externally without a self-referential artifact digest.
 
 ## Selected Paths
 
@@ -46,4 +49,4 @@ The full-repository NCF command also reproduces one inherited P2 baseline mismat
 
 ## Result
 
-`PASS_PSB_I1_AUTHORITY_CONTRACTS_READY_FOR_OWNER_REVIEW`
+`PASS_PSB_I1_EVIDENCE_PROVENANCE_CLOSED_READY_FOR_OWNER_ACCEPTANCE`
