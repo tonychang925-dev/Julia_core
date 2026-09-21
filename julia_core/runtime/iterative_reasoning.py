@@ -8,6 +8,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from julia_core.capability.models import ToolResultStatus
+
 
 MAX_COGNITION_PASSES_PER_TURN = 7
 MAX_CAPABILITY_EXECUTIONS_PER_TURN = 6
@@ -118,7 +120,15 @@ class IterativeTurnResult:
 class IterativeReasoningLoop:
     """Execute one Julia-owned bounded turn; retain no state after return."""
 
-    def __init__(self, session, text: str, turn_context, messages, parent_package):
+    def __init__(
+        self,
+        session,
+        text: str,
+        turn_context,
+        messages,
+        parent_package,
+        _capability_execution_limit: int | None = None,
+    ):
         self.session = session
         self.text = text
         self.turn_context = turn_context
@@ -126,11 +136,17 @@ class IterativeReasoningLoop:
         self.parent_package = parent_package
         self.cognition_pass_count = 0
         self.capability_execution_count = 0
+        self.capability_execution_limit = (
+            MAX_CAPABILITY_EXECUTIONS_PER_TURN
+            if _capability_execution_limit is None
+            else _capability_execution_limit
+        )
         self.seen_fingerprints: set[tuple[str, str]] = set()
         self.generation_ids: set[str] = set()
         self.executed_capability_ids: list[str] = []
         self.projection_generation_ids: list[str] = []
         self.evidence_generation_ids: list[str] = []
+        self.unresolved_unavailable = False
 
     def run(self) -> IterativeTurnResult:
         reply = ""
@@ -151,10 +167,11 @@ class IterativeReasoningLoop:
                     isinstance(control_frame, dict)
                     and control_frame.get("kind") == "tool_call_budget_exceeded"
                 )
-                final_response_kind = "LIMITATION" if budget_limitation else "JUDGMENT"
+                limitation = budget_limitation or self.unresolved_unavailable
+                final_response_kind = "LIMITATION" if limitation else "JUDGMENT"
                 termination = (
                     "completed_with_limitation"
-                    if budget_limitation
+                    if limitation
                     else "completed"
                 )
                 reply = parsed.text
@@ -167,20 +184,16 @@ class IterativeReasoningLoop:
                 break
 
             if parsed.kind == "TOOL_CALL_CONTROL_FAILURE":
+                if pass_index == MAX_COGNITION_PASSES_PER_TURN:
+                    final_response_kind = "CONTROL_FAILURE"
+                    termination = "cognition_pass_limit"
+                    reply = "Cognition pass limit reached before Julia could produce a final answer."
+                    break
                 self._project_decode_failure(parsed.failure_reason, pass_index)
                 continue
 
             tool_call = parsed.tool_call
             assert tool_call is not None
-            if self.capability_execution_count >= MAX_CAPABILITY_EXECUTIONS_PER_TURN:
-                self._project_budget_exceeded(pass_index)
-                if pass_index == MAX_COGNITION_PASSES_PER_TURN:
-                    final_response_kind = "CONTROL_FAILURE"
-                    termination = "tool_call_budget_exceeded"
-                    reply = "Capability execution limit reached; no additional tool was executed."
-                    break
-                continue
-
             if pass_index == MAX_COGNITION_PASSES_PER_TURN:
                 final_response_kind = "CONTROL_FAILURE"
                 termination = "cognition_pass_limit"
@@ -191,11 +204,19 @@ class IterativeReasoningLoop:
                 self._project_duplicate(tool_call, pass_index)
                 continue
 
+            if self.capability_execution_count >= self.capability_execution_limit:
+                self._project_budget_exceeded(pass_index)
+                continue
+
             self.seen_fingerprints.add(tool_call.fingerprint)
             self.session._execute_tool_with_action(tool_call.raw_json, self.turn_context)
             outcome = self.session._execute_typed_tool(tool_call.raw_json)
-            self.capability_execution_count += 1
-            self.executed_capability_ids.append(tool_call.capability_id)
+            if getattr(outcome, "capability_call", None) is not None:
+                self.capability_execution_count += 1
+                self.executed_capability_ids.append(tool_call.capability_id)
+                status = outcome.tool_result.status
+                status_value = status.value if hasattr(status, "value") else str(status)
+                self.unresolved_unavailable = status_value == ToolResultStatus.UNAVAILABLE.value
             package = self.session._dispatch_typed_outcome(
                 outcome,
                 self.turn_context,
@@ -211,6 +232,11 @@ class IterativeReasoningLoop:
                 correlation_id=self.turn_context.correlation_id,
             )
             self.messages = self._continuation_messages(package, response)
+
+        if final_response_kind == "NONE":
+            final_response_kind = "CONTROL_FAILURE"
+            termination = "cognition_pass_limit"
+            reply = "Cognition pass limit reached before Julia could produce a final answer."
 
         return IterativeTurnResult(
             reply=reply,
@@ -254,7 +280,7 @@ class IterativeReasoningLoop:
     def _project_budget_exceeded(self, pass_index: int) -> None:
         package = self.session.context_os.project_tool_budget_exceeded(
             parent_package=self.parent_package,
-            limit=MAX_CAPABILITY_EXECUTIONS_PER_TURN,
+            limit=self.capability_execution_limit,
             generation_id=self._generation_id(pass_index, "budget"),
         )
         self._register_projection(package)

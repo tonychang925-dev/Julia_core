@@ -60,19 +60,32 @@ def parent_package() -> CognitiveContextPackage:
     return package
 
 
-def execution(index: int):
+def execution(
+    index: int,
+    *,
+    status: ToolResultStatus = ToolResultStatus.SUCCESS,
+    structured_output: dict | None = None,
+    evidence_source_ref: str | None = None,
+    capability_call: object | None = 1,
+    include_evidence: bool = True,
+):
     evidence_id = f"evidence_{index}"
-    evidence = Evidence(
-        evidence_id=evidence_id,
-        source_type=EvidenceSourceType.TOOL_OBSERVATION,
-        source_ref=f"source_{index}",
-        observed_at="2026-09-21T00:00:00Z",
-        content_ref=f"content_{index}",
+    evidence = (
+        Evidence(
+            evidence_id=evidence_id,
+            source_type=EvidenceSourceType.TOOL_OBSERVATION,
+            source_ref=evidence_source_ref or f"source_{index}",
+            observed_at="2026-09-21T00:00:00Z",
+            content_ref=f"content_{index}",
+        )
+        if include_evidence
+        else None
     )
     tool_result = ToolResult(
         capability_call_id=f"call_{index}",
-        status=ToolResultStatus.SUCCESS,
-        evidence_refs=(evidence_id,),
+        status=status,
+        structured_output=structured_output or {},
+        evidence_refs=(evidence_id,) if include_evidence else (),
         provider="test",
     )
     return SimpleNamespace(
@@ -81,14 +94,16 @@ def execution(index: int):
             scope="test",
             reason="allow",
         ),
+        capability_call=capability_call,
         tool_result=tool_result,
-        evidence=(evidence,),
+        evidence=(evidence,) if include_evidence else (),
     )
 
 
 class LoopSession:
-    def __init__(self, responses: list[str]):
+    def __init__(self, responses: list[str], outcomes: list | None = None):
         self.responses = list(responses)
+        self.outcomes = list(outcomes or [])
         self.provider = SimpleNamespace(chat=self.chat)
         self.context_os = ContextExecutionRuntime()
         self.capability = SimpleNamespace(execute_tool_typed=self.execute)
@@ -103,6 +118,8 @@ class LoopSession:
 
     def execute(self, tool_json):
         self.requests.append(tool_json)
+        if self.outcomes:
+            return self.outcomes.pop(0)
         return execution(len(self.requests))
 
     def start(self, name, description, correlation_id):
@@ -122,6 +139,13 @@ class LoopSession:
         return "完成"
 
     def _dispatch_typed_outcome(self, outcome, turn_context, *, parent_package, generation_id):
+        if getattr(outcome, "tool_result", None) is None:
+            return self.context_os.project_capability_resolution_failure(
+                parent_package=parent_package,
+                capability_id=outcome.capability_id,
+                reason=outcome.reason,
+                generation_id=generation_id,
+            )
         return self.context_os.project_tool_result(
             parent_package=parent_package,
             tool_result=outcome.tool_result,
@@ -130,15 +154,20 @@ class LoopSession:
         )
 
 
-def run_loop(session: LoopSession):
+def run_loop(session: LoopSession, execution_limit: int | None = None, state: dict | None = None):
     turn_context = SimpleNamespace(turn_id="turn", correlation_id="correlation")
-    return IterativeReasoningLoop(
+    loop = IterativeReasoningLoop(
         session=session,
         text="Ask Julia",
         turn_context=turn_context,
         messages=[{"role": "user", "content": "Ask Julia"}],
         parent_package=parent_package(),
-    ).run()
+        _capability_execution_limit=execution_limit,
+    )
+    result = loop.run()
+    if state is not None:
+        state["loop"] = loop
+    return result
 
 
 def test_julia_session_production_loop_runs_full_six_tool_chain(monkeypatch):
@@ -281,6 +310,94 @@ def test_full_six_tool_chain_accumulates_ordered_evidence():
     assert all(f"source_{index}" in rendered for index in range(1, 7))
 
 
+def test_research_partial_then_market_complement_preserves_domain_truth():
+    research_source = {
+        "ref": "source-1",
+        "url": "https://example.com/robotics-catalyst",
+        "title": "Robotics catalyst",
+        "provider_observation_ref": {
+            "raw_response_classification": "EXECUTION_PROVENANCE_ONLY"
+        },
+    }
+    research_output = {
+        "query": "robotics external catalysts",
+        "findings": [],
+        "sources": [research_source],
+        "limitations": ["SOURCE_IDENTITY_ONLY_NO_SOURCE_BOUND_CONTENT"],
+        "provider": "claude-client-websearch",
+        "provenance": {"raw_response_classification": "EXECUTION_PROVENANCE_ONLY"},
+    }
+    market_output = {
+        "status": "success",
+        "data": {
+            "event_id": "event-1",
+            "resolved_entities": [{"entity_id": "product-1"}],
+            "envelope_version": "market.domain.v1",
+        },
+        "provenance": {"provider": "Market", "source_path": "Market/main"},
+    }
+    research = execution(
+        1,
+        status=ToolResultStatus.PARTIAL,
+        structured_output=research_output,
+        evidence_source_ref=research_source["url"],
+    )
+    market = execution(
+        2,
+        structured_output=market_output,
+        evidence_source_ref="market:envelope:event-1",
+    )
+    session = LoopSession(
+        [
+            tool_response("research.web.query", {"query": "robotics external catalysts"}),
+            tool_response("market.event.read", {"event_id": "event-1"}),
+            "Julia final judgment",
+        ],
+        outcomes=[research, market],
+    )
+    state: dict[str, object] = {}
+    result = run_loop(session, state=state)
+
+    assert [json.loads(request)["name"] for request in session.requests] == [
+        "research.web.query",
+        "market.event.read",
+    ]
+    assert result.capability_execution_count == 2
+    assert result.final_response_kind == "JUDGMENT"
+    ledger = state["loop"].parent_package.evidence_frame["turn_evidence_ledger"]
+    assert ledger[0]["tool_result"]["status"] == "partial"
+    assert ledger[0]["tool_result"]["structured_output"] == research_output
+    assert ledger[0]["tool_result"]["structured_output"]["findings"] == []
+    assert ledger[1]["tool_result"]["structured_output"] == market_output
+    rendered_final = str(session.model_inputs[-1])
+    assert research_source["url"] in rendered_final
+    assert "market.domain.v1" in rendered_final
+
+
+def test_unavailable_allows_julia_limitation_without_fallback():
+    unavailable = execution(
+        1,
+        status=ToolResultStatus.UNAVAILABLE,
+        structured_output={},
+        include_evidence=False,
+    )
+    session = LoopSession(
+        [
+            tool_response("research.web.query", {"query": "robotics catalysts"}),
+            "Julia limitation: research evidence is currently unavailable.",
+        ],
+        outcomes=[unavailable],
+    )
+    result = run_loop(session)
+
+    assert result.termination == "completed_with_limitation"
+    assert result.final_response_kind == "LIMITATION"
+    assert result.reply.startswith("Julia limitation:")
+    assert result.capability_execution_count == 1
+    assert len(session.requests) == 1
+    assert len(session.model_inputs) == 2
+
+
 def test_duplicate_call_is_control_not_second_execution():
     session = LoopSession([
         tool_response("market.event.read", {"id": "same"}),
@@ -292,7 +409,42 @@ def test_duplicate_call_is_control_not_second_execution():
     assert len(session.requests) == 1
 
 
-def test_tool_budget_fail_closes_without_extra_execution():
+def test_smaller_budget_permits_exactly_one_limitation_pass():
+    session = LoopSession([
+        tool_response("market.event.read"),
+        tool_response("research.web.query"),
+        "Julia limitation after the capability budget",
+    ])
+    state: dict[str, object] = {}
+    result = run_loop(session, execution_limit=1, state=state)
+
+    assert result.termination == "completed_with_limitation"
+    assert result.final_response_kind == "LIMITATION"
+    assert result.capability_execution_count == 1
+    assert len(session.requests) == 1
+    assert len(session.model_inputs) == 3
+    assert state["loop"].parent_package.control_frame["kind"] == "tool_call_budget_exceeded"
+    assert state["loop"].parent_package.control_frame["limit"] == 1
+
+
+def test_post_limit_tool_request_terminates_without_execution_or_pass():
+    session = LoopSession([
+        tool_response("market.event.read"),
+        tool_response("research.web.query"),
+        tool_response("another.tool"),
+    ])
+    state: dict[str, object] = {}
+    result = run_loop(session, execution_limit=1, state=state)
+
+    assert result.termination == "post_limit_tool_request"
+    assert result.final_response_kind == "CONTROL_FAILURE"
+    assert result.capability_execution_count == 1
+    assert len(session.requests) == 1
+    assert len(session.model_inputs) == 3
+    assert state["loop"].parent_package.control_frame["kind"] == "tool_call_budget_exceeded"
+
+
+def test_pass_seven_unique_tool_terminates_at_cognition_limit():
     responses = [tool_response(name) for name in CHAIN]
     responses.append(tool_response("another.tool"))
     session = LoopSession(responses)
@@ -301,7 +453,53 @@ def test_tool_budget_fail_closes_without_extra_execution():
     assert len(session.requests) == 6
     assert len(session.model_inputs) == 7
     assert result.final_response_kind == "CONTROL_FAILURE"
-    assert result.termination == "tool_call_budget_exceeded"
+    assert result.termination == "cognition_pass_limit"
+
+
+def test_pass_seven_malformed_call_terminates_at_cognition_limit():
+    session = LoopSession(
+        [tool_response(name) for name in CHAIN] + ["```tool_call\n{broken\n```"]
+    )
+    result = run_loop(session)
+    assert result.termination == "cognition_pass_limit"
+    assert result.final_response_kind == "CONTROL_FAILURE"
+    assert result.reply == (
+        "Cognition pass limit reached before Julia could produce a final answer."
+    )
+    assert result.capability_execution_count == 6
+    assert len(session.requests) == 6
+    assert len(session.model_inputs) == 7
+
+
+def test_pass_seven_duplicate_call_terminates_at_cognition_limit():
+    session = LoopSession(
+        [tool_response(name) for name in CHAIN]
+        + [tool_response(CHAIN[0])]
+    )
+    result = run_loop(session)
+    assert result.termination == "cognition_pass_limit"
+    assert result.final_response_kind == "CONTROL_FAILURE"
+    assert result.capability_execution_count == 6
+    assert len(session.requests) == 6
+    assert len(session.model_inputs) == 7
+
+
+def test_control_only_outcome_consumes_cognition_but_not_execution_budget():
+    control = SimpleNamespace(
+        capability_call=None,
+        capability_id="unknown.tool",
+        reason="UNKNOWN",
+    )
+    session = LoopSession(
+        [tool_response("unknown.tool"), "Julia final limitation"],
+        outcomes=[control],
+    )
+    result = run_loop(session, execution_limit=1)
+    assert result.cognition_pass_count == 2
+    assert result.capability_execution_count == 0
+    assert result.executed_capability_ids == []
+    assert len(session.requests) == 1
+    assert len(session.model_inputs) == 2
 
 
 def test_cognition_limit_never_invokes_eighth_model_pass():
