@@ -12,7 +12,10 @@ import re
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from julia_core.conversation_state.storage_v2_repository import StorageV2ConversationRepository
+from typing import Any
+from julia_core.conversation_state.storage_v2_repository import (
+    StorageV2ConversationRepository,
+)
 from julia_core.conversation_state.repository import (
     ConversationAdvancedError,
     ConversationNotFoundError,
@@ -108,7 +111,10 @@ def _ensure_market_public_binding() -> None:
                 ProviderAlreadyRegisteredError,
             )
 
-            if isinstance(exc, (ProviderAlreadyRegisteredError, CoreConversationConfigurationError)):
+            if isinstance(
+                exc,
+                (ProviderAlreadyRegisteredError, CoreConversationConfigurationError),
+            ):
                 error = (
                     exc
                     if isinstance(exc, CoreConversationConfigurationError)
@@ -131,8 +137,11 @@ class CoreConversationConfig:
     """Deployment configuration; dependency construction remains Core-owned."""
 
     conversation_data_dir: str | Path | None = None
+
     def resolve_data_dir(self) -> Path | None:
-        configured = self.conversation_data_dir or os.environ.get("JULIA_CONVERSATION_DATA_DIR")
+        configured = self.conversation_data_dir or os.environ.get(
+            "JULIA_CONVERSATION_DATA_DIR"
+        )
         return Path(configured) if configured else None
 
 
@@ -153,6 +162,34 @@ class CoreConversationResponse:
     error_code: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class CoreConversationHandle:
+    conversation_id: str
+    state: str
+    created_at: str
+    updated_at: str
+    last_turn_id: str
+    message_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class CoreConversationListResult:
+    conversations: tuple[CoreConversationHandle, ...] = ()
+    error_code: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CoreConversationDetailResult:
+    conversation: dict[str, Any] | None = None
+    error_code: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CoreConversationMessagesResult:
+    messages: tuple[dict[str, Any], ...] = ()
+    error_code: str | None = None
+
+
 class CoreConversationIngress:
     """Single public façade over Core's composed conversation turn path."""
 
@@ -168,10 +205,18 @@ class CoreConversationIngress:
                 )
             repository = StorageV2ConversationRepository(data_dir)
             self._runtime = ConversationRuntime(repository=repository)
+        except Exception as exc:
+            self._composition_error = exc
+            return
+
+        try:
             from julia_core.providers.core_cognition import _get_cognition_provider
+
             provider = _get_cognition_provider("production")
             if provider is None:
-                raise CoreConversationProviderUnavailable("configured Core provider is unavailable")
+                raise CoreConversationProviderUnavailable(
+                    "configured Core provider is unavailable"
+                )
 
             # Core composes only the Market public boundary. Market constructs
             # its own provider/configuration; Assistant is not involved.
@@ -180,6 +225,84 @@ class CoreConversationIngress:
             self._session = JuliaSession(provider=provider)
         except Exception as exc:
             self._composition_error = exc
+
+    def list_conversations(self) -> CoreConversationListResult:
+        """List active canonical conversations without cognition composition."""
+        if self._runtime is None:
+            return CoreConversationListResult(
+                error_code="CORE_CONVERSATION_STORAGE_UNAVAILABLE"
+            )
+        try:
+            handles = tuple(
+                CoreConversationHandle(
+                    conversation_id=handle.conversation_id,
+                    state=handle.state,
+                    created_at=handle.created_at,
+                    updated_at=handle.updated_at,
+                    last_turn_id=handle.last_turn_id,
+                    message_count=handle.message_count,
+                )
+                for handle in self._runtime.list_conversations()
+            )
+            return CoreConversationListResult(handles)
+        except Exception:
+            return CoreConversationListResult(
+                error_code="CORE_CONVERSATION_STORAGE_UNAVAILABLE"
+            )
+
+    def get_conversation(self, conversation_id: str) -> CoreConversationDetailResult:
+        """Get exact canonical conversation detail without cognition composition."""
+        if not self._valid_identifier(conversation_id):
+            return CoreConversationDetailResult(error_code="INVALID_CONVERSATION_ID")
+        if self._runtime is None:
+            return CoreConversationDetailResult(
+                error_code="CORE_CONVERSATION_STORAGE_UNAVAILABLE"
+            )
+        try:
+            detail = self._runtime.get_conversation(conversation_id)
+        except Exception:
+            return CoreConversationDetailResult(
+                error_code="CORE_CONVERSATION_STORAGE_UNAVAILABLE"
+            )
+        if detail is None:
+            return CoreConversationDetailResult(error_code="CONVERSATION_NOT_FOUND")
+        return CoreConversationDetailResult(detail)
+
+    def get_messages(
+        self,
+        conversation_id: str,
+        max_messages: int = 100,
+        *,
+        before: str | None = None,
+        after: str | None = None,
+        limit: int | None = None,
+    ) -> CoreConversationMessagesResult:
+        """Get canonical messages with ConversationRuntime-owned pagination."""
+        if not self._valid_identifier(conversation_id):
+            return CoreConversationMessagesResult(error_code="INVALID_CONVERSATION_ID")
+        if self._runtime is None:
+            return CoreConversationMessagesResult(
+                error_code="CORE_CONVERSATION_STORAGE_UNAVAILABLE"
+            )
+        try:
+            if self._runtime.get_conversation(conversation_id) is None:
+                return CoreConversationMessagesResult(
+                    error_code="CONVERSATION_NOT_FOUND"
+                )
+            messages = tuple(
+                self._runtime.get_messages(
+                    conversation_id,
+                    max_messages=max_messages,
+                    before=before,
+                    after=after,
+                    limit=limit,
+                )
+            )
+            return CoreConversationMessagesResult(messages)
+        except Exception:
+            return CoreConversationMessagesResult(
+                error_code="CORE_CONVERSATION_STORAGE_UNAVAILABLE"
+            )
 
     def process(self, request: CoreConversationRequest) -> CoreConversationResponse:
         """Process one typed request through ConversationRuntime exactly once."""
@@ -198,7 +321,9 @@ class CoreConversationIngress:
                 status="failed",
                 error_code=(
                     "CORE_PROVIDER_UNAVAILABLE"
-                    if isinstance(self._composition_error, CoreConversationProviderUnavailable)
+                    if isinstance(
+                        self._composition_error, CoreConversationProviderUnavailable
+                    )
                     else "CORE_COMPOSITION_UNAVAILABLE"
                 ),
             )
@@ -211,7 +336,9 @@ class CoreConversationIngress:
                 input=request.user_input,
                 cognitive_fn=self._session.process,
             )
-            error_code = "CORE_CONVERSATION_UNAVAILABLE" if result.status == "failed" else None
+            error_code = (
+                "CORE_CONVERSATION_UNAVAILABLE" if result.status == "failed" else None
+            )
             return CoreConversationResponse(
                 conversation_id=result.conversation_id,
                 turn_id=result.turn_id,
@@ -221,7 +348,11 @@ class CoreConversationIngress:
             )
         except ConversationNotFoundError:
             return CoreConversationResponse(
-                request.conversation_id, request.turn_id, "", "failed", "CONVERSATION_NOT_FOUND"
+                request.conversation_id,
+                request.turn_id,
+                "",
+                "failed",
+                "CONVERSATION_NOT_FOUND",
             )
         except TurnConflictError:
             return CoreConversationResponse(
@@ -229,14 +360,24 @@ class CoreConversationIngress:
             )
         except (ConversationAdvancedError, InvalidTurnStateError):
             return CoreConversationResponse(
-                request.conversation_id, request.turn_id, "", "failed", "CORE_CONVERSATION_UNAVAILABLE"
+                request.conversation_id,
+                request.turn_id,
+                "",
+                "failed",
+                "CORE_CONVERSATION_UNAVAILABLE",
             )
         except Exception:
             return CoreConversationResponse(
-                request.conversation_id, request.turn_id, "", "failed", "CORE_CONVERSATION_UNAVAILABLE"
+                request.conversation_id,
+                request.turn_id,
+                "",
+                "failed",
+                "CORE_CONVERSATION_UNAVAILABLE",
             )
 
-    def create_conversation(self, conversation_id: str, title: str = "New Conversation") -> str:
+    def create_conversation(
+        self, conversation_id: str, title: str = "New Conversation"
+    ) -> str:
         """Explicitly bind/create a conversation; process() never auto-creates."""
         if self._composition_error is not None:
             raise CoreConversationConfigurationError("Core composition is unavailable")
@@ -276,7 +417,11 @@ class CoreConversationProviderUnavailable(RuntimeError):
 
 __all__ = [
     "CoreConversationConfig",
+    "CoreConversationDetailResult",
+    "CoreConversationHandle",
     "CoreConversationIngress",
+    "CoreConversationListResult",
+    "CoreConversationMessagesResult",
     "CoreConversationRequest",
     "CoreConversationResponse",
 ]
