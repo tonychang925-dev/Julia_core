@@ -1,0 +1,116 @@
+{
+  "task_id": "MIRA-PSB-I3-PROJECTION-MODEL-VISIBLE-SELF-OWNERSHIP-P0",
+  "execution_agent": "LOCAL_CODEX_ONLY",
+  "design_sha": "73d5ecb1c2fc0e6dd70bccfe423c79a3370c0fa5",
+  "psb_i1_implementation_sha": "a31c4576d79b916cdfcaf035558b73ffc61e3da7",
+  "psb_i2_final_sha": "5992f75a66a88588c5df9dc1c9bc262c34456b68",
+  "implementation_base_sha": "5992f75a66a88588c5df9dc1c9bc262c34456b68",
+  "branch": "mira/psb-i3-self-ownership-projection-p0",
+  "implementation_parent_sha": "5992f75a66a88588c5df9dc1c9bc262c34456b68",
+  "implementation_candidate_sha": "5a8be1ca29d1f2cfd4cb9534c45221f1a379b794",
+  "selected_source_paths": [
+    "julia_core/persona_self_binding/**",
+    "tests/persona_self_binding/**"
+  ],
+  "changed_files": [
+    "julia_core/persona_self_binding/__init__.py",
+    "julia_core/persona_self_binding/contracts.py",
+    "julia_core/persona_self_binding/projection.py",
+    "tests/persona_self_binding/test_self_ownership_projection.py"
+  ],
+  "diffstat": "4 files changed, 871 insertions(+)",
+  "projection_schema": {
+    "result": "PASS",
+    "schema_version": "julia_core.persona_self_binding.projection.v1",
+    "canonical_json": true,
+    "round_trip": true,
+    "verify": true
+  },
+  "identity_ownership_contract": {
+    "result": "PASS",
+    "ownership_role": "CURRENT_SELF_IDENTITY",
+    "child_facts_duplicated": false
+  },
+  "experience_ownership_contract": {
+    "result": "PASS",
+    "ownership_role": "CURRENT_SELF_EXPERIENCE",
+    "child_facts_duplicated": false
+  },
+  "relationship_ownership_contract": {
+    "result": "PASS",
+    "absent_means_unbound_authority_only": true,
+    "explicitly_empty_distinct": true,
+    "admitted_bound_metadata_only": true,
+    "relationship_fact_synthesized": false
+  },
+  "provider_persona_separation": {
+    "result": "PASS",
+    "role": "EXECUTION_SUBSTRATE",
+    "provider_is_persona_self": false,
+    "provider_neutral": true,
+    "concrete_provider_or_model_fields": false
+  },
+  "authority_precedence_projection": {
+    "result": "PASS",
+    "identity_authority_source": "GOVERNED_BINDING",
+    "current_task_identity_authority": "NONE",
+    "provider_identity_authority": "NONE"
+  },
+  "contradiction_projection_contract": {
+    "result": "PASS",
+    "resolved_metadata_only": true,
+    "unresolved_override_fail_closed": true,
+    "classifier_implemented": false
+  },
+  "digest_contract": {
+    "result": "PASS",
+    "algorithm": "sha256",
+    "same_semantic_input_deterministic": true,
+    "ownership_change_changes_digest": true,
+    "lifecycle_provenance_only_changes_ignored": true
+  },
+  "error_codes": [
+    "PSB_PROJECTION_INVALID_INPUT",
+    "PSB_PROJECTION_DIGEST_MISMATCH",
+    "PSB_PROJECTION_UNBOUND_IDENTITY",
+    "PSB_PROJECTION_UNBOUND_EXPERIENCE",
+    "PSB_PROJECTION_RELATIONSHIP_STATE_INVALID",
+    "PSB_PROJECTION_UNRESOLVED_IDENTITY_OVERRIDE",
+    "PSB_PROJECTION_PROVIDER_FIELD_FORBIDDEN"
+  ],
+  "focused_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest tests/persona_self_binding -q",
+      "result": "PASS: 54 passed"
+    }
+  ],
+  "regression_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest tests/runtime_binding/test_runtime_canonical_reference_binding.py tests/projection/test_identity_only_persona_projection.py tests/projection/test_memory_experience_to_experience_frame.py tests/context_admission/test_semantic_binding_v3_projection.py tests/runtime/test_mira_composition.py --deselect tests/projection/test_identity_only_persona_projection.py::test_changed_scope_is_limited_to_authorized_eng08_paths -q",
+      "result": "PASS: 63 passed, 1 inherited pre-existing assertion deselected"
+    }
+  ],
+  "ncf_gate": {
+    "result": "PASS",
+    "p0_new": 0,
+    "p1_new": 0,
+    "p2_new": 0
+  },
+  "git_diff_check": "PASS",
+  "runtime_wiring_changed": false,
+  "c03_changed": false,
+  "provider_transport_changed": false,
+  "durable_store_changed": false,
+  "relationship_frame_implemented": false,
+  "provider_descriptor_implemented": false,
+  "dispatch_receipt_implemented": false,
+  "rd1_changed_files": [],
+  "classifier_implemented": false,
+  "prompt_patch_used": false,
+  "response_rewrite_used": false,
+  "fallback_used": false,
+  "synthetic_identity_used": false,
+  "relationship_fact_synthesized": false,
+  "implementation_scope": "PSB_I3_SELF_OWNERSHIP_PROJECTION_ONLY",
+  "final_result": "PASS_PSB_I3_SELF_OWNERSHIP_PROJECTION_READY_FOR_OWNER_REVIEW"
+}
