@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -27,6 +28,35 @@ RAW_BYTES = b'{"content":[]}\n'
 RAW_SHA256 = hashlib.sha256(RAW_BYTES).hexdigest()
 QUERY = "latest robotics industry external catalysts"
 TOOL_JSON = json.dumps({"name": "research.web.query", "arguments": {"query": QUERY}})
+PROVIDER_SYNTHESIS = (
+    "Provider natural-language synthesis mentioning https://must-not-become-a-source.example/path"
+)
+
+
+def source_observation() -> dict:
+    return {
+        "contract_version": "claude.websearch.source-observation.v1",
+        "source_identity_status": "PROVIDER_STRUCTURED_SOURCE_IDENTITY_PRESENT",
+        "source_binding": "PROVIDER_RESULTS_FIELD",
+        "sources": [
+            {
+                "source_id": "src_provider_bound_identity",
+                "url": "https://provider.example/robotics-catalysts",
+                "title": "Provider Robotics Catalyst Source",
+                "published_at": "2026-09-01T00:00:00Z",
+                "page_age": "2026-09-01",
+                "provider_observation_ref": {
+                    "execution_attempt_id": "exec_attempt_test",
+                    "provider_result_path": "$.results[0].content[0]",
+                    "provider_tool_use_id": "provider_tool_use_test",
+                    "raw_response_boundary": "TRANSPORT_OBSERVED_STDOUT_JSONRPC_FRAME_BYTES",
+                    "raw_response_sha256": RAW_SHA256,
+                    "raw_response_classification": "EXECUTION_PROVENANCE_ONLY",
+                },
+            }
+        ],
+        "reason": None,
+    }
 
 
 class FakeStdin:
@@ -117,6 +147,7 @@ def execution_responses(content: list[dict], *, ok: bool = True) -> list[dict]:
             "external_result_truth": "NOT_PROVEN",
             "external_freshness_truth": "NOT_PROVEN",
             "search_index_completeness_truth": "NOT_PROVEN",
+            "source_observation": source_observation(),
         }
         if ok
         else {
@@ -197,7 +228,7 @@ async def test_exact_public_surface_query_and_single_action_remain_visible(
 ):
     process = install_process(
         monkeypatch,
-        execution_responses([{"type": "text", "text": "provider observation"}]),
+        execution_responses([{"type": "text", "text": PROVIDER_SYNTHESIS}]),
     )
     provider = ClaudeClientWebResearchProvider(make_config(tmp_path))
     bridge = RuntimeCapabilityBridge()
@@ -210,18 +241,24 @@ async def test_exact_public_surface_query_and_single_action_remain_visible(
     assert execution.tool_result.side_effect_state is SideEffectState.NONE
     output = execution.tool_result.structured_output
     assert output["query"] == QUERY
-    assert output["findings"] == [
-        {
-            "statement": "provider observation",
-            "source_ref": f"claude-client:raw-response:{RAW_SHA256}",
-        }
-    ]
-    assert output["sources"][0]["sha256"] == RAW_SHA256
-    assert "url" not in output["sources"][0]
+    assert output["findings"] == []
+    assert output["sources"][0]["ref"] == "src_provider_bound_identity"
+    assert output["sources"][0]["url"] == "https://provider.example/robotics-catalysts"
+    assert output["sources"][0]["title"] == "Provider Robotics Catalyst Source"
+    assert output["sources"][0]["provider_observation_ref"] == source_observation()["sources"][0]["provider_observation_ref"]
+    assert "source_id" not in output["sources"][0]
+    assert "sha256" not in output["sources"][0]
+    assert PROVIDER_SYNTHESIS not in json.dumps(output)
     assert output["provenance"]["action_count"] == 1
     assert output["provenance"]["retry_count"] == 0
     assert output["provenance"]["fallback_count"] == 0
-    assert output["provenance"]["structured_external_source_url_available"] is False
+    assert output["provenance"]["structured_external_source_url_available"] is True
+    assert output["provenance"]["raw_response_sha256"] == RAW_SHA256
+    assert output["provenance"]["raw_response_classification"] == "EXECUTION_PROVENANCE_ONLY"
+    assert "SOURCE_IDENTITY_ONLY_NO_SOURCE_BOUND_CONTENT" in output["limitations"]
+    assert "external_result_truth=NOT_PROVEN" in output["limitations"]
+    assert "external_freshness_truth=NOT_PROVEN" in output["limitations"]
+    assert "search_index_completeness_truth=NOT_PROVEN" in output["limitations"]
 
     assert process.captured["args"] == (str(tmp_path / "bun"), "execution_boundary.ts")
     kwargs = process.captured["kwargs"]
@@ -243,22 +280,49 @@ async def test_exact_public_surface_query_and_single_action_remain_visible(
 
 
 @pytest.mark.asyncio
-async def test_provider_success_without_text_is_partial_not_sourceless_success(
+async def test_completed_search_without_valid_source_identity_fails_closed(
     tmp_path, monkeypatch
 ):
-    install_process(monkeypatch, execution_responses([]))
-    provider = ClaudeClientWebResearchProvider(make_config(tmp_path))
-    bridge = RuntimeCapabilityBridge()
-    bridge.register_provider("research", provider)
-    bridge.initialize()
+    mutations = (
+        lambda observation: observation.pop("source_observation"),
+        lambda observation: observation["source_observation"].update(
+            {
+                "source_identity_status": "BLOCKED_PROVIDER_DOES_NOT_EXPOSE_SOURCE_IDENTITY",
+                "source_binding": "NONE",
+                "sources": [],
+                "reason": "provider results array contains no inspectable source identity",
+            }
+        ),
+        lambda observation: observation["source_observation"]["sources"].__setitem__(
+            0,
+            {**observation["source_observation"]["sources"][0], "url": "ftp://example.com/source"},
+        ),
+        lambda observation: observation["source_observation"]["sources"][0].pop(
+            "provider_observation_ref"
+        ),
+        lambda observation: observation["source_observation"]["sources"][0][
+            "provider_observation_ref"
+        ].update(
+            {"raw_response_classification": "EXTERNAL_SOURCE_PROVENANCE"}
+        ),
+    )
 
-    execution = bridge.execute_tool_typed(TOOL_JSON)
+    for mutation in mutations:
+        responses = execution_responses([{"type": "text", "text": PROVIDER_SYNTHESIS}])
+        mutation(responses[2])
+        install_process(monkeypatch, responses)
+        provider = ClaudeClientWebResearchProvider(make_config(tmp_path))
+        bridge = RuntimeCapabilityBridge()
+        bridge.register_provider("research", provider)
+        bridge.initialize()
 
-    assert execution.tool_result.status is ToolResultStatus.PARTIAL
-    output = execution.tool_result.structured_output
-    assert output["findings"] == []
-    assert output["sources"]
-    assert any("no structured external URL" in item for item in output["limitations"])
+        execution = bridge.execute_tool_typed(TOOL_JSON)
+
+        assert execution.tool_result.status is ToolResultStatus.ERROR
+        assert execution.tool_result.error["code"] == "claude_client_source_identity_unavailable"
+        assert execution.tool_result.structured_output == {}
+        assert execution.tool_result.evidence_refs == ()
+        assert bridge.manager.canonical_evidence == []
 
 
 @pytest.mark.asyncio
@@ -366,7 +430,7 @@ async def test_claude_client_evidence_reenters_julia_second_pass(monkeypatch, tm
     )
     install_process(
         monkeypatch,
-        execution_responses([{"type": "text", "text": "raw search observation"}]),
+        execution_responses([{"type": "text", "text": PROVIDER_SYNTHESIS}]),
     )
     provider = ClaudeClientWebResearchProvider(make_config(tmp_path))
     bridge = RuntimeCapabilityBridge()
@@ -401,6 +465,17 @@ async def test_claude_client_evidence_reenters_julia_second_pass(monkeypatch, tm
     assert len(cognition.calls) == 2
     assert provider.execution_count == 1
     second_pass_system = str(cognition.calls[1][0]["content"])
-    assert "raw search observation" in second_pass_system
-    assert f"claude-client:raw-response:{RAW_SHA256}" in second_pass_system
-    assert "no structured external URL or citation" in second_pass_system
+    assert execution_evidence_visible(bridge)
+    assert "latest robotics industry external catalysts" in second_pass_system
+    assert "https://provider.example/robotics-catalysts" in second_pass_system
+    assert "Provider Robotics Catalyst Source" in second_pass_system
+    assert "src_provider_bound_identity" in second_pass_system
+    assert "SOURCE_IDENTITY_ONLY_NO_SOURCE_BOUND_CONTENT" in second_pass_system
+    assert "EXECUTION_PROVENANCE_ONLY" in second_pass_system
+    assert PROVIDER_SYNTHESIS not in second_pass_system
+    assert "https://must-not-become-a-source.example/path" not in second_pass_system
+    assert f"claude-client:raw-response:{RAW_SHA256}" not in second_pass_system
+
+
+def execution_evidence_visible(bridge: RuntimeCapabilityBridge) -> bool:
+    return bool(bridge.manager.canonical_evidence)

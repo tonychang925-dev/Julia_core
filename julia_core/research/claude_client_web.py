@@ -15,6 +15,7 @@ import re
 import shutil
 import time
 from typing import Any
+from urllib.parse import urlparse
 
 from julia_core.capability.models import (
     ProviderExecutionOutcome,
@@ -26,6 +27,7 @@ from julia_core.capability.models import (
 PUBLIC_ENTRYPOINT = "execution_boundary.ts"
 PUBLIC_PROTOCOL = "CLAUDE_CLIENT_JSONL_REQUEST_PLANE_V1"
 PROVIDER_ID = "claude-client-websearch"
+_SOURCE_OBSERVATION_CONTRACT_VERSION = "claude.websearch.source-observation.v1"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _PERMISSIVE_NETWORK_POLICY = {
     "allowed_schemes": [],
@@ -457,40 +459,50 @@ class ClaudeClientWebResearchProvider:
                 action_count=self.execution_count,
             )
 
-        source_ref = f"claude-client:raw-response:{raw_sha}"
-        findings = []
-        for item in content:
-            if not isinstance(item, dict):
-                continue
-            statement = item.get("text")
-            if isinstance(statement, str) and statement:
-                findings.append({"statement": statement, "source_ref": source_ref})
+        observation = result.get("source_observation")
+        source_reason = self._source_observation_invalid_reason(
+            observation,
+            result=result,
+            raw=raw,
+            raw_sha256=raw_sha,
+        )
+        if source_reason is not None:
+            observation_reason = (
+                observation.get("reason")
+                if isinstance(observation, dict)
+                else None
+            )
+            return self._error(
+                ToolResultStatus.ERROR,
+                "claude_client_source_identity_unavailable",
+                str(observation_reason) if isinstance(observation_reason, str) and observation_reason else source_reason,
+                SideEffectState.NONE,
+                process_status=process_status,
+                transmission_count=result.get("tools_call_transmission_count"),
+                retry_count=result.get("retry_count"),
+                raw_response_boundary=raw.get("boundary"),
+                raw_response_sha256=raw_sha,
+                action_count=self.execution_count,
+            )
 
-        source = {
-            "ref": source_ref,
-            "evidence_type": "claude_client_raw_provider_response",
-            "boundary": raw.get("boundary"),
-            "completeness": raw.get("completeness"),
-            "byte_size": raw.get("byte_size"),
-            "sha256": raw_sha,
-            "observed_at": observed_at,
-        }
+        provider_sources = observation["sources"]
+        sources = [
+            {
+                "ref": source["source_id"],
+                "url": source["url"],
+                "title": source["title"],
+                "published_at": source["published_at"],
+                "page_age": source["page_age"],
+                "provider_observation_ref": source["provider_observation_ref"],
+            }
+            for source in provider_sources
+        ]
         limitations = [
             "Provider action completion does not prove external-world truth.",
-            "The public WebSearch result exposes no structured external URL or citation.",
-            "The source reference binds only the exact raw Claude_client provider response digest.",
-            str(
-                result.get("external_result_truth")
-                or "external_result_truth=NOT_PROVEN"
-            ),
-            str(
-                result.get("external_freshness_truth")
-                or "external_freshness_truth=NOT_PROVEN"
-            ),
-            str(
-                result.get("search_index_completeness_truth")
-                or "search_index_completeness_truth=NOT_PROVEN"
-            ),
+            "SOURCE_IDENTITY_ONLY_NO_SOURCE_BOUND_CONTENT",
+            self._truth_limitation(result, "external_result_truth"),
+            self._truth_limitation(result, "external_freshness_truth"),
+            self._truth_limitation(result, "search_index_completeness_truth"),
         ]
         provenance = {
             "public_entrypoint": f"bun {PUBLIC_ENTRYPOINT}",
@@ -502,6 +514,11 @@ class ClaudeClientWebResearchProvider:
             "raw_response_boundary": raw.get("boundary"),
             "raw_response_completeness": raw.get("completeness"),
             "raw_response_sha256": raw_sha,
+            "raw_response_classification": "EXECUTION_PROVENANCE_ONLY",
+            "source_observation_contract_version": observation["contract_version"],
+            "source_identity_status": observation["source_identity_status"],
+            "source_binding": observation["source_binding"],
+            "source_count": len(provider_sources),
             "action_count": 1,
             "retry_count": 0,
             "fallback_count": 0,
@@ -510,14 +527,14 @@ class ClaudeClientWebResearchProvider:
             "search_index_completeness_truth": result.get(
                 "search_index_completeness_truth"
             ),
-            "structured_external_source_url_available": False,
+            "structured_external_source_url_available": True,
         }
         return ProviderExecutionOutcome(
             status=ToolResultStatus.PARTIAL,
             structured_output={
                 "query": query,
-                "findings": findings,
-                "sources": [source],
+                "findings": [],
+                "sources": sources,
                 "limitations": limitations,
                 "provider": PROVIDER_ID,
                 "produced_at": observed_at,
@@ -525,6 +542,75 @@ class ClaudeClientWebResearchProvider:
             },
             side_effect_state=SideEffectState.NONE,
         )
+
+    @staticmethod
+    def _truth_limitation(result: dict[str, Any], field: str) -> str:
+        value = result.get(field)
+        return f"{field}={value if isinstance(value, str) and value else 'NOT_PROVEN'}"
+
+    @staticmethod
+    def _source_observation_invalid_reason(
+        observation: Any,
+        *,
+        result: dict[str, Any],
+        raw: dict[str, Any],
+        raw_sha256: str,
+    ) -> str | None:
+        if not isinstance(observation, dict):
+            return "Claude_client source_observation is unavailable"
+        if observation.get("contract_version") != _SOURCE_OBSERVATION_CONTRACT_VERSION:
+            return "Claude_client source_observation contract version is invalid"
+        if observation.get("source_identity_status") != "PROVIDER_STRUCTURED_SOURCE_IDENTITY_PRESENT":
+            return "Claude_client provider did not expose structured source identity"
+        if observation.get("source_binding") != "PROVIDER_RESULTS_FIELD":
+            return "Claude_client source identity binding is invalid"
+        if observation.get("reason") is not None:
+            return "Claude_client source observation is not clean"
+        sources = observation.get("sources")
+        if not isinstance(sources, list) or not sources:
+            return "Claude_client source identity collection is empty"
+
+        source_ids: set[str] = set()
+        for index, source in enumerate(sources):
+            prefix = f"Claude_client source_observation.sources[{index}]"
+            if not isinstance(source, dict):
+                return f"{prefix} must be an object"
+            source_id = source.get("source_id")
+            if not isinstance(source_id, str) or not source_id.strip():
+                return f"{prefix}.source_id must be a non-empty string"
+            if source_id in source_ids:
+                return f"{prefix}.source_id is duplicated"
+            source_ids.add(source_id)
+
+            url = source.get("url")
+            if not isinstance(url, str) or not url.strip():
+                return f"{prefix}.url must be a non-empty string"
+            parsed_url = urlparse(url)
+            if (
+                parsed_url.scheme not in ("http", "https")
+                or not parsed_url.netloc
+            ):
+                return f"{prefix}.url must be an absolute http/https URL"
+            for field in ("title", "published_at", "page_age"):
+                if source.get(field) is not None and not isinstance(source.get(field), str):
+                    return f"{prefix}.{field} must be a string or null"
+
+            provider_ref = source.get("provider_observation_ref")
+            if not isinstance(provider_ref, dict):
+                return f"{prefix}.provider_observation_ref must be an object"
+            if not isinstance(provider_ref.get("provider_result_path"), str) or not provider_ref["provider_result_path"].strip():
+                return f"{prefix}.provider_observation_ref.provider_result_path is invalid"
+            if provider_ref.get("provider_tool_use_id") is not None and not isinstance(provider_ref.get("provider_tool_use_id"), str):
+                return f"{prefix}.provider_observation_ref.provider_tool_use_id is invalid"
+            if provider_ref.get("execution_attempt_id") != result.get("execution_attempt_id"):
+                return f"{prefix}.provider_observation_ref execution identity is mismatched"
+            if provider_ref.get("raw_response_boundary") != raw.get("boundary"):
+                return f"{prefix}.provider_observation_ref raw boundary is mismatched"
+            if provider_ref.get("raw_response_sha256") != raw_sha256:
+                return f"{prefix}.provider_observation_ref raw digest is mismatched"
+            if provider_ref.get("raw_response_classification") != "EXECUTION_PROVENANCE_ONLY":
+                return f"{prefix}.provider_observation_ref raw classification is invalid"
+        return None
 
     @staticmethod
     def _invalid_request_reason(request: Any) -> str | None:
