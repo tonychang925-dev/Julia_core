@@ -672,6 +672,15 @@ class PersonaSelfBindingStore:
                         "governance history was not append-only",
                         path=str(path),
                     )
+                if _immutable_semantic_payload(
+                    previous.binding
+                ) != _immutable_semantic_payload(binding):
+                    raise PersonaSelfBindingContractError(
+                        PersonaSelfBindingErrorCode.PSB_IMMUTABLE_VERSION_MUTATION,
+                        "same binding_version semantic payload changed",
+                        path=str(path),
+                        object_digest=record.object_digest,
+                    )
             previous_for_version[version] = record
             latest_by_version[version] = record
             if binding.predecessor_binding_version is not None:
@@ -871,6 +880,30 @@ _TARGET_BY_EVENT: dict[GovernanceEventType, PersonaSelfBindingLifecycle] = {
 
 def _version_number(value: str) -> int:
     return int(value[1:])
+
+
+_IMMUTABLE_SEMANTIC_FIELDS = (
+    "schema_version",
+    "binding_id",
+    "persona_self_id",
+    "identity_authority",
+    "experience_authority",
+    "relationship_authority",
+    "execution_substrate_policy",
+    "binding_version",
+    "predecessor_binding_version",
+    "predecessor_binding_id",
+    "lineage_id",
+    "integrity",
+)
+
+
+def _immutable_semantic_payload(
+    binding: PersonaSelfBinding,
+) -> tuple[object, ...]:
+    return tuple(
+        getattr(binding, field_name) for field_name in _IMMUTABLE_SEMANTIC_FIELDS
+    )
 
 
 __all__ = [

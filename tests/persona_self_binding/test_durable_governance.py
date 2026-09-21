@@ -1,5 +1,6 @@
 import json
 import os
+import hashlib
 from dataclasses import replace
 from pathlib import Path
 
@@ -173,6 +174,119 @@ def test_digest_mismatch_and_unknown_schema_fail_closed(tmp_path: Path) -> None:
         error_code(lambda: store.load_lineage(binding.lineage_id))
         is PersonaSelfBindingErrorCode.PSB_SCHEMA_VERSION_UNSUPPORTED
     )
+
+
+@pytest.mark.parametrize(
+    ("mutator", "expected_code"),
+    [
+        (
+            lambda binding: binding["identity_authority"].update(
+                source_digest=OTHER_DIGEST
+            ),
+            PersonaSelfBindingErrorCode.PSB_IMMUTABLE_VERSION_MUTATION,
+        ),
+        (
+            lambda binding: binding.update(persona_self_id="other-persona-self"),
+            PersonaSelfBindingErrorCode.PSB_IMMUTABLE_VERSION_MUTATION,
+        ),
+        (
+            lambda binding: binding["relationship_authority"].update(
+                state="EXPLICITLY_EMPTY"
+            ),
+            PersonaSelfBindingErrorCode.PSB_IMMUTABLE_VERSION_MUTATION,
+        ),
+        (
+            lambda binding: binding["execution_substrate_policy"].update(
+                provider_neutral=False
+            ),
+            PersonaSelfBindingErrorCode.PSB_SCHEMA_INVALID,
+        ),
+    ],
+)
+def test_same_version_semantic_payload_mutation_fails_closed(
+    tmp_path: Path,
+    mutator,
+    expected_code: PersonaSelfBindingErrorCode,
+) -> None:
+    store, _ = activated_store(tmp_path)
+    path = next((store.root / "lineages").glob("*.json"))
+    snapshot = json.loads(path.read_text(encoding="utf-8"))
+    binding = snapshot["records"][-1]["binding"]
+    mutator(binding)
+    canonical = json.dumps(
+        binding, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+    snapshot["records"][-1]["object_digest"] = hashlib.sha256(
+        canonical.encode("utf-8")
+    ).hexdigest()
+    path.write_text(json.dumps(snapshot), encoding="utf-8")
+    assert error_code(lambda: store.load_lineage("persona-lineage")) is expected_code
+
+
+def test_same_version_predecessor_metadata_mutation_fails_closed(
+    tmp_path: Path,
+) -> None:
+    store, active_digest = activated_store(tmp_path)
+    successor = replace(
+        binding_fixture(
+            binding_version="v2",
+            lifecycle=PersonaSelfBindingLifecycle.DRAFT,
+            identity_digest=OTHER_DIGEST,
+        ),
+        governance_provenance=(
+            event("propose-v2", GovernanceEventType.PROPOSE_BINDING),
+        ),
+    )
+    successor_record = store.apply_transition(
+        active_digest,
+        GovernanceEventType.REBIND_AUTHORITY_VERSION,
+        event_id="supersede-v1",
+        successor_event_id="rebind-v2",
+        successor=successor,
+        actor="owner-governance",
+        reason="owner rebound authority",
+        occurred_at="2026-09-21T00:12:00Z",
+    )
+    store.apply_transition(
+        successor_record.object_digest,
+        GovernanceEventType.REVOKE_INVALID,
+        event_id="revoke-v2",
+        actor="owner-governance",
+        reason="create same-version append record",
+        occurred_at="2026-09-21T00:13:00Z",
+    )
+    path = next((store.root / "lineages").glob("*.json"))
+    snapshot = json.loads(path.read_text(encoding="utf-8"))
+    last_binding = snapshot["records"][-1]["binding"]
+    last_binding["predecessor_binding_id"] = "other-predecessor"
+    canonical = json.dumps(
+        last_binding, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+    snapshot["records"][-1]["object_digest"] = hashlib.sha256(
+        canonical.encode("utf-8")
+    ).hexdigest()
+    path.write_text(json.dumps(snapshot), encoding="utf-8")
+    assert (
+        error_code(lambda: store.load_lineage("persona-lineage"))
+        is PersonaSelfBindingErrorCode.PSB_PREDECESSOR_INVALID
+    )
+
+
+def test_legitimate_same_version_lifecycle_and_provenance_append_remains_accepted(
+    tmp_path: Path,
+) -> None:
+    store, active_digest = activated_store(tmp_path)
+    record = store.apply_transition(
+        active_digest,
+        GovernanceEventType.REVOKE_INVALID,
+        event_id="revoke",
+        actor="owner-governance",
+        reason="legitimate append",
+        occurred_at="2026-09-21T00:14:00Z",
+    )
+    records = store.load_lineage("persona-lineage")
+    assert record in records
+    assert len(records) == 3
 
 
 def test_valid_lifecycle_transition_and_illegal_transition_rejected(

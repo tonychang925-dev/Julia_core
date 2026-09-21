@@ -40,6 +40,7 @@ class PersonaSelfBindingErrorCode(str, Enum):
     PSB_PREDECESSOR_MISMATCH = "PSB_PREDECESSOR_MISMATCH"
     PSB_SCHEMA_VERSION_UNSUPPORTED = "PSB_SCHEMA_VERSION_UNSUPPORTED"
     PSB_PARTIAL_WRITE_DETECTED = "PSB_PARTIAL_WRITE_DETECTED"
+    PSB_IMMUTABLE_VERSION_MUTATION = "PSB_IMMUTABLE_VERSION_MUTATION"
 
 
 class PersonaSelfBindingContractError(ValueError):
@@ -458,7 +459,9 @@ class PersonaSelfBinding:
                 relationship_authority=_relationship_from_mapping(
                     payload["relationship_authority"]
                 ),
-                execution_substrate_policy=ExecutionSubstratePolicy(),
+                execution_substrate_policy=_execution_policy_from_mapping(
+                    payload["execution_substrate_policy"]
+                ),
                 binding_version=payload["binding_version"],
                 predecessor_binding_version=payload.get("predecessor_binding_version"),
                 predecessor_binding_id=payload.get("predecessor_binding_id"),
@@ -718,6 +721,31 @@ def _supersession_from_mapping(payload: Any) -> SupersessionContract:
         raise PersonaSelfBindingContractError(
             PersonaSelfBindingErrorCode.PSB_SCHEMA_INVALID,
             f"supersession field is missing: {error.args[0]}",
+        ) from error
+
+
+def _execution_policy_from_mapping(payload: Any) -> ExecutionSubstratePolicy:
+    if not isinstance(payload, Mapping) or set(payload) != {
+        "role",
+        "provider_is_persona_self",
+        "provider_neutral",
+        "provider_special_cases",
+    }:
+        raise PersonaSelfBindingContractError(
+            PersonaSelfBindingErrorCode.PSB_SCHEMA_INVALID,
+            "execution substrate policy fields do not exactly match the schema",
+        )
+    try:
+        return ExecutionSubstratePolicy(
+            role=payload["role"],
+            provider_is_persona_self=payload["provider_is_persona_self"],
+            provider_neutral=payload["provider_neutral"],
+            provider_special_cases=tuple(payload["provider_special_cases"]),
+        )
+    except TypeError as error:
+        raise PersonaSelfBindingContractError(
+            PersonaSelfBindingErrorCode.PSB_SCHEMA_INVALID,
+            "execution substrate policy is invalid",
         ) from error
 
 
