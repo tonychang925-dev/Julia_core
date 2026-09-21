@@ -153,7 +153,7 @@ def test_i5b_03_seventh_entry_exceeds_execution_budget():
     ) == ("context_evidence_budget_exceeded")
 
 
-def test_i5b_04_more_than_sixty_four_evidence_objects_rejected():
+def test_i5b_04_more_than_sixty_four_evidence_objects_rejected(monkeypatch):
     evidence_items = tuple(
         evidence(
             1000 + index,
@@ -177,10 +177,41 @@ def test_i5b_04_more_than_sixty_four_evidence_objects_rejected():
         evidence=evidence_items,
     )
     entries = (entry,)
+    monkeypatch.setattr(
+        CapabilityEvidenceSource,
+        "to_payload",
+        lambda _: (_ for _ in ()).throw(AssertionError("source materialized")),
+    )
 
     assert rejection_code(
         IncrementalEvidenceAdmissionGate().seal, request(entries)
     ) == ("context_evidence_budget_exceeded")
+
+
+def test_final_every_canonical_evidence_source_type_member_is_accepted():
+    for source_type in EvidenceSourceType:
+        item = source(1)
+        object.__setattr__(item.evidence[0], "source_type", source_type)
+
+        assert IncrementalEvidenceAdmissionGate().seal(request((item,)))
+
+
+def test_final_every_canonical_evidence_source_type_string_is_accepted():
+    for source_type in EvidenceSourceType:
+        item = source(1)
+        object.__setattr__(item.evidence[0], "source_type", source_type.value)
+
+        assert IncrementalEvidenceAdmissionGate().seal(request((item,)))
+
+
+def test_final_arbitrary_evidence_source_type_fails_typed():
+    item = source(1)
+    object.__setattr__(item.evidence[0], "source_type", "AUTHORIZATION_DECISION")
+
+    assert (
+        rejection_code(IncrementalEvidenceAdmissionGate().seal, request((item,)))
+        == "inexact_evidence_source_type"
+    )
 
 
 def test_i5b_05_canonical_bytes_exceed_budget_without_truncation():

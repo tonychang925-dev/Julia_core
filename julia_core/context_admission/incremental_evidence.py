@@ -14,6 +14,7 @@ from julia_core.capability.models import (
     CapabilityCall,
     CapabilityCallStatus,
     Evidence,
+    EvidenceSourceType,
     ToolResult,
     ToolResultStatus,
 )
@@ -151,7 +152,7 @@ def canonical_tool_result(result: ToolResult) -> dict[str, Any]:
 def canonical_evidence(evidence: Evidence) -> dict[str, Any]:
     return {
         "evidence_id": evidence.evidence_id,
-        "source_type": _mechanical_string(evidence.source_type),
+        "source_type": _canonical_evidence_source_type(evidence.source_type),
         "source_ref": evidence.source_ref,
         "observed_at": evidence.observed_at,
         "content_ref": evidence.content_ref,
@@ -173,6 +174,16 @@ def _mechanical_string(value: str | Enum) -> str:
             "incremental evidence status must mechanically normalize to a string",
         )
     return value
+
+
+def _canonical_evidence_source_type(value: str | EvidenceSourceType) -> str:
+    try:
+        return EvidenceSourceType(value).value
+    except ValueError as error:
+        raise _rejection(
+            "inexact_evidence_source_type",
+            "Evidence source_type is outside the C-12 canonical taxonomy",
+        ) from error
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,6 +229,7 @@ class CapabilityEvidenceSource:
                     "inexact_evidence_object",
                     "incremental evidence requires exact Evidence objects",
                 )
+            _canonical_evidence_source_type(evidence.source_type)
 
         _require_string(self.capability_call.capability_call_id, "capability_call_id")
         _require_string(
@@ -484,6 +496,12 @@ class IncrementalEvidenceAdmissionGate:
                     "ledger projections cannot substitute for canonical evidence sources",
                 )
             entry.__post_init__()
+        evidence_count = sum(len(entry.evidence) for entry in request.entries)
+        if evidence_count > MAX_CANONICAL_EVIDENCE_OBJECTS:
+            raise _rejection(
+                "context_evidence_budget_exceeded",
+                "incremental Evidence object count exceeds the frozen P0 budget",
+            )
         if any(entry.turn_id != request.turn_id for entry in request.entries):
             raise _rejection(
                 "incremental_turn_mismatch",
@@ -530,7 +548,6 @@ class IncrementalEvidenceAdmissionGate:
                 "duplicate_incremental_entry_digest",
                 "incremental evidence contains ambiguous entry digests",
             )
-        evidence_count = sum(len(entry.evidence) for entry in request.entries)
         byte_count = sum(
             len(canonical_json(payload).encode("utf-8")) for payload in payloads
         )
