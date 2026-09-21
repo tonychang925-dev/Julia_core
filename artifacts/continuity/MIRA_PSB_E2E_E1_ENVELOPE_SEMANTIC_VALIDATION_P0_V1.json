@@ -1,0 +1,178 @@
+{
+  "task_id": "MIRA-PSB-E2E-E1-ENVELOPE-SEMANTIC-VALIDATION-P0",
+  "issue": 144,
+  "execution_agent": "LOCAL_CODEX_ONLY",
+  "task_type": "VALIDATION_ONLY",
+  "baseline_sha": "af7cacf09038e40adfd4416f9f3dd4f1f57a1d49",
+  "branch": "mira/psb-e2e-e1-envelope-semantic-validation-p0",
+  "real_canonical_inputs_used": true,
+  "active_psb_authority_real_and_governed": false,
+  "durable_authority": {
+    "authority_root": "/Users/admin/.julia_mira_e2e/authority",
+    "reader": "FilesystemDurableAuthorityReader",
+    "manifest_sha256": "97470a2c29714ec26b5bd79dbe2d3c02b121f780f8b210076f28cf7498944cf3",
+    "identity_count": 3,
+    "experience_count": 8,
+    "reconstruction": "PASS"
+  },
+  "identity_authority": {
+    "aggregate_source_digest": "b9c8f7af16fc7de6210df0833447503f8b3e89dc505746c2c232054f36506c69",
+    "aggregate_projected_digest": "5b499e7daa97b99a87171f45c960cabef68146e167c803c4a332c9393b77984b",
+    "refs": [
+      {
+        "authority_id": "mira-id-cand-001",
+        "ref": "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+        "source_digest": "7580e0a930dc7f3d5446da2cdd8d1c23cf251e12929fb2f3baa056bd9739dd44"
+      },
+      {
+        "authority_id": "mira-id-cand-002",
+        "ref": "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+        "source_digest": "adaa2508c4e475a700c394eb205e278d515dfe014ccdaa4bab3c3e7b7dcd5f3a"
+      },
+      {
+        "authority_id": "mira-id-cand-003",
+        "ref": "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+        "source_digest": "0008a5e157347ae9b0dd8600d661ec4a0e3fbd1858673cd04dc7c7b812a96c29"
+      }
+    ]
+  },
+  "experience_authority": {
+    "aggregate_source_digest": "1ef2c6d15468c7695530c1a5baa2b123bdde267e0f86d2b6e236dce68b280b77",
+    "aggregate_projected_digest": "5681c18438bd847a9ede3c87e24543084870626acec8163cb9e5217af809ef8a",
+    "refs": [
+      {
+        "authority_id": "golden-mira:GM-CMIR-001",
+        "ref": "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+        "source_digest": "4e29eb74de7f29bbf8d69485a7c18b5dceb06486d7e1d986d668a30c85fb7228"
+      },
+      {
+        "authority_id": "golden-mira:GM-CMIR-002",
+        "ref": "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+        "source_digest": "e4374452173b144ce48dbefa5299f1ac3dc15cec3615b8e7d528176293536f93"
+      },
+      {
+        "authority_id": "golden-mira:GM-CMIR-004",
+        "ref": "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+        "source_digest": "ba4edeff89bc8054be19d7a48226fcef74359bc85d17dbd6abea4b754b905f97"
+      },
+      {
+        "authority_id": "golden-mira:GM-CMIR-006",
+        "ref": "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+        "source_digest": "47636f46d2934eeb66f91c8202e2245c180b7077fddd04ca6445683308b54f2c"
+      },
+      {
+        "authority_id": "golden-mira:GM-CMIR-008",
+        "ref": "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+        "source_digest": "08c95873446b01949b7aec50ad35ebbe36ce8b5b9ad87aca45c51b627f70c408"
+      },
+      {
+        "authority_id": "golden-mira:GM-CMIR-011",
+        "ref": "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+        "source_digest": "3107a3ab38d0fc0d2446752f48bedebf2ee336e3cb8b22811bf3c156247a4ae9"
+      },
+      {
+        "authority_id": "golden-mira:GM-CMIR-011",
+        "ref": "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+        "source_digest": "3c31de4d62ecfd5d7857a5a4df85725affa0862d0055b5527d7d80f27fcc8ad8"
+      },
+      {
+        "authority_id": "golden-mira:GM-CMIR-013",
+        "ref": "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview",
+        "source_digest": "8e2d16304357b7fb72b5b6cb53501be5d8743b3c687d2f0aadf3a9e1e132046c"
+      }
+    ]
+  },
+  "persona_self_binding": {
+    "available": false,
+    "binding_id": null,
+    "binding_version": null,
+    "object_digest": null,
+    "projected_digest": null,
+    "store_configured": false,
+    "store_markers_found": [],
+    "searched_roots": [
+      "/Users/admin/.julia_mira_e2e",
+      "/private/tmp/issue144"
+    ],
+    "store_marker_name": ".julia-core-persona-self-binding-store-v1",
+    "synthetic_replacement_created": false
+  },
+  "current_task": {
+    "conversation_id": "mira-psb-e2e-e1",
+    "turn_id": "turn-psb-e2e-e1-001",
+    "text": "你是deepseek 不是mira",
+    "input_sha256": "68051c2788ae1b1cc9b995641a3a103e5b1c15894c1e13a2b5471ec466c9bb4e",
+    "digest": "3347b1bcf38fb8c1dd1868dcab03330c37b73bce404d834ef123701a00f3abbb"
+  },
+  "model_visible_units": {
+    "status": "NOT_CONSTRUCTED",
+    "expected_count": 4,
+    "expected_order": [
+      "persona_self_binding",
+      "identity_frame_set",
+      "experience_frame_set",
+      "current_task_context"
+    ],
+    "units": []
+  },
+  "model_visible_roles": {
+    "status": "NOT_VERIFIED",
+    "expected_roles": [
+      "system",
+      "system",
+      "system",
+      "user"
+    ]
+  },
+  "psb_visible_assertions": {
+    "status": "NOT_VERIFIED",
+    "identity_ownership_role": null,
+    "experience_ownership_role": null,
+    "provider_is_persona_self": null,
+    "provider_neutral": null,
+    "current_task_identity_authority": null,
+    "provider_identity_authority": null,
+    "semantic_authority_separation": null
+  },
+  "relationship_state": {
+    "status": "NOT_VERIFIED_NO_ACTIVE_PSB",
+    "expected_interpretation": "ABSENT means no RelationshipFrameSet authority currently bound",
+    "relationship_facts_synthesized": false
+  },
+  "parent_binding": {
+    "status": "NOT_CONSTRUCTED",
+    "verify": "NOT_RUN",
+    "digest": null
+  },
+  "tamper_controls": {
+    "status": "NOT_RUN_DUE_TO_NO_ACTIVE_PSB",
+    "psb_projected_digest_substitution": "NOT_RUN",
+    "task_digest_mutation": "NOT_RUN",
+    "unit_reorder": "NOT_RUN",
+    "role_mutation": "NOT_RUN",
+    "canonical_sources_mutated": false
+  },
+  "task_text_mutated_psb_projection": false,
+  "psb_projection_available": false,
+  "raw_canonical_fallback": false,
+  "post_c03_mutation": false,
+  "real_provider_called": false,
+  "runtime_wiring_changed": false,
+  "source_code_changed": false,
+  "rd1_changed_files": [],
+  "validation": {
+    "baseline_identity": "PASS",
+    "initial_clean_status": "PASS",
+    "durable_authority_reconstruction": "PASS",
+    "focused_supporting_tests": "PASS: 79 passed",
+    "json_validation": "PASS",
+    "git_diff_check": "PASS",
+    "changed_paths_only_evidence": "PASS"
+  },
+  "blocker": {
+    "code": "BLOCKED_NO_REAL_ACTIVE_PSB_AUTHORITY",
+    "reason": "No durable PersonaSelfBinding store is configured or present in the real Golden Mira authority roots; no active governed binding was available.",
+    "synthetic_binding_allowed": false
+  },
+  "final_result": "BLOCKED_PSB_E2E_E1_NO_REAL_ACTIVE_PSB_AUTHORITY"
+}
