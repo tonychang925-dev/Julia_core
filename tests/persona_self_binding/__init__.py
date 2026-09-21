@@ -1,0 +1,1 @@
+"""PersonaSelfBinding contract tests."""
