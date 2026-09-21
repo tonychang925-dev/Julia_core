@@ -1,0 +1,126 @@
+{
+  "task_id": "MIRA-PSB-I2-DURABLE-SERIALIZATION-GOVERNANCE-P0",
+  "execution_agent": "LOCAL_CODEX_ONLY",
+  "design_sha": "73d5ecb1c2fc0e6dd70bccfe423c79a3370c0fa5",
+  "psb_i1_implementation_sha": "a31c4576d79b916cdfcaf035558b73ffc61e3da7",
+  "implementation_base_sha": "c4ee893bdd3e12219e9bd294d3d514d5b59010ca",
+  "branch": "mira/psb-i2-durable-governance-p0",
+  "implementation_parent_sha": "c4ee893bdd3e12219e9bd294d3d514d5b59010ca",
+  "implementation_candidate_sha": "ed3342402fbd46799ade3ecef2bca962d1664e52",
+  "selected_source_paths": [
+    "julia_core/persona_self_binding/**",
+    "tests/persona_self_binding/**"
+  ],
+  "changed_files": [
+    "julia_core/persona_self_binding/__init__.py",
+    "julia_core/persona_self_binding/contracts.py",
+    "julia_core/persona_self_binding/durable.py",
+    "tests/persona_self_binding/test_durable_governance.py"
+  ],
+  "diffstat": "4 files changed, 1396 insertions(+)",
+  "storage_contract": {
+    "result": "PASS",
+    "canonical_json": true,
+    "sha256_verification": true,
+    "exact_round_trip": true,
+    "unknown_fields_rejected": true,
+    "empty_store_bootstrap": "FORBIDDEN"
+  },
+  "lineage_contract": {
+    "result": "PASS",
+    "immutable_records": true,
+    "append_only_governance_history": true,
+    "predecessor_chain_verified": true,
+    "exactly_one_active": true
+  },
+  "transition_contract": {
+    "result": "PASS",
+    "typed_events_only": true,
+    "provider_or_user_utterance_transition": "FORBIDDEN",
+    "signatures_required": false,
+    "signature_hardening": "DEFERRED"
+  },
+  "active_binding_selection": {
+    "result": "PASS",
+    "authority": "GOVERNED_LINEAGE_STATE",
+    "filesystem_order_independent": true,
+    "mtime_independent": true,
+    "latest_file_wins": false
+  },
+  "supersession_contract": {
+    "result": "PASS",
+    "predecessor_preserved": true,
+    "successor_immutable": true,
+    "provider_change_creates_version": false
+  },
+  "quarantine_contract": {
+    "result": "PASS",
+    "evidence_retained": true,
+    "executable": false,
+    "repair_or_regeneration": "FORBIDDEN"
+  },
+  "atomicity_contract": {
+    "result": "PASS",
+    "temporary_write": true,
+    "fsync_file_and_directory": true,
+    "atomic_rename": true,
+    "post_write_read_back_digest_validation": true
+  },
+  "inventory_contract": {
+    "result": "PASS",
+    "deterministic_output": true,
+    "runtime_projection": "NOT_PERFORMED"
+  },
+  "error_codes": [
+    "PSB_STORE_MISSING",
+    "PSB_STORE_CORRUPT",
+    "PSB_OBJECT_DIGEST_MISMATCH",
+    "PSB_DUPLICATE_ACTIVE_BINDING",
+    "PSB_NO_ACTIVE_BINDING",
+    "PSB_ILLEGAL_TRANSITION",
+    "PSB_LINEAGE_BROKEN",
+    "PSB_PREDECESSOR_MISMATCH",
+    "PSB_SCHEMA_VERSION_UNSUPPORTED",
+    "PSB_PARTIAL_WRITE_DETECTED"
+  ],
+  "focused_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest tests/persona_self_binding -q",
+      "result": "PASS: 35 passed"
+    }
+  ],
+  "regression_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest tests/runtime_binding/test_runtime_canonical_reference_binding.py tests/projection/test_identity_only_persona_projection.py tests/projection/test_memory_experience_to_experience_frame.py tests/context_admission/test_semantic_binding_v3_projection.py tests/runtime/test_mira_composition.py -q",
+      "result": "FAIL_PREEXISTING: 63 passed, 1 failed; inherited ENG08 scope assertion"
+    },
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest tests/runtime_binding/test_runtime_canonical_reference_binding.py tests/projection/test_identity_only_persona_projection.py tests/projection/test_memory_experience_to_experience_frame.py tests/context_admission/test_semantic_binding_v3_projection.py tests/runtime/test_mira_composition.py --deselect tests/projection/test_identity_only_persona_projection.py::test_changed_scope_is_limited_to_authorized_eng08_paths -q",
+      "result": "PASS: 63 passed, 1 deselected"
+    }
+  ],
+  "ncf_gate": {
+    "result": "PASS",
+    "command": "/opt/miniconda3/bin/python tools/no_critical_fallback_gate.py --repo Julia_core --baseline ncf-baseline.json --json --fail-p2 --files julia_core/persona_self_binding/__init__.py julia_core/persona_self_binding/contracts.py julia_core/persona_self_binding/durable.py",
+    "p0_new": 0,
+    "p1_new": 0,
+    "p2_new": 0
+  },
+  "git_diff_check": "PASS",
+  "runtime_wiring_changed": false,
+  "c03_changed": false,
+  "provider_transport_changed": false,
+  "projection_changed": false,
+  "relationship_frame_implemented": false,
+  "provider_descriptor_implemented": false,
+  "dispatch_receipt_implemented": false,
+  "rd1_changed_files": [],
+  "fallback_used": false,
+  "synthetic_binding_used": false,
+  "auto_bootstrap_used": false,
+  "latest_file_wins_used": false,
+  "mtime_authority_used": false,
+  "prompt_patch_used": false,
+  "implementation_scope": "PSB_I2_DURABLE_SERIALIZATION_GOVERNANCE_ONLY",
+  "final_result": "PASS_PSB_I2_DURABLE_GOVERNANCE_READY_FOR_OWNER_REVIEW"
+}
