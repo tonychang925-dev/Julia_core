@@ -21,6 +21,10 @@ from julia_core.persona_self_binding.contracts import (
     RelationshipAuthorityState,
     SupersessionContract,
 )
+from julia_core.persona_self_binding.durable import (
+    PersonaSelfBindingRecord,
+    PersonaSelfBindingStore,
+)
 
 __all__ = [
     "AuthorityFamily",
@@ -35,6 +39,8 @@ __all__ = [
     "PersonaSelfBindingContractError",
     "PersonaSelfBindingErrorCode",
     "PersonaSelfBindingLifecycle",
+    "PersonaSelfBindingRecord",
+    "PersonaSelfBindingStore",
     "RelationshipAuthority",
     "RelationshipAuthorityState",
     "SupersessionContract",

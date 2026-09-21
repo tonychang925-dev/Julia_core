@@ -30,6 +30,16 @@ class PersonaSelfBindingErrorCode(str, Enum):
     PSB_GOVERNANCE_EVENT_INVALID = "PSB_GOVERNANCE_EVENT_INVALID"
     PSB_PREDECESSOR_INVALID = "PSB_PREDECESSOR_INVALID"
     PSB_DUPLICATE_AUTHORITY_FAMILY = "PSB_DUPLICATE_AUTHORITY_FAMILY"
+    PSB_STORE_MISSING = "PSB_STORE_MISSING"
+    PSB_STORE_CORRUPT = "PSB_STORE_CORRUPT"
+    PSB_OBJECT_DIGEST_MISMATCH = "PSB_OBJECT_DIGEST_MISMATCH"
+    PSB_DUPLICATE_ACTIVE_BINDING = "PSB_DUPLICATE_ACTIVE_BINDING"
+    PSB_NO_ACTIVE_BINDING = "PSB_NO_ACTIVE_BINDING"
+    PSB_ILLEGAL_TRANSITION = "PSB_ILLEGAL_TRANSITION"
+    PSB_LINEAGE_BROKEN = "PSB_LINEAGE_BROKEN"
+    PSB_PREDECESSOR_MISMATCH = "PSB_PREDECESSOR_MISMATCH"
+    PSB_SCHEMA_VERSION_UNSUPPORTED = "PSB_SCHEMA_VERSION_UNSUPPORTED"
+    PSB_PARTIAL_WRITE_DETECTED = "PSB_PARTIAL_WRITE_DETECTED"
 
 
 class PersonaSelfBindingContractError(ValueError):
@@ -37,6 +47,9 @@ class PersonaSelfBindingContractError(ValueError):
         self,
         code: PersonaSelfBindingErrorCode,
         message: str,
+        *,
+        path: str | None = None,
+        object_digest: str | None = None,
     ) -> None:
         if type(code) is not PersonaSelfBindingErrorCode:
             raise PersonaSelfBindingContractError(
@@ -46,6 +59,8 @@ class PersonaSelfBindingContractError(ValueError):
         super().__init__(message)
         self.code = code
         self.message = message
+        self.path = path
+        self.object_digest = object_digest
 
 
 class PersonaSelfBindingLifecycle(str, Enum):
