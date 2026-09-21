@@ -1,0 +1,184 @@
+{
+  "task_id": "MIRA-PSB-REAL-BOOTSTRAP-ADMISSION-P0",
+  "issue": 146,
+  "execution_agent": "LOCAL_CODEX_ONLY",
+  "task_type": "REAL_AUTHORITY_CUTOVER_ONLY",
+  "baseline_sha": "f2d947634a6445218a6cedf2573cda676c449754",
+  "branch": "mira/psb-real-bootstrap-admission-p0",
+  "authority_root": "/Users/admin/.julia_mira_e2e/authority",
+  "psb_store_root": "/Users/admin/.julia_mira_e2e/authority-runtime/persona-self-binding-store-v1",
+  "store_marker": ".julia-core-persona-self-binding-store-v1",
+  "store_location_note": "The PSB store is a deterministic sibling under the approved isolated Mira authority-runtime hierarchy. It was not nested inside the immutable authority package because FilesystemDurableAuthorityReader requires an exact package file set and a nested store would invalidate the existing authority reader.",
+  "pre_authority_manifest_sha256": "97470a2c29714ec26b5bd79dbe2d3c02b121f780f8b210076f28cf7498944cf3",
+  "post_authority_manifest_sha256": "97470a2c29714ec26b5bd79dbe2d3c02b121f780f8b210076f28cf7498944cf3",
+  "canonical_authority_mutated": false,
+  "authority_reader_post_check": "PASS",
+  "identity_authority": {
+    "real_canonical_authority_used": true,
+    "count": 3,
+    "authority_type": "IdentityFrameSet",
+    "authority_id": "b9c8f7af16fc7de6210df0833447503f8b3e89dc505746c2c232054f36506c69",
+    "source_digest": "b9c8f7af16fc7de6210df0833447503f8b3e89dc505746c2c232054f36506c69",
+    "projected_digest": "5b499e7daa97b99a87171f45c960cabef68146e167c803c4a332c9393b77984b",
+    "authority_id_derivation": "No aggregate authority ID is persisted independently; it was derived as the exact production IdentityFrameSet.digest() from compose_golden_mira_runtime reconstruction.",
+    "refs": [
+      {
+        "ref": "identity://mira-golden%3Amira-id-cand-001/mira-id-cand-001-v0.1-preview",
+        "source_digest": "7580e0a930dc7f3d5446da2cdd8d1c23cf251e12929fb2f3baa056bd9739dd44"
+      },
+      {
+        "ref": "identity://mira-golden%3Amira-id-cand-002/mira-id-cand-002-v0.1-preview",
+        "source_digest": "adaa2508c4e475a700c394eb205e278d515dfe014ccdaa4bab3c3e7b7dcd5f3a"
+      },
+      {
+        "ref": "identity://mira-golden%3Amira-id-cand-003/mira-id-cand-003-v0.1-preview",
+        "source_digest": "0008a5e157347ae9b0dd8600d661ec4a0e3fbd1858673cd04dc7c7b812a96c29"
+      }
+    ]
+  },
+  "experience_authority": {
+    "real_canonical_authority_used": true,
+    "count": 8,
+    "authority_type": "ExperienceFrameSet",
+    "authority_id": "1ef2c6d15468c7695530c1a5baa2b123bdde267e0f86d2b6e236dce68b280b77",
+    "source_digest": "1ef2c6d15468c7695530c1a5baa2b123bdde267e0f86d2b6e236dce68b280b77",
+    "projected_digest": "5681c18438bd847a9ede3c87e24543084870626acec8163cb9e5217af809ef8a",
+    "authority_id_derivation": "No aggregate authority ID is persisted independently; it was derived as the exact production ExperienceFrameSet.digest() from compose_golden_mira_runtime reconstruction.",
+    "refs": [
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-001/v0.2-preview",
+        "source_digest": "4e29eb74de7f29bbf8d69485a7c18b5dceb06486d7e1d986d668a30c85fb7228"
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-002/v0.2-preview",
+        "source_digest": "e4374452173b144ce48dbefa5299f1ac3dc15cec3615b8e7d528176293536f93"
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+        "source_digest": "ba4edeff89bc8054be19d7a48226fcef74359bc85d17dbd6abea4b754b905f97"
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-006/v0.1-preview",
+        "source_digest": "47636f46d2934eeb66f91c8202e2245c180b7077fddd04ca6445683308b54f2c"
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-008/v0.1-preview",
+        "source_digest": "08c95873446b01949b7aec50ad35ebbe36ce8b5b9ad87aca45c51b627f70c408"
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-011/formation-draft-preview",
+        "source_digest": "3107a3ab38d0fc0d2446752f48bedebf2ee336e3cb8b22811bf3c156247a4ae9"
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-011/frozen-final-preview",
+        "source_digest": "3c31de4d62ecfd5d7857a5a4df85725affa0862d0055b5527d7d80f27fcc8ad8"
+      },
+      {
+        "ref": "memory-experience://golden-mira:GM-CMIR-013/v0.2-preview",
+        "source_digest": "8e2d16304357b7fb72b5b6cb53501be5d8743b3c687d2f0aadf3a9e1e132046c"
+      }
+    ]
+  },
+  "persona_self_binding": {
+    "persona_self_id": "golden-mira",
+    "persona_self_id_derivation": "Exact persona_id from the existing durable Golden Mira authority manifest/governance contract.",
+    "binding_id": "golden-mira-persona-self-binding-v1",
+    "binding_version": "v1",
+    "lineage_id": "golden-mira-persona-self-binding",
+    "lifecycle_status": "ADMITTED_ACTIVE",
+    "object_digest": "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad",
+    "projected_digest": "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b",
+    "round_trip": "PASS",
+    "object_digest_verify": "PASS",
+    "record_count": 3
+  },
+  "governance_events": [
+    {
+      "event_id": "golden-mira-psb-bootstrap-propose-v1",
+      "event_type": "PROPOSE_BINDING",
+      "actor": "owner:tony",
+      "reason": "Bind the exact admitted Golden Mira identity and experience frame sets",
+      "occurred_at": "2026-09-21T11:30:00Z"
+    },
+    {
+      "event_id": "golden-mira-psb-bootstrap-review-v1",
+      "event_type": "REVIEW_BINDING",
+      "actor": "owner:tony",
+      "reason": "Review the exact real Golden Mira authority digest binding",
+      "occurred_at": "2026-09-21T11:31:00Z"
+    },
+    {
+      "event_id": "golden-mira-psb-bootstrap-admit-v1",
+      "event_type": "ADMIT_AND_ACTIVATE",
+      "actor": "owner:tony",
+      "reason": "Admit and activate the first governed Golden Mira PersonaSelfBinding",
+      "occurred_at": "2026-09-21T11:32:00Z"
+    }
+  ],
+  "governance_sequence_valid": true,
+  "relationship_authority": {
+    "state": "ABSENT",
+    "authority": null,
+    "interpretation": "No RelationshipFrameSet authority is currently bound",
+    "relationship_fact_synthesized": false
+  },
+  "execution_substrate_policy": {
+    "role": "EXECUTION_SUBSTRATE",
+    "provider_is_persona_self": false,
+    "provider_neutral": true,
+    "provider_special_cases": []
+  },
+  "preexisting_psb_store": false,
+  "preexisting_active_binding_count": 0,
+  "post_active_binding_count": 1,
+  "resolved_active_binding": {
+    "persona_self_id": "golden-mira",
+    "binding_id": "golden-mira-persona-self-binding-v1",
+    "binding_version": "v1",
+    "lineage_id": "golden-mira-persona-self-binding",
+    "lifecycle_status": "ADMITTED_ACTIVE",
+    "object_digest": "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad",
+    "resolve_active_match": true
+  },
+  "inventory": {
+    "lineage_count": 1,
+    "binding_count": 1,
+    "active_object_digest": "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad",
+    "record_object_digests": [
+      "1e433f672162eb8f4263ab2896a0207edd6ad77ca86a84e93f1510d801a26ab2",
+      "2941eb8827d932e68458b12dfedc2ff66198543a31a8b8ddd0d42d2625d86314",
+      "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad"
+    ],
+    "deterministic": true
+  },
+  "focused_validation": {
+    "store_marker_exists": true,
+    "store_schema_valid": true,
+    "exact_round_trip": true,
+    "digest_match": true,
+    "governance_history_append_only": true,
+    "exactly_one_active": true,
+    "resolve_active": "PASS",
+    "inventory_deterministic": true,
+    "tests": "PASS: 65 passed",
+    "tests_command": "/opt/miniconda3/bin/python -m pytest tests/persona_self_binding tests/durable_authority/test_filesystem_golden_mira.py -q"
+  },
+  "fresh_process_reload": "PASS",
+  "json_validation": "PASS",
+  "git_diff_check": "PASS",
+  "changed_files": [
+    "artifacts/continuity/MIRA_REAL_PSB_BOOTSTRAP_ADMISSION_P0_V1.json",
+    "artifacts/continuity/MIRA_REAL_PSB_BOOTSTRAP_ADMISSION_P0_V1.md"
+  ],
+  "runtime_wiring_changed": false,
+  "provider_transport_changed": false,
+  "real_provider_called": false,
+  "relationship_frame_implemented": false,
+  "synthetic_identity_used": false,
+  "synthetic_experience_used": false,
+  "synthetic_relationship_used": false,
+  "fallback_used": false,
+  "bootstrap_regeneration_used": false,
+  "rd1_changed_files": [],
+  "final_result": "PASS_REAL_GOLDEN_MIRA_PSB_BOOTSTRAP_ADMISSION_READY_FOR_OWNER_REVIEW"
+}
