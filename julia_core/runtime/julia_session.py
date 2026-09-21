@@ -22,6 +22,7 @@ import json as _json
 import re
 import threading
 import time as _time
+import uuid
 from typing import Optional
 
 
@@ -38,6 +39,7 @@ class TurnContext:
         "last_event_id",
         "interaction",  # ConversationInteractionState (multi-turn persistence)
         "_last_package",  # P2: CognitiveContextPackage ref for tool continuation (C-03)
+        "_last_iterative_result",
     )
 
     def __init__(self, history: list[dict], *,
@@ -59,6 +61,7 @@ class TurnContext:
         self.last_event_id: str = ""
         self.interaction = interaction  # ConversationInteractionState or None
         self._last_package = None  # P2: CognitiveContextPackage for tool continuation
+        self._last_iterative_result = None
 
 
 class JuliaSession:
@@ -316,41 +319,19 @@ class JuliaSession:
         # to thread retry causality; keep an explicit local parent instead.
         projection_parent = ctx._last_package
 
-        # Layer 4: LLM (Pass 1)
-        reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")
+        from julia_core.runtime.iterative_reasoning import IterativeReasoningLoop
 
-        # Layer 5: Evidence Gate — only explicit structured tool calls can
-        # request a capability. Raw conversation text never selects Market.
-        needs_evidence = self.capability.requires_tool(text)
-        tool_json = self.capability.detect_tool_call(reply)
-
-        if needs_evidence and not tool_json:
-            # Structured retry/control through Context OS (P3.3). No direct
-            # raw control-message injection; no ad-hoc prompt.
-            retry_package = self.context_os.project_retry_control(
-                parent_package=projection_parent,
-                reason="required_tool_call_missing",
-                generation_id=f"gen_retry_{ctx.turn_count}",
-            )
-            projection_parent = retry_package
-            messages = retry_package.to_messages(retry_package.active_tail_messages, "")
-            messages.insert(-1, {"role": "assistant", "content": reply}) if messages else None
-            reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")
-            tool_json = self.capability.detect_tool_call(reply)
-
-        # Layer 6: Capability Execution (Pass 2 — if tool called)
-        if tool_json:
-            self._execute_tool_with_action(tool_json, ctx)
-            outcome = self.capability.execute_tool_typed(tool_json)
-            delta = self._dispatch_typed_outcome(outcome, ctx, parent_package=projection_parent)
-            if delta is not None:
-                # P2-I: ToolResult must re-enter via Context OS (C-03 §11)
-                # NOT: bypassing Context OS with a direct message injection
-                messages = delta.to_messages(delta.active_tail_messages, "")
-                # Re-append the prior assistant reply for context
-                messages.insert(-1, {"role": "assistant", "content": reply}) if messages else None
-                reply = self.provider.chat(messages, cognitive_mode="private_voice_continuity")
-                self.action.finish(self._outcome_action_status(outcome), correlation_id=ctx.correlation_id)
+        loop = IterativeReasoningLoop(
+            session=self,
+            text=text,
+            turn_context=ctx,
+            messages=messages,
+            parent_package=projection_parent,
+        )
+        iterative_result = loop.run()
+        reply = iterative_result.reply
+        ctx._last_package = loop.parent_package
+        ctx._last_iterative_result = iterative_result
 
         # Layer 7: Update state
         ctx.history.append({"role": "user", "content": text})
@@ -394,21 +375,38 @@ class JuliaSession:
             name = "?"
         self.action.start(name, f"执行 {name}", correlation_id=ctx.correlation_id)
 
-    def _dispatch_typed_outcome(self, outcome, ctx: TurnContext, *, parent_package):
+    def _execute_typed_tool(self, tool_json: str):
+        return self.capability.execute_tool_typed(tool_json)
+
+    def _dispatch_typed_outcome(
+        self,
+        outcome,
+        ctx: TurnContext,
+        *,
+        parent_package,
+        generation_id: str = "",
+    ):
         """Dispatch a typed bridge outcome to the exact Context OS projection.
 
-        Returns a CognitiveContextPackage delta for projectable outcomes, or
-        None for malformed (None). No Registry re-query, no Manager artifact
+        Returns a CognitiveContextPackage delta for every typed outcome.
+        No Registry re-query, no Manager artifact
         list lookup, no latest selection, no legacy CapabilityResult conversion.
         The explicit causal parent_package (P0 or P1) threads retry causality.
         """
         from julia_core.capability.policy import AuthorizationStatus
-        from julia_core.runtime.capability_bridge import CapabilityPreAuthorizationFailure
+        from julia_core.runtime.capability_bridge import (
+            CapabilityPreAuthorizationFailure,
+            ToolCallDecodeFailure,
+        )
 
-        if outcome is None:
-            return None
+        generation_id = generation_id or f"gen_tool_{ctx.turn_count}_{uuid.uuid4().hex[:12]}"
 
-        generation_id = f"gen_tool_{ctx.turn_count}"
+        if isinstance(outcome, ToolCallDecodeFailure):
+            return self.context_os.project_tool_call_decode_failure(
+                parent_package=parent_package,
+                reason=outcome.reason,
+                generation_id=generation_id,
+            )
 
         if isinstance(outcome, CapabilityPreAuthorizationFailure):
             return self.context_os.project_capability_resolution_failure(

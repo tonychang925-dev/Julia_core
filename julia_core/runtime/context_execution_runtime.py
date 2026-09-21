@@ -637,29 +637,25 @@ class ContextExecutionRuntime:
 
         resolved_evidence = self._resolve_evidence_refs(tool_result, evidence)
 
-        pkg = CognitiveContextPackage(
-            conversation_id=parent_package.conversation_id if parent_package else "",
-            turn_id=parent_package.turn_id if parent_package else "",
-            generation_id=generation_id,
+        pkg = self._new_projection(
+            parent_package,
+            generation_id,
+            require_generation_id=True,
         )
+        inherited_ledger = self._validated_turn_evidence_ledger(parent_package)
+        if any(entry.get("generation_id") == generation_id for entry in inherited_ledger):
+            raise ValueError(f"duplicate projection generation_id: {generation_id}")
+        inherited_ledger.append({
+            "generation_id": generation_id,
+            "tool_result": self._project_tool_result_view(tool_result),
+            "evidence": [self._project_evidence_view(e) for e in resolved_evidence],
+        })
         pkg.evidence_frame = {
             "tool_result": self._project_tool_result_view(tool_result),
             "evidence": [self._project_evidence_view(e) for e in resolved_evidence],
             "source": "capability_execution",
+            "turn_evidence_ledger": inherited_ledger,
         }
-        if parent_package is not None and parent_package.validated_invocation_policy:
-            pkg.validated_invocation_policy = copy.deepcopy(
-                parent_package.validated_invocation_policy
-            )
-            pkg.capability_frame = {
-                "invocation_policy": copy.deepcopy(pkg.validated_invocation_policy)
-            }
-            pkg.add_provenance(
-                "capability",
-                "capability:validated_invocation_policy",
-                reason="validated invocation policy retained for tool continuation",
-                stage=2,
-            )
         pkg.situation_frame = {"mode": "tool_continuation"}
         pkg.add_provenance("evidence", "capability:tool_result",
                           reason="tool execution result (typed)", stage=2)
@@ -687,23 +683,23 @@ class ContextExecutionRuntime:
             raise ValueError(
                 "project_authorization_outcome only accepts non-ALLOW AuthorizationDecision"
             )
-        pkg = CognitiveContextPackage(
-            conversation_id=parent_package.conversation_id if parent_package else "",
-            turn_id=parent_package.turn_id if parent_package else "",
-            generation_id=generation_id,
+        pkg = self._new_projection(
+            parent_package,
+            generation_id,
+            require_generation_id=True,
         )
-        pkg.evidence_frame = {
-            "authorization_outcome": {
-                "decision": decision_value,
-                "scope": authorization_decision.scope,
-                "reason": authorization_decision.reason,
-                "capability_call_id": None,
-                "tool_result": None,
-                "evidence": [],
-            },
+        pkg.evidence_frame = self._inherited_evidence_frame(parent_package)
+        pkg.control_frame = {
+            "kind": "authorization_outcome",
+            "decision": decision_value,
+            "scope": authorization_decision.scope,
+            "reason": authorization_decision.reason,
+            "capability_call_id": None,
+            "tool_result": None,
+            "evidence": [],
         }
         pkg.situation_frame = {"mode": "authorization_outcome"}
-        pkg.add_provenance("evidence", "capability:authorization_outcome",
+        pkg.add_provenance("control", "capability:authorization_outcome",
                           reason="authorization-only outcome", stage=2)
         return pkg
 
@@ -737,11 +733,8 @@ class ContextExecutionRuntime:
         if not generation_id or not generation_id.strip():
             raise ValueError("capability resolution failure projection requires a non-empty generation_id")
 
-        pkg = CognitiveContextPackage(
-            conversation_id=parent_package.conversation_id,
-            turn_id=parent_package.turn_id,
-            generation_id=generation_id,
-        )
+        pkg = self._new_projection(parent_package, generation_id, require_generation_id=True)
+        pkg.evidence_frame = self._inherited_evidence_frame(parent_package)
         pkg.control_frame = {
             "kind": "capability_resolution_failure",
             "capability_id": capability_id,
@@ -777,11 +770,112 @@ class ContextExecutionRuntime:
         if not generation_id or not generation_id.strip():
             raise ValueError("retry control projection requires a non-empty generation_id")
 
+        pkg = self._new_projection(parent_package, generation_id, require_generation_id=True)
+        pkg.evidence_frame = self._inherited_evidence_frame(parent_package)
+        pkg.control_frame = {
+            "kind": "retry_control",
+            "reason": reason,
+        }
+        pkg.situation_frame = {"mode": "retry_control"}
+        pkg.add_provenance("control", "capability:retry_control",
+                          reason=reason, stage=2)
+        return pkg
+
+    def project_tool_call_decode_failure(
+        self,
+        *,
+        parent_package: CognitiveContextPackage,
+        reason: str,
+        generation_id: str,
+    ) -> CognitiveContextPackage:
+        if reason not in ("MALFORMED_JSON", "MISSING_NAME", "INVALID_CALL_SHAPE"):
+            raise ValueError(f"invalid tool-call decode failure reason: {reason!r}")
+        return self._project_turn_control(
+            parent_package=parent_package,
+            kind="tool_call_decode_failure",
+            reason=reason,
+            generation_id=generation_id,
+            mode="tool_call_decode_failure",
+            provenance_source="capability:tool_call_decode_failure",
+        )
+
+    def project_duplicate_capability_call_rejected(
+        self,
+        *,
+        parent_package: CognitiveContextPackage,
+        capability_id: str,
+        arguments: dict[str, Any],
+        generation_id: str,
+    ) -> CognitiveContextPackage:
+        return self._project_turn_control(
+            parent_package=parent_package,
+            kind="duplicate_capability_call_rejected",
+            capability_id=capability_id,
+            arguments=copy.deepcopy(arguments),
+            generation_id=generation_id,
+            mode="duplicate_capability_call_rejected",
+            provenance_source="capability:duplicate_call_rejected",
+        )
+
+    def project_tool_budget_exceeded(
+        self,
+        *,
+        parent_package: CognitiveContextPackage,
+        limit: int,
+        generation_id: str,
+    ) -> CognitiveContextPackage:
+        return self._project_turn_control(
+            parent_package=parent_package,
+            kind="tool_call_budget_exceeded",
+            limit=limit,
+            generation_id=generation_id,
+            mode="tool_budget_exceeded",
+            provenance_source="capability:tool_budget_exceeded",
+        )
+
+    def _project_turn_control(
+        self,
+        *,
+        parent_package: CognitiveContextPackage,
+        kind: str,
+        generation_id: str,
+        mode: str,
+        provenance_source: str,
+        **control: Any,
+    ) -> CognitiveContextPackage:
+        pkg = self._new_projection(parent_package, generation_id, require_generation_id=True)
+        pkg.evidence_frame = self._inherited_evidence_frame(parent_package)
+        pkg.control_frame = {"kind": kind, **control}
+        pkg.situation_frame = {"mode": mode}
+        pkg.add_provenance("control", provenance_source, reason=kind, stage=2)
+        return pkg
+
+    def _new_projection(
+        self,
+        parent_package: CognitiveContextPackage | None,
+        generation_id: str,
+        *,
+        require_generation_id: bool = False,
+    ) -> CognitiveContextPackage:
+        if require_generation_id and (not generation_id or not generation_id.strip()):
+            raise ValueError("C03 projection requires a non-empty generation_id")
         pkg = CognitiveContextPackage(
-            conversation_id=parent_package.conversation_id,
-            turn_id=parent_package.turn_id,
+            conversation_id=parent_package.conversation_id if parent_package else "",
+            turn_id=parent_package.turn_id if parent_package else "",
             generation_id=generation_id,
         )
+        if parent_package is None:
+            return pkg
+        pkg.active_tail_messages = copy.deepcopy(parent_package.active_tail_messages)
+        pkg.projection_metadata = copy.deepcopy(parent_package.projection_metadata)
+        seen_generation_ids = set(
+            pkg.projection_metadata.get("seen_generation_ids", [])
+        )
+        seen_generation_ids.add(parent_package.generation_id)
+        if require_generation_id and generation_id in seen_generation_ids:
+            raise ValueError(f"duplicate projection generation_id: {generation_id}")
+        seen_generation_ids.add(generation_id)
+        pkg.projection_metadata["seen_generation_ids"] = sorted(seen_generation_ids)
         if parent_package.validated_invocation_policy:
             pkg.validated_invocation_policy = copy.deepcopy(
                 parent_package.validated_invocation_policy
@@ -792,17 +886,52 @@ class ContextExecutionRuntime:
             pkg.add_provenance(
                 "capability",
                 "capability:validated_invocation_policy",
-                reason="validated invocation policy retained for retry control",
+                reason="validated invocation policy retained for continuation",
                 stage=2,
             )
-        pkg.control_frame = {
-            "kind": "retry_control",
-            "reason": reason,
-        }
-        pkg.situation_frame = {"mode": "retry_control"}
-        pkg.add_provenance("control", "capability:retry_control",
-                          reason=reason, stage=2)
         return pkg
+
+    def _validated_turn_evidence_ledger(
+        self,
+        parent_package: CognitiveContextPackage | None,
+    ) -> list[dict[str, Any]]:
+        if parent_package is None:
+            return []
+        ledger = parent_package.evidence_frame.get("turn_evidence_ledger", [])
+        if not isinstance(ledger, list):
+            raise ValueError("turn_evidence_ledger must be a list")
+        generation_ids: set[str] = set()
+        for index, entry in enumerate(ledger):
+            if not isinstance(entry, dict):
+                raise ValueError(f"turn_evidence_ledger[{index}] must be a mapping")
+            if (
+                "tool_result" not in entry
+                or not isinstance(entry["tool_result"], dict)
+                or "evidence" not in entry
+                or not isinstance(entry["evidence"], list)
+            ):
+                raise ValueError(
+                    f"turn_evidence_ledger[{index}] has malformed tool observation provenance"
+                )
+            generation_id = entry.get("generation_id")
+            if not isinstance(generation_id, str) or not generation_id.strip():
+                raise ValueError(f"turn_evidence_ledger[{index}].generation_id is invalid")
+            if generation_id in generation_ids:
+                raise ValueError(
+                    f"duplicate turn_evidence_ledger generation_id: {generation_id}"
+                )
+            generation_ids.add(generation_id)
+        return copy.deepcopy(ledger)
+
+    def _inherited_evidence_frame(
+        self,
+        parent_package: CognitiveContextPackage | None,
+    ) -> dict[str, Any]:
+        if parent_package is None or "turn_evidence_ledger" not in parent_package.evidence_frame:
+            return {}
+        return {
+            "turn_evidence_ledger": self._validated_turn_evidence_ledger(parent_package),
+        }
 
     # ── P3.1A helpers ─────────────────────────────────────────────────────
 

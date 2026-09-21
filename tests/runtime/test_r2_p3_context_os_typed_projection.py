@@ -223,7 +223,7 @@ def test_p3_authorization_only_outcomes_project_without_execution_artifacts(stat
         generation_id="gen-auth",
     )
 
-    frame = delta.evidence_frame.get("authorization_outcome", {})
+    frame = delta.control_frame
     assert frame["decision"] == status.value
     assert frame["capability_call_id"] is None
     assert frame["tool_result"] is None
