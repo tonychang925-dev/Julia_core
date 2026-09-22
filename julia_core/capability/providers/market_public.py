@@ -52,6 +52,15 @@ class MarketPublicProviderAdapter:
             request_builders if request_builders is not None else _load_public_request_builders()
         )
 
+    @property
+    def effective_capability_ids(self) -> frozenset[str]:
+        """Return the exact capability IDs backed by effective request builders."""
+        return frozenset(self._request_builders)
+
+    def supports_capability(self, capability_id: str) -> bool:
+        """Return whether this bound adapter can construct the public request."""
+        return capability_id in self._request_builders
+
     async def health(self) -> tuple[bool, str]:
         """Report binding health, not Market-domain data availability.
 

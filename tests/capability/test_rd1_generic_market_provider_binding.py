@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import json
 from pathlib import Path
 import sys
 import types
@@ -296,6 +297,107 @@ def test_new_market_capabilities_are_registered_and_model_visible(monkeypatch):
     assert '"item_id": canonical source-namespaced event id' in manifest
     assert '"stock_id": exact source-namespaced stock identifier' in manifest
     assert '"trade_date": exact YYYY-MM-DD trade date' in manifest
+
+
+def _install_market_public(monkeypatch, *, include_stock_quote=True):
+    market_public = types.ModuleType("market_public")
+    market_public.EventResolveRequest = EventResolveRequest
+    market_public.EventReadRequest = EventReadRequest
+    market_public.ProductReadRequest = ProductReadRequest
+    market_public.ProductLinkageReadRequest = ProductLinkageReadRequest
+    market_public.MarketStateReadRequest = MarketStateReadRequest
+    if include_stock_quote:
+        market_public.StockQuoteReadRequest = StockQuoteReadRequest
+    monkeypatch.setitem(sys.modules, "market_public", market_public)
+
+
+def test_default_bound_adapter_effective_capability_is_model_visible(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    provider = MarketPublicFixture()
+    adapter = MarketPublicProviderAdapter(provider)
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.register_provider("market", adapter)
+    bridge.initialize()
+
+    assert adapter.supports_capability("market.stock.quote.read")
+    assert "market.stock.quote.read" in adapter.effective_capability_ids
+    assert "market.stock.quote.read" in bridge.tool_manifest()
+    result = bridge.execute_tool_typed(json.dumps({
+        "name": "market.stock.quote.read",
+        "arguments": {"stock_id": "600519.SH", "trade_date": "2026-07-31"},
+    }))
+    assert result.tool_result is not None
+    assert result.tool_result.status.value == "success"
+    assert len(provider.calls) == 1
+
+
+def test_bound_adapter_override_controls_stock_quote_availability(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    request_builders = {
+        name: builder
+        for name, builder in REQUEST_BUILDERS.items()
+        if name != "market.stock.quote.read"
+    }
+    provider = MarketPublicFixture()
+    adapter = MarketPublicProviderAdapter(provider, request_builders)
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.register_provider("market", adapter)
+    bridge.initialize()
+
+    assert not adapter.supports_capability("market.stock.quote.read")
+    assert "market.stock.quote.read" not in bridge.tool_manifest()
+    result = bridge.execute_tool_typed(json.dumps({
+        "name": "market.stock.quote.read",
+        "arguments": {"stock_id": "600519.SH", "trade_date": "2026-07-31"},
+    }))
+    assert result.reason == "UNKNOWN"
+    assert provider.calls == []
+
+
+def test_bound_adapter_override_can_enable_unexported_stock_quote(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=False)
+    provider = MarketPublicFixture()
+    adapter = MarketPublicProviderAdapter(provider, REQUEST_BUILDERS)
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.register_provider("market", adapter)
+    bridge.initialize()
+
+    assert adapter.supports_capability("market.stock.quote.read")
+    assert "market.stock.quote.read" in bridge.tool_manifest()
+    result = bridge.execute_tool_typed(json.dumps({
+        "name": "market.stock.quote.read",
+        "arguments": {"stock_id": "600519.SH", "trade_date": "2026-07-31"},
+    }))
+    assert result.tool_result is not None
+    assert result.tool_result.status.value == "success"
+    assert len(provider.calls) == 1
+
+
+def test_post_init_market_binding_reconciles_stock_quote_availability(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    provider = MarketPublicFixture()
+    request_builders = {
+        name: builder
+        for name, builder in REQUEST_BUILDERS.items()
+        if name != "market.stock.quote.read"
+    }
+    adapter = MarketPublicProviderAdapter(provider, request_builders)
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.initialize()
+    assert "market.stock.quote.read" in bridge.tool_manifest()
+    bridge.register_provider("market", adapter)
+
+    assert "market.stock.quote.read" not in bridge.tool_manifest()
+    result = bridge.execute_tool_typed(json.dumps({
+        "name": "market.stock.quote.read",
+        "arguments": {"stock_id": "600519.SH", "trade_date": "2026-07-31"},
+    }))
+    assert result.reason == "DISABLED"
+    assert provider.calls == []
 
 
 def test_old_market_contract_does_not_advertise_unexecutable_stock_quote(monkeypatch):

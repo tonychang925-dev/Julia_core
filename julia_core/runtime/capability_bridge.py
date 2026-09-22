@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json as _json
 import re as _re
+import sys as _sys
 import threading as _threading
 from dataclasses import dataclass
 from dataclasses import replace
@@ -341,6 +342,12 @@ class RuntimeCapabilityBridge:
                     f"provider namespace '{provider_name}' is already bound"
                 )
             if existing is provider:
+                if (
+                    self._initialized
+                    and self._manager is not None
+                    and provider_name == "market"
+                ):
+                    self._reconcile_market_stock_quote_locked(provider)
                 return
 
             if self._initialized and self._manager is not None:
@@ -354,6 +361,62 @@ class RuntimeCapabilityBridge:
                         f"manager provider namespace '{provider_name}' is already bound"
                     ) from exc
             self._providers[provider_name] = provider
+            if (
+                self._initialized
+                and self._manager is not None
+                and provider_name == "market"
+            ):
+                self._reconcile_market_stock_quote_locked(provider)
+
+    def _market_stock_quote_supported_locked(self) -> bool:
+        market_provider = self._providers.get("market")
+        supports_capability = getattr(market_provider, "supports_capability", None)
+        if callable(supports_capability):
+            return bool(supports_capability("market.stock.quote.read"))
+
+        from importlib.util import find_spec
+
+        from julia_core.capability.providers.market_public import (
+            market_public_supports_stock_quote,
+        )
+
+        loaded_market_public = _sys.modules.get("market_public")
+        if loaded_market_public is not None:
+            return (
+                getattr(loaded_market_public, "StockQuoteReadRequest", None)
+                is not None
+            )
+        if find_spec("market_public") is None:
+            return False
+        return market_public_supports_stock_quote()
+
+    def _reconcile_market_stock_quote_locked(self, provider: object) -> None:
+        supports_capability = getattr(provider, "supports_capability", None)
+        if not callable(supports_capability):
+            return
+        supported = bool(supports_capability("market.stock.quote.read"))
+        definition = self.registry.get("market.stock.quote.read")
+        if definition is None:
+            if not supported:
+                return
+            self.registry.register_definition(CapabilityDefinition(
+                name="market.stock.quote.read",
+                description="Read one exact stock/date daily quote",
+                layer=CapabilityLayer.INTELLIGENCE,
+                provider="market",
+                permission_scope="market.observe",
+                input_schema=_MARKET_INPUT_SCHEMAS["market.stock.quote.read"],
+                status=CapabilityStatus.AVAILABLE,
+            ))
+            return
+        target_status = (
+            CapabilityStatus.AVAILABLE if supported else CapabilityStatus.DISABLED
+        )
+        if definition.status != target_status:
+            self.registry.register_definition(replace(
+                definition,
+                status=target_status,
+            ))
 
     # ── Initialization ──────────────────────────────────────────────────
 
@@ -410,14 +473,7 @@ class RuntimeCapabilityBridge:
         # Market is a generic provider namespace. The public Market provider is
         # bound by the application/runtime composition root; Core never imports
         # Market private code or manufactures an unavailable substitute.
-        from julia_core.capability.providers.market_public import (
-            market_public_supports_stock_quote,
-        )
-
-        try:
-            stock_quote_supported = market_public_supports_stock_quote()
-        except ImportError:
-            stock_quote_supported = False
+        stock_quote_supported = self._market_stock_quote_supported_locked()
 
         market_capabilities = {
             "market.event.resolve": "Resolve structured Market event criteria",
@@ -526,6 +582,8 @@ class RuntimeCapabilityBridge:
 
         # Market tools
         for d in self.registry.by_provider("market"):
+            if d.status == CapabilityStatus.DISABLED:
+                continue
             lines.append(f'- {d.name}: {d.description}')
             if d.input_schema:
                 params = ", ".join(f'"{k}": {v}' for k, v in d.input_schema.items())
