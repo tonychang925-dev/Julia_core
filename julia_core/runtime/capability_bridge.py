@@ -411,13 +411,13 @@ class RuntimeCapabilityBridge:
         # bound by the application/runtime composition root; Core never imports
         # Market private code or manufactures an unavailable substitute.
         from julia_core.capability.providers.market_public import (
-            market_public_request_builders,
+            market_public_supports_stock_quote,
         )
 
         try:
-            market_request_builders = market_public_request_builders()
+            stock_quote_supported = market_public_supports_stock_quote()
         except ImportError:
-            market_request_builders = {}
+            stock_quote_supported = False
 
         market_capabilities = {
             "market.event.resolve": "Resolve structured Market event criteria",
@@ -426,7 +426,7 @@ class RuntimeCapabilityBridge:
             "market.product.linkage.read": "Read product-to-stock relationship evidence",
             "market.state.read": "Read exact-date whole-market state evidence",
         }
-        if "market.stock.quote.read" in market_request_builders:
+        if stock_quote_supported:
             market_capabilities["market.stock.quote.read"] = (
                 "Read one exact stock/date daily quote"
             )

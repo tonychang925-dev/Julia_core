@@ -141,6 +141,14 @@ def market_public_request_builders() -> dict[str, RequestBuilder]:
     return _load_public_request_builders()
 
 
+def market_public_supports_stock_quote() -> bool:
+    """Probe only the StockQuoteReadRequest export for catalog availability."""
+    from importlib import import_module
+
+    market_public = import_module("market_public")
+    return getattr(market_public, "StockQuoteReadRequest", None) is not None
+
+
 def _to_plain_mapping(value: Any) -> dict[str, Any]:
     """Serialize a public result structurally without semantic remapping."""
     if is_dataclass(value):
@@ -164,4 +172,8 @@ def _plain(value: Any) -> Any:
     return copy.deepcopy(value)
 
 
-__all__ = ["MarketPublicProviderAdapter", "market_public_request_builders"]
+__all__ = [
+    "MarketPublicProviderAdapter",
+    "market_public_request_builders",
+    "market_public_supports_stock_quote",
+]

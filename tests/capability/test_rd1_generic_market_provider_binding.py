@@ -23,7 +23,8 @@ class EventResolveRequest:
 
 @dataclass(frozen=True)
 class EventReadRequest:
-    event_id: int
+    event_id: int | None = None
+    item_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -141,6 +142,17 @@ class MarketPublicFixture:
         correlation_id=None,
     ):
         self.calls.append((capability, request, request_id, correlation_id))
+        if capability == "market.event.read" and (
+            (request.event_id is None) == (request.item_id is None)
+        ):
+            return envelope(
+                capability,
+                operation_status=OperationStatus.FAILURE,
+                data_state=DataState.NOT_APPLICABLE,
+                failures=(Failure("MarketContractMismatch", "invalid_request", "invalid"),),
+                request_id=request_id,
+                correlation_id=correlation_id or "corr-market",
+            )
         if not isinstance(request, REQUEST_BUILDERS[capability]):
             return envelope(
                 capability,
@@ -191,6 +203,7 @@ def test_default_loader_imports_only_new_market_public_request_exports(monkeypat
     [
         ("market.event.resolve", {"stock_id": "600519", "limit": 10}, EventResolveRequest),
         ("market.event.read", {"event_id": 7}, EventReadRequest),
+        ("market.event.read", {"item_id": "item-7"}, EventReadRequest),
         ("market.product.read", {"subject_key": "theme:1"}, ProductReadRequest),
         (
             "market.product.linkage.read",
@@ -231,6 +244,9 @@ async def test_structured_market_request_uses_public_provider_shape(
     called_capability, public_request, request_id, correlation_id = provider.calls[0]
     assert called_capability == capability
     assert isinstance(public_request, request_type)
+    if capability == "market.event.read":
+        assert public_request.event_id == arguments.get("event_id")
+        assert public_request.item_id == arguments.get("item_id")
     assert request_id == "req-core"
     assert correlation_id == "corr-core"
     assert result.tool_result.structured_output["capability_id"] == capability
@@ -277,6 +293,7 @@ def test_new_market_capabilities_are_registered_and_model_visible(monkeypatch):
     assert "market.product.linkage.read" in manifest
     assert "market.state.read" in manifest
     assert "market.stock.quote.read" in manifest
+    assert '"item_id": canonical source-namespaced event id' in manifest
     assert '"stock_id": exact source-namespaced stock identifier' in manifest
     assert '"trade_date": exact YYYY-MM-DD trade date' in manifest
 
@@ -307,6 +324,20 @@ def test_old_market_contract_does_not_advertise_unexecutable_stock_quote(monkeyp
     manifest = bridge.tool_manifest()
     assert "market.stock.quote.read" not in manifest
     assert "Read one exact stock/date daily quote" not in manifest
+
+
+def test_partial_market_contract_startup_does_not_require_complete_public_package(monkeypatch):
+    market_public = types.ModuleType("market_public")
+    market_public.EventResolveRequest = EventResolveRequest
+    market_public.ProductReadRequest = ProductReadRequest
+    market_public.StockQuoteReadRequest = StockQuoteReadRequest
+    monkeypatch.setitem(sys.modules, "market_public", market_public)
+
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.initialize()
+
+    assert "market.stock.quote.read" in bridge.tool_manifest()
 
 
 @pytest.mark.asyncio
@@ -414,15 +445,15 @@ async def test_invalid_public_request_shape_is_adjudicated_by_market_not_core():
     provider = MarketPublicFixture()
     bridge, _ = bound_bridge(provider)
 
-    # Missing required event_id cannot construct EventReadRequest. The adapter
-    # passes the raw mapping across the public boundary so Market owns the
-    # canonical contract-mismatch outcome.
+    # Missing both selectors constructs the public request shape, but Market
+    # owns the canonical exactly-one-selector validation outcome.
     result = await bridge.manager.execute_typed(
         CapabilityRequest("market.event.read", {}, correlation_id="corr-core")
     )
 
     assert result.tool_result.status.value == "success"
-    assert provider.calls and provider.calls[0][1] == {}
+    assert provider.calls
+    assert provider.calls[0][1] == EventReadRequest()
     output = result.tool_result.structured_output
     assert output["operation_status"] == "FAILURE"
     assert output["data_state"] == "NOT_APPLICABLE"

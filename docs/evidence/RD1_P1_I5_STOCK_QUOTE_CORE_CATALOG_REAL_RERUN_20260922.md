@@ -15,6 +15,7 @@
 
 - Core model-visible capability added: `market.stock.quote.read`
 - Capability availability is bound to the Market-exported `StockQuoteReadRequest` builder truth. An older mixed-version Market contract does not advertise the capability.
+- Catalog availability uses a narrow `StockQuoteReadRequest` export probe, while execution continues to use the full public request-builder loader.
 - Exact model-visible arguments:
   - `stock_id`: exact source-namespaced stock identifier, for example `600519.SH`
   - `trade_date`: exact `YYYY-MM-DD` trade date
@@ -62,5 +63,5 @@ PYTHONPATH=<market-candidate> /opt/miniconda3/bin/python -m pytest \
   tests/capability/test_rd1_generic_market_provider_binding.py \
   tests/public/test_rd1_market_public_composition_binding.py -q
 
-37 passed in 0.43s
+39 passed in 0.33s
 ```
