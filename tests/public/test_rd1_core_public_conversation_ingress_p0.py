@@ -59,8 +59,18 @@ def test_public_ingress_missing_configuration_fails_closed():
     assert response.assistant_content == ""
 
 
-def test_no_registered_real_provider_fails_closed(tmp_path):
+def test_no_registered_real_provider_fails_closed(tmp_path, monkeypatch):
     """TC-RC25-07: deterministic or Assistant providers are never a default."""
+    import julia_core.providers.core_cognition as core_cognition
+    from julia_core.providers.core_cognition import CoreCognitionProviderUnavailable
+
+    core_cognition._providers.clear()
+    core_cognition._production_initialization_attempted = False
+    monkeypatch.setattr(
+        core_cognition,
+        "initialize_production_cognition",
+        lambda: (_ for _ in ()).throw(CoreCognitionProviderUnavailable("unavailable")),
+    )
     response = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations")).process(_request())
     assert response.status == "failed"
     assert response.error_code == "CORE_PROVIDER_UNAVAILABLE"
