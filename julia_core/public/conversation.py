@@ -251,7 +251,17 @@ class CoreConversationIngress:
                 )
             repository = StorageV2ConversationRepository(data_dir)
             self._runtime = ConversationRuntime(repository=repository)
-            from julia_core.providers.core_cognition import _get_cognition_provider
+            from julia_core.providers.core_cognition import (
+                CoreCognitionProviderUnavailable,
+                _get_cognition_provider,
+                initialize_production_cognition,
+            )
+            try:
+                initialize_production_cognition()
+            except CoreCognitionProviderUnavailable as exc:
+                raise CoreConversationProviderUnavailable(
+                    "configured Core provider is unavailable"
+                ) from exc
             provider = _get_cognition_provider("production")
             if provider is None:
                 raise CoreConversationProviderUnavailable("configured Core provider is unavailable")
