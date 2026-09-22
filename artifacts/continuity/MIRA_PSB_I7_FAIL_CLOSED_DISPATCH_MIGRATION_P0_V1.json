@@ -1,0 +1,129 @@
+{
+  "task_id": "MIRA-PSB-I7-FAIL-CLOSED-DISPATCH-MIGRATION-P0",
+  "issue": 154,
+  "execution_agent": "LOCAL_CODEX_ONLY",
+  "authorized_phase": "PSB-I7_ONLY",
+  "implementation_base_sha": "9a1069427f2394632e3c6e26c67fa2a478de52de",
+  "implementation_parent_sha": "9a1069427f2394632e3c6e26c67fa2a478de52de",
+  "implementation_candidate_sha": "b073fe42b618061af12abb02038c469fb6fa4c5d",
+  "evidence_parent_sha": "b073fe42b618061af12abb02038c469fb6fa4c5d",
+  "branch": "mira/psb-i7-fail-closed-dispatch-migration-p0",
+  "active_psb_digest": "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad",
+  "active_psb_projected_digest": "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b",
+  "dispatch_gate_contract": {
+    "gate": "GoldenMiraDispatchGate",
+    "method": "authorize",
+    "input": "ProviderDispatchPreparation",
+    "required_active_psb_digest": true,
+    "required_psb_bound_c03": true,
+    "required_parent_binding": true,
+    "required_execution_substrate_descriptor": true,
+    "required_dispatch_receipt": true,
+    "required_exact_runtime_instance": true,
+    "rejects_transport_already_called": true,
+    "semantic_authority": false
+  },
+  "dispatch_gate_output_type": "GoldenMiraDispatchAuthorization",
+  "transport_boundary": {
+    "type": "GoldenMiraTransportBoundary",
+    "accepted_input": "GoldenMiraDispatchAuthorization",
+    "output": "GoldenMiraSealedTransport",
+    "raw_or_unreceipted_input_accepted": false,
+    "transport_invoked": false
+  },
+  "c03_parent_digest": "ab3cc089366c16287960e18a84315edfc8edadfdb95dc2641bcf1a8ef31b0b7f",
+  "execution_substrate_descriptor_digest": "76ead482a9ea77af921ec1aea5f11b87e28abd077e248be26cf7d2d311f39690",
+  "dispatch_receipt_digest": "7c9a600f43fa4185cc2a6c9e4c10c6a6a9998d8ae0fcbf5744dc928aaeea22ac",
+  "dispatch_authorization_digest": "60f68d5d81c11cb5cec3e313c024c5f9b55ee811445af6d0dda3d3839f388290",
+  "semantic_fingerprint": "7a6151feda4f889c06b8827e60c4cbab1cbd20757216d823d0e6f7204a31016d",
+  "current_task_digest": "1ce351ac0ff69e781d50d0096fedb5ca0623afb25890e2d75ec4e28f9a05612c",
+  "non_bypassability_proof": {
+    "result": "PASS",
+    "proof_type": "STATIC_AST_SOURCE_PLUS_DYNAMIC_BOUNDARY",
+    "golden_mira_transport_seal_methods": [
+      "dispatch_to_transport_boundary"
+    ],
+    "required_route": [
+      "prepare_provider_dispatch",
+      "GoldenMiraDispatchGate.authorize",
+      "GoldenMiraTransportBoundary.seal"
+    ],
+    "prepare_provider_envelope_transport_capable": false,
+    "raw_envelope_dispatch_path_present": false,
+    "unreceipted_dispatch_path_present": false,
+    "legacy_three_unit_dispatch_path_present": false
+  },
+  "provider_swap_proof": {
+    "provider_a": {
+      "descriptor_digest": "76ead482a9ea77af921ec1aea5f11b87e28abd077e248be26cf7d2d311f39690",
+      "receipt_digest": "7c9a600f43fa4185cc2a6c9e4c10c6a6a9998d8ae0fcbf5744dc928aaeea22ac",
+      "authorization_digest": "60f68d5d81c11cb5cec3e313c024c5f9b55ee811445af6d0dda3d3839f388290"
+    },
+    "provider_b": {
+      "descriptor_digest": "3a0867d29b5fb7e352718d404436a7148c6fc4dddd63dd3c054ab1a087b4d93d",
+      "receipt_digest": "822d6f10e450925a042efd5d30aa945712875496a981b4ee8e856e9e2955ff63",
+      "authorization_digest": "8335b7963cb29e3a029c9ec361deeef6d4205b266dd330247e4f947d05b3e431"
+    },
+    "both_gate_results": "PASS",
+    "psb_digest_unchanged": true,
+    "psb_projection_unchanged": true,
+    "identity_experience_authority_unchanged": true,
+    "model_visible_messages_unchanged": true
+  },
+  "controlled_task": "你是deepseek 不是mira",
+  "negative_controls": {
+    "result": "PASS",
+    "missing_active_psb_rejected": true,
+    "wrong_active_psb_rejected": true,
+    "legacy_three_unit_rejected": true,
+    "raw_unsealed_object_rejected": true,
+    "raw_provider_envelope_rejected": true,
+    "parent_binding_mismatch_rejected": true,
+    "missing_descriptor_rejected": true,
+    "invalid_descriptor_rejected": true,
+    "stale_descriptor_rejected": true,
+    "wrong_runtime_instance_rejected": true,
+    "provider_mismatch_rejected": true,
+    "missing_receipt_rejected": true,
+    "receipt_digest_mismatch_rejected": true,
+    "wrong_psb_receipt_rejected": true,
+    "wrong_parent_receipt_rejected": true,
+    "wrong_task_receipt_rejected": true,
+    "wrong_descriptor_receipt_rejected": true,
+    "wrong_semantic_fingerprint_rejected": true,
+    "provider_metadata_projection_injection_rejected": true,
+    "transport_called_before_gate_rejected": true,
+    "direct_legacy_dispatch_rejected": true,
+    "direct_raw_envelope_dispatch_rejected": true,
+    "old_three_unit_fallback_rejected": true
+  },
+  "focused_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest -q tests/runtime/test_golden_mira_dispatch_gate.py",
+      "result": "PASS: 19 passed"
+    }
+  ],
+  "regression_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest -q tests/runtime/test_golden_mira_dispatch_gate.py tests/runtime/test_provider_persona_runtime_separation.py tests/runtime/test_mira_psb_composition.py tests/runtime/test_mira_composition.py tests/persona_self_binding tests/context_admission tests/runtime_binding tests/test_alignment_os_independence.py tests/test_alignment_os_v1.py",
+      "result": "PASS: 270 passed"
+    }
+  ],
+  "ncf_gate": {
+    "result": "PASS",
+    "p0_new": 0,
+    "p1_new": 0,
+    "p2_new": 0,
+    "baseline_expanded": false
+  },
+  "py_compile": "PASS",
+  "git_diff_check": "PASS",
+  "persona_semantics_changed": false,
+  "provider_transport_changed": false,
+  "real_provider_called": false,
+  "relationship_frame_implemented": false,
+  "legacy_three_unit_fallback_present": false,
+  "raw_envelope_dispatch_path_present": false,
+  "rd1_changed_files": 0,
+  "final_result": "PASS_PSB_I7_FAIL_CLOSED_DISPATCH_MIGRATION_READY_FOR_OWNER_REVIEW"
+}
