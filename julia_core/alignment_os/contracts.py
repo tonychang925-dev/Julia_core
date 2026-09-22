@@ -3,6 +3,7 @@
 Alignment OS keeps runtime-owned behavior contracts stable across LLM providers.
 It stores structured alignment metadata, not product-private persona or memory data.
 """
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -28,7 +29,9 @@ class AlignmentRequest:
         object.__setattr__(self, "persona", (self.persona or "agent").lower())
         object.__setattr__(self, "mode", self.mode or "conversation")
         object.__setattr__(self, "capabilities", tuple(self.capabilities or ()))
-        object.__setattr__(self, "constraints", MappingProxyType(dict(self.constraints or {})))
+        object.__setattr__(
+            self, "constraints", MappingProxyType(dict(self.constraints or {}))
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,7 +48,9 @@ class AlignmentContract:
     def __post_init__(self) -> None:
         object.__setattr__(self, "principles", tuple(self.principles or ()))
         object.__setattr__(self, "constraints", tuple(self.constraints or ()))
-        object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata or {})))
+        object.__setattr__(
+            self, "metadata", MappingProxyType(dict(self.metadata or {}))
+        )
 
     def render_lines(self) -> str:
         lines = [
@@ -86,7 +91,9 @@ class BehaviorConstraint:
     metadata: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata or {})))
+        object.__setattr__(
+            self, "metadata", MappingProxyType(dict(self.metadata or {}))
+        )
 
     def render_line(self) -> str:
         parts = [f"dimension={self.dimension}"]
@@ -120,11 +127,15 @@ class ProviderBehaviorProfile:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "constraints", tuple(self.constraints or ()))
-        object.__setattr__(self, "behavior_guidance", tuple(self.behavior_guidance or ()))
+        object.__setattr__(
+            self, "behavior_guidance", tuple(self.behavior_guidance or ())
+        )
         object.__setattr__(self, "prefer", tuple(self.prefer or ()))
         object.__setattr__(self, "avoid", tuple(self.avoid or ()))
         object.__setattr__(self, "fallback_style", tuple(self.fallback_style or ()))
-        object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata or {})))
+        object.__setattr__(
+            self, "metadata", MappingProxyType(dict(self.metadata or {}))
+        )
 
     def render_lines(self) -> str:
         lines = [
@@ -185,7 +196,9 @@ class AlignmentProfile:
         return self.provider_profile.max_intimacy_level
 
     def render_lines(self) -> str:
-        return self.contract.render_lines() + "\n\n" + self.provider_profile.render_lines()
+        return (
+            self.contract.render_lines() + "\n\n" + self.provider_profile.render_lines()
+        )
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -217,7 +230,10 @@ class AlignmentExecutionMetadata:
             raise TypeError("alignment execution modality is unsupported")
         if self.response_format not in {"default", "json_object"}:
             raise TypeError("alignment execution response_format is unsupported")
-        if type(self.max_output_tokens) is not int or not 1 <= self.max_output_tokens <= 32768:
+        if (
+            type(self.max_output_tokens) is not int
+            or not 1 <= self.max_output_tokens <= 32768
+        ):
             raise TypeError("alignment execution max_output_tokens is inexact")
         if self.temperature is not None and type(self.temperature) not in (int, float):
             raise TypeError("alignment execution temperature is inexact")
@@ -250,18 +266,26 @@ class ProviderExecutionEnvelope:
 
     def __post_init__(self) -> None:
         if self.issued_by is not _ALIGNMENT_ISSUER:
-            raise TypeError("only ProviderAlignmentBoundary constructs execution envelopes")
+            raise TypeError(
+                "only ProviderAlignmentBoundary constructs execution envelopes"
+            )
         for field_name in (
             "conversation_id",
             "turn_id",
             "gate_receipt",
             "semantic_fingerprint",
         ):
-            if type(getattr(self, field_name)) is not str or not getattr(self, field_name):
+            if type(getattr(self, field_name)) is not str or not getattr(
+                self, field_name
+            ):
                 raise TypeError(f"provider execution envelope {field_name} is inexact")
         if type(self.messages) is not tuple or len(self.messages) != 3:
             raise TypeError("provider execution messages are partial or ambiguous")
-        if [message.get("role") for message in self.messages] != ["system", "system", "user"]:
+        if [message.get("role") for message in self.messages] != [
+            "system",
+            "system",
+            "user",
+        ]:
             raise TypeError("provider execution message roles are inexact")
         if any(set(message) != {"role", "content"} for message in self.messages):
             raise TypeError("provider execution message shape is inexact")
@@ -287,6 +311,134 @@ class ProviderExecutionEnvelope:
             "semantic_fingerprint": self.semantic_fingerprint,
             "messages": [dict(message) for message in self.messages],
             "alignment": self.alignment.to_dict(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderExecutionEnvelopeV2:
+    """Candidate v2 ingress with independently sealed incremental evidence."""
+
+    schema: str
+    conversation_id: str
+    turn_id: str
+    base_gate_receipt: str
+    base_semantic_fingerprint: str
+    incremental_evidence_gate_receipt: str | None
+    incremental_evidence_fingerprint: str | None
+    combined_fingerprint: str
+    messages: tuple[dict[str, str], ...]
+    alignment: AlignmentExecutionMetadata
+    issued_by: object = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if self.issued_by is not _ALIGNMENT_ISSUER:
+            raise TypeError("only ProviderAlignmentBoundary constructs v2 envelopes")
+        if self.schema != "julia_core.alignment_os.provider_execution_envelope.v2":
+            raise TypeError("provider execution v2 schema is inexact")
+        for field_name in (
+            "conversation_id",
+            "turn_id",
+            "base_gate_receipt",
+            "base_semantic_fingerprint",
+        ):
+            if type(getattr(self, field_name)) is not str or not getattr(
+                self, field_name
+            ):
+                raise TypeError(f"provider execution v2 {field_name} is inexact")
+        has_incremental_receipt = type(
+            self.incremental_evidence_gate_receipt
+        ) is str and bool(self.incremental_evidence_gate_receipt)
+        has_incremental_fingerprint = type(
+            self.incremental_evidence_fingerprint
+        ) is str and bool(self.incremental_evidence_fingerprint)
+        if has_incremental_receipt != has_incremental_fingerprint:
+            raise TypeError("provider execution v2 incremental evidence is partial")
+        expected_roles = (
+            ["system", "system", "system", "user"]
+            if has_incremental_receipt
+            else ["system", "system", "user"]
+        )
+        if type(self.messages) is not tuple or len(self.messages) != len(
+            expected_roles
+        ):
+            raise TypeError("provider execution v2 messages are partial or ambiguous")
+        if [message.get("role") for message in self.messages] != expected_roles:
+            raise TypeError("provider execution v2 message roles are inexact")
+        if any(set(message) != {"role", "content"} for message in self.messages):
+            raise TypeError("provider execution v2 message shape is inexact")
+        if type(self.alignment) is not AlignmentExecutionMetadata:
+            raise TypeError("provider execution v2 alignment metadata is inexact")
+        self.alignment.__post_init__()
+        base_indices = (0, 1, 3) if has_incremental_receipt else (0, 1, 2)
+        actual_base_fingerprint = sha256(
+            canonical_json([self.messages[index] for index in base_indices]).encode(
+                "utf-8"
+            )
+        ).hexdigest()
+        if self.base_semantic_fingerprint != actual_base_fingerprint:
+            raise TypeError("provider execution v2 base semantic fingerprint is forged")
+        if has_incremental_receipt:
+            actual_incremental_fingerprint = sha256(
+                self.messages[2]["content"].encode("utf-8")
+            ).hexdigest()
+            if self.incremental_evidence_fingerprint != actual_incremental_fingerprint:
+                raise TypeError(
+                    "provider execution v2 incremental evidence fingerprint is forged"
+                )
+        if self.combined_fingerprint != self._combined_fingerprint():
+            raise TypeError("provider execution v2 combined fingerprint is forged")
+
+    def _fingerprint_payload(self) -> dict[str, object]:
+        return {
+            "schema": self.schema,
+            "conversation_id": self.conversation_id,
+            "turn_id": self.turn_id,
+            "base_gate_receipt": self.base_gate_receipt,
+            "base_semantic_fingerprint": self.base_semantic_fingerprint,
+            "incremental_evidence_gate_receipt": self.incremental_evidence_gate_receipt,
+            "incremental_evidence_fingerprint": self.incremental_evidence_fingerprint,
+            "messages": [dict(message) for message in self.messages],
+            "alignment": self.alignment.to_dict(),
+        }
+
+    def _combined_fingerprint(self) -> str:
+        return sha256(
+            canonical_json(self._fingerprint_payload()).encode("utf-8")
+        ).hexdigest()
+
+    @staticmethod
+    def combined_fingerprint_for(
+        *,
+        conversation_id: str,
+        turn_id: str,
+        base_gate_receipt: str,
+        base_semantic_fingerprint: str,
+        incremental_evidence_gate_receipt: str | None,
+        incremental_evidence_fingerprint: str | None,
+        messages: tuple[dict[str, str], ...],
+        alignment: AlignmentExecutionMetadata,
+    ) -> str:
+        payload = {
+            "schema": "julia_core.alignment_os.provider_execution_envelope.v2",
+            "conversation_id": conversation_id,
+            "turn_id": turn_id,
+            "base_gate_receipt": base_gate_receipt,
+            "base_semantic_fingerprint": base_semantic_fingerprint,
+            "incremental_evidence_gate_receipt": incremental_evidence_gate_receipt,
+            "incremental_evidence_fingerprint": incremental_evidence_fingerprint,
+            "messages": [dict(message) for message in messages],
+            "alignment": alignment.to_dict(),
+        }
+        return sha256(canonical_json(payload).encode("utf-8")).hexdigest()
+
+    def verify(self) -> ProviderExecutionEnvelopeV2:
+        self.__post_init__()
+        return self
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            **self._fingerprint_payload(),
+            "combined_fingerprint": self.combined_fingerprint,
         }
 
 
