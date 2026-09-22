@@ -1,0 +1,57 @@
+{
+  "task_id": "MIRA-PSB-I6-PROVIDER-PERSONA-RUNTIME-SEPARATION-P0",
+  "review_comment_id": 5775496935,
+  "execution_agent": "LOCAL_CODEX_ONLY",
+  "authorized_phase": "PSB-I6_ONLY",
+  "implementation_base_sha": "440658341ebc81e7a45ef98a5028221fc70fa4b0",
+  "prior_implementation_sha": "4a027d392a5dd667cb3399b965fe6f67088cb5fd",
+  "prior_evidence_remote_head_sha": "1b1e7c616396bf39ee01a532f7bd2227fd722721",
+  "hardening_parent_sha": "1b1e7c616396bf39ee01a532f7bd2227fd722721",
+  "hardening_candidate_sha": "49ec43c27856b1763e6a02a8ab13576cc4493406",
+  "branch": "mira/psb-i6-provider-persona-runtime-separation-p0",
+  "provider_name_heuristic_removed": true,
+  "typed_role_separation_only": true,
+  "same_label_descriptor": {
+    "provider_id": "golden-mira",
+    "model_id": "golden-mira",
+    "descriptor_digest": "ced96108e9753e6a7cc6d8ad85d75a0ed3e90eaa4153691f26a61d904b42cdc5",
+    "receipt_digest": "773f93aaaf7dc14ef6fef3b66681eeaa598e48622cd0e195e199a2735ab478f0",
+    "accepted_as_runtime_substrate_metadata": true,
+    "persona_authority_granted": false,
+    "psb_projection_unchanged": true,
+    "psb_projection_digest": "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b"
+  },
+  "structural_boundary": {
+    "provider_model_runtime_fields_injected_into_psb_projection_rejected": true,
+    "provider_model_values_treated_as_identity_authority": false,
+    "persona_identity_remains_governed_binding_authority": true
+  },
+  "focused_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest -q tests/runtime/test_provider_persona_runtime_separation.py",
+      "result": "PASS: 24 passed"
+    }
+  ],
+  "regression_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest -q tests/runtime/test_provider_persona_runtime_separation.py tests/runtime/test_mira_psb_composition.py tests/runtime/test_mira_composition.py tests/persona_self_binding tests/context_admission tests/runtime_binding tests/test_alignment_os_independence.py tests/test_alignment_os_v1.py",
+      "result": "PASS: 251 passed"
+    }
+  ],
+  "ncf_gate": {
+    "result": "PASS",
+    "p0_new": 0,
+    "p1_new": 0,
+    "p2_new": 0,
+    "baseline_expanded": false
+  },
+  "py_compile": "PASS",
+  "git_diff_check": "PASS",
+  "provider_transport_changed": false,
+  "real_provider_called": false,
+  "persona_semantics_changed": false,
+  "raw_canonical_fallback_used": false,
+  "synthetic_identity_used": false,
+  "rd1_changed_files": 0,
+  "final_result": "PASS_PSB_I6_PROVIDER_NAME_HEURISTIC_HARDENING_READY_FOR_OWNER_REVIEW"
+}
