@@ -120,6 +120,7 @@ def _load_public_request_builders() -> dict[str, RequestBuilder]:
         None,
     )
     MarketStateReadRequest = getattr(market_public, "MarketStateReadRequest", None)
+    StockQuoteReadRequest = getattr(market_public, "StockQuoteReadRequest", None)
 
     builders = {
         "market.event.resolve": EventResolveRequest,
@@ -130,6 +131,8 @@ def _load_public_request_builders() -> dict[str, RequestBuilder]:
         builders["market.product.linkage.read"] = ProductLinkageReadRequest
     if MarketStateReadRequest is not None:
         builders["market.state.read"] = MarketStateReadRequest
+    if StockQuoteReadRequest is not None:
+        builders["market.stock.quote.read"] = StockQuoteReadRequest
     return builders
 
 

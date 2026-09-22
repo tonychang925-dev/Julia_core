@@ -44,6 +44,12 @@ class MarketStateReadRequest:
     trade_date: str
 
 
+@dataclass(frozen=True)
+class StockQuoteReadRequest:
+    stock_id: str
+    trade_date: str
+
+
 class OperationStatus(str, Enum):
     SUCCESS = "SUCCESS"
     FAILURE = "FAILURE"
@@ -90,6 +96,7 @@ REQUEST_BUILDERS = {
     "market.product.read": ProductReadRequest,
     "market.product.linkage.read": ProductLinkageReadRequest,
     "market.state.read": MarketStateReadRequest,
+    "market.stock.quote.read": StockQuoteReadRequest,
 }
 
 
@@ -166,6 +173,7 @@ def test_default_loader_imports_only_new_market_public_request_exports(monkeypat
     market_public.ProductReadRequest = ProductReadRequest
     market_public.ProductLinkageReadRequest = ProductLinkageReadRequest
     market_public.MarketStateReadRequest = MarketStateReadRequest
+    market_public.StockQuoteReadRequest = StockQuoteReadRequest
     monkeypatch.setitem(sys.modules, "market_public", market_public)
 
     class CallableProvider:
@@ -195,6 +203,11 @@ def test_default_loader_imports_only_new_market_public_request_exports(monkeypat
             ProductLinkageReadRequest,
         ),
         ("market.state.read", {"trade_date": "2026-09-18"}, MarketStateReadRequest),
+        (
+            "market.stock.quote.read",
+            {"stock_id": "600519.SH", "trade_date": "2026-07-31"},
+            StockQuoteReadRequest,
+        ),
     ],
 )
 async def test_structured_market_request_uses_public_provider_shape(
@@ -239,15 +252,24 @@ def test_new_market_capabilities_are_registered_and_model_visible():
         "market.product.read",
         "market.product.linkage.read",
         "market.state.read",
+        "market.stock.quote.read",
     }
-    for capability in ("market.product.linkage.read", "market.state.read"):
+    for capability in (
+        "market.product.linkage.read",
+        "market.state.read",
+        "market.stock.quote.read",
+    ):
         definition = definitions[capability]
         assert definition.provider == "market"
         assert definition.permission_scope == "market.observe"
+        assert definition.input_schema is not None
 
     manifest = bridge.tool_manifest()
     assert "market.product.linkage.read" in manifest
     assert "market.state.read" in manifest
+    assert "market.stock.quote.read" in manifest
+    assert '"stock_id": exact source-namespaced stock identifier' in manifest
+    assert '"trade_date": exact YYYY-MM-DD trade date' in manifest
 
 
 @pytest.mark.asyncio

@@ -260,6 +260,31 @@ class _ResearchProviderContractAdapter:
         return None
 
 
+_MARKET_INPUT_SCHEMAS = {
+    "market.event.resolve": {
+        "feed_date": "optional YYYY-MM-DD event feed date",
+        "stock_id": "optional exact source stock identifier",
+        "limit": "maximum event count from 1 through 200",
+    },
+    "market.event.read": {
+        "event_id": "integer news_event id; exactly one selector required",
+        "item_id": "canonical source-namespaced event id; exactly one selector required",
+    },
+    "market.product.read": {"subject_key": "exact Market product subject key"},
+    "market.product.linkage.read": {
+        "subject_key": "exact Market product subject key",
+        "mapping_scope": "pool, all, or leader_overlay",
+        "include_leaders": "boolean leader overlay selector",
+        "limit": "maximum linkage row count",
+    },
+    "market.state.read": {"trade_date": "exact YYYY-MM-DD trade date"},
+    "market.stock.quote.read": {
+        "stock_id": "exact source-namespaced stock identifier, for example 600519.SH",
+        "trade_date": "exact YYYY-MM-DD trade date",
+    },
+}
+
+
 class RuntimeCapabilityBridge:
     """Unified capability facade for JuliaSession.
 
@@ -391,6 +416,7 @@ class RuntimeCapabilityBridge:
             "market.product.read": "Read one structured Market product",
             "market.product.linkage.read": "Read product-to-stock relationship evidence",
             "market.state.read": "Read exact-date whole-market state evidence",
+            "market.stock.quote.read": "Read one exact stock/date daily quote",
         }.items():
             self.registry.register_definition(CapabilityDefinition(
                 name=name,
@@ -398,6 +424,7 @@ class RuntimeCapabilityBridge:
                 layer=CapabilityLayer.INTELLIGENCE,
                 provider="market",
                 permission_scope="market.observe",
+                input_schema=_MARKET_INPUT_SCHEMAS[name],
                 status=CapabilityStatus.AVAILABLE,
             ))
 
