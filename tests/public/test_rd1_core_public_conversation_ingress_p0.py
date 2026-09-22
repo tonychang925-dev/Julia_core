@@ -15,6 +15,14 @@ def _request() -> CoreConversationRequest:
     return CoreConversationRequest("conv-1", "turn-1", "text", "hello")
 
 
+def _use_credential_free_cognition_seam(monkeypatch):
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.setattr(
+        "julia_core.providers.core_cognition.initialize_production_cognition",
+        lambda: None,
+    )
+
+
 def test_public_ingress_processes_typed_turn_through_core_runtime(monkeypatch, tmp_path):
     """TC-RC25-01: request -> Core ConversationRuntime -> typed response."""
     calls = []
@@ -41,6 +49,7 @@ def test_public_ingress_processes_typed_turn_through_core_runtime(monkeypatch, t
 
     monkeypatch.setattr("julia_core.public.conversation.JuliaSession", FakeSession)
     monkeypatch.setattr("julia_core.public.conversation.ConversationRuntime", FakeRuntime)
+    _use_credential_free_cognition_seam(monkeypatch)
     monkeypatch.setattr("julia_core.providers.core_cognition._get_cognition_provider", lambda _name: object())
     ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
     response = ingress.process(_request())
@@ -83,6 +92,7 @@ def test_real_composition_requires_explicit_test_provider(tmp_path, monkeypatch)
         def chat(self, messages, *, cognitive_mode=""):
             return "TEST_PROVIDER_SENTINEL"
 
+    _use_credential_free_cognition_seam(monkeypatch)
     monkeypatch.setattr(
         "julia_core.providers.core_cognition._get_cognition_provider",
         lambda _name: TestProvider(),
@@ -100,6 +110,7 @@ def test_real_core_domain_errors_remain_typed(tmp_path, monkeypatch):
         "julia_core.providers.core_cognition._get_cognition_provider",
         lambda _name: type("TestProvider", (), {"chat": lambda self, messages, cognitive_mode="": "domain answer"})(),
     )
+    _use_credential_free_cognition_seam(monkeypatch)
     ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
     missing = ingress.process(_request())
     assert missing.error_code == "CONVERSATION_NOT_FOUND"

@@ -10,7 +10,14 @@ from types import SimpleNamespace
 
 import pytest
 
+import julia_core.providers.core_cognition as core_cognition
 import julia_core.public.conversation as conversation
+
+
+@pytest.fixture(autouse=True)
+def credential_free_cognition_seam(monkeypatch):
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.setattr(core_cognition, "initialize_production_cognition", lambda: None)
 
 
 class FakeBridge:

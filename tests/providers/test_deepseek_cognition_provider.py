@@ -6,6 +6,8 @@ import importlib
 import io
 import json
 from pathlib import Path
+import threading
+import time
 
 import pytest
 
@@ -94,6 +96,23 @@ def test_missing_credential_fails_closed_before_network(monkeypatch):
     assert core_cognition._get_cognition_provider("production") is None
 
 
+def test_missing_credential_public_ingress_fails_closed(monkeypatch, tmp_path):
+    from julia_core.public import (
+        CoreConversationConfig,
+        CoreConversationIngress,
+        CoreConversationRequest,
+    )
+
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    response = CoreConversationIngress(
+        CoreConversationConfig(tmp_path / "conversations")
+    ).process(CoreConversationRequest("conv", "turn", "text", "hello"))
+
+    assert response.status == "failed"
+    assert response.error_code == "CORE_PROVIDER_UNAVAILABLE"
+    assert response.assistant_content == ""
+
+
 def test_missing_credential_provider_constructor_fails_closed(monkeypatch):
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     with pytest.raises(DeepSeekCognitionProviderError):
@@ -119,13 +138,61 @@ def test_initialization_is_idempotent_and_rejects_namespace_replacement(monkeypa
         core_cognition._register_cognition_provider("production", object())
 
 
+def test_concurrent_initialization_has_one_terminal_provider_result(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-only")
+    construction_started = threading.Event()
+    release_construction = threading.Event()
+    construction_count = 0
+
+    class SlowProvider:
+        def __init__(self):
+            nonlocal construction_count
+            construction_started.set()
+            assert release_construction.wait(timeout=2)
+            time.sleep(0.02)
+            construction_count += 1
+
+    monkeypatch.setattr(
+        "julia_core.providers.deepseek.DeepSeekCognitionProvider",
+        SlowProvider,
+    )
+    results = []
+    errors = []
+
+    def initialize():
+        try:
+            results.append(core_cognition.initialize_production_cognition())
+        except Exception as error:
+            errors.append(error)
+
+    threads = [threading.Thread(target=initialize) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    assert construction_started.wait(timeout=2)
+    assert sum(thread.is_alive() for thread in threads) == 8
+    release_construction.set()
+    for thread in threads:
+        thread.join(timeout=2)
+
+    assert errors == []
+    assert construction_count == 1
+    assert len(results) == 8
+    assert len({id(provider) for provider in results}) == 1
+    assert results[0] is core_cognition._get_cognition_provider("production")
+
+
 def test_malformed_and_empty_responses_fail_without_fallback(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-only")
     provider = DeepSeekCognitionProvider()
 
-    for payload in (b"{}", json.dumps({"choices": [{}]}).encode(), json.dumps(
-        {"choices": [{"message": {"content": ""}}]}
-    ).encode()):
+    for payload in (
+        b"{}",
+        json.dumps({"choices": [{}]}).encode(),
+        *(
+            json.dumps({"choices": [{"message": {"content": content}}]}).encode()
+            for content in ("", " ", "\n", "\t")
+        ),
+    ):
         monkeypatch.setattr(
             "julia_core.providers.deepseek.urllib.request.urlopen",
             lambda *args, **kwargs: FakeHTTPResponse(payload),

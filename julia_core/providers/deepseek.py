@@ -73,7 +73,7 @@ class DeepSeekCognitionProvider:
             raise DeepSeekCognitionProviderError(
                 "DeepSeek returned a malformed cognition response"
             ) from error
-        if type(content) is not str or not content:
+        if type(content) is not str or not content.strip():
             raise DeepSeekCognitionProviderError(
                 "DeepSeek returned an empty cognition response"
             )

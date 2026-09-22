@@ -14,7 +14,7 @@ class CoreCognitionProvider(Protocol):
 
 
 _providers: dict[str, CoreCognitionProvider] = {}
-_registration_lock = threading.Lock()
+_registration_lock = threading.RLock()
 _production_initialization_attempted = False
 
 
@@ -54,18 +54,20 @@ def initialize_production_cognition() -> CoreCognitionProvider:
             raise CoreCognitionProviderUnavailable(
                 "production cognition initialization already failed"
             )
-        _production_initialization_attempted = True
+        try:
+            if not os.environ.get("DEEPSEEK_API_KEY"):
+                raise CoreCognitionProviderUnavailable(
+                    "DEEPSEEK_API_KEY is not configured; real cognition is unavailable"
+                )
 
-    if not os.environ.get("DEEPSEEK_API_KEY"):
-        raise CoreCognitionProviderUnavailable(
-            "DEEPSEEK_API_KEY is not configured; real cognition is unavailable"
-        )
+            from .deepseek import DeepSeekCognitionProvider
 
-    from .deepseek import DeepSeekCognitionProvider
-
-    provider = DeepSeekCognitionProvider()
-    _register_cognition_provider("production", provider)
-    return _get_cognition_provider("production")  # type: ignore[return-value]
+            provider = DeepSeekCognitionProvider()
+            _register_cognition_provider("production", provider)
+            return provider
+        except Exception:
+            _production_initialization_attempted = True
+            raise
 
 
 __all__ = ["CoreCognitionProvider", "CoreCognitionProviderUnavailable"]
