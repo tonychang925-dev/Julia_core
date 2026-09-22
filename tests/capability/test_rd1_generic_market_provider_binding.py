@@ -238,7 +238,16 @@ async def test_structured_market_request_uses_public_provider_shape(
     assert result.tool_result.structured_output["data_state"] == "READY"
 
 
-def test_new_market_capabilities_are_registered_and_model_visible():
+def test_new_market_capabilities_are_registered_and_model_visible(monkeypatch):
+    market_public = types.ModuleType("market_public")
+    market_public.EventResolveRequest = EventResolveRequest
+    market_public.EventReadRequest = EventReadRequest
+    market_public.ProductReadRequest = ProductReadRequest
+    market_public.ProductLinkageReadRequest = ProductLinkageReadRequest
+    market_public.MarketStateReadRequest = MarketStateReadRequest
+    market_public.StockQuoteReadRequest = StockQuoteReadRequest
+    monkeypatch.setitem(sys.modules, "market_public", market_public)
+
     bridge = RuntimeCapabilityBridge()
     bridge.initialize()
 
@@ -270,6 +279,34 @@ def test_new_market_capabilities_are_registered_and_model_visible():
     assert "market.stock.quote.read" in manifest
     assert '"stock_id": exact source-namespaced stock identifier' in manifest
     assert '"trade_date": exact YYYY-MM-DD trade date' in manifest
+
+
+def test_old_market_contract_does_not_advertise_unexecutable_stock_quote(monkeypatch):
+    market_public = types.ModuleType("market_public")
+    market_public.EventResolveRequest = EventResolveRequest
+    market_public.EventReadRequest = EventReadRequest
+    market_public.ProductReadRequest = ProductReadRequest
+    market_public.ProductLinkageReadRequest = ProductLinkageReadRequest
+    market_public.MarketStateReadRequest = MarketStateReadRequest
+    monkeypatch.setitem(sys.modules, "market_public", market_public)
+
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+
+    definitions = {
+        definition.name: definition
+        for definition in bridge.registry.by_provider("market")
+    }
+    assert set(definitions) == {
+        "market.event.resolve",
+        "market.event.read",
+        "market.product.read",
+        "market.product.linkage.read",
+        "market.state.read",
+    }
+    manifest = bridge.tool_manifest()
+    assert "market.stock.quote.read" not in manifest
+    assert "Read one exact stock/date daily quote" not in manifest
 
 
 @pytest.mark.asyncio

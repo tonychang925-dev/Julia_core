@@ -136,6 +136,11 @@ def _load_public_request_builders() -> dict[str, RequestBuilder]:
     return builders
 
 
+def market_public_request_builders() -> dict[str, RequestBuilder]:
+    """Expose the public request-builder truth used for capability availability."""
+    return _load_public_request_builders()
+
+
 def _to_plain_mapping(value: Any) -> dict[str, Any]:
     """Serialize a public result structurally without semantic remapping."""
     if is_dataclass(value):
@@ -159,4 +164,4 @@ def _plain(value: Any) -> Any:
     return copy.deepcopy(value)
 
 
-__all__ = ["MarketPublicProviderAdapter"]
+__all__ = ["MarketPublicProviderAdapter", "market_public_request_builders"]

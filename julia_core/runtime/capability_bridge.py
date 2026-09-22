@@ -410,14 +410,28 @@ class RuntimeCapabilityBridge:
         # Market is a generic provider namespace. The public Market provider is
         # bound by the application/runtime composition root; Core never imports
         # Market private code or manufactures an unavailable substitute.
-        for name, description in {
+        from julia_core.capability.providers.market_public import (
+            market_public_request_builders,
+        )
+
+        try:
+            market_request_builders = market_public_request_builders()
+        except ImportError:
+            market_request_builders = {}
+
+        market_capabilities = {
             "market.event.resolve": "Resolve structured Market event criteria",
             "market.event.read": "Read one structured Market event",
             "market.product.read": "Read one structured Market product",
             "market.product.linkage.read": "Read product-to-stock relationship evidence",
             "market.state.read": "Read exact-date whole-market state evidence",
-            "market.stock.quote.read": "Read one exact stock/date daily quote",
-        }.items():
+        }
+        if "market.stock.quote.read" in market_request_builders:
+            market_capabilities["market.stock.quote.read"] = (
+                "Read one exact stock/date daily quote"
+            )
+
+        for name, description in market_capabilities.items():
             self.registry.register_definition(CapabilityDefinition(
                 name=name,
                 description=description,

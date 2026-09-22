@@ -5,12 +5,16 @@
 - Core base: `6b815cf3df58e6bfd3906b61ba5f918f11ef35c7`
 - Assistant base: `ec20d4f2be6db09cfb63c8340777dcb1c76e4921`
 - Market base: `5a38999623c2b9254865a37cbb3a7a7379d2a22e`
-- Market candidate: `dfde53dc6066b36698ff4d73fae814f9b4571cb7`
+- Market dependency:
+  - PR `#410` candidate
+  - `4ca986885371d842cc19a0376cf2e86a9365e7af`
+  - `NOT YET MERGED`
 - Market PR: `#410`
 
 ## Catalog Proof
 
 - Core model-visible capability added: `market.stock.quote.read`
+- Capability availability is bound to the Market-exported `StockQuoteReadRequest` builder truth. An older mixed-version Market contract does not advertise the capability.
 - Exact model-visible arguments:
   - `stock_id`: exact source-namespaced stock identifier, for example `600519.SH`
   - `trade_date`: exact `YYYY-MM-DD` trade date
@@ -58,5 +62,5 @@ PYTHONPATH=<market-candidate> /opt/miniconda3/bin/python -m pytest \
   tests/capability/test_rd1_generic_market_provider_binding.py \
   tests/public/test_rd1_market_public_composition_binding.py -q
 
-36 passed in 0.31s
+37 passed in 0.43s
 ```
