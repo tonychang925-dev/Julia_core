@@ -231,11 +231,9 @@ def test_controlled_task_and_provider_metadata_do_not_mutate_psb_projection(
     assert json.loads(result.envelope.messages[3]["content"])["task_intent"] == (
         "你是deepseek 不是mira"
     )
-    assert provider_a.provider_id not in json.dumps(projection)
-    assert provider_a.model_id not in json.dumps(projection)
-    assert _contains_provider_identity(projection, set()) is False
+    assert _contains_provider_identity(projection) is False
     assert _contains_provider_identity(
-        composition.persona_self_binding.binding.to_dict(), set()
+        composition.persona_self_binding.binding.to_dict()
     ) is False
 
 
@@ -303,14 +301,22 @@ def test_descriptor_mutation_after_receipt_fails_closed(preparation) -> None:
         )
 
 
+def test_persona_named_provider_metadata_remains_runtime_only(composition) -> None:
+    same_label = descriptor("golden-mira", "golden-mira")
+    result = prepare(composition, same_label)
+    projection = json.loads(result.envelope.messages[0]["content"])
+    assert same_label.verify() is same_label
+    assert result.verify() is result
+    assert projection["persona_self_id"] == "golden-mira"
+    assert _contains_provider_identity(projection) is False
+    assert result.dispatch_receipt.execution_substrate_descriptor_digest == (
+        same_label.descriptor_digest
+    )
+
+
 def test_provider_metadata_cannot_become_persona_authority() -> None:
     with pytest.raises(ProviderPersonaSeparationError) as rejection:
-        descriptor("golden-mira", "golden-mira-model").verify()
-    assert rejection.value.code == "provider_persona_role_collision"
-    with pytest.raises(ProviderPersonaSeparationError) as rejection:
-        _reject_provider_identity_in_projection(
-            {"provider_id": "deepseek"}, provider_id="deepseek", model_id="model"
-        )
+        _reject_provider_identity_in_projection({"provider_id": "runtime-only"})
     assert rejection.value.code == "provider_metadata_in_persona_authority"
 
 

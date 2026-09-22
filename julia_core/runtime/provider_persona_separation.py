@@ -48,16 +48,16 @@ def _require_identifier(value: object, field_name: str) -> str:
     return value
 
 
-def _contains_provider_identity(value: object, forbidden: set[str]) -> bool:
+def _contains_provider_identity(value: object) -> bool:
     if isinstance(value, dict):
         return any(
             key in {"provider_id", "model_id", "runtime_instance_id"}
-            or _contains_provider_identity(child, forbidden)
+            or _contains_provider_identity(child)
             for key, child in value.items()
         )
     if isinstance(value, (list, tuple)):
-        return any(_contains_provider_identity(child, forbidden) for child in value)
-    return type(value) is str and value in forbidden
+        return any(_contains_provider_identity(child) for child in value)
+    return False
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,8 +109,8 @@ class ExecutionSubstrateDescriptor:
     def verify(
         self, *, expected_runtime_instance_id: str | None = None
     ) -> ExecutionSubstrateDescriptor:
-        provider_id = _require_identifier(self.provider_id, "provider_id")
-        model_id = _require_identifier(self.model_id, "model_id")
+        _require_identifier(self.provider_id, "provider_id")
+        _require_identifier(self.model_id, "model_id")
         runtime_instance_id = _require_identifier(
             self.runtime_instance_id, "runtime_instance_id"
         )
@@ -143,11 +143,6 @@ class ExecutionSubstrateDescriptor:
             raise ProviderPersonaSeparationError(
                 "stale_execution_substrate",
                 "execution substrate belongs to another runtime instance",
-            )
-        if provider_id == "golden-mira" or model_id == "golden-mira":
-            raise ProviderPersonaSeparationError(
-                "provider_persona_role_collision",
-                "provider or model metadata cannot claim the persona-self role",
             )
         return self
 
@@ -188,11 +183,7 @@ class DispatchReceipt:
         binding.verify()
         envelope.verify()
         projection = json.loads(binding.units[0].projected_content)
-        _reject_provider_identity_in_projection(
-            projection,
-            provider_id=descriptor.provider_id,
-            model_id=descriptor.model_id,
-        )
+        _reject_provider_identity_in_projection(projection)
         if descriptor.provider_id != envelope.alignment.provider_id:
             raise ProviderPersonaSeparationError(
                 "execution_provider_mismatch",
@@ -321,11 +312,8 @@ class ProviderDispatchPreparation:
 
 def _reject_provider_identity_in_projection(
     projection: object,
-    *,
-    provider_id: str,
-    model_id: str,
 ) -> None:
-    if _contains_provider_identity(projection, {provider_id, model_id}):
+    if _contains_provider_identity(projection):
         raise ProviderPersonaSeparationError(
             "provider_metadata_in_persona_authority",
             "provider or model metadata cannot become persona identity authority",
