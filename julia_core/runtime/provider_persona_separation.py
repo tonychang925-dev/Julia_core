@@ -17,6 +17,9 @@ from julia_core.context_admission import PersonaSelfBoundSemanticBundle
 
 _DESCRIPTOR_SCHEMA_VERSION = "julia_core.runtime.execution_substrate_descriptor.v1"
 _RECEIPT_SCHEMA_VERSION = "julia_core.runtime.dispatch_receipt.v1"
+_DISPATCH_AUTHORIZATION_SCHEMA_VERSION = (
+    "julia_core.runtime.golden_mira_dispatch_authorization.v1"
+)
 _DIGEST_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
 _IDENTIFIER_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\Z")
 _TRANSPORT_MODES = {"pre_dispatch"}
@@ -285,11 +288,17 @@ class ProviderDispatchPreparation:
     execution_substrate: ExecutionSubstrateDescriptor
     dispatch_receipt: DispatchReceipt
     expected_runtime_instance_id: str
+    transport_called_before_gate: bool = False
 
     def __post_init__(self) -> None:
         self.verify()
 
     def verify(self) -> ProviderDispatchPreparation:
+        if type(self.transport_called_before_gate) is not bool:
+            raise ProviderPersonaSeparationError(
+                "inexact_transport_pre_gate_state",
+                "pre-gate transport state is inexact",
+            )
         self.envelope.verify()
         self.execution_substrate.verify(
             expected_runtime_instance_id=self.expected_runtime_instance_id
@@ -306,8 +315,164 @@ class ProviderDispatchPreparation:
             "schema": "julia_core.runtime.provider_dispatch_preparation.v1",
             "execution_substrate": self.execution_substrate.to_dict(),
             "dispatch_receipt": self.dispatch_receipt.to_dict(),
+            "transport_called_before_gate": self.transport_called_before_gate,
             "transport_called": False,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class GoldenMiraDispatchAuthorization:
+    """Typed non-semantic output exclusively issued by the Golden Mira gate."""
+
+    schema_version: str
+    approved_preparation: ProviderDispatchPreparation
+    authorization_digest: str
+    issued_by: GoldenMiraDispatchGate
+
+    def verify(self) -> GoldenMiraDispatchAuthorization:
+        if self.schema_version != _DISPATCH_AUTHORIZATION_SCHEMA_VERSION:
+            raise ProviderPersonaSeparationError(
+                "unsupported_dispatch_authorization_schema",
+                "Golden Mira dispatch authorization schema is unsupported",
+            )
+        if type(self.issued_by) is not GoldenMiraDispatchGate:
+            raise ProviderPersonaSeparationError(
+                "unauthorized_golden_mira_dispatch",
+                "only the exact Golden Mira gate issues dispatch authorization",
+            )
+        expected = self.issued_by.authorize(self.approved_preparation)
+        if self != expected:
+            raise ProviderPersonaSeparationError(
+                "golden_mira_dispatch_authorization_mismatch",
+                "Golden Mira dispatch authorization is forged or stale",
+            )
+        return self
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "authorization_digest": self.authorization_digest,
+            "runtime_only": True,
+            "semantic_authority": False,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class GoldenMiraDispatchGate:
+    """Single fail-closed gate from verified preparation to transport ingress."""
+
+    expected_active_psb_digest: str
+    expected_runtime_instance_id: str
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.expected_active_psb_digest) is not str
+            or _DIGEST_PATTERN.fullmatch(self.expected_active_psb_digest) is None
+        ):
+            raise ProviderPersonaSeparationError(
+                "inexact_golden_mira_psb_pin",
+                "Golden Mira dispatch gate PSB pin is malformed",
+            )
+        _require_identifier(
+            self.expected_runtime_instance_id,
+            "expected_runtime_instance_id",
+        )
+
+    def authorize(
+        self, preparation: ProviderDispatchPreparation
+    ) -> GoldenMiraDispatchAuthorization:
+        if type(self) is not GoldenMiraDispatchGate:
+            raise ProviderPersonaSeparationError(
+                "inexact_golden_mira_dispatch_gate",
+                "Golden Mira dispatch requires the exact typed gate",
+            )
+        if type(preparation) is not ProviderDispatchPreparation:
+            raise ProviderPersonaSeparationError(
+                "inexact_golden_mira_dispatch_preparation",
+                "Golden Mira dispatch requires an exact verified preparation",
+            )
+        preparation.verify()
+        if preparation.transport_called_before_gate:
+            raise ProviderPersonaSeparationError(
+                "transport_already_called_before_gate",
+                "Golden Mira dispatch cannot authorize after transport",
+            )
+        if preparation.dispatch_receipt.active_persona_self_binding_digest != (
+            self.expected_active_psb_digest
+        ):
+            raise ProviderPersonaSeparationError(
+                "wrong_active_persona_self_binding",
+                "Golden Mira dispatch requires the pinned active PSB digest",
+            )
+        if preparation.expected_runtime_instance_id != (
+            self.expected_runtime_instance_id
+        ):
+            raise ProviderPersonaSeparationError(
+                "stale_execution_substrate",
+                "Golden Mira dispatch substrate belongs to another runtime",
+            )
+        payload = {
+            "schema_version": _DISPATCH_AUTHORIZATION_SCHEMA_VERSION,
+            "active_persona_self_binding_digest": (
+                preparation.dispatch_receipt.active_persona_self_binding_digest
+            ),
+            "c03_parent_digest": preparation.dispatch_receipt.c03_parent_digest,
+            "current_task_context_digest": (
+                preparation.dispatch_receipt.current_task_context_digest
+            ),
+            "execution_substrate_descriptor_digest": (
+                preparation.dispatch_receipt.execution_substrate_descriptor_digest
+            ),
+            "provider_envelope_semantic_fingerprint": (
+                preparation.dispatch_receipt.provider_envelope_semantic_fingerprint
+            ),
+            "expected_runtime_instance_id": self.expected_runtime_instance_id,
+        }
+        return GoldenMiraDispatchAuthorization(
+            schema_version=_DISPATCH_AUTHORIZATION_SCHEMA_VERSION,
+            approved_preparation=preparation,
+            authorization_digest=_sha256_text(_canonical_json(payload)),
+            issued_by=self,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class GoldenMiraSealedTransport:
+    """Exact gated transport-boundary object; no transport is invoked here."""
+
+    authorization: GoldenMiraDispatchAuthorization
+
+    def verify(self) -> GoldenMiraSealedTransport:
+        self.authorization.verify()
+        return self
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema": "julia_core.runtime.golden_mira_sealed_transport.v1",
+            "authorization": self.authorization.to_dict(),
+            "transport_called": False,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class GoldenMiraTransportBoundary:
+    """Transport-capable ingress that accepts only gated authorization."""
+
+    def seal(
+        self, authorization: GoldenMiraDispatchAuthorization
+    ) -> GoldenMiraSealedTransport:
+        if type(self) is not GoldenMiraTransportBoundary:
+            raise ProviderPersonaSeparationError(
+                "inexact_golden_mira_transport_boundary",
+                "Golden Mira transport requires the exact typed boundary",
+            )
+        if type(authorization) is not GoldenMiraDispatchAuthorization:
+            raise ProviderPersonaSeparationError(
+                "ungated_golden_mira_dispatch",
+                "Golden Mira transport cannot accept raw or unreceipted input",
+            )
+        authorization.verify()
+        return GoldenMiraSealedTransport(authorization=authorization)
 
 
 def _reject_provider_identity_in_projection(

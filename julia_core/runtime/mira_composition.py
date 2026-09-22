@@ -56,6 +56,9 @@ from julia_core.runtime.conversation_runtime import ConversationRuntime
 from julia_core.runtime.provider_persona_separation import (
     DispatchReceipt,
     ExecutionSubstrateDescriptor,
+    GoldenMiraDispatchGate,
+    GoldenMiraSealedTransport,
+    GoldenMiraTransportBoundary,
     ProviderDispatchPreparation,
 )
 
@@ -303,6 +306,31 @@ class GoldenMiraRuntimeComposition:
         )
         preparation.verify()
         return preparation
+
+    def dispatch_to_transport_boundary(
+        self,
+        request: MiraProviderEnvelopeRequest,
+        *,
+        execution_substrate: ExecutionSubstrateDescriptor,
+        expected_runtime_instance_id: str,
+        dispatch_gate: GoldenMiraDispatchGate,
+        transport_boundary: GoldenMiraTransportBoundary,
+    ) -> GoldenMiraSealedTransport:
+        if type(dispatch_gate) is not GoldenMiraDispatchGate:
+            raise MiraCompositionError("Golden Mira dispatch gate is inexact")
+        if type(transport_boundary) is not GoldenMiraTransportBoundary:
+            raise MiraCompositionError("Golden Mira transport boundary is inexact")
+        if dispatch_gate.expected_runtime_instance_id != expected_runtime_instance_id:
+            raise MiraCompositionError(
+                "Golden Mira dispatch gate runtime pin is inexact"
+            )
+        preparation = self.prepare_provider_dispatch(
+            request,
+            execution_substrate=execution_substrate,
+            expected_runtime_instance_id=expected_runtime_instance_id,
+        )
+        authorization = dispatch_gate.authorize(preparation)
+        return transport_boundary.seal(authorization)
 
     def _prepare_persona_self_bound_semantics(
         self, request: MiraProviderEnvelopeRequest
