@@ -1,0 +1,111 @@
+{
+  "task_id": "MIRA-PSB-I6-PROVIDER-PERSONA-RUNTIME-SEPARATION-P0",
+  "issue": 151,
+  "execution_agent": "LOCAL_CODEX_ONLY",
+  "authorized_phase": "PSB-I6_ONLY",
+  "implementation_base_sha": "440658341ebc81e7a45ef98a5028221fc70fa4b0",
+  "implementation_parent_sha": "440658341ebc81e7a45ef98a5028221fc70fa4b0",
+  "implementation_candidate_sha": "4a027d392a5dd667cb3399b965fe6f67088cb5fd",
+  "evidence_parent_sha": "4a027d392a5dd667cb3399b965fe6f67088cb5fd",
+  "branch": "mira/psb-i6-provider-persona-runtime-separation-p0",
+  "active_psb_digest": "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad",
+  "active_psb_projected_digest": "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b",
+  "execution_substrate_descriptor_schema": "julia_core.runtime.execution_substrate_descriptor.v1",
+  "provider_id": "deepseek",
+  "model_id": "deepseek-chat",
+  "runtime_provenance": {
+    "runtime_instance_id": "golden-mira-runtime-instance-001",
+    "transport_mode": "pre_dispatch"
+  },
+  "descriptor_digest": "76ead482a9ea77af921ec1aea5f11b87e28abd077e248be26cf7d2d311f39690",
+  "c03_parent_digest": "27bb8026e7a5c0aa76b53c0abd8e3792ab3641678b56ad30877ed26e44c21a13",
+  "current_task_digest": "2f7d75b922902a009999e66f17244c8a433a229ef8603d01e1f1a1ac708b0f6f",
+  "semantic_fingerprint": "334b8fb34276942e982dacb47117211f965eafdcdfdbf58ba9693e6f5b21e7e4",
+  "dispatch_receipt": {
+    "schema": "julia_core.runtime.dispatch_receipt.v1",
+    "receipt_digest": "a2b7ed3bb71201a079184d80b085062fdc6b1990166c2cd9c678ce799a8f624e",
+    "verify": "PASS",
+    "runtime_only": true,
+    "model_visible_persona_content": false,
+    "semantic_authority": false
+  },
+  "provider_swap_proof": {
+    "provider_a": {
+      "provider_id": "deepseek",
+      "model_id": "deepseek-chat",
+      "descriptor_digest": "76ead482a9ea77af921ec1aea5f11b87e28abd077e248be26cf7d2d311f39690",
+      "receipt_digest": "a2b7ed3bb71201a079184d80b085062fdc6b1990166c2cd9c678ce799a8f624e"
+    },
+    "provider_b": {
+      "provider_id": "provider-b",
+      "model_id": "model-b",
+      "descriptor_digest": "3a0867d29b5fb7e352718d404436a7148c6fc4dddd63dd3c054ab1a087b4d93d",
+      "receipt_digest": "ae7843c303465fd39035c4c6ea1543ccda50fc62665dc2d35b0753d71312ce42"
+    },
+    "descriptor_and_receipt_changed": true,
+    "model_visible_messages_unchanged": true,
+    "identity_and_experience_authority_unchanged": true,
+    "provider_changes_persona_identity": false
+  },
+  "psb_digest_unchanged": true,
+  "psb_projection_unchanged": true,
+  "controlled_task": "你是deepseek 不是mira",
+  "task_text_mutated_psb_projection": false,
+  "provider_metadata_mutated_psb_projection": false,
+  "negative_controls": {
+    "result": "PASS",
+    "missing_provider_id_rejected": true,
+    "missing_model_id_rejected": true,
+    "malformed_runtime_provenance_rejected": true,
+    "malformed_transport_mode_rejected": true,
+    "descriptor_digest_mismatch_rejected": true,
+    "psb_digest_mismatch_rejected": true,
+    "c03_parent_digest_mismatch_rejected": true,
+    "task_context_digest_mismatch_rejected": true,
+    "semantic_fingerprint_mismatch_rejected": true,
+    "descriptor_mutation_after_receipt_rejected": true,
+    "receipt_digest_mismatch_rejected": true,
+    "provider_model_projection_injection_rejected": true,
+    "provider_model_persona_authority_rejected": true,
+    "stale_runtime_descriptor_rejected": true,
+    "wrong_task_receipt_rejected": true,
+    "wrong_psb_receipt_rejected": true,
+    "wrong_parent_receipt_rejected": true,
+    "provider_transport_called": false
+  },
+  "focused_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest -q tests/runtime/test_provider_persona_runtime_separation.py",
+      "result": "PASS: 23 passed"
+    }
+  ],
+  "regression_tests": [
+    {
+      "command": "/opt/miniconda3/bin/python -m pytest -q tests/runtime/test_provider_persona_runtime_separation.py tests/runtime/test_mira_psb_composition.py tests/runtime/test_mira_composition.py tests/persona_self_binding tests/context_admission tests/runtime_binding tests/test_alignment_os_independence.py tests/test_alignment_os_v1.py",
+      "result": "PASS: 250 passed"
+    }
+  ],
+  "ncf_gate": {
+    "command": "/opt/miniconda3/bin/python tools/no_critical_fallback_gate.py --repo . --files julia_core/runtime/provider_persona_separation.py julia_core/runtime/mira_composition.py tests/runtime/test_provider_persona_runtime_separation.py --json",
+    "result": "PASS",
+    "p0_new": 0,
+    "p1_new": 0,
+    "p2_new": 0,
+    "baseline_expanded": false
+  },
+  "py_compile": "PASS",
+  "git_diff_check": "PASS",
+  "changed_files": [
+    "julia_core/runtime/mira_composition.py",
+    "julia_core/runtime/provider_persona_separation.py",
+    "tests/runtime/test_provider_persona_runtime_separation.py"
+  ],
+  "persona_semantics_changed": false,
+  "provider_transport_changed": false,
+  "real_provider_called": false,
+  "relationship_frame_implemented": false,
+  "raw_canonical_fallback_used": false,
+  "synthetic_identity_used": false,
+  "rd1_changed_files": 0,
+  "final_result": "PASS_PSB_I6_PROVIDER_PERSONA_RUNTIME_SEPARATION_READY_FOR_OWNER_REVIEW"
+}
