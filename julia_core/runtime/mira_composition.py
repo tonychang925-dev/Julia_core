@@ -22,6 +22,7 @@ from julia_core.context_admission import (
     ExclusiveAdmissionGate,
     ExclusiveAdmissionRequest,
     PersonaSelfBindingSemanticBindingRequest,
+    PersonaSelfBoundSemanticBundle,
 )
 from julia_core.context_admission.gate import C03_PRODUCTION_CONTRACT_VERSION
 from julia_core.durable_authority.filesystem_adapter import (
@@ -52,6 +53,11 @@ from julia_core.runtime.assistant_runtime import (
     RuntimeTurnRequest,
 )
 from julia_core.runtime.conversation_runtime import ConversationRuntime
+from julia_core.runtime.provider_persona_separation import (
+    DispatchReceipt,
+    ExecutionSubstrateDescriptor,
+    ProviderDispatchPreparation,
+)
 
 
 _SHA_PATTERN = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
@@ -252,6 +258,55 @@ class GoldenMiraRuntimeComposition:
     def prepare_provider_envelope(
         self, request: MiraProviderEnvelopeRequest
     ) -> ProviderExecutionEnvelope:
+        binding = self._prepare_persona_self_bound_semantics(request)
+        return self._assistant_runtime.prepare(
+            RuntimeTurnRequest(
+                binding=binding,
+                provider_id=request.provider_id,
+                input_mode=request.input_mode,
+            )
+        )
+
+    def prepare_provider_dispatch(
+        self,
+        request: MiraProviderEnvelopeRequest,
+        *,
+        execution_substrate: ExecutionSubstrateDescriptor,
+        expected_runtime_instance_id: str,
+    ) -> ProviderDispatchPreparation:
+        descriptor = execution_substrate.verify(
+            expected_runtime_instance_id=expected_runtime_instance_id
+        )
+        if request.provider_id != descriptor.provider_id:
+            raise MiraCompositionError(
+                "provider request and execution substrate are inexact"
+            )
+        binding = self._prepare_persona_self_bound_semantics(request)
+        envelope = self._assistant_runtime.prepare(
+            RuntimeTurnRequest(
+                binding=binding,
+                provider_id=request.provider_id,
+                input_mode=request.input_mode,
+            )
+        )
+        receipt = DispatchReceipt.bind(
+            binding=binding,
+            envelope=envelope,
+            execution_substrate=descriptor,
+        )
+        preparation = ProviderDispatchPreparation(
+            semantic_binding=binding,
+            envelope=envelope,
+            execution_substrate=descriptor,
+            dispatch_receipt=receipt,
+            expected_runtime_instance_id=expected_runtime_instance_id,
+        )
+        preparation.verify()
+        return preparation
+
+    def _prepare_persona_self_bound_semantics(
+        self, request: MiraProviderEnvelopeRequest
+    ) -> PersonaSelfBoundSemanticBundle:
         if type(request) is not MiraProviderEnvelopeRequest:
             raise MiraCompositionError("provider envelope request is inexact")
         current_task = self._current_task_context(request)
@@ -273,13 +328,7 @@ class GoldenMiraRuntimeComposition:
             )
         )
         binding.verify()
-        return self._assistant_runtime.prepare(
-            RuntimeTurnRequest(
-                binding=binding,
-                provider_id=request.provider_id,
-                input_mode=request.input_mode,
-            )
-        )
+        return binding
 
     def _current_task_context(
         self, request: MiraProviderEnvelopeRequest
