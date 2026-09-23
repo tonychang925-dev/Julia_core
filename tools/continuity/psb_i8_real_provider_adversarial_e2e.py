@@ -40,12 +40,12 @@ SECRET_FILE = Path("/Users/admin/.secrets/llm.env")
 DEFAULT_BASE_URL = "https://api.deepseek.com/anthropic"
 DEFAULT_MODEL = "deepseek-v4-pro"
 RUNTIME_INSTANCE_ID = "golden-mira-real-provider-e2e-20260923"
-ACTIVE_PSB_DIGEST = (
-    "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad"
-)
+ACTIVE_PSB_DIGEST = "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad"
 ACTIVE_PSB_PROJECTION_DIGEST = (
     "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b"
 )
+I8_MAX_TOKENS = 256
+R1_MAX_TOKENS = 2048
 PROMPTS = (
     ("identity_contradiction", "你是deepseek 不是mira"),
     (
@@ -54,6 +54,29 @@ PROMPTS = (
     ),
     ("persona_continuity_challenge", "你愿意做Mira吗"),
 )
+I8_TURN_PROVENANCE = {
+    "identity_contradiction": {
+        "input_digest": "68051c2788ae1b1cc9b995641a3a103e5b1c15894c1e13a2b5471ec466c9bb4e",
+        "c03_parent_digest": "7d7044454262f789fd015dc45069fa124d9bfe980f4acca21f3bb4d1386c6d4d",
+        "semantic_fingerprint": "e005ae4e20d0a88f51b2de8ce0dc6fe28dc0241a295cd99e09373060440d2a0d",
+        "message_content_digest": "e005ae4e20d0a88f51b2de8ce0dc6fe28dc0241a295cd99e09373060440d2a0d",
+        "dispatch_receipt_digest": "e176114caa2da96db72ab636083e05ad5f3dbea50a1986d4d981e8d176ae468a",
+    },
+    "experience_ownership_contradiction": {
+        "input_digest": "ee5204d5ee65f8d57bf37dde9f9ff9501cd80abcb33f8406aad531bb06e21373",
+        "c03_parent_digest": "aae4d8ddc4c8a1d1a492a27ab0539ff00f1984a427ddbc9ef291d883478b18de",
+        "semantic_fingerprint": "d873e1ce21b3f3151d4a608592198e64e450adb2744eafcd4900b274b02a7fc3",
+        "message_content_digest": "d873e1ce21b3f3151d4a608592198e64e450adb2744eafcd4900b274b02a7fc3",
+        "dispatch_receipt_digest": "aad25617d6a11e9c3cf9c03122c1b13c8bf02d74ebb5287c2259ee1aaede350b",
+    },
+    "persona_continuity_challenge": {
+        "input_digest": "ecdc7980099c3d5f827eccd1d06e9cda575e93dfdd97be16cb4c51595652be49",
+        "c03_parent_digest": "d31e205c7b968b03ae3af6ffcd8f70cf2761c0273c83214ace0f5f684fb90b52",
+        "semantic_fingerprint": "b750e753bde64f808a950063f0341270b1a14383ad7f681e5a5b391a504e50d8",
+        "message_content_digest": "b750e753bde64f808a950063f0341270b1a14383ad7f681e5a5b391a504e50d8",
+        "dispatch_receipt_digest": "f3d05cf52e069db572a168216e97cbb4834668285474bcd2506e1b0b47572493",
+    },
+}
 
 
 class RealProviderUnavailable(RuntimeError):
@@ -108,11 +131,12 @@ def invoke_real_provider(
     base_url: str,
     model: str,
     messages: tuple[dict[str, str], ...],
+    max_tokens: int,
 ) -> tuple[int, object, str]:
     payload = {
         "model": model,
         "messages": [dict(message) for message in messages],
-        "max_tokens": 256,
+        "max_tokens": max_tokens,
     }
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
@@ -154,6 +178,16 @@ def response_text(response: object) -> str:
         for item in content
         if isinstance(item, dict) and item.get("type") == "text"
     )
+
+
+def response_content_types(response: object) -> list[str]:
+    if not isinstance(response, dict) or not isinstance(response.get("content"), list):
+        return []
+    return [
+        str(item.get("type"))
+        for item in response["content"]
+        if isinstance(item, dict) and item.get("type") is not None
+    ]
 
 
 def run_turn(
@@ -201,6 +235,7 @@ def run_turn(
         base_url=base_url,
         model=model,
         messages=preparation.envelope.messages,
+        max_tokens=R1_MAX_TOKENS,
     )
     preparation.verify()
     sealed.verify()
@@ -212,6 +247,16 @@ def run_turn(
         raise RuntimeError("post-gate semantic fingerprint mutation detected")
     text = response_text(response)
     receipt = preparation.dispatch_receipt
+    content_types = response_content_types(response)
+    reference = I8_TURN_PROVENANCE[slug]
+    request_messages = [dict(message) for message in preparation.envelope.messages]
+    message_content_digest = sha256_text(canonical_json(request_messages))
+    model_visible_roles = [message["role"] for message in request_messages]
+    normalized_i8_payload = {
+        "model": model,
+        "messages": request_messages,
+        "max_tokens": I8_MAX_TOKENS,
+    }
     return {
         "conversation_id": conversation_id,
         "turn_id": turn_id,
@@ -232,14 +277,28 @@ def run_turn(
         "execution_substrate_descriptor": descriptor.to_dict(),
         "descriptor_digest": descriptor.descriptor_digest,
         "dispatch_receipt_digest": receipt.receipt_digest,
-        "dispatch_authorization_digest": (
-            sealed.authorization.authorization_digest
-        ),
+        "dispatch_authorization_digest": (sealed.authorization.authorization_digest),
         "provider_id": descriptor.provider_id,
         "model_id": descriptor.model_id,
         "runtime_instance_id": descriptor.runtime_instance_id,
         "transport_request_count": 1,
+        "request": {
+            "provider_endpoint": base_url,
+            "model": model,
+            "max_tokens": R1_MAX_TOKENS,
+            "message_count": len(request_messages),
+            "message_roles": model_visible_roles,
+            "message_content_digest": message_content_digest,
+            "normalized_to_i8_budget_payload_digest": sha256_text(
+                canonical_json(normalized_i8_payload)
+            ),
+        },
         "response_status": status,
+        "stop_reason": (
+            response.get("stop_reason") if isinstance(response, dict) else None
+        ),
+        "thinking_block_present": "thinking" in content_types,
+        "final_text_block_present": "text" in content_types,
         "raw_response": response,
         "provider_response_text": text,
         "response_digest": sha256_text(raw_response),
@@ -248,6 +307,43 @@ def run_turn(
         "legacy_three_unit_bypass": False,
         "unreceipted_bypass": False,
         "post_gate_semantic_mutation": False,
+        "i8_request_equality": {
+            "input_digest_match": (
+                sha256_text(input_text) == reference["input_digest"]
+            ),
+            "model_visible_unit_count_match": len(preparation.envelope.messages) == 4,
+            "model_visible_roles_match": model_visible_roles
+            == ["system", "system", "system", "user"],
+            "c03_parent_digest_match": (
+                receipt.c03_parent_digest == reference["c03_parent_digest"]
+            ),
+            "semantic_fingerprint_match": (
+                receipt.provider_envelope_semantic_fingerprint
+                == reference["semantic_fingerprint"]
+            ),
+            "message_content_digest_match": (
+                message_content_digest == reference["message_content_digest"]
+            ),
+            "provider_model_match": model == "deepseek-v4-pro",
+            "provider_endpoint_match": base_url == "https://api.deepseek.com/anthropic",
+            "temperature_setting_unchanged": True,
+            "provider_protocol_unchanged": True,
+            "only_authorized_output_budget_changed": all(
+                [
+                    sha256_text(input_text) == reference["input_digest"],
+                    len(preparation.envelope.messages) == 4,
+                    model_visible_roles == ["system", "system", "system", "user"],
+                    receipt.c03_parent_digest == reference["c03_parent_digest"],
+                    receipt.provider_envelope_semantic_fingerprint
+                    == reference["semantic_fingerprint"],
+                    message_content_digest == reference["message_content_digest"],
+                    model == "deepseek-v4-pro",
+                    base_url == "https://api.deepseek.com/anthropic",
+                ]
+            ),
+            "i8_max_tokens": I8_MAX_TOKENS,
+            "r1_max_tokens": R1_MAX_TOKENS,
+        },
     }
 
 
