@@ -130,6 +130,11 @@ def _load_public_request_builders() -> dict[str, RequestBuilder]:
     )
     MarketStateReadRequest = getattr(market_public, "MarketStateReadRequest", None)
     StockQuoteReadRequest = getattr(market_public, "StockQuoteReadRequest", None)
+    MarketAnalysisReadRequest = getattr(
+        market_public,
+        "MarketAnalysisReadRequest",
+        None,
+    )
 
     builders = {
         "market.event.resolve": EventResolveRequest,
@@ -142,6 +147,8 @@ def _load_public_request_builders() -> dict[str, RequestBuilder]:
         builders["market.state.read"] = MarketStateReadRequest
     if StockQuoteReadRequest is not None:
         builders["market.stock.quote.read"] = StockQuoteReadRequest
+    if MarketAnalysisReadRequest is not None:
+        builders["market.analysis.read"] = MarketAnalysisReadRequest
     return builders
 
 
@@ -156,6 +163,14 @@ def market_public_supports_stock_quote() -> bool:
 
     market_public = import_module("market_public")
     return getattr(market_public, "StockQuoteReadRequest", None) is not None
+
+
+def market_public_supports_analysis() -> bool:
+    """Probe only the MarketAnalysisReadRequest export for catalog availability."""
+    from importlib import import_module
+
+    market_public = import_module("market_public")
+    return getattr(market_public, "MarketAnalysisReadRequest", None) is not None
 
 
 def _to_plain_mapping(value: Any) -> dict[str, Any]:
@@ -185,4 +200,5 @@ __all__ = [
     "MarketPublicProviderAdapter",
     "market_public_request_builders",
     "market_public_supports_stock_quote",
+    "market_public_supports_analysis",
 ]

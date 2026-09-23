@@ -282,6 +282,7 @@ _MARKET_INPUT_SCHEMAS = {
         "stock_id": "exact source-namespaced stock identifier, for example 600519.SH",
         "trade_date": "exact YYYY-MM-DD trade date",
     },
+    "market.analysis.read": {"trade_date": "exact YYYY-MM-DD trade date"},
 }
 
 
@@ -340,19 +341,22 @@ class RuntimeCapabilityBridge:
                 raise ProviderAlreadyRegisteredError(
                     f"provider namespace '{provider_name}' is already bound"
                 )
-            reconcile_market_stock_quote = (
+            reconcile_market_capabilities = (
                 self._initialized
                 and self._manager is not None
                 and provider_name == "market"
             )
             stock_quote_supported = False
-            if reconcile_market_stock_quote:
+            analysis_supported = False
+            if reconcile_market_capabilities:
                 stock_quote_supported = self._market_provider_stock_quote_support(
                     provider
                 )
+                analysis_supported = self._market_provider_analysis_support(provider)
             if existing is provider:
-                if reconcile_market_stock_quote:
+                if reconcile_market_capabilities:
                     self._reconcile_market_stock_quote_locked(stock_quote_supported)
+                    self._reconcile_market_analysis_locked(analysis_supported)
                 return
 
             if self._initialized and self._manager is not None:
@@ -366,8 +370,9 @@ class RuntimeCapabilityBridge:
                         f"manager provider namespace '{provider_name}' is already bound"
                     ) from exc
             self._providers[provider_name] = provider
-            if reconcile_market_stock_quote:
+            if reconcile_market_capabilities:
                 self._reconcile_market_stock_quote_locked(stock_quote_supported)
+                self._reconcile_market_analysis_locked(analysis_supported)
 
     def _market_stock_quote_supported_locked(self) -> bool:
         market_provider = self._providers.get("market")
@@ -385,12 +390,35 @@ class RuntimeCapabilityBridge:
             supported = False
         return supported
 
+    def _market_analysis_supported_locked(self) -> bool:
+        market_provider = self._providers.get("market")
+        if market_provider is not None:
+            return self._market_provider_analysis_support(market_provider)
+
+        from julia_core.capability.providers.market_public import (
+            market_public_supports_analysis,
+        )
+
+        supported = False
+        try:
+            supported = market_public_supports_analysis()
+        except Exception:
+            supported = False
+        return supported
+
     @staticmethod
     def _market_provider_stock_quote_support(provider: object) -> bool:
         supports_capability = getattr(provider, "supports_capability", None)
         if not callable(supports_capability):
             return False
         return bool(supports_capability("market.stock.quote.read"))
+
+    @staticmethod
+    def _market_provider_analysis_support(provider: object) -> bool:
+        supports_capability = getattr(provider, "supports_capability", None)
+        if not callable(supports_capability):
+            return False
+        return bool(supports_capability("market.analysis.read"))
 
     def _reconcile_market_stock_quote_locked(self, supported: bool) -> None:
         definition = self.registry.get("market.stock.quote.read")
@@ -404,6 +432,30 @@ class RuntimeCapabilityBridge:
                 provider="market",
                 permission_scope="market.observe",
                 input_schema=_MARKET_INPUT_SCHEMAS["market.stock.quote.read"],
+                status=CapabilityStatus.AVAILABLE,
+            ))
+            return
+        target_status = (
+            CapabilityStatus.AVAILABLE if supported else CapabilityStatus.DISABLED
+        )
+        if definition.status != target_status:
+            self.registry.register_definition(replace(
+                definition,
+                status=target_status,
+            ))
+
+    def _reconcile_market_analysis_locked(self, supported: bool) -> None:
+        definition = self.registry.get("market.analysis.read")
+        if definition is None:
+            if not supported:
+                return
+            self.registry.register_definition(CapabilityDefinition(
+                name="market.analysis.read",
+                description="Read exact-date Market analytical evidence",
+                layer=CapabilityLayer.INTELLIGENCE,
+                provider="market",
+                permission_scope="market.observe",
+                input_schema=_MARKET_INPUT_SCHEMAS["market.analysis.read"],
                 status=CapabilityStatus.AVAILABLE,
             ))
             return
@@ -472,6 +524,7 @@ class RuntimeCapabilityBridge:
         # bound by the application/runtime composition root; Core never imports
         # Market private code or manufactures an unavailable substitute.
         stock_quote_supported = self._market_stock_quote_supported_locked()
+        analysis_supported = self._market_analysis_supported_locked()
 
         market_capabilities = {
             "market.event.resolve": "Resolve structured Market event criteria",
@@ -483,6 +536,10 @@ class RuntimeCapabilityBridge:
         if stock_quote_supported:
             market_capabilities["market.stock.quote.read"] = (
                 "Read one exact stock/date daily quote"
+            )
+        if analysis_supported:
+            market_capabilities["market.analysis.read"] = (
+                "Read exact-date Market analytical evidence"
             )
 
         for name, description in market_capabilities.items():
