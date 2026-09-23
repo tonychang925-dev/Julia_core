@@ -54,7 +54,22 @@ def parent_package() -> CognitiveContextPackage:
         generation_id="gen_initial",
     )
     package.validated_invocation_policy = {
-        "invocation_protocol": {"raw_user_text_routing": False},
+        "invocation_protocol": {
+            "format": "```tool_call\\n{JSON}\\n```",
+            "structured_call_required": True,
+            "raw_user_text_routing": False,
+            "request_envelope": {
+                "name": "exact capability_id from available_tools",
+                "arguments": "object containing only that capability's arguments",
+            },
+            "example": {
+                "name": "market.stock.quote.read",
+                "arguments": {
+                    "stock_id": "600519.SH",
+                    "trade_date": "2026-09-23",
+                },
+            },
+        },
         "limits": {"max_tool_calls_per_model_response": 1},
     }
     return package

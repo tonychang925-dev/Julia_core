@@ -562,12 +562,15 @@ class RuntimeCapabilityBridge:
         Uses new registry as the canonical source.
         """
         self.initialize()
+        policy = self.invocation_policy()
+        protocol = policy["invocation_protocol"]
+        example = _json.dumps(protocol["example"], ensure_ascii=False, sort_keys=True)
 
         lines = [
             "[你可以使用的工具 — 结构化调用格式]",
             "",
             '当需要时在回复中包含: ```tool_call',
-            '{"name": "工具名", "arguments": {"参数": "值"}}',
+            example,
             '```',
             "",
             "可用工具:",
@@ -592,7 +595,6 @@ class RuntimeCapabilityBridge:
             params = ", ".join(f'"{k}": {v}' for k, v in d.input_schema.items())
             lines.append(f'- {d.name}: {d.description}。参数: {{{params}}}')
 
-        policy = self.invocation_policy()
         file_policy = policy["epistemic_rules"]["file"]
         external_policy = policy["epistemic_rules"]["external_evidence"]
         evidence_policy = policy["evidence_role"]
@@ -609,7 +611,8 @@ class RuntimeCapabilityBridge:
             f"4. {evidence_policy['rule']}",
             "5. 文件不存在 → 直接告知用户，不猜测内容。",
             f"6. 工具调用格式: {policy['invocation_protocol']['format']}",
-            f"7. {limits['rule']}",
+            "7. JSON根对象必须精确使用 name 和 arguments 字段。",
+            f"8. {limits['rule']}",
         ])
         return "\n".join(lines)
 
@@ -621,6 +624,17 @@ class RuntimeCapabilityBridge:
                 "format": "```tool_call\\n{JSON}\\n```",
                 "structured_call_required": True,
                 "raw_user_text_routing": False,
+                "request_envelope": {
+                    "name": "exact capability_id from available_tools",
+                    "arguments": "object containing only that capability's arguments",
+                },
+                "example": {
+                    "name": "market.stock.quote.read",
+                    "arguments": {
+                        "stock_id": "600519.SH",
+                        "trade_date": "2026-09-23",
+                    },
+                },
             },
             "epistemic_rules": {
                 "file": {
