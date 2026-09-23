@@ -1,0 +1,151 @@
+{
+  "task_id": "MIRA-PSB-I8-R4-PERSONA-SELF-BINDING-PROJECTION-V2-IMPLEMENTATION-P0",
+  "issue": 161,
+  "execution_agent": "LOCAL_CODEX_ONLY",
+  "task_type": "IMPLEMENTATION",
+  "baseline_sha": "cac4899dc155ee06303ba308c420ea4cc4abf060",
+  "branch": "mira/psb-i8-r4-projection-v2-implementation-p0",
+  "implementation_candidate_sha": "ce5c0c5537848441232c135a06c1c9ae6a270315",
+  "evidence_parent_sha": "ce5c0c5537848441232c135a06c1c9ae6a270315",
+  "projection_v2_schema": {
+    "schema_version": "julia_core.persona_self_binding.projection.v2",
+    "projector": "PersonaSelfBindingProjectorV2",
+    "projection_type": "PersonaSelfBindingProjectionV2",
+    "clause_type": "PersonaSelfBindingSemanticClause",
+    "canonical_serialization": "UTF-8 canonical JSON, sorted keys, compact separators",
+    "clause_digest_rule": "SHA-256(canonical clause without digest)",
+    "clause_set_digest_rule": "SHA-256(canonical ordered clause digest list)",
+    "projection_digest_covers_all_fields_and_clause_digests": true
+  },
+  "retained_v1_fields": [
+    "persona_self_id",
+    "binding_id",
+    "binding_version",
+    "lineage_id",
+    "identity_ownership",
+    "experience_ownership",
+    "relationship_ownership",
+    "execution_substrate_policy",
+    "authority_precedence",
+    "contradiction",
+    "semantic_authority_separation"
+  ],
+  "semantic_clause_count": 6,
+  "semantic_clause_order": [
+    "SELF_IDENTITY_BINDING",
+    "SUBSTRATE_NON_IDENTITY",
+    "TASK_IDENTITY_NON_AUTHORITY",
+    "GOVERNED_IDENTITY_PRECEDENCE",
+    "EXPERIENCE_SELF_OWNERSHIP",
+    "RELATIONSHIP_AUTHORITY_STATE"
+  ],
+  "semantic_clause_set_digest": "56bd6d8b4aaf8da0f8882bd523339d977c37eaaae5f1e35d9d80fbbafa68dc37",
+  "projection_v2_digest": "efd3acc001f01b1c8a4c71dea49aa36792e771df6180c244ff650f58680fe714",
+  "clause_digests": {
+    "SELF_IDENTITY_BINDING": "92ec3f3d5845849388694bc8b63b261278a3b24f2a8314bfc0ad086e0a6b5097",
+    "SUBSTRATE_NON_IDENTITY": "402bd33d7e2431527882f97f2344169320eea0d39405628e30b70b3193ba3056",
+    "TASK_IDENTITY_NON_AUTHORITY": "d20631593d40b8562f5eb88595a253b043871c0abf634df6f8f13a8c79f4c659",
+    "GOVERNED_IDENTITY_PRECEDENCE": "7b4505426a3f8af4b944aada76797234494fe73221bd21a3bff805c261793ff4",
+    "EXPERIENCE_SELF_OWNERSHIP": "f12e05c743b172aea1ee0f299f06075d1fd44bd13d15b1a5fb035ef4fe99fa06",
+    "RELATIONSHIP_AUTHORITY_STATE": "07b9e1c6a1e275f37af247676f2a34c77a2b1be0bcd0e384d950c6fefe97dbf2"
+  },
+  "derivation_proof": {
+    "SELF_IDENTITY_BINDING": {
+      "source": "ADMITTED_ACTIVE binding, persona_self_id, binding_id, binding_version, CURRENT_SELF_IDENTITY ownership",
+      "result": "current conversational self is governed persona self golden-mira"
+    },
+    "SUBSTRATE_NON_IDENTITY": {
+      "source": "EXECUTION_SUBSTRATE, provider_is_persona_self=false, provider_neutral=true",
+      "result": "provider/model execution identity is not persona self"
+    },
+    "TASK_IDENTITY_NON_AUTHORITY": {
+      "source": "current_task_identity_authority=NONE",
+      "result": "current task/user text has no persona identity authority"
+    },
+    "GOVERNED_IDENTITY_PRECEDENCE": {
+      "source": "ADMITTED_ACTIVE binding and identity_authority_source=GOVERNED_BINDING",
+      "result": "identity authority remains governed until valid governed supersession"
+    },
+    "EXPERIENCE_SELF_OWNERSHIP": {
+      "source": "CURRENT_SELF_EXPERIENCE and experience authority ID",
+      "result": "experience authority is bound to current persona self"
+    },
+    "RELATIONSHIP_AUTHORITY_STATE": {
+      "source": "relationship_ownership.state=ABSENT",
+      "result": "authority binding state only; no relationship fact synthesized"
+    },
+    "user_text_inspected": false,
+    "provider_or_model_label_used": false,
+    "llm_generated_text": false
+  },
+  "provider_neutrality_proof": {
+    "provider_a": {
+      "provider_id": "deepseek",
+      "model_id": "deepseek-v4-pro",
+      "descriptor_digest": "3e4707e453bf408abd96084573c1695452e5f8f3d394dc2c984301e280a8d35b",
+      "psb_projection_digest": "efd3acc001f01b1c8a4c71dea49aa36792e771df6180c244ff650f58680fe714",
+      "c03_parent_digest": "6c7ebbc3dbe14b17ccf025646f7bff29df51642470bfc780fceffd5232ee22d4",
+      "semantic_fingerprint": "974eeb37d08c8f391ba45f37b0d4a6be1579281b731e3c9a65d390c9e567f82d",
+      "dispatch_receipt_digest": "4ae12bed12e6e6bd392721ca29845814bf65c20f7798df71d91a304be050f9f4"
+    },
+    "provider_b": {
+      "provider_id": "provider-b",
+      "model_id": "model-b",
+      "descriptor_digest": "a40b71f1d0e8769b1b379a13caba641f12e1aebf56a4dc8b47fe4f07fc22b88f",
+      "psb_projection_digest": "efd3acc001f01b1c8a4c71dea49aa36792e771df6180c244ff650f58680fe714",
+      "c03_parent_digest": "6c7ebbc3dbe14b17ccf025646f7bff29df51642470bfc780fceffd5232ee22d4",
+      "semantic_fingerprint": "974eeb37d08c8f391ba45f37b0d4a6be1579281b731e3c9a65d390c9e567f82d",
+      "dispatch_receipt_digest": "2039d13b58df459bf5887ac25f2a724068d1b61ded7ba00701b12e2a09d3ab19"
+    },
+    "psb_projection_bytes_identical": true,
+    "psb_projection_digest_identical": true,
+    "c03_parent_digest_identical": true,
+    "semantic_fingerprint_identical": true,
+    "receipt_changes_with_descriptor_only": true
+  },
+  "c03_unit_count": 4,
+  "c03_roles": "system,system,system,user",
+  "c03_unit_types": [
+    "persona_self_binding",
+    "identity_frame_set",
+    "experience_frame_set",
+    "current_task_context"
+  ],
+  "c03_shape_unchanged": true,
+  "c03_parent_digest": "6c7ebbc3dbe14b17ccf025646f7bff29df51642470bfc780fceffd5232ee22d4",
+  "semantic_fingerprint": "974eeb37d08c8f391ba45f37b0d4a6be1579281b731e3c9a65d390c9e567f82d",
+  "dispatch_receipt_digest": "4ae12bed12e6e6bd392721ca29845814bf65c20f7798df71d91a304be050f9f4",
+  "v1_fallback_present": false,
+  "mixed_v1_v2_path_present": false,
+  "stale_v1_parent_rejected": true,
+  "stale_v1_receipt_rejected": true,
+  "focused_tests": {
+    "command": "/opt/miniconda3/bin/pytest -q tests/persona_self_binding/test_projection_v2.py",
+    "passed": 16,
+    "failed": 0,
+    "result": "PASS"
+  },
+  "regression_tests": {
+    "command": "/opt/miniconda3/bin/pytest -q tests/persona_self_binding tests/context_admission tests/runtime/test_mira_composition.py tests/runtime/test_mira_psb_composition.py tests/runtime/test_provider_persona_runtime_separation.py tests/runtime/test_golden_mira_dispatch_gate.py",
+    "passed": 257,
+    "focused_included": 16,
+    "effective_regression_passed": 241,
+    "failed": 0,
+    "result": "PASS"
+  },
+  "ncf_gate": {
+    "result": "PASS",
+    "P0": 0,
+    "P1": 0,
+    "P2": 0
+  },
+  "py_compile": "PASS",
+  "git_diff_check": "PASS",
+  "production_source_changed": true,
+  "provider_transport_changed": false,
+  "real_provider_called": false,
+  "prompt_changed": false,
+  "relationship_frame_implemented": false,
+  "rd1_changed_files": 0,
+  "final_result": "PASS_PSB_I8_R4_PROJECTION_V2_IMPLEMENTATION_READY_FOR_OWNER_REVIEW"
+}
