@@ -20,7 +20,11 @@ import threading
 import time
 from pathlib import Path
 
-from julia_core.conversation_state.models import ConversationSession, ConversationMessage
+from julia_core.conversation_state.models import (
+    ConversationSession,
+    ConversationMessage,
+    canonical_message_timestamp,
+)
 from julia_core.conversation_state.repository import (
     ConversationNotFoundError,
     TurnConflictError,
@@ -364,7 +368,7 @@ class StorageV2ConversationRepository:
                 "modality": modality,
                 "content": content,
                 "status": status,
-                "created_at": _now_iso(),
+                "created_at": canonical_message_timestamp(),
             }
             self._write_canonical_message(session_id, msg)
             self._update_catalog_after_append(session_id, msg)

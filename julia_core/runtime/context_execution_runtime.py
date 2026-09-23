@@ -13,6 +13,7 @@ from __future__ import annotations
 import copy
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Sequence
 
 from julia_core.capability.models import CapabilityStatus, Evidence, ToolResult
@@ -524,6 +525,13 @@ class ContextExecutionRuntime:
             except Exception as exc:
                 pkg.mark_frame_failure("situation:interaction", str(exc), required=False)
         pkg.add_provenance("situation", "runtime:turn_context", reason="current state", stage=0)
+
+        self._project_current_turn_temporal_context(
+            pkg,
+            conversation_id=conversation_id,
+            turn_id=turn_id,
+            scoped_history=scoped_history,
+        )
 
         # EvidenceFrame is populated only by typed capability execution below.
         # Raw conversational text must not create pre-cognition Market evidence.
@@ -1089,6 +1097,73 @@ class ContextExecutionRuntime:
                 continue
             scoped.append(msg)
         return scoped
+
+    def _project_current_turn_temporal_context(
+        self,
+        pkg: CognitiveContextPackage,
+        *,
+        conversation_id: str,
+        turn_id: str,
+        scoped_history: list[dict],
+    ) -> None:
+        """Project the C02 event time of the exact current user message."""
+        if not conversation_id or not turn_id:
+            return
+
+        matches = [
+            message
+            for message in scoped_history
+            if message.get("conversation_id") == conversation_id
+            and message.get("turn_id") == turn_id
+            and message.get("role") == "user"
+            and message.get("status") == "completed"
+            and isinstance(message.get("created_at"), str)
+            and message["created_at"]
+        ]
+        if not matches:
+            return
+        if len(matches) != 1:
+            pkg.mark_frame_failure(
+                "situation:temporal",
+                "current-turn canonical user message is ambiguous",
+                required=False,
+            )
+            return
+
+        source = matches[0]
+        raw_timestamp = source["created_at"]
+        try:
+            timestamp = datetime.fromisoformat(raw_timestamp)
+            offset = timestamp.utcoffset()
+            if timestamp.tzinfo is None or offset is None:
+                raise ValueError("timezone-naive timestamp")
+            total_minutes = int(offset.total_seconds()) // 60
+            sign = "+" if total_minutes >= 0 else "-"
+            absolute_minutes = abs(total_minutes)
+            utc_offset = f"{sign}{absolute_minutes // 60:02d}:{absolute_minutes % 60:02d}"
+        except (TypeError, ValueError, OverflowError) as exc:
+            pkg.mark_frame_failure(
+                "situation:temporal",
+                f"current-turn timestamp unavailable: {exc}",
+                required=False,
+            )
+            return
+
+        pkg.situation_frame.update({
+            "current_turn_timestamp": raw_timestamp,
+            "current_date": timestamp.date().isoformat(),
+            "utc_offset": utc_offset,
+        })
+        pkg.add_provenance(
+            "situation",
+            "C02 canonical current user ConversationMessage",
+            canonical_ref=(
+                f"conversation:{conversation_id}:turn:{turn_id}:"
+                f"message:{source.get('message_id', '')}"
+            ),
+            reason="C03 current-turn temporal projection",
+            stage=0,
+        )
 
     def _compute_active_tail(self, history: list[dict], max_turns: int = 20) -> list[dict]:
         """C-03 ActiveTail: budget-driven recent turns. Replaces history[-20:]."""
