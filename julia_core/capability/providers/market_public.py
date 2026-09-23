@@ -52,6 +52,15 @@ class MarketPublicProviderAdapter:
             request_builders if request_builders is not None else _load_public_request_builders()
         )
 
+    @property
+    def effective_capability_ids(self) -> frozenset[str]:
+        """Return the exact capability IDs backed by effective request builders."""
+        return frozenset(self._request_builders)
+
+    def supports_capability(self, capability_id: str) -> bool:
+        """Return whether this bound adapter can construct the public request."""
+        return capability_id in self._request_builders
+
     async def health(self) -> tuple[bool, str]:
         """Report binding health, not Market-domain data availability.
 
@@ -120,6 +129,7 @@ def _load_public_request_builders() -> dict[str, RequestBuilder]:
         None,
     )
     MarketStateReadRequest = getattr(market_public, "MarketStateReadRequest", None)
+    StockQuoteReadRequest = getattr(market_public, "StockQuoteReadRequest", None)
 
     builders = {
         "market.event.resolve": EventResolveRequest,
@@ -130,7 +140,22 @@ def _load_public_request_builders() -> dict[str, RequestBuilder]:
         builders["market.product.linkage.read"] = ProductLinkageReadRequest
     if MarketStateReadRequest is not None:
         builders["market.state.read"] = MarketStateReadRequest
+    if StockQuoteReadRequest is not None:
+        builders["market.stock.quote.read"] = StockQuoteReadRequest
     return builders
+
+
+def market_public_request_builders() -> dict[str, RequestBuilder]:
+    """Expose the public request-builder truth used for capability availability."""
+    return _load_public_request_builders()
+
+
+def market_public_supports_stock_quote() -> bool:
+    """Probe only the StockQuoteReadRequest export for catalog availability."""
+    from importlib import import_module
+
+    market_public = import_module("market_public")
+    return getattr(market_public, "StockQuoteReadRequest", None) is not None
 
 
 def _to_plain_mapping(value: Any) -> dict[str, Any]:
@@ -156,4 +181,8 @@ def _plain(value: Any) -> Any:
     return copy.deepcopy(value)
 
 
-__all__ = ["MarketPublicProviderAdapter"]
+__all__ = [
+    "MarketPublicProviderAdapter",
+    "market_public_request_builders",
+    "market_public_supports_stock_quote",
+]

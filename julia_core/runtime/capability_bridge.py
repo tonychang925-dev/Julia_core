@@ -260,6 +260,31 @@ class _ResearchProviderContractAdapter:
         return None
 
 
+_MARKET_INPUT_SCHEMAS = {
+    "market.event.resolve": {
+        "feed_date": "optional YYYY-MM-DD event feed date",
+        "stock_id": "optional exact source stock identifier",
+        "limit": "maximum event count from 1 through 200",
+    },
+    "market.event.read": {
+        "event_id": "integer news_event id; exactly one selector required",
+        "item_id": "canonical source-namespaced event id; exactly one selector required",
+    },
+    "market.product.read": {"subject_key": "exact Market product subject key"},
+    "market.product.linkage.read": {
+        "subject_key": "exact Market product subject key",
+        "mapping_scope": "pool, all, or leader_overlay",
+        "include_leaders": "boolean leader overlay selector",
+        "limit": "maximum linkage row count",
+    },
+    "market.state.read": {"trade_date": "exact YYYY-MM-DD trade date"},
+    "market.stock.quote.read": {
+        "stock_id": "exact source-namespaced stock identifier, for example 600519.SH",
+        "trade_date": "exact YYYY-MM-DD trade date",
+    },
+}
+
+
 class RuntimeCapabilityBridge:
     """Unified capability facade for JuliaSession.
 
@@ -315,7 +340,19 @@ class RuntimeCapabilityBridge:
                 raise ProviderAlreadyRegisteredError(
                     f"provider namespace '{provider_name}' is already bound"
                 )
+            reconcile_market_stock_quote = (
+                self._initialized
+                and self._manager is not None
+                and provider_name == "market"
+            )
+            stock_quote_supported = False
+            if reconcile_market_stock_quote:
+                stock_quote_supported = self._market_provider_stock_quote_support(
+                    provider
+                )
             if existing is provider:
+                if reconcile_market_stock_quote:
+                    self._reconcile_market_stock_quote_locked(stock_quote_supported)
                 return
 
             if self._initialized and self._manager is not None:
@@ -329,6 +366,55 @@ class RuntimeCapabilityBridge:
                         f"manager provider namespace '{provider_name}' is already bound"
                     ) from exc
             self._providers[provider_name] = provider
+            if reconcile_market_stock_quote:
+                self._reconcile_market_stock_quote_locked(stock_quote_supported)
+
+    def _market_stock_quote_supported_locked(self) -> bool:
+        market_provider = self._providers.get("market")
+        if market_provider is not None:
+            return self._market_provider_stock_quote_support(market_provider)
+
+        from julia_core.capability.providers.market_public import (
+            market_public_supports_stock_quote,
+        )
+
+        supported = False
+        try:
+            supported = market_public_supports_stock_quote()
+        except Exception:
+            supported = False
+        return supported
+
+    @staticmethod
+    def _market_provider_stock_quote_support(provider: object) -> bool:
+        supports_capability = getattr(provider, "supports_capability", None)
+        if not callable(supports_capability):
+            return False
+        return bool(supports_capability("market.stock.quote.read"))
+
+    def _reconcile_market_stock_quote_locked(self, supported: bool) -> None:
+        definition = self.registry.get("market.stock.quote.read")
+        if definition is None:
+            if not supported:
+                return
+            self.registry.register_definition(CapabilityDefinition(
+                name="market.stock.quote.read",
+                description="Read one exact stock/date daily quote",
+                layer=CapabilityLayer.INTELLIGENCE,
+                provider="market",
+                permission_scope="market.observe",
+                input_schema=_MARKET_INPUT_SCHEMAS["market.stock.quote.read"],
+                status=CapabilityStatus.AVAILABLE,
+            ))
+            return
+        target_status = (
+            CapabilityStatus.AVAILABLE if supported else CapabilityStatus.DISABLED
+        )
+        if definition.status != target_status:
+            self.registry.register_definition(replace(
+                definition,
+                status=target_status,
+            ))
 
     # ── Initialization ──────────────────────────────────────────────────
 
@@ -385,19 +471,28 @@ class RuntimeCapabilityBridge:
         # Market is a generic provider namespace. The public Market provider is
         # bound by the application/runtime composition root; Core never imports
         # Market private code or manufactures an unavailable substitute.
-        for name, description in {
+        stock_quote_supported = self._market_stock_quote_supported_locked()
+
+        market_capabilities = {
             "market.event.resolve": "Resolve structured Market event criteria",
             "market.event.read": "Read one structured Market event",
             "market.product.read": "Read one structured Market product",
             "market.product.linkage.read": "Read product-to-stock relationship evidence",
             "market.state.read": "Read exact-date whole-market state evidence",
-        }.items():
+        }
+        if stock_quote_supported:
+            market_capabilities["market.stock.quote.read"] = (
+                "Read one exact stock/date daily quote"
+            )
+
+        for name, description in market_capabilities.items():
             self.registry.register_definition(CapabilityDefinition(
                 name=name,
                 description=description,
                 layer=CapabilityLayer.INTELLIGENCE,
                 provider="market",
                 permission_scope="market.observe",
+                input_schema=_MARKET_INPUT_SCHEMAS[name],
                 status=CapabilityStatus.AVAILABLE,
             ))
 
@@ -485,6 +580,8 @@ class RuntimeCapabilityBridge:
 
         # Market tools
         for d in self.registry.by_provider("market"):
+            if d.status == CapabilityStatus.DISABLED:
+                continue
             lines.append(f'- {d.name}: {d.description}')
             if d.input_schema:
                 params = ", ".join(f'"{k}": {v}' for k, v in d.input_schema.items())

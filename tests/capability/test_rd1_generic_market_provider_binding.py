@@ -3,14 +3,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import json
 from pathlib import Path
 import sys
 import types
 
 import pytest
 
-from julia_core.capability.models import CapabilityRequest
+from julia_core.capability.models import CapabilityRequest, CapabilityStatus
 from julia_core.capability.providers.market_public import MarketPublicProviderAdapter
+from julia_core.runtime.context_execution_runtime import ContextExecutionRuntime
 from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
 
 
@@ -23,7 +25,8 @@ class EventResolveRequest:
 
 @dataclass(frozen=True)
 class EventReadRequest:
-    event_id: int
+    event_id: int | None = None
+    item_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -41,6 +44,12 @@ class ProductLinkageReadRequest:
 
 @dataclass(frozen=True)
 class MarketStateReadRequest:
+    trade_date: str
+
+
+@dataclass(frozen=True)
+class StockQuoteReadRequest:
+    stock_id: str
     trade_date: str
 
 
@@ -90,6 +99,7 @@ REQUEST_BUILDERS = {
     "market.product.read": ProductReadRequest,
     "market.product.linkage.read": ProductLinkageReadRequest,
     "market.state.read": MarketStateReadRequest,
+    "market.stock.quote.read": StockQuoteReadRequest,
 }
 
 
@@ -134,6 +144,17 @@ class MarketPublicFixture:
         correlation_id=None,
     ):
         self.calls.append((capability, request, request_id, correlation_id))
+        if capability == "market.event.read" and (
+            (request.event_id is None) == (request.item_id is None)
+        ):
+            return envelope(
+                capability,
+                operation_status=OperationStatus.FAILURE,
+                data_state=DataState.NOT_APPLICABLE,
+                failures=(Failure("MarketContractMismatch", "invalid_request", "invalid"),),
+                request_id=request_id,
+                correlation_id=correlation_id or "corr-market",
+            )
         if not isinstance(request, REQUEST_BUILDERS[capability]):
             return envelope(
                 capability,
@@ -151,6 +172,51 @@ class MarketPublicFixture:
         )
 
 
+class GenericMarketProvider:
+    def __init__(self):
+        self.calls = []
+
+    async def execute(self, request):
+        self.calls.append(request)
+        return None
+
+    async def health(self):
+        return True, "generic market provider"
+
+
+class BrokenMarketProvider(GenericMarketProvider):
+    def supports_capability(self, capability_id):
+        raise RuntimeError("capability introspection failed")
+
+
+class ToggleIntrospectionMarketProvider(GenericMarketProvider):
+    def __init__(self):
+        super().__init__()
+        self.introspection_fails = False
+
+    def supports_capability(self, capability_id):
+        if self.introspection_fails:
+            raise RuntimeError("capability introspection failed")
+        return capability_id == "market.stock.quote.read"
+
+
+class ContextPersona:
+    def get_traits_for_injection(self):
+        return ""
+
+
+class ContextSession:
+    def __init__(self, capability):
+        self.persona = ContextPersona()
+        self.capability = capability
+
+    def _load_recent_experiences(self):
+        return ""
+
+    def _resolve_market_context(self, _text):
+        raise AssertionError("raw user text must not route Market")
+
+
 def bound_bridge(public_provider):
     adapter = MarketPublicProviderAdapter(public_provider, REQUEST_BUILDERS)
     bridge = RuntimeCapabilityBridge()
@@ -166,6 +232,7 @@ def test_default_loader_imports_only_new_market_public_request_exports(monkeypat
     market_public.ProductReadRequest = ProductReadRequest
     market_public.ProductLinkageReadRequest = ProductLinkageReadRequest
     market_public.MarketStateReadRequest = MarketStateReadRequest
+    market_public.StockQuoteReadRequest = StockQuoteReadRequest
     monkeypatch.setitem(sys.modules, "market_public", market_public)
 
     class CallableProvider:
@@ -183,6 +250,7 @@ def test_default_loader_imports_only_new_market_public_request_exports(monkeypat
     [
         ("market.event.resolve", {"stock_id": "600519", "limit": 10}, EventResolveRequest),
         ("market.event.read", {"event_id": 7}, EventReadRequest),
+        ("market.event.read", {"item_id": "item-7"}, EventReadRequest),
         ("market.product.read", {"subject_key": "theme:1"}, ProductReadRequest),
         (
             "market.product.linkage.read",
@@ -195,6 +263,11 @@ def test_default_loader_imports_only_new_market_public_request_exports(monkeypat
             ProductLinkageReadRequest,
         ),
         ("market.state.read", {"trade_date": "2026-09-18"}, MarketStateReadRequest),
+        (
+            "market.stock.quote.read",
+            {"stock_id": "600519.SH", "trade_date": "2026-07-31"},
+            StockQuoteReadRequest,
+        ),
     ],
 )
 async def test_structured_market_request_uses_public_provider_shape(
@@ -218,6 +291,9 @@ async def test_structured_market_request_uses_public_provider_shape(
     called_capability, public_request, request_id, correlation_id = provider.calls[0]
     assert called_capability == capability
     assert isinstance(public_request, request_type)
+    if capability == "market.event.read":
+        assert public_request.event_id == arguments.get("event_id")
+        assert public_request.item_id == arguments.get("item_id")
     assert request_id == "req-core"
     assert correlation_id == "corr-core"
     assert result.tool_result.structured_output["capability_id"] == capability
@@ -225,7 +301,316 @@ async def test_structured_market_request_uses_public_provider_shape(
     assert result.tool_result.structured_output["data_state"] == "READY"
 
 
-def test_new_market_capabilities_are_registered_and_model_visible():
+def test_new_market_capabilities_are_registered_and_model_visible(monkeypatch):
+    market_public = types.ModuleType("market_public")
+    market_public.EventResolveRequest = EventResolveRequest
+    market_public.EventReadRequest = EventReadRequest
+    market_public.ProductReadRequest = ProductReadRequest
+    market_public.ProductLinkageReadRequest = ProductLinkageReadRequest
+    market_public.MarketStateReadRequest = MarketStateReadRequest
+    market_public.StockQuoteReadRequest = StockQuoteReadRequest
+    monkeypatch.setitem(sys.modules, "market_public", market_public)
+
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+
+    definitions = {
+        definition.name: definition
+        for definition in bridge.registry.by_provider("market")
+    }
+    assert set(definitions) == {
+        "market.event.resolve",
+        "market.event.read",
+        "market.product.read",
+        "market.product.linkage.read",
+        "market.state.read",
+        "market.stock.quote.read",
+    }
+    for capability in (
+        "market.product.linkage.read",
+        "market.state.read",
+        "market.stock.quote.read",
+    ):
+        definition = definitions[capability]
+        assert definition.provider == "market"
+        assert definition.permission_scope == "market.observe"
+        assert definition.input_schema is not None
+
+    manifest = bridge.tool_manifest()
+    assert "market.product.linkage.read" in manifest
+    assert "market.state.read" in manifest
+    assert "market.stock.quote.read" in manifest
+    assert '"item_id": canonical source-namespaced event id' in manifest
+    assert '"stock_id": exact source-namespaced stock identifier' in manifest
+    assert '"trade_date": exact YYYY-MM-DD trade date' in manifest
+
+
+def _install_market_public(monkeypatch, *, include_stock_quote=True):
+    market_public = types.ModuleType("market_public")
+    market_public.EventResolveRequest = EventResolveRequest
+    market_public.EventReadRequest = EventReadRequest
+    market_public.ProductReadRequest = ProductReadRequest
+    market_public.ProductLinkageReadRequest = ProductLinkageReadRequest
+    market_public.MarketStateReadRequest = MarketStateReadRequest
+    if include_stock_quote:
+        market_public.StockQuoteReadRequest = StockQuoteReadRequest
+    monkeypatch.setitem(sys.modules, "market_public", market_public)
+
+
+def test_absent_market_package_hides_stock_quote_without_failing_startup(monkeypatch):
+    monkeypatch.setitem(sys.modules, "market_public", None)
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.initialize()
+
+    assert "market.stock.quote.read" not in bridge.tool_manifest()
+
+
+def test_market_import_failure_hides_stock_quote_without_failing_startup(monkeypatch):
+    def failing_probe():
+        raise RuntimeError("market_public initialization failed")
+
+    monkeypatch.setattr(
+        "julia_core.capability.providers.market_public.market_public_supports_stock_quote",
+        failing_probe,
+    )
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.initialize()
+
+    assert "market.stock.quote.read" not in bridge.tool_manifest()
+
+
+def test_default_bound_adapter_effective_capability_is_model_visible(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    provider = MarketPublicFixture()
+    adapter = MarketPublicProviderAdapter(provider)
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.register_provider("market", adapter)
+    bridge.initialize()
+
+    assert adapter.supports_capability("market.stock.quote.read")
+    assert "market.stock.quote.read" in adapter.effective_capability_ids
+    assert "market.stock.quote.read" in bridge.tool_manifest()
+    result = bridge.execute_tool_typed(json.dumps({
+        "name": "market.stock.quote.read",
+        "arguments": {"stock_id": "600519.SH", "trade_date": "2026-07-31"},
+    }))
+    assert result.tool_result is not None
+    assert result.tool_result.status.value == "success"
+    assert len(provider.calls) == 1
+
+
+def test_non_introspectable_bound_market_provider_hides_stock_quote(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    provider = GenericMarketProvider()
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.register_provider("market", provider)
+    bridge.initialize()
+
+    assert "market.stock.quote.read" not in bridge.tool_manifest()
+    assert provider.calls == []
+
+
+def test_available_stock_quote_remains_visible_in_bridge_and_context_os(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+
+    definition = bridge.registry.get("market.stock.quote.read")
+    assert definition is not None
+    assert definition.status == CapabilityStatus.AVAILABLE
+    assert "market.stock.quote.read" in bridge.tool_manifest()
+
+    package = ContextExecutionRuntime(ContextSession(bridge)).prepare(
+        conversation_id="conv",
+        turn_id="turn",
+        user_text="查一下 600519 今天的行情",
+        history=[],
+    )
+    available_ids = {
+        entry["capability_id"]
+        for entry in package.capability_frame["available_tools"]
+    }
+    assert "market.stock.quote.read" in available_ids
+
+
+def test_disabled_stock_quote_is_hidden_from_bridge_and_context_os(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    request_builders = {
+        name: builder
+        for name, builder in REQUEST_BUILDERS.items()
+        if name != "market.stock.quote.read"
+    }
+    provider = MarketPublicFixture()
+    adapter = MarketPublicProviderAdapter(provider, request_builders)
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+    bridge.register_provider("market", adapter)
+
+    definition = bridge.registry.get("market.stock.quote.read")
+    assert definition is not None
+    assert definition.status == CapabilityStatus.DISABLED
+    assert "market.stock.quote.read" not in bridge.tool_manifest()
+
+    package = ContextExecutionRuntime(ContextSession(bridge)).prepare(
+        conversation_id="conv",
+        turn_id="turn",
+        user_text="查一下 600519 今天的行情",
+        history=[],
+    )
+    available_ids = {
+        entry["capability_id"]
+        for entry in package.capability_frame["available_tools"]
+    }
+    assert "market.stock.quote.read" not in available_ids
+
+
+def test_failed_post_init_capability_introspection_mutates_no_binding_state(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    provider = BrokenMarketProvider()
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+    manifest = bridge.tool_manifest()
+
+    with pytest.raises(RuntimeError, match="capability introspection failed"):
+        bridge.register_provider("market", provider)
+
+    assert "market" not in bridge._providers
+    assert "market" not in bridge.manager.providers
+    assert bridge.tool_manifest() == manifest
+    assert provider.calls == []
+
+
+def test_valid_post_init_introspectable_market_binding_succeeds(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    provider = MarketPublicFixture()
+    adapter = MarketPublicProviderAdapter(provider)
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+
+    bridge.register_provider("market", adapter)
+
+    assert bridge._providers["market"] is adapter
+    assert bridge.manager.providers["market"] is adapter
+    assert "market.stock.quote.read" in bridge.tool_manifest()
+
+
+def test_failed_same_provider_capability_retry_preserves_catalog_state(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    provider = ToggleIntrospectionMarketProvider()
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+    bridge.register_provider("market", provider)
+    manifest = bridge.tool_manifest()
+
+    provider.introspection_fails = True
+    with pytest.raises(RuntimeError, match="capability introspection failed"):
+        bridge.register_provider("market", provider)
+
+    assert bridge._providers["market"] is provider
+    assert bridge.manager.providers["market"] is provider
+    assert bridge.tool_manifest() == manifest
+    assert "market.stock.quote.read" in manifest
+
+
+def test_bound_adapter_override_controls_stock_quote_availability(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    request_builders = {
+        name: builder
+        for name, builder in REQUEST_BUILDERS.items()
+        if name != "market.stock.quote.read"
+    }
+    provider = MarketPublicFixture()
+    adapter = MarketPublicProviderAdapter(provider, request_builders)
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.register_provider("market", adapter)
+    bridge.initialize()
+
+    assert not adapter.supports_capability("market.stock.quote.read")
+    assert "market.stock.quote.read" not in bridge.tool_manifest()
+    result = bridge.execute_tool_typed(json.dumps({
+        "name": "market.stock.quote.read",
+        "arguments": {"stock_id": "600519.SH", "trade_date": "2026-07-31"},
+    }))
+    assert result.reason == "UNKNOWN"
+    assert provider.calls == []
+
+
+def test_bound_adapter_override_can_enable_unexported_stock_quote(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=False)
+    provider = MarketPublicFixture()
+    adapter = MarketPublicProviderAdapter(provider, REQUEST_BUILDERS)
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.register_provider("market", adapter)
+    bridge.initialize()
+
+    assert adapter.supports_capability("market.stock.quote.read")
+    assert "market.stock.quote.read" in bridge.tool_manifest()
+    result = bridge.execute_tool_typed(json.dumps({
+        "name": "market.stock.quote.read",
+        "arguments": {"stock_id": "600519.SH", "trade_date": "2026-07-31"},
+    }))
+    assert result.tool_result is not None
+    assert result.tool_result.status.value == "success"
+    assert len(provider.calls) == 1
+
+
+def test_post_init_market_binding_reconciles_stock_quote_availability(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    provider = MarketPublicFixture()
+    request_builders = {
+        name: builder
+        for name, builder in REQUEST_BUILDERS.items()
+        if name != "market.stock.quote.read"
+    }
+    adapter = MarketPublicProviderAdapter(provider, request_builders)
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.initialize()
+    assert "market.stock.quote.read" in bridge.tool_manifest()
+    bridge.register_provider("market", adapter)
+
+    assert "market.stock.quote.read" not in bridge.tool_manifest()
+    result = bridge.execute_tool_typed(json.dumps({
+        "name": "market.stock.quote.read",
+        "arguments": {"stock_id": "600519.SH", "trade_date": "2026-07-31"},
+    }))
+    assert result.reason == "DISABLED"
+    assert provider.calls == []
+
+
+def test_post_init_non_introspectable_market_binding_disables_stock_quote(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    provider = GenericMarketProvider()
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.initialize()
+    assert "market.stock.quote.read" in bridge.tool_manifest()
+    bridge.register_provider("market", provider)
+
+    assert "market.stock.quote.read" not in bridge.tool_manifest()
+    result = bridge.execute_tool_typed(json.dumps({
+        "name": "market.stock.quote.read",
+        "arguments": {"stock_id": "600519.SH", "trade_date": "2026-07-31"},
+    }))
+    assert result.reason == "DISABLED"
+    assert provider.calls == []
+
+
+def test_old_market_contract_does_not_advertise_unexecutable_stock_quote(monkeypatch):
+    market_public = types.ModuleType("market_public")
+    market_public.EventResolveRequest = EventResolveRequest
+    market_public.EventReadRequest = EventReadRequest
+    market_public.ProductReadRequest = ProductReadRequest
+    market_public.ProductLinkageReadRequest = ProductLinkageReadRequest
+    market_public.MarketStateReadRequest = MarketStateReadRequest
+    monkeypatch.setitem(sys.modules, "market_public", market_public)
+
     bridge = RuntimeCapabilityBridge()
     bridge.initialize()
 
@@ -240,14 +625,23 @@ def test_new_market_capabilities_are_registered_and_model_visible():
         "market.product.linkage.read",
         "market.state.read",
     }
-    for capability in ("market.product.linkage.read", "market.state.read"):
-        definition = definitions[capability]
-        assert definition.provider == "market"
-        assert definition.permission_scope == "market.observe"
-
     manifest = bridge.tool_manifest()
-    assert "market.product.linkage.read" in manifest
-    assert "market.state.read" in manifest
+    assert "market.stock.quote.read" not in manifest
+    assert "Read one exact stock/date daily quote" not in manifest
+
+
+def test_partial_market_contract_startup_does_not_require_complete_public_package(monkeypatch):
+    market_public = types.ModuleType("market_public")
+    market_public.EventResolveRequest = EventResolveRequest
+    market_public.ProductReadRequest = ProductReadRequest
+    market_public.StockQuoteReadRequest = StockQuoteReadRequest
+    monkeypatch.setitem(sys.modules, "market_public", market_public)
+
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.initialize()
+
+    assert "market.stock.quote.read" in bridge.tool_manifest()
 
 
 @pytest.mark.asyncio
@@ -355,15 +749,15 @@ async def test_invalid_public_request_shape_is_adjudicated_by_market_not_core():
     provider = MarketPublicFixture()
     bridge, _ = bound_bridge(provider)
 
-    # Missing required event_id cannot construct EventReadRequest. The adapter
-    # passes the raw mapping across the public boundary so Market owns the
-    # canonical contract-mismatch outcome.
+    # Missing both selectors constructs the public request shape, but Market
+    # owns the canonical exactly-one-selector validation outcome.
     result = await bridge.manager.execute_typed(
         CapabilityRequest("market.event.read", {}, correlation_id="corr-core")
     )
 
     assert result.tool_result.status.value == "success"
-    assert provider.calls and provider.calls[0][1] == {}
+    assert provider.calls
+    assert provider.calls[0][1] == EventReadRequest()
     output = result.tool_result.structured_output
     assert output["operation_status"] == "FAILURE"
     assert output["data_state"] == "NOT_APPLICABLE"
