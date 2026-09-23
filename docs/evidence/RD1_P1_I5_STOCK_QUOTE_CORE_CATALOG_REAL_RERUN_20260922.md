@@ -68,7 +68,8 @@ Model output SHA-256:
 ```text
 PYTHONPATH=/Users/admin/glm-workspace/ai_theme_app /opt/miniconda3/bin/python -m pytest \
   tests/capability/test_rd1_generic_market_provider_binding.py \
-  tests/public/test_rd1_market_public_composition_binding.py -q
+  tests/public/test_rd1_market_public_composition_binding.py \
+  tests/runtime/test_r2_p3_context_os_typed_projection.py -q
 
-47 passed in 0.42s
+84 passed in 0.79s
 ```

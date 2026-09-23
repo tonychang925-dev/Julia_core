@@ -340,13 +340,19 @@ class RuntimeCapabilityBridge:
                 raise ProviderAlreadyRegisteredError(
                     f"provider namespace '{provider_name}' is already bound"
                 )
+            reconcile_market_stock_quote = (
+                self._initialized
+                and self._manager is not None
+                and provider_name == "market"
+            )
+            stock_quote_supported = False
+            if reconcile_market_stock_quote:
+                stock_quote_supported = self._market_provider_stock_quote_support(
+                    provider
+                )
             if existing is provider:
-                if (
-                    self._initialized
-                    and self._manager is not None
-                    and provider_name == "market"
-                ):
-                    self._reconcile_market_stock_quote_locked(provider)
+                if reconcile_market_stock_quote:
+                    self._reconcile_market_stock_quote_locked(stock_quote_supported)
                 return
 
             if self._initialized and self._manager is not None:
@@ -360,20 +366,13 @@ class RuntimeCapabilityBridge:
                         f"manager provider namespace '{provider_name}' is already bound"
                     ) from exc
             self._providers[provider_name] = provider
-            if (
-                self._initialized
-                and self._manager is not None
-                and provider_name == "market"
-            ):
-                self._reconcile_market_stock_quote_locked(provider)
+            if reconcile_market_stock_quote:
+                self._reconcile_market_stock_quote_locked(stock_quote_supported)
 
     def _market_stock_quote_supported_locked(self) -> bool:
         market_provider = self._providers.get("market")
         if market_provider is not None:
-            supports_capability = getattr(market_provider, "supports_capability", None)
-            if callable(supports_capability):
-                return bool(supports_capability("market.stock.quote.read"))
-            return False
+            return self._market_provider_stock_quote_support(market_provider)
 
         from julia_core.capability.providers.market_public import (
             market_public_supports_stock_quote,
@@ -386,12 +385,14 @@ class RuntimeCapabilityBridge:
             supported = False
         return supported
 
-    def _reconcile_market_stock_quote_locked(self, provider: object) -> None:
+    @staticmethod
+    def _market_provider_stock_quote_support(provider: object) -> bool:
         supports_capability = getattr(provider, "supports_capability", None)
-        supported = (
-            callable(supports_capability)
-            and bool(supports_capability("market.stock.quote.read"))
-        )
+        if not callable(supports_capability):
+            return False
+        return bool(supports_capability("market.stock.quote.read"))
+
+    def _reconcile_market_stock_quote_locked(self, supported: bool) -> None:
         definition = self.registry.get("market.stock.quote.read")
         if definition is None:
             if not supported:

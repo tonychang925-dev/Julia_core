@@ -10,8 +10,9 @@ import types
 
 import pytest
 
-from julia_core.capability.models import CapabilityRequest
+from julia_core.capability.models import CapabilityRequest, CapabilityStatus
 from julia_core.capability.providers.market_public import MarketPublicProviderAdapter
+from julia_core.runtime.context_execution_runtime import ContextExecutionRuntime
 from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
 
 
@@ -181,6 +182,39 @@ class GenericMarketProvider:
 
     async def health(self):
         return True, "generic market provider"
+
+
+class BrokenMarketProvider(GenericMarketProvider):
+    def supports_capability(self, capability_id):
+        raise RuntimeError("capability introspection failed")
+
+
+class ToggleIntrospectionMarketProvider(GenericMarketProvider):
+    def __init__(self):
+        super().__init__()
+        self.introspection_fails = False
+
+    def supports_capability(self, capability_id):
+        if self.introspection_fails:
+            raise RuntimeError("capability introspection failed")
+        return capability_id == "market.stock.quote.read"
+
+
+class ContextPersona:
+    def get_traits_for_injection(self):
+        return ""
+
+
+class ContextSession:
+    def __init__(self, capability):
+        self.persona = ContextPersona()
+        self.capability = capability
+
+    def _load_recent_experiences(self):
+        return ""
+
+    def _resolve_market_context(self, _text):
+        raise AssertionError("raw user text must not route Market")
 
 
 def bound_bridge(public_provider):
@@ -378,6 +412,108 @@ def test_non_introspectable_bound_market_provider_hides_stock_quote(monkeypatch)
 
     assert "market.stock.quote.read" not in bridge.tool_manifest()
     assert provider.calls == []
+
+
+def test_available_stock_quote_remains_visible_in_bridge_and_context_os(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+
+    definition = bridge.registry.get("market.stock.quote.read")
+    assert definition is not None
+    assert definition.status == CapabilityStatus.AVAILABLE
+    assert "market.stock.quote.read" in bridge.tool_manifest()
+
+    package = ContextExecutionRuntime(ContextSession(bridge)).prepare(
+        conversation_id="conv",
+        turn_id="turn",
+        user_text="查一下 600519 今天的行情",
+        history=[],
+    )
+    available_ids = {
+        entry["capability_id"]
+        for entry in package.capability_frame["available_tools"]
+    }
+    assert "market.stock.quote.read" in available_ids
+
+
+def test_disabled_stock_quote_is_hidden_from_bridge_and_context_os(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    request_builders = {
+        name: builder
+        for name, builder in REQUEST_BUILDERS.items()
+        if name != "market.stock.quote.read"
+    }
+    provider = MarketPublicFixture()
+    adapter = MarketPublicProviderAdapter(provider, request_builders)
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+    bridge.register_provider("market", adapter)
+
+    definition = bridge.registry.get("market.stock.quote.read")
+    assert definition is not None
+    assert definition.status == CapabilityStatus.DISABLED
+    assert "market.stock.quote.read" not in bridge.tool_manifest()
+
+    package = ContextExecutionRuntime(ContextSession(bridge)).prepare(
+        conversation_id="conv",
+        turn_id="turn",
+        user_text="查一下 600519 今天的行情",
+        history=[],
+    )
+    available_ids = {
+        entry["capability_id"]
+        for entry in package.capability_frame["available_tools"]
+    }
+    assert "market.stock.quote.read" not in available_ids
+
+
+def test_failed_post_init_capability_introspection_mutates_no_binding_state(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    provider = BrokenMarketProvider()
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+    manifest = bridge.tool_manifest()
+
+    with pytest.raises(RuntimeError, match="capability introspection failed"):
+        bridge.register_provider("market", provider)
+
+    assert "market" not in bridge._providers
+    assert "market" not in bridge.manager.providers
+    assert bridge.tool_manifest() == manifest
+    assert provider.calls == []
+
+
+def test_valid_post_init_introspectable_market_binding_succeeds(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    provider = MarketPublicFixture()
+    adapter = MarketPublicProviderAdapter(provider)
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+
+    bridge.register_provider("market", adapter)
+
+    assert bridge._providers["market"] is adapter
+    assert bridge.manager.providers["market"] is adapter
+    assert "market.stock.quote.read" in bridge.tool_manifest()
+
+
+def test_failed_same_provider_capability_retry_preserves_catalog_state(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    provider = ToggleIntrospectionMarketProvider()
+    bridge = RuntimeCapabilityBridge()
+    bridge.initialize()
+    bridge.register_provider("market", provider)
+    manifest = bridge.tool_manifest()
+
+    provider.introspection_fails = True
+    with pytest.raises(RuntimeError, match="capability introspection failed"):
+        bridge.register_provider("market", provider)
+
+    assert bridge._providers["market"] is provider
+    assert bridge.manager.providers["market"] is provider
+    assert bridge.tool_manifest() == manifest
+    assert "market.stock.quote.read" in manifest
 
 
 def test_bound_adapter_override_controls_stock_quote_availability(monkeypatch):

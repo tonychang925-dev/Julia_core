@@ -15,7 +15,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Sequence
 
-from julia_core.capability.models import Evidence, ToolResult
+from julia_core.capability.models import CapabilityStatus, Evidence, ToolResult
 from julia_core.capability.policy import AuthorizationDecision, AuthorizationStatus
 
 
@@ -535,7 +535,11 @@ class ContextExecutionRuntime:
         # governed later by authorization, provider readiness, and lifecycle.
         if self._js is not None:
             try:
-                definitions = self._js.capability.registry.all()
+                definitions = [
+                    definition
+                    for definition in self._js.capability.registry.all()
+                    if definition.status == CapabilityStatus.AVAILABLE
+                ]
                 entries = sorted(
                     (
                         {
