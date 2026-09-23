@@ -9,6 +9,11 @@ from uuid import uuid4
 CST = timezone(timedelta(hours=8))
 
 
+def canonical_message_timestamp() -> str:
+    """Generate the canonical aware event timestamp for a new message."""
+    return datetime.now(CST).isoformat()
+
+
 @dataclass
 class ConversationMessage:
     message_id: str = field(default_factory=lambda: f"msg_{uuid4().hex[:12]}")
@@ -19,7 +24,7 @@ class ConversationMessage:
     content: str = ""
     source: str = ""          # "voice" | "text" | "system" — origin channel
     status: str = "completed"  # pending | completed | interrupted | failed
-    created_at: str = field(default_factory=lambda: datetime.now(CST).isoformat())
+    created_at: str = field(default_factory=canonical_message_timestamp)
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
