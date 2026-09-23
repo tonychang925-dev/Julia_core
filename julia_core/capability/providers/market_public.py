@@ -9,7 +9,6 @@ A valid Market public result is an execution success from Core's point of view,
 even when the Market-owned ``operation_status`` inside that result is FAILURE.
 That keeps Core execution truth separate from Market domain-result truth.
 """
-
 from __future__ import annotations
 
 import copy
@@ -50,9 +49,7 @@ class MarketPublicProviderAdapter:
             raise TypeError("Market public provider must implement execute()")
         self._public_provider = public_provider
         self._request_builders = dict(
-            request_builders
-            if request_builders is not None
-            else _load_public_request_builders()
+            request_builders if request_builders is not None else _load_public_request_builders()
         )
 
     @property
@@ -85,9 +82,7 @@ class MarketPublicProviderAdapter:
     async def execute(self, request: CapabilityRequest) -> ProviderExecutionOutcome:
         builder = self._request_builders.get(request.capability_id)
         if builder is None:
-            raise ValueError(
-                f"unsupported Market public capability: {request.capability_id}"
-            )
+            raise ValueError(f"unsupported Market public capability: {request.capability_id}")
 
         public_request = self._build_public_request(builder, request.arguments)
         public_result = await self._public_provider.execute(
@@ -107,9 +102,7 @@ class MarketPublicProviderAdapter:
         )
 
     @staticmethod
-    def _build_public_request(
-        builder: RequestBuilder, arguments: dict[str, Any]
-    ) -> Any:
+    def _build_public_request(builder: RequestBuilder, arguments: dict[str, Any]) -> Any:
         """Adapt argument shape without taking ownership of Market validation.
 
         If a public request type cannot be constructed, pass the raw mapping to

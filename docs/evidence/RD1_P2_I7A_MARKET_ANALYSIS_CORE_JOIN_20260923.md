@@ -26,16 +26,19 @@ The Market envelope remained structurally intact in Core. Market missing-module 
 ## Real Julia Product E2E
 
 - Exact query submitted through `CoreConversationIngress`.
+- Base invocation policy verified unchanged:
+  `market.stock.quote.read` / `600519.SH` / `2026-09-23`.
 - Julia independently selected `market.analysis.read` with `{"trade_date":"2026-07-09"}`.
 - Capability calls: 1
 - ToolResults: 1
 - Evidence: 1
 - EvidenceFrame: present through C03 re-entry
 - Research calls: 0
+- Julia cognition calls: 2
 - Julia produced a fresh second-pass judgment and explicitly preserved the partial-evidence and unavailable review-maturity boundaries without fabricating setup rationale or analyst approval.
 
 ## Gates
 
-- Focused tests: `64 passed`
+- Focused tests after narrow correction: `14 passed`
 - `git diff --check`: PASS
 - NCF: PASS (`P0_NEW=0`, `P1_NEW=0`, `P2_NEW=0`)

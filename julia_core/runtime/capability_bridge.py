@@ -49,7 +49,6 @@ class CapabilityPreAuthorizationFailure:
     (CapabilityExecution). It is NOT a canonical lifecycle object and NOT an
     AuthorizationDecision / CapabilityResult / ToolResult / Evidence.
     """
-
     capability_id: str
     reason: str  # "UNKNOWN" | "DISABLED"
 
@@ -137,9 +136,7 @@ class _ResearchProviderContractAdapter:
             ):
                 return outcome
             if invalid_reason is None:
-                invalid_reason = (
-                    "READ_ONLY research evidence requires side_effect_state=NONE"
-                )
+                invalid_reason = "READ_ONLY research evidence requires side_effect_state=NONE"
         elif isinstance(outcome, dict):
             declared_status = str(outcome.get("status", "")).strip().lower()
             non_evidence_failure = declared_status in {
@@ -156,19 +153,14 @@ class _ResearchProviderContractAdapter:
                     error=(
                         dict(error)
                         if isinstance(error, dict)
-                        else {
-                            "code": declared_status,
-                            "message": str(error or declared_status),
-                        }
+                        else {"code": declared_status, "message": str(error or declared_status)}
                     ),
                 )
             invalid_reason = self._invalid_evidence_reason(
                 outcome,
                 request.arguments.get("query"),
             )
-            if invalid_reason is None and self._legacy_side_effect_is_read_only(
-                outcome
-            ):
+            if invalid_reason is None and self._legacy_side_effect_is_read_only(outcome):
                 return outcome
             if invalid_reason is None:
                 invalid_reason = (
@@ -202,11 +194,9 @@ class _ResearchProviderContractAdapter:
         sources = output.get("sources")
         if not isinstance(sources, list) or not sources:
             return "sources must be a non-empty list"
-        finding_binding_failure = (
-            _ResearchProviderContractAdapter._invalid_finding_binding_reason(
-                output["findings"],
-                sources,
-            )
+        finding_binding_failure = _ResearchProviderContractAdapter._invalid_finding_binding_reason(
+            output["findings"],
+            sources,
         )
         if finding_binding_failure is not None:
             return finding_binding_failure
@@ -221,15 +211,9 @@ class _ResearchProviderContractAdapter:
             return "every source must have a non-empty ref or url"
         if "limitations" not in output or not isinstance(output["limitations"], list):
             return "limitations must be present as a list"
-        if (
-            not isinstance(output.get("provider"), str)
-            or not output["provider"].strip()
-        ):
+        if not isinstance(output.get("provider"), str) or not output["provider"].strip():
             return "provider must be a non-empty string"
-        if (
-            not isinstance(output.get("produced_at"), str)
-            or not output["produced_at"].strip()
-        ):
+        if not isinstance(output.get("produced_at"), str) or not output["produced_at"].strip():
             return "produced_at must be non-empty"
         return None
 
@@ -298,9 +282,7 @@ _MARKET_INPUT_SCHEMAS = {
         "stock_id": "exact source-namespaced stock identifier, for example 600519.SH",
         "trade_date": "exact YYYY-MM-DD trade date",
     },
-    "market.analysis.read": {
-        "trade_date": "exact YYYY-MM-DD trade date",
-    },
+    "market.analysis.read": {"trade_date": "exact YYYY-MM-DD trade date"},
 }
 
 
@@ -443,60 +425,48 @@ class RuntimeCapabilityBridge:
         if definition is None:
             if not supported:
                 return
-            self.registry.register_definition(
-                CapabilityDefinition(
-                    name="market.stock.quote.read",
-                    description="Read one exact stock/date daily quote",
-                    layer=CapabilityLayer.INTELLIGENCE,
-                    provider="market",
-                    permission_scope="market.observe",
-                    input_schema=_MARKET_INPUT_SCHEMAS["market.stock.quote.read"],
-                    status=CapabilityStatus.AVAILABLE,
-                )
-            )
+            self.registry.register_definition(CapabilityDefinition(
+                name="market.stock.quote.read",
+                description="Read one exact stock/date daily quote",
+                layer=CapabilityLayer.INTELLIGENCE,
+                provider="market",
+                permission_scope="market.observe",
+                input_schema=_MARKET_INPUT_SCHEMAS["market.stock.quote.read"],
+                status=CapabilityStatus.AVAILABLE,
+            ))
             return
         target_status = (
             CapabilityStatus.AVAILABLE if supported else CapabilityStatus.DISABLED
         )
         if definition.status != target_status:
-            self.registry.register_definition(
-                replace(
-                    definition,
-                    status=target_status,
-                )
-            )
+            self.registry.register_definition(replace(
+                definition,
+                status=target_status,
+            ))
 
     def _reconcile_market_analysis_locked(self, supported: bool) -> None:
         definition = self.registry.get("market.analysis.read")
         if definition is None:
             if not supported:
                 return
-            self.registry.register_definition(
-                CapabilityDefinition(
-                    name="market.analysis.read",
-                    description=(
-                        "Read exact-date Market analytical evidence covering market "
-                        "stage, mainline themes, and next-day watchlist/setup "
-                        "observations"
-                    ),
-                    layer=CapabilityLayer.INTELLIGENCE,
-                    provider="market",
-                    permission_scope="market.observe",
-                    input_schema=_MARKET_INPUT_SCHEMAS["market.analysis.read"],
-                    status=CapabilityStatus.AVAILABLE,
-                )
-            )
+            self.registry.register_definition(CapabilityDefinition(
+                name="market.analysis.read",
+                description="Read exact-date Market analytical evidence",
+                layer=CapabilityLayer.INTELLIGENCE,
+                provider="market",
+                permission_scope="market.observe",
+                input_schema=_MARKET_INPUT_SCHEMAS["market.analysis.read"],
+                status=CapabilityStatus.AVAILABLE,
+            ))
             return
         target_status = (
             CapabilityStatus.AVAILABLE if supported else CapabilityStatus.DISABLED
         )
         if definition.status != target_status:
-            self.registry.register_definition(
-                replace(
-                    definition,
-                    status=target_status,
-                )
-            )
+            self.registry.register_definition(replace(
+                definition,
+                status=target_status,
+            ))
 
     # ── Initialization ──────────────────────────────────────────────────
 
@@ -512,53 +482,43 @@ class RuntimeCapabilityBridge:
         # Local providers (R0.1)
         from julia_core.capability.providers.local.file_read import FileReadProvider
         from julia_core.capability.providers.local.file_search import FileSearchProvider
-        from julia_core.capability.providers.local.directory_list import (
-            DirectoryListProvider,
-        )
+        from julia_core.capability.providers.local.directory_list import DirectoryListProvider
 
         if "local" not in self._providers:
-            self._providers["local"] = LocalProviderRouter(
-                {
-                    "file.read": FileReadProvider(),
-                    "file.search": FileSearchProvider(),
-                    "file.list": DirectoryListProvider(),
-                }
-            )
+            self._providers["local"] = LocalProviderRouter({
+                "file.read": FileReadProvider(),
+                "file.search": FileSearchProvider(),
+                "file.list": DirectoryListProvider(),
+            })
 
         # Register local capabilities
-        self.registry.register_definition(
-            CapabilityDefinition(
-                name="file.read",
-                description="Read file contents from the local filesystem",
-                layer=CapabilityLayer.KNOWLEDGE,
-                provider="local",
-                permission_scope="file.read",
-                input_schema={"path": "file path"},
-                status=CapabilityStatus.AVAILABLE,
-            )
-        )
-        self.registry.register_definition(
-            CapabilityDefinition(
-                name="file.search",
-                description="Search for files by name pattern",
-                layer=CapabilityLayer.KNOWLEDGE,
-                provider="local",
-                permission_scope="file.read",
-                input_schema={"pattern": "search pattern"},
-                status=CapabilityStatus.AVAILABLE,
-            )
-        )
-        self.registry.register_definition(
-            CapabilityDefinition(
-                name="file.list",
-                description="List directory contents",
-                layer=CapabilityLayer.KNOWLEDGE,
-                provider="local",
-                permission_scope="file.read",
-                input_schema={"path": "directory path"},
-                status=CapabilityStatus.AVAILABLE,
-            )
-        )
+        self.registry.register_definition(CapabilityDefinition(
+            name="file.read",
+            description="Read file contents from the local filesystem",
+            layer=CapabilityLayer.KNOWLEDGE,
+            provider="local",
+            permission_scope="file.read",
+            input_schema={"path": "file path"},
+            status=CapabilityStatus.AVAILABLE,
+        ))
+        self.registry.register_definition(CapabilityDefinition(
+            name="file.search",
+            description="Search for files by name pattern",
+            layer=CapabilityLayer.KNOWLEDGE,
+            provider="local",
+            permission_scope="file.read",
+            input_schema={"pattern": "search pattern"},
+            status=CapabilityStatus.AVAILABLE,
+        ))
+        self.registry.register_definition(CapabilityDefinition(
+            name="file.list",
+            description="List directory contents",
+            layer=CapabilityLayer.KNOWLEDGE,
+            provider="local",
+            permission_scope="file.read",
+            input_schema={"path": "directory path"},
+            status=CapabilityStatus.AVAILABLE,
+        ))
 
         # Market is a generic provider namespace. The public Market provider is
         # bound by the application/runtime composition root; Core never imports
@@ -579,35 +539,29 @@ class RuntimeCapabilityBridge:
             )
         if analysis_supported:
             market_capabilities["market.analysis.read"] = (
-                "Read exact-date Market analytical evidence covering market "
-                "stage, mainline themes, and next-day watchlist/setup "
-                "observations"
+                "Read exact-date Market analytical evidence"
             )
 
         for name, description in market_capabilities.items():
-            self.registry.register_definition(
-                CapabilityDefinition(
-                    name=name,
-                    description=description,
-                    layer=CapabilityLayer.INTELLIGENCE,
-                    provider="market",
-                    permission_scope="market.observe",
-                    input_schema=_MARKET_INPUT_SCHEMAS[name],
-                    status=CapabilityStatus.AVAILABLE,
-                )
-            )
-
-        self.registry.register_definition(
-            CapabilityDefinition(
-                name="research.web.query",
-                description="Query source-bearing external web research evidence",
+            self.registry.register_definition(CapabilityDefinition(
+                name=name,
+                description=description,
                 layer=CapabilityLayer.INTELLIGENCE,
-                provider="research",
-                permission_scope="research.observe",
-                input_schema={"query": "research question"},
+                provider="market",
+                permission_scope="market.observe",
+                input_schema=_MARKET_INPUT_SCHEMAS[name],
                 status=CapabilityStatus.AVAILABLE,
-            )
-        )
+            ))
+
+        self.registry.register_definition(CapabilityDefinition(
+            name="research.web.query",
+            description="Query source-bearing external web research evidence",
+            layer=CapabilityLayer.INTELLIGENCE,
+            provider="research",
+            permission_scope="research.observe",
+            input_schema={"query": "research question"},
+            status=CapabilityStatus.AVAILABLE,
+        ))
 
         # External Code Review capability (Core semantic contract).
         # The provider (external_review) is implemented cross-repo in
@@ -615,7 +569,6 @@ class RuntimeCapabilityBridge:
         # permission scope. Until that provider is bound, invocation returns a
         # typed UNAVAILABLE outcome (fail-closed, no fallback).
         from julia_core.review.registration import register_external_review_capability
-
         register_external_review_capability(self.registry, policy=self.policy)
 
         # Build the manager
@@ -627,11 +580,13 @@ class RuntimeCapabilityBridge:
 
         self._initialized = True
 
+
     @staticmethod
     def _provider_for_manager(provider_name: str, provider: object) -> object:
         if provider_name == "research":
             return _ResearchProviderContractAdapter(provider)
         return provider
+
 
     def _flatten_providers(self) -> dict:
         """Flatten nested provider dict into manager-compatible flat dict."""
@@ -645,9 +600,7 @@ class RuntimeCapabilityBridge:
             if namespace == "research":
                 flat[namespace] = _ResearchProviderContractAdapter(providers)
         # Override: ai_theme_app → flat key
-        if "ai_theme_app" in self._providers and not isinstance(
-            self._providers["ai_theme_app"], dict
-        ):
+        if "ai_theme_app" in self._providers and not isinstance(self._providers["ai_theme_app"], dict):
             flat["ai_theme_app"] = self._providers["ai_theme_app"]
         return flat
 
@@ -675,9 +628,9 @@ class RuntimeCapabilityBridge:
             "",
             "当选择工具时：整个 assistant 回复必须只包含一个 ```tool_call ... ``` 区块。",
             "禁止在区块之前或之后写解释、确认、引入语或任何其他文字。",
-            "当需要时精确输出: ```tool_call",
+            '当需要时精确输出: ```tool_call',
             example,
-            "```",
+            '```',
             "",
             "可用工具:",
         ]
@@ -685,44 +638,42 @@ class RuntimeCapabilityBridge:
         # Local tools
         for d in self.registry.by_provider("local"):
             params = ", ".join(f'"{k}": {v}' for k, v in d.input_schema.items())
-            lines.append(f"- {d.name}: {d.description}。参数: {{{params}}}")
+            lines.append(f'- {d.name}: {d.description}。参数: {{{params}}}')
 
         # Market tools
         for d in self.registry.by_provider("market"):
             if d.status == CapabilityStatus.DISABLED:
                 continue
-            lines.append(f"- {d.name}: {d.description}")
+            lines.append(f'- {d.name}: {d.description}')
             if d.input_schema:
                 params = ", ".join(f'"{k}": {v}' for k, v in d.input_schema.items())
-                lines.append(f"  参数: {{{params}}}")
+                lines.append(f'  参数: {{{params}}}')
 
         # Research tools
         for d in self.registry.by_provider("research"):
             params = ", ".join(f'"{k}": {v}' for k, v in d.input_schema.items())
-            lines.append(f"- {d.name}: {d.description}。参数: {{{params}}}")
+            lines.append(f'- {d.name}: {d.description}。参数: {{{params}}}')
 
         file_policy = policy["epistemic_rules"]["file"]
         external_policy = policy["epistemic_rules"]["external_evidence"]
         evidence_policy = policy["evidence_role"]
         limits = policy["limits"]
 
-        lines.extend(
-            [
-                "",
-                "工具调用后会收到执行结果。基于结果回答，不要编造。",
-                "",
-                "[工具规则 — 必须遵守]",
-                f"1. {file_policy['rule']}",
-                f"2. {external_policy['rule']}",
-                '3. 没有工具调用时，禁止说"我读了""我找到了""我搜索了"。',
-                f"4. {evidence_policy['rule']}",
-                "5. 文件不存在 → 直接告知用户，不猜测内容。",
-                f"6. 工具调用格式: {policy['invocation_protocol']['format']}",
-                "7. JSON根对象必须精确使用 name 和 arguments 字段。",
-                "8. 整个回复只能是这一个 tool_call 区块；前后都不能有文字。",
-                f"9. {limits['rule']}",
-            ]
-        )
+        lines.extend([
+            "",
+            "工具调用后会收到执行结果。基于结果回答，不要编造。",
+            "",
+            "[工具规则 — 必须遵守]",
+            f"1. {file_policy['rule']}",
+            f"2. {external_policy['rule']}",
+            '3. 没有工具调用时，禁止说"我读了""我找到了""我搜索了"。',
+            f"4. {evidence_policy['rule']}",
+            "5. 文件不存在 → 直接告知用户，不猜测内容。",
+            f"6. 工具调用格式: {policy['invocation_protocol']['format']}",
+            "7. JSON根对象必须精确使用 name 和 arguments 字段。",
+            "8. 整个回复只能是这一个 tool_call 区块；前后都不能有文字。",
+            f"9. {limits['rule']}",
+        ])
         return "\n".join(lines)
 
     def invocation_policy(self) -> dict:
@@ -747,8 +698,11 @@ class RuntimeCapabilityBridge:
                     "arguments": "object containing only that capability's arguments",
                 },
                 "example": {
-                    "name": "file.read",
-                    "arguments": {"path": "README.md"},
+                    "name": "market.stock.quote.read",
+                    "arguments": {
+                        "stock_id": "600519.SH",
+                        "trade_date": "2026-09-23",
+                    },
                 },
             },
             "epistemic_rules": {
@@ -778,9 +732,7 @@ class RuntimeCapabilityBridge:
     def execute_tool_typed(
         self,
         tool_json: str,
-    ) -> (
-        CapabilityExecution | CapabilityPreAuthorizationFailure | ToolCallDecodeFailure
-    ):
+    ) -> CapabilityExecution | CapabilityPreAuthorizationFailure | ToolCallDecodeFailure:
         """P3.2.2B typed delivery seam.
 
         Decodes the same tool-call JSON, normalizes legacy names, and delivers
@@ -879,23 +831,19 @@ class RuntimeCapabilityBridge:
         Backward compatible with old _detect_tool_call().
         """
         import re
-
-        m = re.search(r"```tool_call\s*\n(.*?)\n```", text, re.DOTALL)
+        m = re.search(r'```tool_call\s*\n(.*?)\n```', text, re.DOTALL)
         if m:
             return m.group(1).strip()
-        m = re.search(r"TOOL:\s*(\w+)\(([^)]+)\)", text)
+        m = re.search(r'TOOL:\s*(\w+)\(([^)]+)\)', text)
         if m:
             name, raw = m.group(1), m.group(2)
             kv = re.match(r'(\w+)\s*=\s*"([^"]+)"', raw)
             if kv:
-                return _json.dumps(
-                    {"name": name, "arguments": {kv.group(1): kv.group(2)}}
-                )
+                return _json.dumps({"name": name, "arguments": {kv.group(1): kv.group(2)}})
             val = raw.strip().strip('"').strip("'")
             key = "path" if name in ("read_file", "list_directory") else "pattern"
             return _json.dumps({"name": name, "arguments": {key: val}})
         return None
-
 
 # ── Singleton ───────────────────────────────────────────────────────────────
 
