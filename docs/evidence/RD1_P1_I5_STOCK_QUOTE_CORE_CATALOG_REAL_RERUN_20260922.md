@@ -6,9 +6,9 @@
 - Assistant base: `ec20d4f2be6db09cfb63c8340777dcb1c76e4921`
 - Market base: `5a38999623c2b9254865a37cbb3a7a7379d2a22e`
 - Market dependency:
-  - PR `#410` candidate
-  - `4ca986885371d842cc19a0376cf2e86a9365e7af`
-  - `NOT YET MERGED`
+  - merged `ai_theme_app/main`
+  - `d65225394184fe83124471f1a3e61a01a67bd2f3`
+  - contains the accepted PR `#410` capability tree
 - Market PR: `#410`
 
 ## Catalog Proof
@@ -47,9 +47,15 @@ Julia's first-pass response explained that it did not have a reliable current da
 
 Per the task's epistemic policy, `IterativeReasoningLoop`, deterministic routing, and external-evidence enforcement were not modified.
 
-Disposition:
+Historical disposition:
 
 `BLOCKED_JULIA_EXTERNAL_EVIDENCE_POLICY_NOT_ENFORCED`
+
+Current refined diagnosis:
+
+`BLOCKED_CURRENT_TEMPORAL_CONTEXT_NOT_MODEL_VISIBLE`
+
+`market.stock.quote.read` requires an exact `trade_date`, while the current model-visible SituationFrame does not provide a canonical current date/time anchor. No temporal grounding or cognition-policy correction was implemented in this dependency rebind.
 
 Raw sanitized execution log:
 `/private/tmp/rd1_stock_quote_real_i5.json`
@@ -60,9 +66,9 @@ Model output SHA-256:
 ## Verification
 
 ```text
-PYTHONPATH=<market-candidate> /opt/miniconda3/bin/python -m pytest \
+PYTHONPATH=/Users/admin/glm-workspace/ai_theme_app /opt/miniconda3/bin/python -m pytest \
   tests/capability/test_rd1_generic_market_provider_binding.py \
   tests/public/test_rd1_market_public_composition_binding.py -q
 
-43 passed in 0.65s
+43 passed in 0.41s
 ```
