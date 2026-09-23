@@ -318,6 +318,16 @@ class ContextExecutionRuntime:
             return "structured_call_required must be True"
         if protocol.get("raw_user_text_routing") is not False:
             return "raw_user_text_routing must be False"
+        request_envelope = protocol.get("request_envelope")
+        if not isinstance(request_envelope, dict):
+            return "invocation protocol request_envelope must be a mapping"
+        for field in ("name", "arguments"):
+            semantics = request_envelope.get(field)
+            if not isinstance(semantics, str) or not semantics.strip():
+                return (
+                    "invocation protocol request_envelope."
+                    f"{field} semantics must be a non-empty string"
+                )
         epistemic_rules = policy["epistemic_rules"]
         file_rule = epistemic_rules.get("file")
         if not isinstance(file_rule, dict):
@@ -802,10 +812,18 @@ class ContextExecutionRuntime:
     ) -> CognitiveContextPackage:
         if reason not in ("MALFORMED_JSON", "MISSING_NAME", "INVALID_CALL_SHAPE"):
             raise ValueError(f"invalid tool-call decode failure reason: {reason!r}")
+        protocol = parent_package.validated_invocation_policy.get(
+            "invocation_protocol"
+        )
+        if not isinstance(protocol, dict):
+            raise ValueError(
+                "retry control projection requires a validated invocation protocol"
+            )
         return self._project_turn_control(
             parent_package=parent_package,
             kind="tool_call_decode_failure",
             reason=reason,
+            expected_invocation_protocol=copy.deepcopy(protocol),
             generation_id=generation_id,
             mode="tool_call_decode_failure",
             provenance_source="capability:tool_call_decode_failure",
@@ -901,6 +919,9 @@ class ContextExecutionRuntime:
                 reason="validated invocation policy retained for continuation",
                 stage=2,
             )
+            available_tools = parent_package.capability_frame.get("available_tools")
+            if isinstance(available_tools, list):
+                pkg.capability_frame["available_tools"] = copy.deepcopy(available_tools)
         return pkg
 
     def _validated_turn_evidence_ledger(

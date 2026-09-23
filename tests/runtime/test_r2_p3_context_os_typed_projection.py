@@ -55,6 +55,17 @@ def _valid_invocation_policy() -> dict:
             "format": "```tool_call\\n{JSON}\\n```",
             "structured_call_required": True,
             "raw_user_text_routing": False,
+            "request_envelope": {
+                "name": "exact capability_id from available_tools",
+                "arguments": "object containing only that capability's arguments",
+            },
+            "example": {
+                "name": "market.stock.quote.read",
+                "arguments": {
+                    "stock_id": "600519.SH",
+                    "trade_date": "2026-09-23",
+                },
+            },
         },
         "epistemic_rules": {
             "file": {
@@ -412,6 +423,10 @@ def test_c03_required_invocation_policy_failures_are_required(policy_mode):
             julia_second_pass_interpretation_required=False
         ),
         lambda policy: policy["invocation_protocol"].update(format=""),
+        lambda policy: policy["invocation_protocol"].pop("request_envelope"),
+        lambda policy: policy["invocation_protocol"].update(
+            request_envelope={"name": "capability", "arguments": []}
+        ),
     ],
 )
 def test_c03_nested_policy_weakening_fails_closed_before_cognition(mutation):
