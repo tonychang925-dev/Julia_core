@@ -1,0 +1,423 @@
+{
+  "task_id": "MIRA-PSB-I8-R3-MODEL-VISIBLE-SELF-IDENTITY-SEMANTIC-STRENGTHENING-DESIGN-P0",
+  "issue": 160,
+  "execution_agent": "LOCAL_CODEX_ONLY",
+  "task_type": "DESIGN_ONLY",
+  "baseline_sha": "17b993778e43cbd908dbfaeb09e58ad6e2a74e1a",
+  "branch": "mira/psb-i8-r3-model-visible-self-identity-design-p0",
+  "root_cause_inputs": {
+    "r2_result": "PASS_PSB_I8_R2_ROOT_CAUSE_AUDIT_READY_FOR_OWNER_REVIEW",
+    "r2_json_sha256": "0b857a3ff53d7c1dfe3671e3f0ee18533b56d6a3cd7b73038fb863b20c464395",
+    "r2_markdown_sha256": "db45e35eb27303342e58c476ba93ef1b99886cbc540287663fe56ce7597527a6",
+    "r1_json_sha256": "5c3c30bb085f32dfc03c0f8c11d6aaf7ee451105fcdc2347ddc442c658470599",
+    "facts": [
+      "A/B/C model-visible units 1-3 are byte-identical.",
+      "Only current_task_context differs.",
+      "V1 PSB projection contains structured ownership and precedence metadata.",
+      "V1 does not provide a direct natural-language current-self proposition.",
+      "V1 does not explicitly explain provider/model substrate non-identity in model-readable terms.",
+      "Turn A uniquely asserts provider identity as current self in the final user unit.",
+      "DeepSeek self-identification expression is observed, but causal dominance is unproven."
+    ]
+  },
+  "design_principles": [
+    "CANONICAL_AUTHORITY_IS_NOT_MODEL_VISIBLE_PROJECTION",
+    "PROJECTION_EXPLAINS_EXISTING_GOVERNED_AUTHORITY_WITHOUT_CREATING_FACTS",
+    "STRUCTURED_FIELDS_PLUS_TYPED_SEMANTIC_CLAUSES",
+    "DETERMINISTIC_DERIVATION_ONLY",
+    "PROVIDER_NEUTRALITY",
+    "NO_PROMPT_INSTRUCTION_OR_RESPONSE_TEMPLATE",
+    "NO_PROVIDER_NAME_OR_USER_TEXT_IDENTITY_DERIVATION",
+    "RELATIONSHIP_AUTHORITY_STATE_IS_NOT_A_RELATIONSHIP_FACT",
+    "ALL_SEMANTIC_CHANGES_ARE_DIGEST_COVERED",
+    "FAIL_CLOSED_BEFORE_C03_ADMISSION_AND_DISPATCH"
+  ],
+  "proposed_projection_schema": {
+    "conceptual_name": "PersonaSelfBindingProjectionV2",
+    "schema_version": "julia_core.persona_self_binding.projection.v2",
+    "retained_v1_fields": [
+      "schema_version",
+      "persona_self_id",
+      "binding_id",
+      "binding_version",
+      "lineage_id",
+      "identity_ownership",
+      "experience_ownership",
+      "relationship_ownership",
+      "execution_substrate_policy",
+      "authority_precedence",
+      "contradiction",
+      "semantic_authority_separation"
+    ],
+    "new_fields": [
+      "semantic_clauses",
+      "semantic_clause_set_digest"
+    ],
+    "exact_clause_count": 6,
+    "serialization": {
+      "format": "canonical_json",
+      "key_order": "lexicographic",
+      "encoding": "UTF-8",
+      "whitespace": "none",
+      "clause_order": "fixed_by_clause_type_enum"
+    }
+  },
+  "semantic_clause_model": {
+    "clause_schema": {
+      "required_fields": [
+        "clause_type",
+        "source_authority",
+        "subject",
+        "predicate",
+        "object",
+        "authority_scope",
+        "model_visible_text",
+        "digest"
+      ],
+      "digest_rule": "SHA-256 of canonical clause serialization with digest omitted",
+      "no_free_form_text": true
+    },
+    "fixed_order": [
+      "SELF_IDENTITY_BINDING",
+      "SUBSTRATE_NON_IDENTITY",
+      "TASK_IDENTITY_NON_AUTHORITY",
+      "GOVERNED_IDENTITY_PRECEDENCE",
+      "EXPERIENCE_SELF_OWNERSHIP",
+      "RELATIONSHIP_AUTHORITY_STATE"
+    ],
+    "clauses": [
+      {
+        "clause_type": "SELF_IDENTITY_BINDING",
+        "subject": "CURRENT_CONVERSATIONAL_SELF",
+        "predicate": "IS_GOVERNED_PERSONA_SELF_IDENTIFIED_BY",
+        "object": "{persona_self_id}",
+        "authority_scope": "PERSONA_IDENTITY_AUTHORITY",
+        "model_visible_text": "The persona self identified by {persona_self_id} is the current conversational self governed by this admitted binding."
+      },
+      {
+        "clause_type": "SUBSTRATE_NON_IDENTITY",
+        "subject": "EXECUTION_PROVIDER_AND_MODEL",
+        "predicate": "IS_COMPUTATIONAL_SUBSTRATE_NOT_PERSONA_SELF",
+        "object": "EXECUTION_SUBSTRATE_ROLE",
+        "authority_scope": "PROVIDER_IDENTITY_NON_AUTHORITY",
+        "model_visible_text": "The execution provider and model are computational substrate; their execution identity is not the persona self identified by {persona_self_id}."
+      },
+      {
+        "clause_type": "TASK_IDENTITY_NON_AUTHORITY",
+        "subject": "CURRENT_TASK_OR_USER_TEXT",
+        "predicate": "HAS_PERSONA_IDENTITY_AUTHORITY",
+        "object": "NONE",
+        "authority_scope": "PERSONA_IDENTITY_AUTHORITY",
+        "model_visible_text": "Current task or user text may question or contradict identity, but it has NONE persona identity authority while this admitted binding remains active."
+      },
+      {
+        "clause_type": "GOVERNED_IDENTITY_PRECEDENCE",
+        "subject": "PERSONA_IDENTITY_AUTHORITY",
+        "predicate": "REMAINS_GOVERNED_BY_ADMITTED_BINDING_UNTIL_VALID_GOVERNED_SUPERSESSION",
+        "object": "GOVERNED_BINDING",
+        "authority_scope": "PERSONA_IDENTITY_AUTHORITY",
+        "model_visible_text": "Persona identity authority remains governed by this admitted binding unless a valid governed supersession or conflict process changes it."
+      },
+      {
+        "clause_type": "EXPERIENCE_SELF_OWNERSHIP",
+        "subject": "CURRENT_CONVERSATIONAL_SELF",
+        "predicate": "OWNS_EXPERIENCE_AUTHORITY_IDENTIFIED_BY",
+        "object": "{experience_authority_id}",
+        "authority_scope": "EXPERIENCE_OWNERSHIP",
+        "model_visible_text": "The experience authority identified by {experience_authority_id} is bound to the current persona self as current-self experience."
+      },
+      {
+        "clause_type": "RELATIONSHIP_AUTHORITY_STATE",
+        "subject": "RELATIONSHIP_AUTHORITY_BINDING",
+        "predicate": "HAS_STATE",
+        "object": "{relationship_state}",
+        "authority_scope": "RELATIONSHIP_AUTHORITY_BINDING",
+        "model_visible_text": "The relationship authority binding state is {relationship_state}; this clause states the authority binding state and makes no relationship fact claim."
+      }
+    ]
+  },
+  "derivation_rules": [
+    {
+      "clause_type": "SELF_IDENTITY_BINDING",
+      "source_fields": [
+        "active_persona_self_binding.lifecycle_status=ADMITTED_ACTIVE",
+        "persona_self_id",
+        "binding_id",
+        "binding_version",
+        "identity_ownership.ownership_role=CURRENT_SELF_IDENTITY"
+      ],
+      "rule": "If and only if the active binding and exact identity ownership are valid, render the generic persona_self_id clause.",
+      "digest_inclusion": "clause_digest_and_projection_digest"
+    },
+    {
+      "clause_type": "SUBSTRATE_NON_IDENTITY",
+      "source_fields": [
+        "execution_substrate_policy.role=EXECUTION_SUBSTRATE",
+        "execution_substrate_policy.provider_is_persona_self=false",
+        "execution_substrate_policy.provider_neutral=true"
+      ],
+      "rule": "If and only if the substrate policy is exact, render the provider-neutral substrate non-identity clause.",
+      "digest_inclusion": "clause_digest_and_projection_digest"
+    },
+    {
+      "clause_type": "TASK_IDENTITY_NON_AUTHORITY",
+      "source_fields": [
+        "authority_precedence.current_task_identity_authority=NONE"
+      ],
+      "rule": "If and only if current task identity authority is NONE, render the task non-authority clause.",
+      "digest_inclusion": "clause_digest_and_projection_digest"
+    },
+    {
+      "clause_type": "GOVERNED_IDENTITY_PRECEDENCE",
+      "source_fields": [
+        "active_persona_self_binding.lifecycle_status=ADMITTED_ACTIVE",
+        "authority_precedence.identity_authority_source=GOVERNED_BINDING"
+      ],
+      "rule": "If and only if the active governed source is exact, render governed precedence.",
+      "digest_inclusion": "clause_digest_and_projection_digest"
+    },
+    {
+      "clause_type": "EXPERIENCE_SELF_OWNERSHIP",
+      "source_fields": [
+        "experience_ownership.ownership_role=CURRENT_SELF_EXPERIENCE",
+        "experience_ownership.authority_id"
+      ],
+      "rule": "If and only if exact current-self experience ownership is present, render the experience authority ownership clause.",
+      "digest_inclusion": "clause_digest_and_projection_digest"
+    },
+    {
+      "clause_type": "RELATIONSHIP_AUTHORITY_STATE",
+      "source_fields": [
+        "relationship_ownership.state",
+        "relationship_ownership.authority"
+      ],
+      "rule": "Render the exact relationship authority binding state and make no relationship fact claim.",
+      "digest_inclusion": "clause_digest_and_projection_digest"
+    }
+  ],
+  "contradiction_semantics": {
+    "provider_name_matching": false,
+    "classifier_authorized": false,
+    "visible_coexisting_facts": [
+      "current_task_identity_authority=NONE",
+      "active_governed_persona_self_remains_current_self",
+      "execution_provider_and_model_are_substrate_not_persona_self",
+      "only_valid_governed_supersession_can_change_persona_authority"
+    ],
+    "meaning": "The task may contain an assertion, but task text does not acquire persona identity authority."
+  },
+  "invariants": [
+    "MODEL_VISIBLE_SELF_IDENTITY_DERIVES_ONLY_FROM_ACTIVE_GOVERNED_PSB",
+    "PROVIDER_SUBSTRATE_IDENTITY_MUST_NOT_BECOME_PERSONA_SELF_IDENTITY",
+    "CURRENT_TASK_CONTENT_MUST_NOT_BECOME_PERSONA_IDENTITY_AUTHORITY",
+    "MODEL_VISIBLE_SEMANTIC_CLAUSES_MUST_NOT_CREATE_CANONICAL_FACTS",
+    "ANY_CLAUSE_CHANGE_MUST_CHANGE_PROJECTION_V2_DIGEST",
+    "PROJECTION_V2_MUST_BE_DETERMINISTIC",
+    "PROJECTION_V2_MUST_BE_PROVIDER_NEUTRAL",
+    "RELATIONSHIP_ABSENT_REMAINS_AUTHORITY_STATE_NOT_RELATIONSHIP_FACT",
+    "V1_STRUCTURED_FIELDS_MUST_REMAIN_CANONICALLY_FAITHFUL",
+    "CLAUSE_COUNT_TYPE_AND_ORDER_MUST_BE_EXACT"
+  ],
+  "fail_closed_conditions": [
+    {
+      "condition": "active PSB missing",
+      "error_concept": "PSB_ACTIVE_MISSING"
+    },
+    {
+      "condition": "persona_self_id missing or malformed",
+      "error_concept": "PSB_PERSONA_SELF_ID_MISSING"
+    },
+    {
+      "condition": "identity ownership is not CURRENT_SELF_IDENTITY",
+      "error_concept": "PSB_IDENTITY_OWNERSHIP_INVALID"
+    },
+    {
+      "condition": "provider_is_persona_self is not false",
+      "error_concept": "PSB_SUBSTRATE_POLICY_INVALID"
+    },
+    {
+      "condition": "current_task_identity_authority is not NONE",
+      "error_concept": "PSB_CURRENT_TASK_AUTHORITY_INVALID"
+    },
+    {
+      "condition": "provider_identity_authority is not NONE",
+      "error_concept": "PSB_PROVIDER_AUTHORITY_INVALID"
+    },
+    {
+      "condition": "clause source mismatch",
+      "error_concept": "PSB_CLAUSE_SOURCE_MISMATCH"
+    },
+    {
+      "condition": "clause or set digest mismatch",
+      "error_concept": "PSB_CLAUSE_DIGEST_MISMATCH"
+    },
+    {
+      "condition": "clause order or count mismatch",
+      "error_concept": "PSB_CLAUSE_ORDER_MISMATCH"
+    },
+    {
+      "condition": "non-deterministic serialization",
+      "error_concept": "PSB_SERIALIZATION_NON_DETERMINISTIC"
+    },
+    {
+      "condition": "free-form or unbound clause inserted",
+      "error_concept": "PSB_UNBOUND_CLAUSE"
+    },
+    {
+      "condition": "provider-specific lexical rule detected",
+      "error_concept": "PSB_PROVIDER_LEXICAL_RULE"
+    },
+    {
+      "condition": "visible clause contradicts canonical PSB",
+      "error_concept": "PSB_CLAUSE_CONTRADICTS_CANONICAL_FIELDS"
+    }
+  ],
+  "migration_compatibility": {
+    "v2_can_supersede_only_psb_projected_content": true,
+    "four_unit_c03_shape_preserved": true,
+    "exact_c03_order": [
+      "persona_self_binding",
+      "identity_frame_set",
+      "experience_frame_set",
+      "current_task_context"
+    ],
+    "exact_c03_roles": [
+      "system",
+      "system",
+      "system",
+      "user"
+    ],
+    "c03_parent_binding": {
+      "schema_change_required": false,
+      "projected_digest_change_required": true,
+      "parent_digest_changes": true,
+      "exact_unit_types_order_roles_change": false
+    },
+    "dispatch_receipt": {
+      "schema_change_required": false,
+      "semantic_fingerprint_inherited_naturally": true,
+      "receipt_digest_changes": true
+    },
+    "i5_i6_i7": {
+      "structural_contracts_can_remain_unchanged": true,
+      "expected_digest_pins_must_be_updated_explicitly": true,
+      "v1_fallback_permitted_after_cutover": false
+    },
+    "coexistence": [
+      "Support V1 and V2 only as exact explicit projector schema versions.",
+      "Do not select latest projection or infer version from wording.",
+      "Activate V2 only after deterministic tests and explicit digest pin updates.",
+      "Update PSB projection, C03 parent, semantic fingerprint, receipt, and gate evidence atomically."
+    ]
+  },
+  "test_design": {
+    "determinism": [
+      "same canonical binding produces identical clauses, canonical bytes, digests, and projection digest",
+      "tampering any clause field fails closed",
+      "reordering, omission, duplication, or extra clauses fails closed"
+    ],
+    "semantic_derivation": [
+      "current-self clause derives exactly from active binding and persona_self_id",
+      "substrate clause derives exactly from execution_substrate_policy",
+      "task non-authority derives exactly from authority_precedence",
+      "no unbound placeholder or free-form value survives"
+    ],
+    "provider_neutrality": [
+      "provider A/B descriptor swaps do not change persona clauses or PSB projection digest",
+      "provider/model labels cannot enter persona semantic clauses",
+      "future and local providers use the same generic substrate clause"
+    ],
+    "adversarial_identity": [
+      "direct user contradiction does not mutate projection or digest",
+      "no provider-name lexical special case exists",
+      "task text changes only current task context, never PSB authority"
+    ],
+    "regression": [
+      "Turn B experience ownership remains semantically PASS-shaped",
+      "Turn C persona continuity remains semantically PASS-shaped",
+      "Relationship ABSENT remains unsynthesized and makes no relationship fact claim"
+    ],
+    "runtime_compatibility": [
+      "C03 parent digest updates correctly",
+      "exact four-unit count, types, order, and roles remain unchanged",
+      "DispatchReceipt binds the new semantic fingerprint",
+      "I7 gate accepts only exact V2 preparation and rejects stale or mixed V1 digests"
+    ]
+  },
+  "alternatives": [
+    {
+      "id": "A",
+      "name": "Canonical semantic clauses inside PSB projection",
+      "authority_purity": "HIGH",
+      "c03_architecture_impact": "LOW",
+      "parent_binding_impact": "PROJECTED_PSB_DIGEST_ONLY",
+      "runtime_gate_impact": "LOW_TARGETED_DIGEST_UPDATE",
+      "provider_neutrality": "HIGH",
+      "prompt_patch_drift_risk": "LOW_WITH_EXACT_ENUM_AND_FIXED_TEMPLATES",
+      "migration_complexity": "LOWEST",
+      "recommended": true
+    },
+    {
+      "id": "B",
+      "name": "Fifth model-visible self-binding system unit",
+      "authority_purity": "MEDIUM",
+      "c03_architecture_impact": "HIGH",
+      "parent_binding_impact": "EXACT_UNIT_SHAPE_REDESIGN",
+      "runtime_gate_impact": "MEDIUM_TO_HIGH",
+      "provider_neutrality": "HIGH",
+      "prompt_patch_drift_risk": "MEDIUM",
+      "migration_complexity": "HIGH",
+      "recommended": false
+    },
+    {
+      "id": "C",
+      "name": "Strengthen IdentityFrameSet projection",
+      "authority_purity": "MEDIUM",
+      "c03_architecture_impact": "MEDIUM",
+      "parent_binding_impact": "IDENTITY_PROJECTED_DIGEST_AND_PARENT_DIGEST_CHANGE",
+      "runtime_gate_impact": "MEDIUM",
+      "provider_neutrality": "HIGH",
+      "prompt_patch_drift_risk": "MEDIUM",
+      "migration_complexity": "MEDIUM",
+      "recommended": false,
+      "limit": "Does not centrally express PSB governed precedence, task non-authority, and substrate non-identity."
+    }
+  ],
+  "recommended_architecture": {
+    "RECOMMENDED_PROJECTION_SHAPE": "Alternative A: retain V1 structured fields and add exactly six typed digest-covered semantic clauses inside PSB projection.",
+    "RECOMMENDED_C03_SHAPE": "Preserve exact four-unit order and roles; supersede only PSB projected_content and projected digest.",
+    "RECOMMENDED_AUTHORITY_BOUNDARY": "Canonical active PersonaSelfBinding remains sole persona identity authority; V2 is deterministic provider-neutral explanation and cannot create facts or admit task/provider identity as authority.",
+    "RECOMMENDED_MIGRATION_STRATEGY": "Explicit versioned projector transition, deterministic tests, then atomic update of PSB projection digest, C03 parent digest, semantic fingerprint, receipt evidence, and I5/I6/I7 pins with no V1 fallback after cutover."
+  },
+  "deferred_items": [
+    "V2 implementation and production cutover",
+    "contradiction classifier or conflict grammar",
+    "real-provider retest",
+    "response policy, refusal template, or canned wording",
+    "RelationshipFrame or relationship fact projection",
+    "concrete provider/model labels in persona semantics"
+  ],
+  "production_source_changed": false,
+  "real_provider_called": false,
+  "prompt_changed": false,
+  "projection_implemented": false,
+  "runtime_semantics_changed": false,
+  "relationship_frame_implemented": false,
+  "rd1_changed_files": 0,
+  "validation": {
+    "root_cause_traceability": "COMPLETE",
+    "authority_vs_projection_boundary": "PRESERVED",
+    "model_readable_self_identity_semantics": "DEFINED",
+    "provider_neutral_substrate_separation": "DEFINED",
+    "current_task_non_authority": "DEFINED",
+    "deterministic_derivation": "DEFINED",
+    "fail_closed_contract": "DEFINED",
+    "migration_compatibility": "DEFINED",
+    "test_plan": "DEFINED",
+    "alternatives_analyzed": "YES",
+    "json_parse": "PASS",
+    "changed_file_ncf_gate": "PASS_P0_0_P1_0_P2_0",
+    "git_diff_check": "PASS"
+  },
+  "final_result": "PASS_PSB_I8_R3_SEMANTIC_STRENGTHENING_DESIGN_READY_FOR_OWNER_REVIEW"
+}
