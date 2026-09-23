@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import json as _json
 import re as _re
-import sys as _sys
 import threading as _threading
 from dataclasses import dataclass
 from dataclasses import replace
@@ -370,31 +369,29 @@ class RuntimeCapabilityBridge:
 
     def _market_stock_quote_supported_locked(self) -> bool:
         market_provider = self._providers.get("market")
-        supports_capability = getattr(market_provider, "supports_capability", None)
-        if callable(supports_capability):
-            return bool(supports_capability("market.stock.quote.read"))
-
-        from importlib.util import find_spec
+        if market_provider is not None:
+            supports_capability = getattr(market_provider, "supports_capability", None)
+            if callable(supports_capability):
+                return bool(supports_capability("market.stock.quote.read"))
+            return False
 
         from julia_core.capability.providers.market_public import (
             market_public_supports_stock_quote,
         )
 
-        loaded_market_public = _sys.modules.get("market_public")
-        if loaded_market_public is not None:
-            return (
-                getattr(loaded_market_public, "StockQuoteReadRequest", None)
-                is not None
-            )
-        if find_spec("market_public") is None:
-            return False
-        return market_public_supports_stock_quote()
+        supported = False
+        try:
+            supported = market_public_supports_stock_quote()
+        except Exception:
+            supported = False
+        return supported
 
     def _reconcile_market_stock_quote_locked(self, provider: object) -> None:
         supports_capability = getattr(provider, "supports_capability", None)
-        if not callable(supports_capability):
-            return
-        supported = bool(supports_capability("market.stock.quote.read"))
+        supported = (
+            callable(supports_capability)
+            and bool(supports_capability("market.stock.quote.read"))
+        )
         definition = self.registry.get("market.stock.quote.read")
         if definition is None:
             if not supported:

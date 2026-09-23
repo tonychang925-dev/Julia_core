@@ -70,5 +70,5 @@ PYTHONPATH=/Users/admin/glm-workspace/ai_theme_app /opt/miniconda3/bin/python -m
   tests/capability/test_rd1_generic_market_provider_binding.py \
   tests/public/test_rd1_market_public_composition_binding.py -q
 
-43 passed in 0.41s
+47 passed in 0.42s
 ```

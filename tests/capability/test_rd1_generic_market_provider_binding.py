@@ -171,6 +171,18 @@ class MarketPublicFixture:
         )
 
 
+class GenericMarketProvider:
+    def __init__(self):
+        self.calls = []
+
+    async def execute(self, request):
+        self.calls.append(request)
+        return None
+
+    async def health(self):
+        return True, "generic market provider"
+
+
 def bound_bridge(public_provider):
     adapter = MarketPublicProviderAdapter(public_provider, REQUEST_BUILDERS)
     bridge = RuntimeCapabilityBridge()
@@ -311,6 +323,30 @@ def _install_market_public(monkeypatch, *, include_stock_quote=True):
     monkeypatch.setitem(sys.modules, "market_public", market_public)
 
 
+def test_absent_market_package_hides_stock_quote_without_failing_startup(monkeypatch):
+    monkeypatch.setitem(sys.modules, "market_public", None)
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.initialize()
+
+    assert "market.stock.quote.read" not in bridge.tool_manifest()
+
+
+def test_market_import_failure_hides_stock_quote_without_failing_startup(monkeypatch):
+    def failing_probe():
+        raise RuntimeError("market_public initialization failed")
+
+    monkeypatch.setattr(
+        "julia_core.capability.providers.market_public.market_public_supports_stock_quote",
+        failing_probe,
+    )
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.initialize()
+
+    assert "market.stock.quote.read" not in bridge.tool_manifest()
+
+
 def test_default_bound_adapter_effective_capability_is_model_visible(monkeypatch):
     _install_market_public(monkeypatch, include_stock_quote=True)
     provider = MarketPublicFixture()
@@ -330,6 +366,18 @@ def test_default_bound_adapter_effective_capability_is_model_visible(monkeypatch
     assert result.tool_result is not None
     assert result.tool_result.status.value == "success"
     assert len(provider.calls) == 1
+
+
+def test_non_introspectable_bound_market_provider_hides_stock_quote(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    provider = GenericMarketProvider()
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.register_provider("market", provider)
+    bridge.initialize()
+
+    assert "market.stock.quote.read" not in bridge.tool_manifest()
+    assert provider.calls == []
 
 
 def test_bound_adapter_override_controls_stock_quote_availability(monkeypatch):
@@ -390,6 +438,24 @@ def test_post_init_market_binding_reconciles_stock_quote_availability(monkeypatc
     bridge.initialize()
     assert "market.stock.quote.read" in bridge.tool_manifest()
     bridge.register_provider("market", adapter)
+
+    assert "market.stock.quote.read" not in bridge.tool_manifest()
+    result = bridge.execute_tool_typed(json.dumps({
+        "name": "market.stock.quote.read",
+        "arguments": {"stock_id": "600519.SH", "trade_date": "2026-07-31"},
+    }))
+    assert result.reason == "DISABLED"
+    assert provider.calls == []
+
+
+def test_post_init_non_introspectable_market_binding_disables_stock_quote(monkeypatch):
+    _install_market_public(monkeypatch, include_stock_quote=True)
+    provider = GenericMarketProvider()
+    bridge = RuntimeCapabilityBridge()
+
+    bridge.initialize()
+    assert "market.stock.quote.read" in bridge.tool_manifest()
+    bridge.register_provider("market", provider)
 
     assert "market.stock.quote.read" not in bridge.tool_manifest()
     result = bridge.execute_tool_typed(json.dumps({
