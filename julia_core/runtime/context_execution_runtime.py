@@ -318,6 +318,20 @@ class ContextExecutionRuntime:
             return "structured_call_required must be True"
         if protocol.get("raw_user_text_routing") is not False:
             return "raw_user_text_routing must be False"
+        exact_transport_fields = (
+            ("whole_response_must_be_tool_call", True),
+            ("surrounding_prose_allowed", False),
+            ("multiple_tool_call_fences_allowed", False),
+        )
+        for field_name, expected_value in exact_transport_fields:
+            if protocol.get(field_name) is not expected_value:
+                return (
+                    "invocation protocol "
+                    f"{field_name} must be {expected_value}"
+                )
+        transport_rule = protocol.get("response_transport_rule")
+        if not isinstance(transport_rule, str) or not transport_rule.strip():
+            return "invocation protocol response_transport_rule must be a non-empty string"
         request_envelope = protocol.get("request_envelope")
         if not isinstance(request_envelope, dict):
             return "invocation protocol request_envelope must be a mapping"

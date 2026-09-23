@@ -55,6 +55,13 @@ def _valid_invocation_policy() -> dict:
             "format": "```tool_call\\n{JSON}\\n```",
             "structured_call_required": True,
             "raw_user_text_routing": False,
+            "whole_response_must_be_tool_call": True,
+            "surrounding_prose_allowed": False,
+            "multiple_tool_call_fences_allowed": False,
+            "response_transport_rule": (
+                "the ENTIRE assistant response must consist only of one "
+                "tool_call block"
+            ),
             "request_envelope": {
                 "name": "exact capability_id from available_tools",
                 "arguments": "object containing only that capability's arguments",
@@ -423,6 +430,16 @@ def test_c03_required_invocation_policy_failures_are_required(policy_mode):
             julia_second_pass_interpretation_required=False
         ),
         lambda policy: policy["invocation_protocol"].update(format=""),
+        lambda policy: policy["invocation_protocol"].update(
+            whole_response_must_be_tool_call=False
+        ),
+        lambda policy: policy["invocation_protocol"].update(
+            surrounding_prose_allowed=True
+        ),
+        lambda policy: policy["invocation_protocol"].update(
+            multiple_tool_call_fences_allowed=True
+        ),
+        lambda policy: policy["invocation_protocol"].pop("response_transport_rule"),
         lambda policy: policy["invocation_protocol"].pop("request_envelope"),
         lambda policy: policy["invocation_protocol"].update(
             request_envelope={"name": "capability", "arguments": []}

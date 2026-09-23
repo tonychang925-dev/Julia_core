@@ -58,6 +58,13 @@ def parent_package() -> CognitiveContextPackage:
             "format": "```tool_call\\n{JSON}\\n```",
             "structured_call_required": True,
             "raw_user_text_routing": False,
+            "whole_response_must_be_tool_call": True,
+            "surrounding_prose_allowed": False,
+            "multiple_tool_call_fences_allowed": False,
+            "response_transport_rule": (
+                "the ENTIRE assistant response must consist only of one "
+                "tool_call block"
+            ),
             "request_envelope": {
                 "name": "exact capability_id from available_tools",
                 "arguments": "object containing only that capability's arguments",
