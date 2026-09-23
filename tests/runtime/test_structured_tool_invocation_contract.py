@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from julia_core.capability.models import (
     CapabilityDefinition,
     CapabilityLayer,
@@ -34,6 +36,26 @@ VALID_SECOND_CALL = (
     '{"name":"market.stock.quote.read","arguments":{"stock_id":"600519.SH",'
     '"trade_date":"2026-09-23"}}\n'
     '```'
+)
+PROSE_BEFORE_CALL = (
+    "我来查一下。\n"
+    "```tool_call\n"
+    '{"name":"market.stock.quote.read","arguments":{"stock_id":"600519.SH",'
+    '"trade_date":"2026-09-23"}}\n'
+    "```"
+)
+PROSE_AFTER_CALL = (
+    '```tool_call\n'
+    '{"name":"market.stock.quote.read","arguments":{"stock_id":"600519.SH",'
+    '"trade_date":"2026-09-23"}}\n'
+    '```\n我查到了。'
+)
+PROSE_SURROUNDED_CALL = (
+    "好，我帮你查一下 600519 今天的行情。\n"
+    '```tool_call\n'
+    '{"name":"market.stock.quote.read","arguments":{"stock_id":"600519.SH",'
+    '"trade_date":"2026-09-23"}}\n'
+    '```\n请稍等。'
 )
 
 
@@ -112,6 +134,11 @@ def test_initial_context_os_messages_expose_envelope_capability_and_schema():
     rendered = package.to_messages([], "query")[0]["content"]
 
     assert "request_envelope=" in rendered
+    assert "whole_response_must_be_tool_call=True" in rendered
+    assert "surrounding_prose_allowed=False" in rendered
+    assert "multiple_tool_call_fences_allowed=False" in rendered
+    assert "ENTIRE assistant response" in rendered
+    assert "before or after the block" in rendered
     assert "name=exact capability_id from available_tools" in rendered
     assert "arguments=object containing only that capability's arguments" in rendered
     assert "capability_id=market.stock.quote.read" in rendered
@@ -137,6 +164,18 @@ def test_strict_parser_keeps_real_malformed_shape_invalid_and_valid_shape_exact(
     }
 
 
+@pytest.mark.parametrize(
+    "response",
+    [PROSE_BEFORE_CALL, PROSE_AFTER_CALL, PROSE_BEFORE_CALL + "\n```tool_call\n{}\n```"],
+)
+def test_strict_parser_rejects_surrounding_prose_and_multiple_fences(response):
+    parsed = parse_strict_model_response(response)
+
+    assert parsed.kind == "TOOL_CALL_CONTROL_FAILURE"
+    assert parsed.failure_reason == "INVALID_CALL_SHAPE"
+    assert parsed.tool_call is None
+
+
 def test_decode_failure_projects_validated_contract_and_retains_capability_context():
     control = ContextExecutionRuntime().project_tool_call_decode_failure(
         parent_package=_parent(),
@@ -155,6 +194,10 @@ def test_decode_failure_projects_validated_contract_and_retains_capability_conte
     assert "trade_date=exact YYYY-MM-DD trade date" in rendered
     assert "name=exact capability_id from available_tools" in rendered
     assert "arguments=object containing only that capability's arguments" in rendered
+    assert "whole_response_must_be_tool_call=True" in rendered
+    assert "surrounding_prose_allowed=False" in rendered
+    assert "multiple_tool_call_fences_allowed=False" in rendered
+    assert "ENTIRE assistant response" in rendered
 
 
 def test_model_generated_correction_executes_once_then_receives_evidence():
@@ -185,7 +228,7 @@ def test_model_generated_correction_executes_once_then_receives_evidence():
         def __init__(self):
             self.model_inputs = []
             self.requests = []
-            self.responses = [MALFORMED_FIRST_CALL, VALID_SECOND_CALL, "No row is available."]
+            self.responses = [PROSE_SURROUNDED_CALL, VALID_SECOND_CALL, "No row is available."]
             self.provider = SimpleNamespace(chat=self.chat)
             self.context_os = ContextExecutionRuntime()
             self.action = SimpleNamespace(
@@ -231,7 +274,9 @@ def test_model_generated_correction_executes_once_then_receives_evidence():
     assert result.executed_capability_ids == ["market.stock.quote.read"]
     assert result.evidence_generation_ids
     assert session.requests == [VALID_SECOND_CALL[13:-4]]
-    assert "MISSING_NAME" in str(session.model_inputs[1])
+    assert "INVALID_CALL_SHAPE" in str(session.model_inputs[1])
+    assert "whole_response_must_be_tool_call=True" in str(session.model_inputs[1])
+    assert "surrounding_prose_allowed=False" in str(session.model_inputs[1])
     assert "expected_invocation_protocol" in str(session.model_inputs[1])
     assert "operation_status=SUCCESS" in str(session.model_inputs[2])
     assert "data_state=EMPTY" in str(session.model_inputs[2])

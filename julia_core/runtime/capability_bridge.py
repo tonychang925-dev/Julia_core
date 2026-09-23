@@ -569,7 +569,9 @@ class RuntimeCapabilityBridge:
         lines = [
             "[你可以使用的工具 — 结构化调用格式]",
             "",
-            '当需要时在回复中包含: ```tool_call',
+            "当选择工具时：整个 assistant 回复必须只包含一个 ```tool_call ... ``` 区块。",
+            "禁止在区块之前或之后写解释、确认、引入语或任何其他文字。",
+            '当需要时精确输出: ```tool_call',
             example,
             '```',
             "",
@@ -612,7 +614,8 @@ class RuntimeCapabilityBridge:
             "5. 文件不存在 → 直接告知用户，不猜测内容。",
             f"6. 工具调用格式: {policy['invocation_protocol']['format']}",
             "7. JSON根对象必须精确使用 name 和 arguments 字段。",
-            f"8. {limits['rule']}",
+            "8. 整个回复只能是这一个 tool_call 区块；前后都不能有文字。",
+            f"9. {limits['rule']}",
         ])
         return "\n".join(lines)
 
@@ -624,6 +627,15 @@ class RuntimeCapabilityBridge:
                 "format": "```tool_call\\n{JSON}\\n```",
                 "structured_call_required": True,
                 "raw_user_text_routing": False,
+                "whole_response_must_be_tool_call": True,
+                "surrounding_prose_allowed": False,
+                "multiple_tool_call_fences_allowed": False,
+                "response_transport_rule": (
+                    "When choosing a tool, the ENTIRE assistant response must "
+                    "consist only of one ```tool_call ... ``` block; do not write "
+                    "explanations, acknowledgements, introductory prose, or "
+                    "trailing prose before or after the block."
+                ),
                 "request_envelope": {
                     "name": "exact capability_id from available_tools",
                     "arguments": "object containing only that capability's arguments",
