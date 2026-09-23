@@ -43,7 +43,8 @@ from julia_core.memory_experience import (
 )
 from julia_core.persona_self_binding import (
     PersonaSelfBindingProjection,
-    PersonaSelfBindingProjector,
+    PersonaSelfBindingProjectorV2,
+    PersonaSelfBindingProjectionV2,
     PersonaSelfBindingRecord,
     PersonaSelfBindingStore,
 )
@@ -70,7 +71,7 @@ _PSB_BINDING_VERSION = "v1"
 _PSB_LINEAGE_ID = "golden-mira-persona-self-binding"
 _PSB_OBJECT_DIGEST = "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad"
 _PSB_PROJECTED_DIGEST = (
-    "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b"
+    "efd3acc001f01b1c8a4c71dea49aa36792e771df6180c244ff650f58680fe714"
 )
 
 
@@ -166,7 +167,7 @@ class GoldenMiraRuntimeComposition:
         sha_pins: MiraRuntimeShaPins,
         psb_store_root: Path,
         persona_self_binding: PersonaSelfBindingRecord,
-        persona_self_binding_projection: PersonaSelfBindingProjection,
+        persona_self_binding_projection: PersonaSelfBindingProjectionV2,
     ) -> None:
         object.__setattr__(self, "_authority_root", authority_root)
         object.__setattr__(self, "_conversation_store_path", conversation_store_path)
@@ -485,7 +486,7 @@ def compose_golden_mira_runtime(
             raise MiraCompositionError(
                 "active PersonaSelfBinding experience authority is inexact"
             )
-        persona_self_binding_projection = PersonaSelfBindingProjector.project(binding)
+        persona_self_binding_projection = PersonaSelfBindingProjectorV2.project(binding)
         if persona_self_binding_projection.digest() != _PSB_PROJECTED_DIGEST:
             raise MiraCompositionError(
                 "active PersonaSelfBinding projection digest is inexact"

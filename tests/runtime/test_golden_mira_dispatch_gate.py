@@ -42,7 +42,7 @@ REAL_PSB_ROOT = Path(
 RUNTIME_INSTANCE_ID = "golden-mira-runtime-instance-001"
 ACTIVE_PSB_DIGEST = "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad"
 ACTIVE_PSB_PROJECTION_DIGEST = (
-    "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b"
+    "efd3acc001f01b1c8a4c71dea49aa36792e771df6180c244ff650f58680fe714"
 )
 
 
@@ -264,6 +264,22 @@ def test_wrong_receipt_bindings_fail_closed(
     with pytest.raises(ProviderPersonaSeparationError) as rejection:
         dispatch_gate.authorize(tampered)
     assert rejection.value.code == code
+
+
+def test_stale_v1_semantic_receipt_is_rejected(preparation, dispatch_gate) -> None:
+    stale_v1_projection_digest = (
+        "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b"
+    )
+    forged = forge_receipt(
+        preparation.dispatch_receipt,
+        "provider_envelope_semantic_fingerprint",
+        stale_v1_projection_digest,
+    )
+    tampered = clone(preparation)
+    object.__setattr__(tampered, "dispatch_receipt", forged)
+    with pytest.raises(ProviderPersonaSeparationError) as rejection:
+        dispatch_gate.authorize(tampered)
+    assert rejection.value.code == "dispatch_receipt_binding_mismatch"
 
 
 def test_provider_mismatch_and_metadata_injection_fail_closed(

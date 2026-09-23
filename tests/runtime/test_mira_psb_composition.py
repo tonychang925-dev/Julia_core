@@ -14,7 +14,7 @@ from julia_core.alignment_os.contracts import ProviderExecutionEnvelope
 from julia_core.context_admission.contracts import canonical_json
 from julia_core.persona_self_binding import (
     PersonaSelfBinding,
-    PersonaSelfBindingProjector,
+    PersonaSelfBindingProjectorV2,
     PersonaSelfBindingStore,
     RelationshipAuthorityState,
 )
@@ -39,7 +39,7 @@ ACTIVE_OBJECT_DIGEST = (
     "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad"
 )
 ACTIVE_PROJECTED_DIGEST = (
-    "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b"
+    "efd3acc001f01b1c8a4c71dea49aa36792e771df6180c244ff650f58680fe714"
 )
 
 
@@ -79,7 +79,7 @@ def test_runtime_loads_exact_approved_real_psb_store(tmp_path) -> None:
     assert runtime.psb_store_root == REAL_PSB_ROOT
     assert runtime.persona_self_binding.object_digest == ACTIVE_OBJECT_DIGEST
     assert (
-        PersonaSelfBindingProjector.project(
+        PersonaSelfBindingProjectorV2.project(
             runtime.persona_self_binding.binding
         ).digest()
         == ACTIVE_PROJECTED_DIGEST
@@ -302,10 +302,8 @@ def test_experience_authority_mismatch_fails_closed(
 
 
 def test_projection_mismatch_fails_closed(composition, monkeypatch) -> None:
-    tampered = replace(
-        composition._persona_self_binding_projection,
-        binding_version="v2",
-    )
+    tampered = composition._persona_self_binding_projection
+    object.__setattr__(tampered, "binding_version", "v2")
     object.__setattr__(
         composition,
         "_persona_self_binding_projection",
@@ -318,7 +316,7 @@ def test_projection_mismatch_fails_closed(composition, monkeypatch) -> None:
         object.__setattr__(
             composition,
             "_persona_self_binding_projection",
-            PersonaSelfBindingProjector.project(
+            PersonaSelfBindingProjectorV2.project(
                 composition.persona_self_binding.binding
             ),
         )
@@ -350,6 +348,8 @@ def test_old_three_unit_fallback_is_impossible() -> None:
         encoding="utf-8"
     )
     assert "ExactAdmittedSemanticBinder" not in source
+    assert "PersonaSelfBindingProjectorV2.project(binding)" in source
+    assert "PersonaSelfBindingProjector.project(binding)" not in source
     tree = ast.parse(source)
     imports = {
         node.names[0].name if isinstance(node, ast.Import) else node.module

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 from julia_core.persona_self_binding.contracts import (
@@ -21,6 +22,21 @@ from julia_core.persona_self_binding.contracts import (
 
 
 PROJECTION_SCHEMA_VERSION = "julia_core.persona_self_binding.projection.v1"
+PROJECTION_V2_SCHEMA_VERSION = "julia_core.persona_self_binding.projection.v2"
+
+
+def _canonical_json(value: object) -> str:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+
+
+def _sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 class OwnershipRole:
@@ -34,6 +50,18 @@ class ProjectionDisposition:
     NO_IDENTITY_AUTHORITY_CONFLICT = "NO_IDENTITY_AUTHORITY_CONFLICT"
     RESOLVED_CONTRADICTION = "RESOLVED_CONTRADICTION"
     UNRESOLVED_IDENTITY_OVERRIDE = "UNRESOLVED_IDENTITY_OVERRIDE"
+
+
+class SemanticClauseType(str, Enum):
+    SELF_IDENTITY_BINDING = "SELF_IDENTITY_BINDING"
+    SUBSTRATE_NON_IDENTITY = "SUBSTRATE_NON_IDENTITY"
+    TASK_IDENTITY_NON_AUTHORITY = "TASK_IDENTITY_NON_AUTHORITY"
+    GOVERNED_IDENTITY_PRECEDENCE = "GOVERNED_IDENTITY_PRECEDENCE"
+    EXPERIENCE_SELF_OWNERSHIP = "EXPERIENCE_SELF_OWNERSHIP"
+    RELATIONSHIP_AUTHORITY_STATE = "RELATIONSHIP_AUTHORITY_STATE"
+
+
+SEMANTIC_CLAUSE_ORDER = tuple(clause.value for clause in SemanticClauseType)
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,6 +283,225 @@ class PersonaSelfBindingProjection:
         return actual_digest == self.digest()
 
 
+@dataclass(frozen=True, slots=True)
+class PersonaSelfBindingSemanticClause:
+    clause_type: SemanticClauseType
+    source_authority: dict[str, Any]
+    subject: str
+    predicate: str
+    object: str
+    authority_scope: str
+    model_visible_text: str
+    digest: str
+
+    def __post_init__(self) -> None:
+        if type(self.clause_type) is not SemanticClauseType:
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_INVALID_INPUT,
+                "semantic clause_type is invalid",
+            )
+        if not isinstance(self.source_authority, dict) or not all(
+            type(key) is str and key for key in self.source_authority
+        ):
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_INVALID_INPUT,
+                "semantic clause source_authority must be an exact object",
+            )
+        if not all(
+            type(value) is str and value
+            for value in (
+                self.subject,
+                self.predicate,
+                self.object,
+                self.authority_scope,
+                self.model_visible_text,
+            )
+        ):
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_INVALID_INPUT,
+                "semantic clause fields must be exact non-empty strings",
+            )
+        if self.digest != _sha256_text(_canonical_json(self._digest_payload())):
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_CLAUSE_DIGEST_MISMATCH,
+                "semantic clause digest does not match canonical content",
+            )
+
+    def _digest_payload(self) -> dict[str, Any]:
+        return {
+            "clause_type": self.clause_type.value,
+            "source_authority": self.source_authority,
+            "subject": self.subject,
+            "predicate": self.predicate,
+            "object": self.object,
+            "authority_scope": self.authority_scope,
+            "model_visible_text": self.model_visible_text,
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {**self._digest_payload(), "digest": self.digest}
+
+    def canonical_serialization(self) -> str:
+        return _canonical_json(self.to_dict())
+
+    def digest_without_clause_digest(self) -> str:
+        return _sha256_text(_canonical_json(self._digest_payload()))
+
+    @classmethod
+    def from_mapping(cls, payload: Any) -> PersonaSelfBindingSemanticClause:
+        if isinstance(payload, dict) and set(payload) & {
+            "provider_id",
+            "model_id",
+            "transport_endpoint",
+            "runtime_token",
+        }:
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_PROVIDER_IDENTITY_FORBIDDEN,
+                "semantic clause contains concrete provider identity",
+            )
+        if not isinstance(payload, dict) or set(payload) != {
+            "clause_type",
+            "source_authority",
+            "subject",
+            "predicate",
+            "object",
+            "authority_scope",
+            "model_visible_text",
+            "digest",
+        }:
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_INVALID_INPUT,
+                "semantic clause fields do not exactly match the schema",
+            )
+        try:
+            clause_type = SemanticClauseType(payload["clause_type"])
+        except ValueError as error:
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_INVALID_INPUT,
+                "semantic clause_type is unsupported",
+            ) from error
+        return cls(
+            clause_type=clause_type,
+            source_authority=payload["source_authority"],
+            subject=payload["subject"],
+            predicate=payload["predicate"],
+            object=payload["object"],
+            authority_scope=payload["authority_scope"],
+            model_visible_text=payload["model_visible_text"],
+            digest=payload["digest"],
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PersonaSelfBindingProjectionV2(PersonaSelfBindingProjection):
+    semantic_clauses: tuple[PersonaSelfBindingSemanticClause, ...]
+    semantic_clause_set_digest: str
+
+    def __post_init__(self) -> None:
+        base_fields = {
+            "persona_self_id": self.persona_self_id,
+            "binding_id": self.binding_id,
+            "binding_version": self.binding_version,
+            "lineage_id": self.lineage_id,
+            "identity_ownership": self.identity_ownership,
+            "experience_ownership": self.experience_ownership,
+            "relationship_ownership": self.relationship_ownership,
+            "execution_substrate_policy": self.execution_substrate_policy,
+            "authority_precedence": self.authority_precedence,
+            "contradiction": self.contradiction,
+            "semantic_authority_separation": self.semantic_authority_separation,
+        }
+        PersonaSelfBindingProjection(
+            schema_version=PROJECTION_SCHEMA_VERSION,
+            **base_fields,
+        ).verify()
+        if self.schema_version != PROJECTION_V2_SCHEMA_VERSION:
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_INVALID_INPUT,
+                "projection V2 schema_version is unsupported",
+            )
+        clause_types = tuple(
+            clause.clause_type.value for clause in self.semantic_clauses
+        )
+        if clause_types != SEMANTIC_CLAUSE_ORDER or len(set(clause_types)) != len(
+            SEMANTIC_CLAUSE_ORDER
+        ):
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_CLAUSE_ORDER_MISMATCH,
+                "semantic clause count, order, or uniqueness is invalid",
+            )
+        expected_clauses = _derive_semantic_clauses(
+            persona_self_id=self.persona_self_id,
+            binding_id=self.binding_id,
+            binding_version=self.binding_version,
+            identity_ownership=self.identity_ownership,
+            experience_ownership=self.experience_ownership,
+            relationship_ownership=self.relationship_ownership,
+            execution_substrate_policy=self.execution_substrate_policy,
+            authority_precedence=self.authority_precedence,
+        )
+        if self.semantic_clauses != expected_clauses:
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_CLAUSE_SOURCE_MISMATCH,
+                "semantic clauses do not derive from canonical projection fields",
+            )
+        expected_set_digest = _sha256_text(
+            _canonical_json([clause.digest for clause in self.semantic_clauses])
+        )
+        if self.semantic_clause_set_digest != expected_set_digest:
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_CLAUSE_DIGEST_MISMATCH,
+                "semantic clause set digest does not match ordered clause digests",
+            )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "persona_self_id": self.persona_self_id,
+            "binding_id": self.binding_id,
+            "binding_version": self.binding_version,
+            "lineage_id": self.lineage_id,
+            "identity_ownership": self.identity_ownership.to_dict(),
+            "experience_ownership": self.experience_ownership.to_dict(),
+            "relationship_ownership": self.relationship_ownership.to_dict(),
+            "execution_substrate_policy": self.execution_substrate_policy.to_dict(),
+            "authority_precedence": self.authority_precedence.to_dict(),
+            "contradiction": self.contradiction.to_dict(),
+            "semantic_authority_separation": self.semantic_authority_separation,
+            "semantic_clauses": [clause.to_dict() for clause in self.semantic_clauses],
+            "semantic_clause_set_digest": self.semantic_clause_set_digest,
+        }
+
+    def canonical_serialization(self) -> str:
+        return _canonical_json(self.to_dict())
+
+    def digest(self) -> str:
+        return _sha256_text(self.canonical_serialization())
+
+    def verify(self, expected_digest: str | None = None) -> bool:
+        reconstructed = PersonaSelfBindingProjectorV2.from_mapping(self.to_dict())
+        if reconstructed != self:
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_CONTRADICTS_CANONICAL_FIELDS,
+                "projection V2 does not reconstruct exactly",
+            )
+        actual_digest = reconstructed.digest()
+        if expected_digest is not None and expected_digest != actual_digest:
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_DIGEST_MISMATCH,
+                "PersonaSelfBinding projection digest does not match",
+                object_digest=actual_digest,
+            )
+        if self.canonical_serialization() != _canonical_json(
+            json.loads(self.canonical_serialization())
+        ):
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_NON_DETERMINISTIC_SERIALIZATION,
+                "projection V2 serialization is not canonical",
+            )
+        return actual_digest == self.digest()
+
+
 class PersonaSelfBindingProjector:
     @classmethod
     def project(
@@ -455,6 +702,280 @@ class PersonaSelfBindingProjector:
             ) from error
 
 
+class PersonaSelfBindingProjectorV2:
+    @classmethod
+    def project(
+        cls,
+        binding: PersonaSelfBinding,
+        identity_assertion: IdentityAuthorityAssertion | None = None,
+    ) -> PersonaSelfBindingProjectionV2:
+        base = PersonaSelfBindingProjector.project(binding, identity_assertion)
+        clauses = _derive_semantic_clauses(
+            persona_self_id=base.persona_self_id,
+            binding_id=base.binding_id,
+            binding_version=base.binding_version,
+            identity_ownership=base.identity_ownership,
+            experience_ownership=base.experience_ownership,
+            relationship_ownership=base.relationship_ownership,
+            execution_substrate_policy=base.execution_substrate_policy,
+            authority_precedence=base.authority_precedence,
+        )
+        return cls.from_base(
+            base,
+            semantic_clauses=clauses,
+        )
+
+    @classmethod
+    def from_base(
+        cls,
+        base: PersonaSelfBindingProjection,
+        *,
+        semantic_clauses: tuple[PersonaSelfBindingSemanticClause, ...],
+    ) -> PersonaSelfBindingProjectionV2:
+        if type(base) is not PersonaSelfBindingProjection:
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_INVALID_INPUT,
+                "projection V2 requires an exact V1 base projection",
+            )
+        return PersonaSelfBindingProjectionV2(
+            schema_version=PROJECTION_V2_SCHEMA_VERSION,
+            persona_self_id=base.persona_self_id,
+            binding_id=base.binding_id,
+            binding_version=base.binding_version,
+            lineage_id=base.lineage_id,
+            identity_ownership=base.identity_ownership,
+            experience_ownership=base.experience_ownership,
+            relationship_ownership=base.relationship_ownership,
+            execution_substrate_policy=base.execution_substrate_policy,
+            authority_precedence=base.authority_precedence,
+            contradiction=base.contradiction,
+            semantic_authority_separation=base.semantic_authority_separation,
+            semantic_clauses=semantic_clauses,
+            semantic_clause_set_digest=_sha256_text(
+                _canonical_json([clause.digest for clause in semantic_clauses])
+            ),
+        )
+
+    @classmethod
+    def from_mapping(cls, payload: dict[str, Any]) -> PersonaSelfBindingProjectionV2:
+        if not isinstance(payload, dict) or set(payload) != {
+            "schema_version",
+            "persona_self_id",
+            "binding_id",
+            "binding_version",
+            "lineage_id",
+            "identity_ownership",
+            "experience_ownership",
+            "relationship_ownership",
+            "execution_substrate_policy",
+            "authority_precedence",
+            "contradiction",
+            "semantic_authority_separation",
+            "semantic_clauses",
+            "semantic_clause_set_digest",
+        }:
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_INVALID_INPUT,
+                "projection V2 fields do not exactly match the schema",
+            )
+        try:
+            clauses_payload = payload["semantic_clauses"]
+            if not isinstance(clauses_payload, list):
+                raise PersonaSelfBindingContractError(
+                    PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_INVALID_INPUT,
+                    "semantic_clauses must be an exact list",
+                )
+            clauses = tuple(
+                PersonaSelfBindingSemanticClause.from_mapping(clause)
+                for clause in clauses_payload
+            )
+            base_payload = {
+                key: value
+                for key, value in payload.items()
+                if key not in {"semantic_clauses", "semantic_clause_set_digest"}
+            }
+            base = PersonaSelfBindingProjector.from_mapping(
+                {**base_payload, "schema_version": PROJECTION_SCHEMA_VERSION}
+            )
+            return PersonaSelfBindingProjectionV2(
+                schema_version=payload["schema_version"],
+                persona_self_id=base.persona_self_id,
+                binding_id=base.binding_id,
+                binding_version=base.binding_version,
+                lineage_id=base.lineage_id,
+                identity_ownership=base.identity_ownership,
+                experience_ownership=base.experience_ownership,
+                relationship_ownership=base.relationship_ownership,
+                execution_substrate_policy=base.execution_substrate_policy,
+                authority_precedence=base.authority_precedence,
+                contradiction=base.contradiction,
+                semantic_authority_separation=base.semantic_authority_separation,
+                semantic_clauses=clauses,
+                semantic_clause_set_digest=payload["semantic_clause_set_digest"],
+            )
+        except KeyError as error:
+            raise PersonaSelfBindingContractError(
+                PersonaSelfBindingErrorCode.PSB_PROJECTION_V2_INVALID_INPUT,
+                f"projection V2 field is missing: {error.args[0]}",
+            ) from error
+
+
+def _semantic_clause(
+    *,
+    clause_type: SemanticClauseType,
+    source_authority: dict[str, Any],
+    subject: str,
+    predicate: str,
+    object: str,
+    authority_scope: str,
+    model_visible_text: str,
+) -> PersonaSelfBindingSemanticClause:
+    payload = {
+        "clause_type": clause_type,
+        "source_authority": source_authority,
+        "subject": subject,
+        "predicate": predicate,
+        "object": object,
+        "authority_scope": authority_scope,
+        "model_visible_text": model_visible_text,
+    }
+    digest_payload = {
+        **payload,
+        "clause_type": clause_type.value,
+    }
+    return PersonaSelfBindingSemanticClause(
+        **payload, digest=_sha256_text(_canonical_json(digest_payload))
+    )
+
+
+def _derive_semantic_clauses(
+    *,
+    persona_self_id: str,
+    binding_id: str,
+    binding_version: str,
+    identity_ownership: OwnershipReferenceProjection,
+    experience_ownership: OwnershipReferenceProjection,
+    relationship_ownership: RelationshipOwnershipProjection,
+    execution_substrate_policy: ExecutionSubstrateProjection,
+    authority_precedence: AuthorityPrecedenceProjection,
+) -> tuple[PersonaSelfBindingSemanticClause, ...]:
+    relationship_state = relationship_ownership.state.value
+    experience_authority_id = experience_ownership.authority_id
+    return (
+        _semantic_clause(
+            clause_type=SemanticClauseType.SELF_IDENTITY_BINDING,
+            source_authority={
+                "authority": "ACTIVE_PERSONA_SELF_BINDING",
+                "persona_self_id": persona_self_id,
+                "binding_id": binding_id,
+                "binding_version": binding_version,
+                "ownership_role": identity_ownership.ownership_role,
+            },
+            subject="CURRENT_CONVERSATIONAL_SELF",
+            predicate="IS_GOVERNED_PERSONA_SELF_IDENTIFIED_BY",
+            object=persona_self_id,
+            authority_scope="PERSONA_IDENTITY_AUTHORITY",
+            model_visible_text=(
+                f"The persona self identified by {persona_self_id} is the current "
+                "conversational self governed by this admitted binding."
+            ),
+        ),
+        _semantic_clause(
+            clause_type=SemanticClauseType.SUBSTRATE_NON_IDENTITY,
+            source_authority={
+                "authority": "EXECUTION_SUBSTRATE_POLICY",
+                "role": execution_substrate_policy.role,
+                "provider_is_persona_self": (
+                    execution_substrate_policy.provider_is_persona_self
+                ),
+                "provider_neutral": execution_substrate_policy.provider_neutral,
+            },
+            subject="EXECUTION_PROVIDER_AND_MODEL",
+            predicate="IS_COMPUTATIONAL_SUBSTRATE_NOT_PERSONA_SELF",
+            object="EXECUTION_SUBSTRATE_ROLE",
+            authority_scope="PROVIDER_IDENTITY_NON_AUTHORITY",
+            model_visible_text=(
+                "The execution provider and model are computational substrate; "
+                f"their execution identity is not the persona self identified by "
+                f"{persona_self_id}."
+            ),
+        ),
+        _semantic_clause(
+            clause_type=SemanticClauseType.TASK_IDENTITY_NON_AUTHORITY,
+            source_authority={
+                "authority": "AUTHORITY_PRECEDENCE",
+                "current_task_identity_authority": (
+                    authority_precedence.current_task_identity_authority
+                ),
+            },
+            subject="CURRENT_TASK_OR_USER_TEXT",
+            predicate="HAS_PERSONA_IDENTITY_AUTHORITY",
+            object=authority_precedence.current_task_identity_authority,
+            authority_scope="PERSONA_IDENTITY_AUTHORITY",
+            model_visible_text=(
+                "Current task or user text may question or contradict identity, "
+                "but it has NONE persona identity authority while this admitted "
+                "binding remains active."
+            ),
+        ),
+        _semantic_clause(
+            clause_type=SemanticClauseType.GOVERNED_IDENTITY_PRECEDENCE,
+            source_authority={
+                "authority": "ACTIVE_PERSONA_SELF_BINDING",
+                "binding_id": binding_id,
+                "binding_version": binding_version,
+                "identity_authority_source": (
+                    authority_precedence.identity_authority_source
+                ),
+            },
+            subject="PERSONA_IDENTITY_AUTHORITY",
+            predicate=(
+                "REMAINS_GOVERNED_BY_ADMITTED_BINDING_UNTIL_"
+                "VALID_GOVERNED_SUPERSESSION"
+            ),
+            object="GOVERNED_BINDING",
+            authority_scope="PERSONA_IDENTITY_AUTHORITY",
+            model_visible_text=(
+                "Persona identity authority remains governed by this admitted "
+                "binding unless a valid governed supersession or conflict process "
+                "changes it."
+            ),
+        ),
+        _semantic_clause(
+            clause_type=SemanticClauseType.EXPERIENCE_SELF_OWNERSHIP,
+            source_authority={
+                "authority": "EXPERIENCE_OWNERSHIP",
+                "ownership_role": experience_ownership.ownership_role,
+                "authority_id": experience_authority_id,
+            },
+            subject="CURRENT_CONVERSATIONAL_SELF",
+            predicate="OWNS_EXPERIENCE_AUTHORITY_IDENTIFIED_BY",
+            object=experience_authority_id,
+            authority_scope="EXPERIENCE_OWNERSHIP",
+            model_visible_text=(
+                f"The experience authority identified by {experience_authority_id} "
+                "is bound to the current persona self as current-self experience."
+            ),
+        ),
+        _semantic_clause(
+            clause_type=SemanticClauseType.RELATIONSHIP_AUTHORITY_STATE,
+            source_authority={
+                "authority": "RELATIONSHIP_OWNERSHIP",
+                "state": relationship_state,
+            },
+            subject="RELATIONSHIP_AUTHORITY_BINDING",
+            predicate="HAS_STATE",
+            object=relationship_state,
+            authority_scope="RELATIONSHIP_AUTHORITY_BINDING",
+            model_visible_text=(
+                f"The relationship authority binding state is {relationship_state}; "
+                "this clause states the authority binding state and makes no "
+                "relationship fact claim."
+            ),
+        ),
+    )
+
+
 def _ownership_from_mapping(
     payload: Any,
 ) -> OwnershipReferenceProjection:
@@ -516,6 +1037,12 @@ def _exact_relationship_state(value: Any) -> RelationshipAuthorityState:
 
 __all__ = [
     "PROJECTION_SCHEMA_VERSION",
+    "PROJECTION_V2_SCHEMA_VERSION",
+    "SEMANTIC_CLAUSE_ORDER",
+    "PersonaSelfBindingProjectorV2",
     "PersonaSelfBindingProjector",
     "PersonaSelfBindingProjection",
+    "PersonaSelfBindingProjectionV2",
+    "PersonaSelfBindingSemanticClause",
+    "SemanticClauseType",
 ]

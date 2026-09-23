@@ -109,7 +109,7 @@ def test_composition_evidence_is_exact_golden_mira(
         "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad"
     )
     assert evidence.active_persona_self_binding_projected_digest == (
-        "40909d4076d81853de2f727f5e6d3e4eff61e94f9ed7ff13efbe86a994862a3b"
+        "efd3acc001f01b1c8a4c71dea49aa36792e771df6180c244ff650f58680fe714"
     )
     assert evidence.sha_pins_matched is True
     assert evidence.provider_transport_called is False

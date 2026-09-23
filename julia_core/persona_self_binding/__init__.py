@@ -28,6 +28,10 @@ from julia_core.persona_self_binding.durable import (
 from julia_core.persona_self_binding.projection import (
     PersonaSelfBindingProjector,
     PersonaSelfBindingProjection,
+    PersonaSelfBindingProjectorV2,
+    PersonaSelfBindingProjectionV2,
+    PersonaSelfBindingSemanticClause,
+    SemanticClauseType,
 )
 
 __all__ = [
@@ -47,6 +51,10 @@ __all__ = [
     "PersonaSelfBindingStore",
     "PersonaSelfBindingProjector",
     "PersonaSelfBindingProjection",
+    "PersonaSelfBindingProjectorV2",
+    "PersonaSelfBindingProjectionV2",
+    "PersonaSelfBindingSemanticClause",
+    "SemanticClauseType",
     "RelationshipAuthority",
     "RelationshipAuthorityState",
     "SupersessionContract",

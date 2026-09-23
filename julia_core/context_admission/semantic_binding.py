@@ -13,7 +13,9 @@ from julia_core.persona_self_binding import (
     PersonaSelfBinding,
     PersonaSelfBindingLifecycle,
     PersonaSelfBindingProjector,
+    PersonaSelfBindingProjectorV2,
     PersonaSelfBindingProjection,
+    PersonaSelfBindingProjectionV2,
     RelationshipAuthorityState,
 )
 
@@ -378,7 +380,9 @@ class PersonaSelfBindingSemanticBindingRequest:
 
     package: SealedCognitiveContextPackage
     persona_self_binding: PersonaSelfBinding
-    persona_self_binding_projection: PersonaSelfBindingProjection
+    persona_self_binding_projection: (
+        PersonaSelfBindingProjection | PersonaSelfBindingProjectionV2
+    )
     identity_frames: IdentityFrameSet
     experience_frames: ExperienceFrameSet
     current_task_context: CurrentConversationalTaskContext
@@ -393,7 +397,12 @@ class PersonaSelfBindingSemanticBindingRequest:
             ),
             (
                 self.persona_self_binding_projection,
-                PersonaSelfBindingProjection,
+                (
+                    PersonaSelfBindingProjection
+                    if type(self.persona_self_binding_projection)
+                    is PersonaSelfBindingProjection
+                    else PersonaSelfBindingProjectionV2
+                ),
                 "PSB_C03_BINDING_MISSING",
             ),
             (self.identity_frames, IdentityFrameSet, "inexact_identity_frames"),
@@ -692,7 +701,10 @@ class ExactPersonaSelfBoundSemanticBinder:
                 "PSB_C03_PROJECTION_DIGEST_MISMATCH",
                 "PSB projection verification failed before C03 admission",
             ) from error
-        expected_projection = PersonaSelfBindingProjector.project(binding)
+        if type(projection) is PersonaSelfBindingProjectionV2:
+            expected_projection = PersonaSelfBindingProjectorV2.project(binding)
+        else:
+            expected_projection = PersonaSelfBindingProjector.project(binding)
         if projection != expected_projection or projection.digest() != (
             expected_projection.digest()
         ):
