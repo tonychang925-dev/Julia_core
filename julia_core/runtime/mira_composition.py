@@ -579,8 +579,9 @@ def _project_recent_conversation(
     projected_messages = []
     for message in selected:
         content = message.get("content")
-        if type(content) is not str:
+        if not isinstance(content, str):
             raise MiraCompositionError("canonical conversation content is inexact")
+        content = str(content)
         content_bytes = content.encode("utf-8")
         if len(content_bytes) <= _RECENT_CONVERSATION_CONTENT_BYTE_LIMIT:
             projected_content = content
