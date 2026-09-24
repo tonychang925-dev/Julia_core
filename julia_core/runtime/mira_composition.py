@@ -5,9 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 from julia_core.alignment_os import ProviderExecutionEnvelope
 from julia_core.canonical_authority_source import CanonicalSemanticAuthoritySource
@@ -73,6 +75,9 @@ _PSB_OBJECT_DIGEST = "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60b
 _PSB_PROJECTED_DIGEST = (
     "efd3acc001f01b1c8a4c71dea49aa36792e771df6180c244ff650f58680fe714"
 )
+_RECENT_CONVERSATION_MESSAGE_LIMIT = 6
+_RECENT_CONVERSATION_CONTENT_BYTE_LIMIT = 80
+_RECENT_CONVERSATION_ENCODED_BYTE_LIMIT = 1408
 
 
 class MiraCompositionError(RuntimeError):
@@ -365,14 +370,23 @@ class GoldenMiraRuntimeComposition:
         history = self._conversation_runtime.get_canonical_history(
             request.conversation_id
         )
+        recent_conversation = _project_recent_conversation(
+            history,
+            conversation_id=request.conversation_id,
+        )
+        history_digest = _sha256_text(_canonical_json(history))
         ingress = {
             "conversation_id": request.conversation_id,
             "turn_id": request.turn_id,
             "input_mode": request.input_mode,
             "input_sha256": _sha256_text(request.input_text),
-            "history_sha256": _sha256_text(_canonical_json(history)),
+            "history_sha256": history_digest,
+            "recent_conversation": recent_conversation,
+            "recent_conversation_sha256": _semantic_projection_digest(
+                recent_conversation
+            ),
         }
-        return CurrentConversationalTaskContext(
+        current_task = CurrentConversationalTaskContext(
             schema_version="1.0.0",
             conversation_id=request.conversation_id,
             turn_id=request.turn_id,
@@ -387,6 +401,20 @@ class GoldenMiraRuntimeComposition:
                 observed_at=request.observed_at,
             ),
         )
+        verified_history = self._conversation_runtime.get_canonical_history(
+            request.conversation_id
+        )
+        verified_history_digest = _sha256_text(_canonical_json(verified_history))
+        _verify_recent_conversation_projection(
+            current_task,
+            conversation_id=request.conversation_id,
+            history_digest=verified_history_digest,
+            expected_projection=_project_recent_conversation(
+                verified_history,
+                conversation_id=request.conversation_id,
+            ),
+        )
+        return current_task
 
     def __setattr__(self, name: str, value: object) -> None:
         raise TypeError("Golden Mira runtime compositions are immutable")
@@ -527,6 +555,114 @@ def _memory_ref(canonical_ref: str, version: str) -> MemoryExperienceRef:
     return MemoryExperienceRef(experience_id=canonical_ref, version_id=version)
 
 
+def _project_recent_conversation(
+    history: list[dict[str, Any]],
+    *,
+    conversation_id: str,
+) -> dict[str, Any]:
+    if type(history) is not list:
+        raise MiraCompositionError("canonical conversation history is inexact")
+    for message in history:
+        if type(message) is not dict:
+            raise MiraCompositionError("canonical conversation message is inexact")
+        message_conversation_id = message.get("conversation_id")
+        if message_conversation_id != conversation_id:
+            raise MiraCompositionError(
+                "canonical conversation history scope is inexact"
+            )
+        if message.get("role") not in ("user", "assistant"):
+            raise MiraCompositionError("canonical conversation role is inexact")
+
+    history_digest = _sha256_text(_canonical_json(history))
+    selected = history[-_RECENT_CONVERSATION_MESSAGE_LIMIT:]
+    omitted_history_message_count = len(history) - len(selected)
+    projected_messages = []
+    for message in selected:
+        content = message.get("content")
+        if type(content) is not str:
+            raise MiraCompositionError("canonical conversation content is inexact")
+        content_bytes = content.encode("utf-8")
+        if len(content_bytes) <= _RECENT_CONVERSATION_CONTENT_BYTE_LIMIT:
+            projected_content = content
+            omitted_content_bytes = 0
+            content_truncated = False
+        else:
+            prefix_length = _RECENT_CONVERSATION_CONTENT_BYTE_LIMIT
+            while prefix_length > 0 and not _is_utf8_prefix(
+                content_bytes, prefix_length
+            ):
+                prefix_length -= 1
+            projected_content = content_bytes[:prefix_length].decode("utf-8")
+            omitted_content_bytes = len(content_bytes) - prefix_length
+            content_truncated = True
+        projected_messages.append(
+            _canonical_json(
+                {
+                    "role": message.get("role"),
+                    "content": projected_content,
+                    "turn_id": message.get("turn_id", ""),
+                    "content_truncated": content_truncated,
+                    "omitted_content_bytes": omitted_content_bytes,
+                }
+            )
+        )
+
+    projection = {
+        "source": "ConversationRuntime",
+        "conversation_id": conversation_id,
+        "canonical_history_sha256": history_digest,
+        "canonical_message_count": len(history),
+        "omitted_history_message_count": omitted_history_message_count,
+        "bounding": {
+            "selection": "last_completed_messages",
+            "ordering": "canonical_ascending",
+            "max_messages": _RECENT_CONVERSATION_MESSAGE_LIMIT,
+            "max_content_bytes": _RECENT_CONVERSATION_CONTENT_BYTE_LIMIT,
+        },
+        "messages": projected_messages,
+    }
+    while (
+        len(_canonical_json(projection).encode("utf-8"))
+        > _RECENT_CONVERSATION_ENCODED_BYTE_LIMIT
+        and projection["messages"]
+    ):
+        projection["messages"] = projection["messages"][1:]
+        projection["omitted_history_message_count"] += 1
+    if len(_canonical_json(projection).encode("utf-8")) > (
+        _RECENT_CONVERSATION_ENCODED_BYTE_LIMIT
+    ):
+        raise MiraCompositionError("recent conversation projection exceeds budget")
+    return projection
+
+
+def _is_utf8_prefix(value: bytes, length: int) -> bool:
+    try:
+        value[:length].decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    return True
+
+
+def _verify_recent_conversation_projection(
+    current_task: CurrentConversationalTaskContext,
+    *,
+    conversation_id: str,
+    history_digest: str,
+    expected_projection: dict[str, Any],
+) -> None:
+    history = current_task.bounded_state.get("recent_conversation")
+    if _canonical_json(dict(history)) != _canonical_json(expected_projection):
+        raise MiraCompositionError("recent conversation projection is inexact")
+    if history.get("conversation_id") != conversation_id:
+        raise MiraCompositionError("recent conversation identity is inexact")
+    if history.get("canonical_history_sha256") != history_digest:
+        raise MiraCompositionError("recent conversation history digest is inexact")
+    if current_task.bounded_state.get("recent_conversation_sha256") != (
+        _semantic_projection_digest(history)
+    ):
+        raise MiraCompositionError("recent conversation projection digest is inexact")
+
+
 def _with_canonical_binding(frame):
     binding = {
         "source_ref": frame.source_ref.uri,
@@ -542,7 +678,20 @@ def _sha256_text(value: str) -> str:
 
 
 def _canonical_json(value: object) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return json.dumps(
+        _plain_json_tree(value),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def _plain_json_tree(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {key: _plain_json_tree(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_plain_json_tree(item) for item in value]
+    return value
 
 
 def _semantic_projection_digest(value: object) -> str:
