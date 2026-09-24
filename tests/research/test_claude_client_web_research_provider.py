@@ -390,6 +390,37 @@ async def test_invalid_query_fails_closed_before_public_process_launch(
     assert process.writes == []
 
 
+def test_provider_declares_research_runtime_budget_with_lifecycle_grace(tmp_path):
+    provider = ClaudeClientWebResearchProvider(
+        make_config(tmp_path, timeout_seconds=150.0)
+    )
+
+    assert provider.capability_runtime_timeout_seconds == 155.0
+
+
+@pytest.mark.asyncio
+async def test_caller_timeout_argument_has_no_execution_authority(
+    tmp_path, monkeypatch
+):
+    process = install_process(monkeypatch, execution_responses([]))
+    provider = ClaudeClientWebResearchProvider(
+        make_config(tmp_path, timeout_seconds=150.0)
+    )
+
+    outcome = await provider.execute(
+        CapabilityRequest(
+            "research.web.query",
+            {"query": QUERY, "timeout": 999999},
+            capability_request_id="req",
+        )
+    )
+
+    assert outcome.status is ToolResultStatus.ERROR
+    assert outcome.error["code"] == "invalid_request"
+    assert process.writes == []
+    assert provider.capability_runtime_timeout_seconds == 155.0
+
+
 @pytest.mark.asyncio
 async def test_timeout_is_typed_and_terminates_boundary(tmp_path, monkeypatch):
     process = install_process(monkeypatch, execution_responses([]), hang=True)

@@ -794,7 +794,17 @@ class RuntimeCapabilityBridge:
             reason=f"LLM tool call: {name}",
         )
 
-        return self.async_runtime.run(lambda: self.manager.execute_typed(request))
+        provider = self._providers.get(definition.provider)
+        timeout_seconds = getattr(provider, "capability_runtime_timeout_seconds", None)
+        if timeout_seconds is None:
+            return self.async_runtime.run(
+                lambda: self.manager.execute_typed(request)
+            )
+
+        return self.async_runtime.run(
+            lambda: self.manager.execute_typed(request),
+            timeout_seconds=timeout_seconds,
+        )
 
     def close(self) -> None:
         """Close async providers and terminate the generic capability loop."""

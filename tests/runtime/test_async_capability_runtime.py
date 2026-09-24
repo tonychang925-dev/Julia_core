@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
+import math
 from pathlib import Path
 import threading
 
@@ -10,6 +12,14 @@ from julia_core.capability.models import (
     ToolResultStatus,
 )
 from julia_core.capability.providers.market_public import MarketPublicProviderAdapter
+from julia_core.research import (
+    ClaudeClientExecutionConfig,
+    ClaudeClientWebResearchProvider,
+)
+from julia_core.runtime.async_capability_runtime import (
+    AsyncCapabilityRuntime,
+    DEFAULT_CAPABILITY_EXECUTION_TIMEOUT_SECONDS,
+)
 from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
 
 
@@ -280,3 +290,159 @@ def test_canonical_sync_delivery_has_no_per_call_loop_or_executor():
 
     assert "asyncio.run(" not in delivery_source
     assert "ThreadPoolExecutor" not in delivery_source
+
+
+def test_default_execution_timeout_is_thirty_seconds():
+    signature = inspect.signature(AsyncCapabilityRuntime.run)
+
+    assert DEFAULT_CAPABILITY_EXECUTION_TIMEOUT_SECONDS == 30.0
+    assert signature.parameters["timeout_seconds"].default is (
+        DEFAULT_CAPABILITY_EXECUTION_TIMEOUT_SECONDS
+    )
+
+
+def test_explicit_trusted_timeout_completes_deterministic_work():
+    runtime = AsyncCapabilityRuntime()
+
+    async def operation() -> str:
+        return "completed"
+
+    try:
+        assert runtime.run(operation, timeout_seconds=0.25) == "completed"
+    finally:
+        runtime.close({})
+
+
+def test_timeout_cancellation_remains_fail_closed():
+    runtime = AsyncCapabilityRuntime()
+    completed = threading.Event()
+
+    async def operation() -> str:
+        await asyncio.sleep(1)
+        completed.set()
+
+    try:
+        runtime.run(operation, timeout_seconds=0.01)
+    except TimeoutError as exc:
+        assert str(exc) == "capability execution exceeded 0.01 seconds"
+    else:
+        raise AssertionError("timed-out capability produced synthetic success")
+    finally:
+        runtime.close({})
+
+    assert not completed.wait(timeout=0)
+
+
+def test_invalid_timeout_is_rejected_before_provider_work_is_scheduled():
+    runtime = AsyncCapabilityRuntime()
+    provider_work_started = threading.Event()
+
+    async def operation() -> None:
+        provider_work_started.set()
+
+    for timeout_seconds in (0, -0.1, math.nan, math.inf):
+        try:
+            runtime.run(operation, timeout_seconds=timeout_seconds)
+        except ValueError as exc:
+            assert str(exc) == "capability execution timeout must be finite and positive"
+        else:
+            raise AssertionError("invalid timeout was accepted")
+
+    runtime.close({})
+    assert not provider_work_started.is_set()
+
+
+def test_bridge_selects_registered_research_provider_trusted_budget(tmp_path):
+    repository = tmp_path / "Claude_client"
+    authority_root = tmp_path / "authority"
+    repository.mkdir()
+    authority_root.mkdir()
+    (repository / "execution_boundary.ts").write_text("")
+    source = authority_root / "source.txt"
+    source.write_text("trusted authority source")
+    config = ClaudeClientExecutionConfig(
+        repository_root=repository,
+        launch_secret="launch-secret-0123456789",
+        source_path=source,
+        max_root=authority_root,
+        worker_id="worker-test",
+        policy_digest="b" * 64,
+        provider_authority_json="{}",
+        timeout_seconds=150.0,
+    )
+    provider = ClaudeClientWebResearchProvider(config)
+    provider_requests = []
+
+    async def execute(request):
+        provider_requests.append(request)
+        return ProviderExecutionOutcome(
+            status=ToolResultStatus.SUCCESS,
+            structured_output={
+                "query": "robotics catalysts",
+                "findings": [
+                    {
+                        "statement": "Robotics adoption is accelerating.",
+                        "source_ref": "source:robotics-catalysts",
+                    }
+                ],
+                "sources": [
+                    {
+                        "ref": "source:robotics-catalysts",
+                        "title": "Robotics Catalyst Source",
+                        "url": "https://example.com/robotics-catalysts",
+                    }
+                ],
+                "limitations": [],
+                "provider": "budget-test-provider",
+                "produced_at": "2026-09-24T00:00:00Z",
+            },
+            side_effect_state=SideEffectState.NONE,
+        )
+
+    provider.execute = execute
+    bridge = RuntimeCapabilityBridge()
+    bridge.register_provider("research", provider)
+    bridge.initialize()
+    original_run = bridge.async_runtime.run
+    captured_timeout = None
+
+    def capture_run(
+        operation,
+        *,
+        timeout_seconds=DEFAULT_CAPABILITY_EXECUTION_TIMEOUT_SECONDS,
+    ):
+        nonlocal captured_timeout
+        captured_timeout = timeout_seconds
+        return original_run(operation, timeout_seconds=timeout_seconds)
+
+    bridge.async_runtime.run = capture_run
+    execution = bridge.execute_tool_typed(
+        '{"name":"research.web.query","arguments":{"query":"robotics catalysts"}}'
+    )
+    bridge.close()
+
+    assert execution.tool_result.status.value == "success"
+    assert provider_requests[0].arguments == {"query": "robotics catalysts"}
+    assert captured_timeout == 155.0
+
+
+def test_unrelated_provider_keeps_default_execution_budget(monkeypatch):
+    provider = LoopAffineProvider()
+    bridge = _bridge(provider)
+    captured_timeout = object()
+    original_run = bridge.async_runtime.run
+
+    def capture_run(
+        operation,
+        *,
+        timeout_seconds=DEFAULT_CAPABILITY_EXECUTION_TIMEOUT_SECONDS,
+    ):
+        nonlocal captured_timeout
+        captured_timeout = timeout_seconds
+        return original_run(operation, timeout_seconds=timeout_seconds)
+
+    monkeypatch.setattr(bridge.async_runtime, "run", capture_run)
+    bridge.execute_tool_typed(_tool_json(1))
+    bridge.close()
+
+    assert captured_timeout == DEFAULT_CAPABILITY_EXECUTION_TIMEOUT_SECONDS

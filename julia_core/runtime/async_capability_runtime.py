@@ -7,11 +7,14 @@ from collections.abc import Awaitable, Callable
 import concurrent.futures
 from enum import Enum
 import inspect
+import math
 import threading
 from typing import TypeVar
 
 
 T = TypeVar("T")
+
+DEFAULT_CAPABILITY_EXECUTION_TIMEOUT_SECONDS = 30.0
 
 
 class AsyncCapabilityRuntimeState(Enum):
@@ -52,8 +55,21 @@ class AsyncCapabilityRuntime:
         with self._lifecycle_lock:
             return self._state.value
 
-    def run(self, operation: Callable[[], Awaitable[T]]) -> T:
+    def run(
+        self,
+        operation: Callable[[], Awaitable[T]],
+        *,
+        timeout_seconds: float = DEFAULT_CAPABILITY_EXECUTION_TIMEOUT_SECONDS,
+    ) -> T:
         """Block the synchronous caller until the persistent loop finishes work."""
+        if (
+            isinstance(timeout_seconds, bool)
+            or not isinstance(timeout_seconds, (int, float))
+            or not math.isfinite(timeout_seconds)
+            or timeout_seconds <= 0
+        ):
+            raise ValueError("capability execution timeout must be finite and positive")
+
         with self._lifecycle_lock:
             if self._state is not AsyncCapabilityRuntimeState.OPEN:
                 raise RuntimeError(f"async capability runtime is {self._state.value}")
@@ -66,14 +82,16 @@ class AsyncCapabilityRuntime:
             future.add_done_callback(self._finish_execution)
 
         try:
-            return future.result(timeout=30)
+            return future.result(timeout=timeout_seconds)
         except concurrent.futures.TimeoutError as exc:
             future.cancel()
             try:
                 future.result(timeout=5)
             except BaseException:
                 pass
-            raise TimeoutError("capability execution exceeded 30 seconds") from exc
+            raise TimeoutError(
+                f"capability execution exceeded {timeout_seconds} seconds"
+            ) from exc
 
     def close(self, providers: object) -> None:
         """Drain executions, close providers, then stop the persistent loop."""

@@ -156,6 +156,10 @@ class ClaudeClientWebResearchProvider:
         self.retry_count = 0
         self.fallback_count = 0
 
+    @property
+    def capability_runtime_timeout_seconds(self) -> float:
+        return self.config.timeout_seconds + 5.0
+
     async def health(self) -> tuple[bool, str]:
         error = self.config.configuration_error()
         if error is not None:
