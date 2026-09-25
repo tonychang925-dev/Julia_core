@@ -856,6 +856,13 @@ class ContextExecutionRuntime:
             kind="duplicate_capability_call_rejected",
             capability_id=capability_id,
             arguments=copy.deepcopy(arguments),
+            continuation_instruction=(
+                "This exact capability call has already been executed in this turn. "
+                "Do not repeat the same capability+arguments. Inspect the existing "
+                "evidence first. If more evidence is still needed, choose a different "
+                "available capability that addresses the remaining evidence need; "
+                "otherwise produce Julia's final judgment."
+            ),
             generation_id=generation_id,
             mode="duplicate_capability_call_rejected",
             provenance_source="capability:duplicate_call_rejected",

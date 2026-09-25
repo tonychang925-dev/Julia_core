@@ -426,9 +426,26 @@ def test_duplicate_call_is_control_not_second_execution():
         tool_response("market.event.read", {"id": "same"}),
         "final",
     ])
-    result = run_loop(session)
+    state: dict[str, object] = {}
+    result = run_loop(session, state=state)
+
     assert result.capability_execution_count == 1
     assert len(session.requests) == 1
+
+    control = state["loop"].parent_package.control_frame
+    assert control["kind"] == "duplicate_capability_call_rejected"
+    assert control["capability_id"] == "market.event.read"
+    assert control["arguments"] == {"id": "same"}
+    instruction = control["continuation_instruction"]
+    assert "already been executed" in instruction
+    assert "Do not repeat the same capability+arguments" in instruction
+    assert "Inspect the existing evidence" in instruction
+    assert "choose a different available capability" in instruction
+    assert "otherwise produce Julia's final judgment" in instruction
+
+    rendered_retry = str(session.model_inputs[-1])
+    assert "duplicate_capability_call_rejected" in rendered_retry
+    assert "continuation_instruction" in rendered_retry
 
 
 def test_smaller_budget_permits_exactly_one_limitation_pass():

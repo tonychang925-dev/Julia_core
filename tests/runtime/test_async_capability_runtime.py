@@ -4,12 +4,15 @@ import asyncio
 from pathlib import Path
 import threading
 
+import pytest
+
 from julia_core.capability.models import (
     ProviderExecutionOutcome,
     SideEffectState,
     ToolResultStatus,
 )
 from julia_core.capability.providers.market_public import MarketPublicProviderAdapter
+from julia_core.runtime.async_capability_runtime import AsyncCapabilityRuntime
 from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge
 
 
@@ -280,3 +283,30 @@ def test_canonical_sync_delivery_has_no_per_call_loop_or_executor():
 
     assert "asyncio.run(" not in delivery_source
     assert "ThreadPoolExecutor" not in delivery_source
+
+
+def test_async_capability_runtime_default_execution_timeout_is_30_seconds(monkeypatch):
+    monkeypatch.delenv("JULIA_CAPABILITY_EXECUTION_TIMEOUT_SECONDS", raising=False)
+
+    runtime = AsyncCapabilityRuntime()
+
+    assert runtime.execution_timeout_seconds == 30
+
+
+def test_async_capability_runtime_honors_deployment_execution_timeout(monkeypatch):
+    monkeypatch.setenv("JULIA_CAPABILITY_EXECUTION_TIMEOUT_SECONDS", "90")
+
+    runtime = AsyncCapabilityRuntime()
+
+    assert runtime.execution_timeout_seconds == 90
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "nan", "inf", "not-a-number"])
+def test_async_capability_runtime_rejects_invalid_execution_timeout(monkeypatch, value):
+    monkeypatch.setenv("JULIA_CAPABILITY_EXECUTION_TIMEOUT_SECONDS", value)
+
+    with pytest.raises(
+        ValueError,
+        match="JULIA_CAPABILITY_EXECUTION_TIMEOUT_SECONDS must be a positive finite number",
+    ):
+        AsyncCapabilityRuntime()
