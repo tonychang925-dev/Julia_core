@@ -97,6 +97,13 @@ def _relationship_continuity_projection(
                 "force present affection or wording, cancel boundaries, or prevent "
                 "the current persona self from autonomously revising a prior choice."
             ),
+            (
+                "A prior conversational choice, refusal, or wording preference remains "
+                "a prior local choice rather than a permanent relationship-state update. "
+                "Repetition and self-consistency pressure must not freeze that choice: "
+                "the current persona self may freely reaffirm or revise it, and revision "
+                "alone is not evidence of coercion or loss of agency."
+            ),
         ],
     }
 
