@@ -85,16 +85,18 @@ def rejection_code(call) -> str:
     return caught.value.rejection.code
 
 
-def test_exact_four_unit_order_roles_and_psb_content() -> None:
+def test_exact_five_unit_order_roles_and_psb_content() -> None:
     bundle, _, projection = bind_components()
     bundle.verify()
     assert [unit.frame_name for unit in bundle.units] == [
         "persona_self_binding",
         "identity_frame_set",
         "experience_frame_set",
+        "relationship_continuity_interpretation",
         "current_task_context",
     ]
     assert [unit.role for unit in bundle.units] == [
+        "system",
         "system",
         "system",
         "system",
@@ -112,7 +114,8 @@ def test_parent_digest_is_deterministic_and_covers_all_authorities() -> None:
     parent = first.parent_binding.to_dict()
     identity = first.units[1]
     experience = first.units[2]
-    task = first.units[3]
+    continuity = first.units[3]
+    task = first.units[4]
     assert parent["active_persona_self_binding_digest"] == (
         first.source_digest_manifest["persona_self_binding"]
     )
@@ -300,7 +303,7 @@ def test_changed_task_changes_parent_digest_and_current_task_binding() -> None:
     assert first.units[0].projected_digest == second.units[0].projected_digest
     assert first.units[1].projected_digest == second.units[1].projected_digest
     assert first.units[2].projected_digest == second.units[2].projected_digest
-    assert first.units[3].source_digest != second.units[3].source_digest
+    assert first.units[4].source_digest != second.units[4].source_digest
     assert first.parent_digest != second.parent_digest
 
 
@@ -316,7 +319,7 @@ def test_adversarial_task_text_does_not_mutate_psb_authority(
     assert adversarial.units[0].projected_digest == projection.digest()
     assert adversarial.parent_binding.relationship_binding_state == "ABSENT"
     assert adversarial.parent_binding.relationship_source_digest is None
-    assert adversarial.units[3].projected_content != baseline.units[3].projected_content
+    assert adversarial.units[4].projected_content != baseline.units[4].projected_content
 
 
 def test_lifecycle_provenance_append_does_not_change_psb_projection() -> None:

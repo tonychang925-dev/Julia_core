@@ -14,8 +14,13 @@ from julia_core.context_admission.contracts import canonical_json
 
 
 _LEGACY_MESSAGE_ROLES = ("system", "system", "user")
-_PSB_MESSAGE_ROLES = ("system", "system", "system", "user")
-_SUPPORTED_MESSAGE_ROLES = (_LEGACY_MESSAGE_ROLES, _PSB_MESSAGE_ROLES)
+_PSB_MESSAGE_ROLES_V1 = ("system", "system", "system", "user")
+_PSB_MESSAGE_ROLES_V2 = ("system", "system", "system", "system", "user")
+_SUPPORTED_MESSAGE_ROLES = (
+    _LEGACY_MESSAGE_ROLES,
+    _PSB_MESSAGE_ROLES_V1,
+    _PSB_MESSAGE_ROLES_V2,
+)
 
 
 @dataclass(frozen=True, slots=True)

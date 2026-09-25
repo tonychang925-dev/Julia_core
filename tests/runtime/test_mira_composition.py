@@ -165,10 +165,11 @@ def test_prepare_reaches_production_envelope_without_transport(
         "system",
         "system",
         "system",
+        "system",
         "user",
     ]
     psb_projection = json.loads(envelope.messages[0]["content"])
-    current_task = json.loads(envelope.messages[3]["content"])
+    current_task = json.loads(envelope.messages[4]["content"])
     assert psb_projection["identity_ownership"]["ownership_role"] == (
         "CURRENT_SELF_IDENTITY"
     )
@@ -225,13 +226,14 @@ def test_input_text_change_changes_c03_and_final_semantics(
     first = envelope_for("first exact user input")
     second = envelope_for("second exact user input")
     assert first.messages[0]["content"] == second.messages[0]["content"]
-    assert first.messages[3]["content"] != second.messages[3]["content"]
-    first_task_digest = _current_task_digest(first.messages[3]["content"])
-    second_task_digest = _current_task_digest(second.messages[3]["content"])
+    assert first.messages[4]["content"] != second.messages[4]["content"]
+    first_task_digest = _current_task_digest(first.messages[4]["content"])
+    second_task_digest = _current_task_digest(second.messages[4]["content"])
     assert first_task_digest != second_task_digest
     assert first.gate_receipt != second.gate_receipt
     assert first.semantic_fingerprint != second.semantic_fingerprint
     assert [message["role"] for message in second.messages] == [
+        "system",
         "system",
         "system",
         "system",

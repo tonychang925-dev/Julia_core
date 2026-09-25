@@ -12,7 +12,7 @@ from tests.context_admission.production_fixtures import (
 )
 
 
-def test_dual_digest_projection_is_independent_and_four_messages():
+def test_dual_digest_projection_is_independent_and_five_messages():
     request = canonical_request()
     package = ExclusiveAdmissionGate().seal(request)
     persona_binding, projection = canonical_persona_self_binding(
@@ -38,9 +38,11 @@ def test_dual_digest_projection_is_independent_and_four_messages():
         "persona_self_binding",
         "identity_frame_set",
         "experience_frame_set",
+        "relationship_continuity_interpretation",
         "current_task_context",
     ]
     assert [unit.role for unit in binding.units] == [
+        "system",
         "system",
         "system",
         "system",
@@ -52,7 +54,7 @@ def test_dual_digest_projection_is_independent_and_four_messages():
     assert "model_visibility" not in binding.units[1].projected_content
     assert "standing_authorization" not in binding.units[2].projected_content
     assert binding.units[0].projected_content == projection.canonical_serialization()
-    assert binding.units[3].projected_content == canonical_json(
+    assert binding.units[4].projected_content == canonical_json(
         request.current_task_context.to_dict()
     )
     assert (

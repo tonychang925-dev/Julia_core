@@ -73,7 +73,7 @@ def test_disc_ctx_01_recent_conversation_is_exact_bounded_and_model_visible(
     )
 
     envelope = prepare(composition, conversation_id, "我的判断 我们有前面的对照测试")
-    current_task = json.loads(envelope.messages[3]["content"])
+    current_task = json.loads(envelope.messages[4]["content"])
     recent = current_task["bounded_state"]["recent_conversation"]
 
     assert recent["source"] == "ConversationRuntime"
@@ -168,7 +168,7 @@ def test_disc_ctx_06_and_07_preparation_preserves_identity_memory_relationship_a
         composition, conversation_id, "她也认可，我的判断我们有前面的对照测试"
     )
     psb_projection = json.loads(envelope.messages[0]["content"])
-    current_task = json.loads(envelope.messages[3]["content"])
+    current_task = json.loads(envelope.messages[4]["content"])
     recent = current_task["bounded_state"]["recent_conversation"]
 
     assert runtime.get_canonical_history(conversation_id) == history_before
@@ -211,7 +211,7 @@ def test_disc_ctx_02_and_03_language_and_reference_context_stay_model_visible(
     )
 
     envelope = prepare(composition, conversation_id, "我的判断 我们有前面的对照测试")
-    recent = json.loads(envelope.messages[3]["content"])["bounded_state"][
+    recent = json.loads(envelope.messages[4]["content"])["bounded_state"][
         "recent_conversation"
     ]
     visible = _canonical_text(recent)

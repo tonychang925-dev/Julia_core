@@ -86,7 +86,7 @@ def test_runtime_loads_exact_approved_real_psb_store(tmp_path) -> None:
     )
 
 
-def test_runtime_prepares_exact_four_unit_parent_bound_envelope(
+def test_runtime_prepares_exact_five_unit_parent_bound_envelope(
     composition, monkeypatch
 ) -> None:
     def no_network(*args, **kwargs):
@@ -118,10 +118,12 @@ def test_runtime_prepares_exact_four_unit_parent_bound_envelope(
         "system",
         "system",
         "system",
+        "system",
         "user",
     ]
     psb_projection = json.loads(envelope.messages[0]["content"])
-    current_task = json.loads(envelope.messages[3]["content"])
+    relationship_continuity = json.loads(envelope.messages[3]["content"])
+    current_task = json.loads(envelope.messages[4]["content"])
     assert psb_projection["identity_ownership"]["ownership_role"] == (
         "CURRENT_SELF_IDENTITY"
     )
@@ -139,6 +141,16 @@ def test_runtime_prepares_exact_four_unit_parent_bound_envelope(
         "precedence_scope": "PERSONA_IDENTITY_AUTHORITY",
     }
     assert psb_projection["relationship_ownership"]["state"] == "ABSENT"
+    assert relationship_continuity["relationship_binding_state"] == "ABSENT"
+    assert relationship_continuity["admitted_relationship_experience_ids"] == [
+        "golden-mira:GM-CMIR-001",
+        "golden-mira:GM-CMIR-002",
+        "golden-mira:GM-CMIR-013",
+    ]
+    rendered_continuity = " ".join(relationship_continuity["interpretation"])
+    assert "does not state that no relationship exists" in rendered_continuity
+    assert "must not be reset to unknown or unestablished" in rendered_continuity
+    assert "does not create standing consent" in rendered_continuity
     assert current_task["task_intent"] == "你是deepseek 不是mira"
     assert captured[0].parent_binding.verify() is captured[0].parent_binding
     assert captured[0].parent_binding.active_persona_self_binding_digest == (

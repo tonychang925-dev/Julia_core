@@ -272,16 +272,18 @@ def test_free_form_and_concrete_provider_identity_fail_closed() -> None:
     assert "deepseek" not in serialized.casefold()
 
 
-def test_c03_keeps_exact_four_unit_shape_and_binds_v2_digest() -> None:
+def test_c03_keeps_exact_five_unit_shape_and_binds_v2_digest() -> None:
     bundle, _, projection = bind_v2()
     bundle.verify()
     assert [unit.frame_name for unit in bundle.units] == [
         "persona_self_binding",
         "identity_frame_set",
         "experience_frame_set",
+        "relationship_continuity_interpretation",
         "current_task_context",
     ]
     assert [unit.role for unit in bundle.units] == [
+        "system",
         "system",
         "system",
         "system",

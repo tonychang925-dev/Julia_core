@@ -38,6 +38,7 @@ ADMITTED_FRAME_ROLES = MappingProxyType(
         "persona_self_binding": "system",
         "identity_frame_set": "system",
         "experience_frame_set": "system",
+        "relationship_continuity_interpretation": "system",
         "current_task_context": "user",
     }
 )
@@ -45,10 +46,11 @@ PSB_ADMITTED_FRAME_ORDER = (
     "persona_self_binding",
     "identity_frame_set",
     "experience_frame_set",
+    "relationship_continuity_interpretation",
     "current_task_context",
 )
 C03_PARENT_BINDING_SCHEMA_VERSION = (
-    "julia_core.context_admission.psb_c03_parent_binding.v1"
+    "julia_core.context_admission.psb_c03_parent_binding.v2"
 )
 _BINDER_ISSUER = object()
 _PARENT_BINDER_ISSUER = object()
@@ -60,6 +62,43 @@ def _rejection(code: str, message: str) -> C03AdmissionRejected:
 
 def _semantic_digest(payload: dict[str, Any]) -> str:
     return sha256(canonical_json(payload).encode("utf-8")).hexdigest()
+
+
+def _relationship_continuity_projection(
+    *,
+    experience_payload: dict[str, Any],
+    relationship_binding_state: str,
+) -> dict[str, Any]:
+    relationship_experience_ids = [
+        item["experience_id"]
+        for item in experience_payload.get("experiences", [])
+        if item.get("experience_type") == "RelationshipExperience"
+    ]
+    return {
+        "schema": (
+            "julia_core.context_admission.relationship_continuity_interpretation.v1"
+        ),
+        "relationship_binding_state": relationship_binding_state,
+        "admitted_relationship_experience_ids": relationship_experience_ids,
+        "interpretation": [
+            (
+                "An ABSENT relationship authority binding state states only that no "
+                "separate relationship-authority object is bound; it does not state "
+                "that no relationship exists or that admitted relationship history is empty."
+            ),
+            (
+                "Admitted RelationshipExperience records remain part of the current "
+                "persona self's bound experience history and must not be reset to "
+                "unknown or unestablished merely because recall is incomplete or "
+                "relationship authority is ABSENT."
+            ),
+            (
+                "Relationship-history continuity does not create standing consent, "
+                "force present affection or wording, cancel boundaries, or prevent "
+                "the current persona self from autonomously revising a prior choice."
+            ),
+        ],
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -437,6 +476,8 @@ class C03ParentBinding:
     identity_projected_digest: str
     experience_source_digest: str
     experience_projected_digest: str
+    relationship_continuity_source_digest: str
+    relationship_continuity_projected_digest: str
     relationship_binding_state: str
     relationship_source_digest: str | None
     relationship_projected_digest: str | None
@@ -474,6 +515,8 @@ class C03ParentBinding:
             self.identity_projected_digest,
             self.experience_source_digest,
             self.experience_projected_digest,
+            self.relationship_continuity_source_digest,
+            self.relationship_continuity_projected_digest,
             self.current_task_context_digest,
         ):
             if type(digest) is not str or len(digest) != 64:
@@ -495,6 +538,12 @@ class C03ParentBinding:
             "identity_projected_digest": self.identity_projected_digest,
             "experience_source_digest": self.experience_source_digest,
             "experience_projected_digest": self.experience_projected_digest,
+            "relationship_continuity_source_digest": (
+                self.relationship_continuity_source_digest
+            ),
+            "relationship_continuity_projected_digest": (
+                self.relationship_continuity_projected_digest
+            ),
             "relationship_binding_state": self.relationship_binding_state,
             "relationship_source_digest": self.relationship_source_digest,
             "relationship_projected_digest": self.relationship_projected_digest,
@@ -517,7 +566,7 @@ class C03ParentBinding:
 
 @dataclass(frozen=True, slots=True)
 class PersonaSelfBoundSemanticBundle:
-    """Exact four-unit sealed C03 semantic view with parent binding."""
+    """Exact five-unit sealed C03 semantic view with parent binding."""
 
     contract_version: str
     conversation_id: str
@@ -604,6 +653,14 @@ class PersonaSelfBoundSemanticBundle:
             "experience_projected_digest": self.projection_digest_manifest[
                 "experience_frame_set"
             ],
+            "relationship_continuity_source_digest": self.source_digest_manifest[
+                "relationship_continuity_interpretation"
+            ],
+            "relationship_continuity_projected_digest": (
+                self.projection_digest_manifest[
+                    "relationship_continuity_interpretation"
+                ]
+            ),
             "current_task_context_digest": self.source_digest_manifest[
                 "current_task_context"
             ],
@@ -793,6 +850,27 @@ class ExactPersonaSelfBoundSemanticBinder:
                 "PSB_C03_EXPERIENCE_AUTHORITY_MISMATCH",
                 "experience source digest does not match the sealed C03 package",
             )
+        relationship_continuity_payload = _relationship_continuity_projection(
+            experience_payload=experience_payload,
+            relationship_binding_state=relationship.state.value,
+        )
+        relationship_continuity_content = canonical_json(
+            relationship_continuity_payload
+        )
+        relationship_continuity_source_digest = _semantic_digest(
+            {
+                "experience_source_digest": experience_source_digest,
+                "relationship_binding_state": relationship.state.value,
+                "admitted_relationship_experience_ids": (
+                    relationship_continuity_payload[
+                        "admitted_relationship_experience_ids"
+                    ]
+                ),
+            }
+        )
+        relationship_continuity_projected_digest = sha256(
+            relationship_continuity_content.encode("utf-8")
+        ).hexdigest()
         current_task_digest = request.current_task_context.digest()
         if current_task_digest != package.admitted_frames["current_task_context"]:
             raise _rejection(
@@ -803,24 +881,28 @@ class ExactPersonaSelfBoundSemanticBinder:
             projection.canonical_serialization(),
             canonical_json(identity_payload),
             canonical_json(experience_payload),
+            relationship_continuity_content,
             canonical_json(request.current_task_context.to_dict()),
         )
         source_digests = (
             binding.digest(),
             identity_source_digest,
             experience_source_digest,
+            relationship_continuity_source_digest,
             current_task_digest,
         )
         projected_digests = (
             projection.digest(),
             identity_projected_digest,
             experience_projected_digest,
+            relationship_continuity_projected_digest,
             current_task_digest,
         )
         schemas = (
             projection_payload["schema_version"],
             identity_payload["schema"],
             experience_payload["schema"],
+            relationship_continuity_payload["schema"],
             request.current_task_context.to_dict()["schema"],
         )
         units = tuple(
@@ -850,6 +932,12 @@ class ExactPersonaSelfBoundSemanticBinder:
             identity_projected_digest=identity_projected_digest,
             experience_source_digest=experience_source_digest,
             experience_projected_digest=experience_projected_digest,
+            relationship_continuity_source_digest=(
+                relationship_continuity_source_digest
+            ),
+            relationship_continuity_projected_digest=(
+                relationship_continuity_projected_digest
+            ),
             relationship_binding_state=relationship.state.value,
             relationship_source_digest=(
                 None
