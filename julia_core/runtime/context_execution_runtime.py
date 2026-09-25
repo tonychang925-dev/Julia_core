@@ -102,6 +102,15 @@ class CognitiveContextPackage:
             if self.projection_metadata.get("conversation_history_scoped")
             else (history or [])
         )
+        if self.turn_id:
+            admitted_history = [
+                message
+                for message in admitted_history
+                if not (
+                    message.get("role") == "user"
+                    and message.get("turn_id") == self.turn_id
+                )
+            ]
         messages.extend(admitted_history)
         messages.append({"role": "user", "content": user_text})
         return messages

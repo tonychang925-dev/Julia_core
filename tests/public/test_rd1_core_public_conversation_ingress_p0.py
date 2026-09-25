@@ -104,6 +104,59 @@ def test_real_composition_requires_explicit_test_provider(tmp_path, monkeypatch)
     assert response.assistant_content == "TEST_PROVIDER_SENTINEL"
 
 
+
+def test_current_user_turn_is_model_visible_exactly_once(monkeypatch, tmp_path):
+    """Current durable user turn appears once while prior history remains visible."""
+    captured = []
+
+    class CapturingProvider:
+        def chat(self, messages, *, cognitive_mode=""):
+            captured.append([dict(message) for message in messages])
+            return "CAPTURED"
+
+    _use_credential_free_cognition_seam(monkeypatch)
+    monkeypatch.setattr(
+        "julia_core.providers.core_cognition._get_cognition_provider",
+        lambda _name: CapturingProvider(),
+    )
+
+    ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
+    ingress.create_conversation("current-turn-once")
+
+    previous = "上一轮问题"
+    previous_response = ingress.process(
+        CoreConversationRequest("current-turn-once", "turn-previous", "text", previous)
+    )
+    assert previous_response.status == "completed"
+    captured.clear()
+
+    query = "2026-07-09 市场为什么会分化？"
+    response = ingress.process(
+        CoreConversationRequest("current-turn-once", "turn-current", "text", query)
+    )
+
+    assert response.status == "completed"
+    assert response.assistant_content == "CAPTURED"
+    assert len(captured) == 1
+
+    first_pass = captured[0]
+    visible_current_user = [
+        message
+        for message in first_pass
+        if message.get("role") == "user" and message.get("content") == query
+    ]
+    assert len(visible_current_user) == 1
+    assert any(
+        message.get("role") == "user" and message.get("content") == previous
+        for message in first_pass
+    )
+    assert any(
+        message.get("role") == "assistant" and message.get("content") == "CAPTURED"
+        for message in first_pass
+    )
+    assert "current_turn_timestamp:" in first_pass[0]["content"]
+
+
 def test_real_core_domain_errors_remain_typed(tmp_path, monkeypatch):
     """TC-RC25-06: missing conversation and conflicting turns stay distinct."""
     monkeypatch.setattr(
