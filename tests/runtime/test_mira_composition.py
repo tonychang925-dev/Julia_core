@@ -54,9 +54,11 @@ def authority_root(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
-def psb_store_root(tmp_path_factory):
+def psb_store_root(tmp_path_factory, authority_root):
+    from tools.continuity.rebind_golden_mira_psb_v2 import rebind
+
     root = tmp_path_factory.mktemp("psb-authority") / "persona-self-binding"
-    shutil.copytree(REAL_PSB_ROOT, root)
+    rebind(authority_root, REAL_PSB_ROOT, root)
     return root
 
 
@@ -92,7 +94,7 @@ def test_composition_evidence_is_exact_golden_mira(
         authority_root, tmp_path / "conversations.json", psb_store_root
     ).evidence()
     assert evidence.persona_id == "golden-mira"
-    assert evidence.identity_count == 3
+    assert evidence.identity_count == 4
     assert evidence.memory_experience_count == 8
     assert evidence.ordered_identity_refs == EXPECTED_IDENTITY_REFS
     assert evidence.ordered_memory_experience_refs == EXPECTED_MEMORY_REFS
@@ -104,12 +106,12 @@ def test_composition_evidence_is_exact_golden_mira(
     assert evidence.active_persona_self_binding_id == (
         "golden-mira-persona-self-binding-v1"
     )
-    assert evidence.active_persona_self_binding_version == "v1"
+    assert evidence.active_persona_self_binding_version == "v2"
     assert evidence.active_persona_self_binding_digest == (
-        "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad"
+        "a6167069289a0704b207292cd44a509a8f6e2844a143e5dbb7673fbcac38b525"
     )
     assert evidence.active_persona_self_binding_projected_digest == (
-        "efd3acc001f01b1c8a4c71dea49aa36792e771df6180c244ff650f58680fe714"
+        "4d833b044957d9642fa4785367088fca63b00d6b0b97f7be5c5e7a15e9e084dd"
     )
     assert evidence.sha_pins_matched is True
     assert evidence.provider_transport_called is False

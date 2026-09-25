@@ -69,11 +69,11 @@ from julia_core.runtime.provider_persona_separation import (
 _SHA_PATTERN = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 _PERSONA_ID = "golden-mira"
 _PSB_BINDING_ID = "golden-mira-persona-self-binding-v1"
-_PSB_BINDING_VERSION = "v1"
+_PSB_BINDING_VERSION = "v2"
 _PSB_LINEAGE_ID = "golden-mira-persona-self-binding"
-_PSB_OBJECT_DIGEST = "6f221843961e32e8ffad1af709f54fce1123007eaf11aa440682d1b60bd6aaad"
+_PSB_OBJECT_DIGEST = "a6167069289a0704b207292cd44a509a8f6e2844a143e5dbb7673fbcac38b525"
 _PSB_PROJECTED_DIGEST = (
-    "efd3acc001f01b1c8a4c71dea49aa36792e771df6180c244ff650f58680fe714"
+    "4d833b044957d9642fa4785367088fca63b00d6b0b97f7be5c5e7a15e9e084dd"
 )
 _RECENT_CONVERSATION_MESSAGE_LIMIT = 6
 _RECENT_CONVERSATION_CONTENT_BYTE_LIMIT = 80

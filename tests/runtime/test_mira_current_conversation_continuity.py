@@ -39,9 +39,11 @@ def authority_root(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
-def psb_store_root(tmp_path_factory):
+def psb_store_root(tmp_path_factory, authority_root):
+    from tools.continuity.rebind_golden_mira_psb_v2 import rebind
+
     root = tmp_path_factory.mktemp("psb-authority") / "persona-self-binding"
-    shutil.copytree(REAL_PSB_ROOT, root)
+    rebind(authority_root, REAL_PSB_ROOT, root)
     return root
 
 

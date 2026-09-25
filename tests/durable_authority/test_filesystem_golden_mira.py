@@ -34,6 +34,7 @@ EXPECTED_IDENTITY_DIGESTS = (
     "7580e0a930dc7f3d5446da2cdd8d1c23cf251e12929fb2f3baa056bd9739dd44",
     "adaa2508c4e475a700c394eb205e278d515dfe014ccdaa4bab3c3e7b7dcd5f3a",
     "0008a5e157347ae9b0dd8600d661ec4a0e3fbd1858673cd04dc7c7b812a96c29",
+    "7d36b07aae5dae907646f611717d27b007ca834bdb7cb83aacf7a0f783fd1f5c",
 )
 EXPECTED_MEMORY_DIGESTS = (
     "4e29eb74de7f29bbf8d69485a7c18b5dceb06486d7e1d986d668a30c85fb7228",
@@ -100,7 +101,7 @@ def test_t1_exact_export_read_and_reconstruction_roundtrip(exported_package) -> 
         )
         assert governed.status.value == "ADMITTED"
         assert governed.record.digest() == digest
-    assert receipt["IDENTITY_COUNT"] == 3
+    assert receipt["IDENTITY_COUNT"] == 4
     assert receipt["MEMORY_EXPERIENCE_COUNT"] == 8
     assert receipt["CANONICAL_WRITES"] == 0
     assert receipt["NEW_ADMISSIONS"] == 0

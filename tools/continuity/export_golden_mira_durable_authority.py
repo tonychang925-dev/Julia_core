@@ -25,6 +25,11 @@ from julia_core.durable_authority.filesystem_adapter import (
     PERSONA_ID,
     RECORD_SCHEMA_VERSION,
     SOURCE_P5_ADMISSION_ARTIFACT,
+    SOURCE_P4_ADMISSION_ARTIFACT,
+    SOURCE_P4_SHA,
+    P4_TASK_ID,
+    P4_AUTHORITY_REASON,
+    P4_AUTHORIZATION_TIME,
     SOURCE_REPO,
     SOURCE_SHA,
     FilesystemDurableAuthorityReader,
@@ -37,11 +42,15 @@ from julia_core.durable_authority.serialization import (
     build_memory_experience_envelope,
 )
 from tools.continuity.p5_a1_admission import admit_golden_mira
+from tools.continuity.p4_relationship_role_admission import admit_relationship_role
 
 
 RECEIPT_NAME = "GOLDEN_MIRA_DURABLE_AUTHORITY_EXPORT_V1.json"
 P5_ARTIFACT_SHA256 = (
     "f10a6d8daa6ed1604c2002254d26016efe31afca2e4dc18c4e1b094a48672110"
+)
+P4_ARTIFACT_SHA256 = (
+    "6949dc22007378e6ad66fa9fff584e297f01a19571822bfe958d68dcb9dc5d61"
 )
 
 
@@ -96,6 +105,16 @@ def _verify_source_authority(repository: Path) -> None:
         and evidence["write_summary"]["memory_experience_records"] == 8,
         "P5 authority exact counts",
     )
+    p4_historical = subprocess.run(
+        ["git", "show", f"{SOURCE_P4_SHA}:{SOURCE_P4_ADMISSION_ARTIFACT}"],
+        cwd=repository, check=True, capture_output=True,
+    ).stdout
+    p4_current = (repository / SOURCE_P4_ADMISSION_ARTIFACT).read_bytes()
+    _require(p4_historical == p4_current, "P4 authority artifact byte identity")
+    _require(_sha256_bytes(p4_current) == P4_ARTIFACT_SHA256, "P4 authority artifact digest")
+    p4_evidence = json.loads(p4_current)
+    _require(p4_evidence["task_id"] == P4_TASK_ID, "P4 authority task")
+    _require(p4_evidence["owner_authorization"]["status"] == "GRANTED", "P4 owner authorization")
 
 
 def _identity_admission_event(envelope) -> dict[str, Any]:
@@ -115,6 +134,10 @@ def _record(
     version: str,
     order_index: int,
     admission_event: dict[str, Any],
+    task_id: str = "P5-A1",
+    source_artifact_key: str = "source_p5_artifact",
+    source_artifact: str = SOURCE_P5_ADMISSION_ARTIFACT,
+    source_sha: str = SOURCE_SHA,
 ) -> dict[str, Any]:
     return {
         "schema_version": schema_version,
@@ -127,9 +150,9 @@ def _record(
         "lifecycle_status": envelope.lifecycle_status,
         "source_provenance": list(envelope.provenance),
         "admission_provenance": {
-            "task_id": "P5-A1",
-            "source_p5_artifact": SOURCE_P5_ADMISSION_ARTIFACT,
-            "source_sha": SOURCE_SHA,
+            "task_id": task_id,
+            source_artifact_key: source_artifact,
+            "source_sha": source_sha,
             "event": admission_event,
         },
         "order_index": order_index,
@@ -153,6 +176,7 @@ def _package(
     _require(authority_root.is_absolute(), "authority root must be absolute")
     _require(not authority_root.exists(), "authority root must not already exist")
     transaction = admit_golden_mira(repository)
+    admit_relationship_role(transaction, repository)
     identity_envelopes = [
         build_identity_envelope(
             transaction.identity_repository.resolve(
@@ -171,20 +195,30 @@ def _package(
         )
         for canonical_ref, version in zip(EXPECTED_MEMORY_REFS, EXPECTED_MEMORY_VERSIONS)
     ]
-    identity_records = [
-        _record(
-            schema_version=RECORD_SCHEMA_VERSION,
-            envelope=envelope,
-            record_type="IDENTITY",
-            canonical_ref=canonical_ref,
-            version=version,
-            order_index=index,
-            admission_event=_identity_admission_event(envelope),
+    identity_records = []
+    for index, (envelope, canonical_ref, version) in enumerate(
+        zip(identity_envelopes, EXPECTED_IDENTITY_REFS, EXPECTED_IDENTITY_VERSIONS)
+    ):
+        kwargs = {}
+        if canonical_ref == EXPECTED_IDENTITY_REFS[-1]:
+            kwargs = {
+                "task_id": P4_TASK_ID,
+                "source_artifact_key": "source_p4_artifact",
+                "source_artifact": SOURCE_P4_ADMISSION_ARTIFACT,
+                "source_sha": SOURCE_P4_SHA,
+            }
+        identity_records.append(
+            _record(
+                schema_version=RECORD_SCHEMA_VERSION,
+                envelope=envelope,
+                record_type="IDENTITY",
+                canonical_ref=canonical_ref,
+                version=version,
+                order_index=index,
+                admission_event=_identity_admission_event(envelope),
+                **kwargs,
+            )
         )
-        for index, (envelope, canonical_ref, version) in enumerate(
-            zip(identity_envelopes, EXPECTED_IDENTITY_REFS, EXPECTED_IDENTITY_VERSIONS)
-        )
-    ]
     memory_records = [
         _record(
             schema_version=RECORD_SCHEMA_VERSION,
@@ -207,10 +241,14 @@ def _package(
         "owner_actor": OWNER_ACTOR,
         "authority_reason": AUTHORITY_REASON,
         "authorization_time": AUTHORIZATION_TIME,
-        "records_admitted": 11,
+        "records_admitted": 12,
         "identity_lifecycle": "ADMITTED",
         "memory_experience_lifecycle": "ADMITTED",
         "source_p5_artifact": SOURCE_P5_ADMISSION_ARTIFACT,
+        "source_p4_artifact": SOURCE_P4_ADMISSION_ARTIFACT,
+        "p4_source_sha": SOURCE_P4_SHA,
+        "p4_authority_reason": P4_AUTHORITY_REASON,
+        "p4_authorization_time": P4_AUTHORIZATION_TIME,
     }
     record_digests = {}
     for directory, records in (
@@ -228,7 +266,7 @@ def _package(
     package_files = {
         path: _sha256_file(staging / path)
         for path in (
-            *(f"identity/{index:08d}.json" for index in range(3)),
+            *(f"identity/{index:08d}.json" for index in range(4)),
             *(f"memory_experience/{index:08d}.json" for index in range(8)),
             "governance/state.json",
         )
@@ -241,7 +279,7 @@ def _package(
         "source_repo": SOURCE_REPO,
         "source_sha": SOURCE_SHA,
         "export_tool_version": EXPORT_TOOL_VERSION,
-        "identity_count": 3,
+        "identity_count": 4,
         "memory_experience_count": 8,
         "ordered_identity_refs": list(EXPECTED_IDENTITY_REFS),
         "ordered_memory_experience_refs": list(EXPECTED_MEMORY_REFS),
@@ -250,7 +288,7 @@ def _package(
             "owner_actor": OWNER_ACTOR,
             "reason": AUTHORITY_REASON,
             "authorization_time": AUTHORIZATION_TIME,
-            "records_admitted": 11,
+            "records_admitted": 12,
         },
         "lineage": {
             "identity": [record["lineage_metadata"] for record in identity_records],
@@ -287,7 +325,7 @@ def _package(
         "TASK_ID": "MIRA-E2E-P1-A",
         "SOURCE_SHA": SOURCE_SHA,
         "SOURCE_P5_ADMISSION_ARTIFACT": SOURCE_P5_ADMISSION_ARTIFACT,
-        "IDENTITY_COUNT": 3,
+        "IDENTITY_COUNT": 4,
         "MEMORY_EXPERIENCE_COUNT": 8,
         "IDENTITY_REFS": [
             f"{ref}/{version}"
@@ -300,7 +338,7 @@ def _package(
             for ref, version in zip(EXPECTED_MEMORY_REFS, EXPECTED_MEMORY_VERSIONS)
         ],
         "MANIFEST_SHA256": _sha256_file(authority_root / "manifest.json"),
-        "PACKAGE_FILE_COUNT": 13,
+        "PACKAGE_FILE_COUNT": 14,
         "PACKAGE_ROOT_DIGEST": _package_root_digest(authority_root),
         "CANONICAL_WRITES": 0,
         "NEW_ADMISSIONS": 0,

@@ -26,7 +26,7 @@ from .serialization import envelope_from_dict, validate_envelope_semantics
 
 MANIFEST_SCHEMA_VERSION = "julia_core.durable_authority.manifest.v1"
 RECORD_SCHEMA_VERSION = "julia_core.durable_authority.record.v1"
-GOVERNANCE_SCHEMA_VERSION = "julia_core.durable_authority.governance.v1"
+GOVERNANCE_SCHEMA_VERSION = "julia_core.durable_authority.governance.v2"
 PERSONA_ID = "golden-mira"
 SOURCE_REPO = "https://github.com/tonychang925-dev/Julia_core.git"
 SOURCE_SHA = "038e5219495fd765bfbcfdbb0a52afb48a730f90"
@@ -34,20 +34,32 @@ SOURCE_P5_ADMISSION_ARTIFACT = (
     "artifacts/continuity/"
     "P5_A1_OWNER_AUTHORIZED_GOLDEN_MIRA_CANONICAL_ADMISSION_V1.json"
 )
-EXPORT_TOOL_VERSION = "1"
+SOURCE_P4_ADMISSION_ARTIFACT = (
+    "artifacts/continuity/"
+    "MIRA_RELATIONSHIP_ROLE_C04_ADMISSION_SOURCE_P4_V1.json"
+)
+SOURCE_P4_SHA = "9431c0b663fa93931466c9c207b0406ab509179b"
+EXPORT_TOOL_VERSION = "2"
 OWNER_ACTOR = "owner:tony"
 AUTHORITY_REASON = "P5-A1 owner-authorized Golden Mira canonical admission"
 AUTHORIZATION_TIME = "owner-authorization:2026-09-13"
+P4_TASK_ID = "MIRA-P4-C04-RELATIONSHIP-ROLE-ADMISSION-P0"
+P4_AUTHORITY_REASON = (
+    "P4 owner-authorized Golden Mira relationship-role continuity admission"
+)
+P4_AUTHORIZATION_TIME = "owner-authorization:2026-09-25"
 
 EXPECTED_IDENTITY_REFS = (
     "mira-golden:mira-id-cand-001",
     "mira-golden:mira-id-cand-002",
     "mira-golden:mira-id-cand-003",
+    "mira-golden:mira-id-cand-004",
 )
 EXPECTED_IDENTITY_VERSIONS = (
     "mira-id-cand-001-v0.1-preview",
     "mira-id-cand-002-v0.1-preview",
     "mira-id-cand-003-v0.1-preview",
+    "mira-id-cand-004-v0.1",
 )
 EXPECTED_MEMORY_REFS = (
     "golden-mira:GM-CMIR-001",
@@ -122,6 +134,10 @@ _GOVERNANCE_FIELDS = frozenset(
         "identity_lifecycle",
         "memory_experience_lifecycle",
         "source_p5_artifact",
+        "source_p4_artifact",
+        "p4_source_sha",
+        "p4_authority_reason",
+        "p4_authorization_time",
     }
 )
 
@@ -190,7 +206,7 @@ def _validate_manifest(manifest: dict[str, Any]) -> None:
         "source_repo": SOURCE_REPO,
         "source_sha": SOURCE_SHA,
         "export_tool_version": EXPORT_TOOL_VERSION,
-        "identity_count": 3,
+        "identity_count": 4,
         "memory_experience_count": 8,
     }
     if any(manifest[key] != value for key, value in expected.items()):
@@ -213,10 +229,14 @@ def _validate_governance(governance: dict[str, Any]) -> None:
         "owner_actor": OWNER_ACTOR,
         "authority_reason": AUTHORITY_REASON,
         "authorization_time": AUTHORIZATION_TIME,
-        "records_admitted": 11,
+        "records_admitted": 12,
         "identity_lifecycle": "ADMITTED",
         "memory_experience_lifecycle": "ADMITTED",
         "source_p5_artifact": SOURCE_P5_ADMISSION_ARTIFACT,
+        "source_p4_artifact": SOURCE_P4_ADMISSION_ARTIFACT,
+        "p4_source_sha": SOURCE_P4_SHA,
+        "p4_authority_reason": P4_AUTHORITY_REASON,
+        "p4_authorization_time": P4_AUTHORIZATION_TIME,
     }
     if frozenset(governance) != _GOVERNANCE_FIELDS or any(
         governance[key] != value for key, value in expected.items()
@@ -325,13 +345,25 @@ def _validate_record_semantics(record: dict[str, Any], envelope: DurableAuthorit
         raise _error(DurableAuthorityErrorCode.PROVENANCE_MISSING, "source provenance does not match payload")
     admission = record["admission_provenance"]
     event = admission.get("event")
-    if (
-        admission.get("task_id") != "P5-A1"
-        or admission.get("source_p5_artifact") != SOURCE_P5_ADMISSION_ARTIFACT
-        or admission.get("source_sha") != SOURCE_SHA
-        or not _is_final_admission_event(event, envelope)
-    ):
-        raise _error(DurableAuthorityErrorCode.PROVENANCE_MISSING, "admission provenance mismatch")
+    if record["canonical_ref"] == EXPECTED_IDENTITY_REFS[-1]:
+        valid = (
+            admission.get("task_id") == P4_TASK_ID
+            and admission.get("source_p4_artifact") == SOURCE_P4_ADMISSION_ARTIFACT
+            and admission.get("source_sha") == SOURCE_P4_SHA
+            and _is_final_admission_event(event, envelope)
+        )
+    else:
+        valid = (
+            admission.get("task_id") == "P5-A1"
+            and admission.get("source_p5_artifact") == SOURCE_P5_ADMISSION_ARTIFACT
+            and admission.get("source_sha") == SOURCE_SHA
+            and _is_final_admission_event(event, envelope)
+        )
+    if not valid:
+        raise _error(
+            DurableAuthorityErrorCode.PROVENANCE_MISSING,
+            "admission provenance mismatch",
+        )
 
 
 def _is_final_admission_event(event: object, envelope: DurableAuthorityEnvelope) -> bool:
@@ -368,8 +400,8 @@ def _record_envelope(record: dict[str, Any]) -> DurableAuthorityEnvelope:
 
 def _ordered_record_keys():
     return (
-        *(_record_key("identity", index) for index in range(3)),
-        *(_record_key("memory_experience", index) for index in range(8)),
+        *(_record_key("identity", index) for index in range(len(EXPECTED_IDENTITY_REFS))),
+        *(_record_key("memory_experience", index) for index in range(len(EXPECTED_MEMORY_REFS))),
     )
 
 
