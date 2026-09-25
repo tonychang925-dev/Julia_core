@@ -715,13 +715,28 @@ class RuntimeCapabilityBridge:
                     "capability_prefixes": ["market.*", "research.*"],
                     "read_only": True,
                     "julia_may_request_when_evidence_missing": True,
-                    "rule": "market.* / research.* 是READ_ONLY证据能力；当回答当前问题缺少外部证据时，Julia可以主动发起结构化调用。",
+                    "unsatisfied_evidence_dependency_blocks_final_judgment": True,
+                    "typed_failure_or_unavailability_allows_limited_final_judgment": True,
+                    "rule": (
+                        "market.* / research.* 是READ_ONLY证据能力。"
+                        "当Julia判断当前回答仍存在未满足的证据依赖时，不得输出最终判断，"
+                        "也不得把“准备去查”“稍后去查”或“是否需要我查”作为最终答案；"
+                        "必须先由Julia自行选择并发起相关的可用证据能力。"
+                        "若相关能力返回typed failure或unavailable，Julia可以在最终判断中明确该限制后结束。"
+                        "证据类别、能力选择、证据是否充分以及是否继续取证仍由Julia判断；"
+                        "禁止根据原始用户文本硬编码语义路由。"
+                    ),
                 },
             },
             "evidence_role": {
                 "tool_result_is_evidence_not_final_judgment": True,
                 "julia_second_pass_interpretation_required": True,
-                "rule": "工具结果只是证据，不是最终判断；Julia必须在第二次思考中独立解读。",
+                "final_judgment_requires_resolved_evidence_dependencies": True,
+                "rule": (
+                    "工具结果只是证据，不是最终判断；Julia必须在后续思考中独立解读。"
+                    "只要Julia自己判断仍有未满足的证据依赖，FINAL_TEXT就不是有效的最终判断状态；"
+                    "必须先实际尝试满足该证据依赖，或取得typed failure/unavailable并在最终判断中明确限制。"
+                ),
             },
             "limits": {
                 "max_tool_calls_per_model_response": 1,

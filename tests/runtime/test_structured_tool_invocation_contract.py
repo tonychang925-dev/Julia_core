@@ -147,6 +147,11 @@ def test_initial_context_os_messages_expose_envelope_capability_and_schema():
     assert "current_turn_timestamp: 2026-09-23T10:15:30.123456+08:00" in rendered
     assert "current_date: 2026-09-23" in rendered
     assert "utc_offset: +08:00" in rendered
+    assert "unsatisfied_evidence_dependency_blocks_final_judgment=True" in rendered
+    assert "typed_failure_or_unavailability_allows_limited_final_judgment=True" in rendered
+    assert "final_judgment_requires_resolved_evidence_dependencies=True" in rendered
+    assert "FINAL_TEXT就不是有效的最终判断状态" in rendered
+    assert "禁止根据原始用户文本硬编码语义路由" in rendered
 
 
 def test_strict_parser_keeps_real_malformed_shape_invalid_and_valid_shape_exact():
