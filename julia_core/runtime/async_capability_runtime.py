@@ -7,6 +7,8 @@ from collections.abc import Awaitable, Callable
 import concurrent.futures
 from enum import Enum
 import inspect
+import math
+import os
 import threading
 from typing import TypeVar
 
@@ -23,7 +25,10 @@ class AsyncCapabilityRuntimeState(Enum):
 class AsyncCapabilityRuntime:
     """Run generic async capability work on one process-lifetime loop."""
 
-    def __init__(self) -> None:
+    def __init__(self, execution_timeout_seconds: float | None = None) -> None:
+        self._execution_timeout_seconds = self._resolve_execution_timeout(
+            execution_timeout_seconds
+        )
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._lifecycle_lock = threading.RLock()
@@ -31,6 +36,10 @@ class AsyncCapabilityRuntime:
         self._shutdown_lock = threading.Lock()
         self._state = AsyncCapabilityRuntimeState.OPEN
         self._in_flight_executions = 0
+
+    @property
+    def execution_timeout_seconds(self) -> float:
+        return self._execution_timeout_seconds
 
     @property
     def loop_identity(self) -> int | None:
@@ -66,14 +75,16 @@ class AsyncCapabilityRuntime:
             future.add_done_callback(self._finish_execution)
 
         try:
-            return future.result(timeout=30)
+            return future.result(timeout=self._execution_timeout_seconds)
         except concurrent.futures.TimeoutError as exc:
             future.cancel()
             try:
                 future.result(timeout=5)
             except BaseException:
                 pass
-            raise TimeoutError("capability execution exceeded 30 seconds") from exc
+            raise TimeoutError(
+                f"capability execution exceeded {self._execution_timeout_seconds:g} seconds"
+            ) from exc
 
     def close(self, providers: object) -> None:
         """Drain executions, close providers, then stop the persistent loop."""
@@ -138,6 +149,25 @@ class AsyncCapabilityRuntime:
                 lambda: self._state is target,
                 timeout=timeout,
             )
+
+    @staticmethod
+    def _resolve_execution_timeout(configured: float | None) -> float:
+        raw = (
+            configured
+            if configured is not None
+            else os.environ.get("JULIA_CAPABILITY_EXECUTION_TIMEOUT_SECONDS", "30")
+        )
+        try:
+            value = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "JULIA_CAPABILITY_EXECUTION_TIMEOUT_SECONDS must be a positive finite number"
+            ) from exc
+        if not math.isfinite(value) or value <= 0:
+            raise ValueError(
+                "JULIA_CAPABILITY_EXECUTION_TIMEOUT_SECONDS must be a positive finite number"
+            )
+        return value
 
     def _finish_execution(self, future: concurrent.futures.Future) -> None:
         with self._lifecycle_lock:
