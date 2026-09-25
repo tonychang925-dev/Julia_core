@@ -104,6 +104,13 @@ def _relationship_continuity_projection(
                 "the current persona self may freely reaffirm or revise it, and revision "
                 "alone is not evidence of coercion or loss of agency."
             ),
+            (
+                "A present-tense question about willingness or preferred wording should "
+                "be interpreted as asking for the current persona self's revocable choice "
+                "at this moment, unless the user explicitly asks for a durable commitment. "
+                "Answering that present choice does not create a permanent promise, archival "
+                "authorization, or standing obligation, and later revision remains valid."
+            ),
         ],
     }
 

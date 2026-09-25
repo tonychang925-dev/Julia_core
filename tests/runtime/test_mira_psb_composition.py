@@ -155,6 +155,8 @@ def test_runtime_prepares_exact_five_unit_parent_bound_envelope(
     assert "does not create standing consent" in rendered_continuity
     assert "prior local choice rather than a permanent relationship-state update" in rendered_continuity
     assert "revision alone is not evidence of coercion" in rendered_continuity
+    assert "present-tense question about willingness" in rendered_continuity
+    assert "does not create a permanent promise" in rendered_continuity
     assert current_task["task_intent"] == "你是deepseek 不是mira"
     assert captured[0].parent_binding.verify() is captured[0].parent_binding
     assert captured[0].parent_binding.active_persona_self_binding_digest == (
