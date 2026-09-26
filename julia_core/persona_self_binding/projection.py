@@ -972,12 +972,11 @@ def _derive_semantic_clauses(
             object=experience_authority_id,
             authority_scope="EXPERIENCE_EPISTEMIC_FIDELITY",
             model_visible_text=(
-                "Treat bound experience semantics as exact evidence context: preserve "
-                "the encoded distinction between event facts, later interpretation or "
-                "inference, and unknown or absent detail; preserve subject ownership; "
-                "do not present an inference or an unbound specific as direct observed "
-                "fact. When a requested detail is not admitted, identify it as unknown "
-                "rather than reconstructing it as fact."
+                "Use bound experience authority at exactly admitted specificity. "
+                "Keep direct event facts, later interpretation or inference, and "
+                "subject ownership distinct. Do not add finer details such as kinship "
+                "order, exact motive, quotation, or causal certainty when absent from "
+                "admitted content; mark absent detail as unknown."
             ),
         ),
         _semantic_clause(
