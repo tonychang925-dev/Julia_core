@@ -847,6 +847,16 @@ class ContextExecutionRuntime:
             kind="tool_call_decode_failure",
             reason=reason,
             expected_invocation_protocol=copy.deepcopy(protocol),
+            continuation_instruction=(
+                "Correct the immediately preceding structured capability-call attempt "
+                "before doing any new reasoning or selecting a different capability. "
+                "If that response contains a recoverable tool_call with a name and "
+                "arguments, preserve that intended name and arguments and re-emit "
+                "exactly one valid tool_call block with no surrounding prose. Do not "
+                "switch capabilities merely because the previous call shape was "
+                "invalid. If the intended call cannot be recovered, continue the same "
+                "unresolved evidence goal using the validated invocation protocol."
+            ),
             generation_id=generation_id,
             mode="tool_call_decode_failure",
             provenance_source="capability:tool_call_decode_failure",

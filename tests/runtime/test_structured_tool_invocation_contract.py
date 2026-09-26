@@ -189,6 +189,10 @@ def test_decode_failure_projects_validated_contract_and_retains_capability_conte
     assert control.control_frame["expected_invocation_protocol"] == (
         _bridge_policy()["invocation_protocol"]
     )
+    instruction = control.control_frame["continuation_instruction"]
+    assert "immediately preceding structured capability-call attempt" in instruction
+    assert "preserve that intended name and arguments" in instruction
+    assert "Do not switch capabilities" in instruction
     assert "capability_id=market.stock.quote.read" in rendered
     assert "stock_id=exact source-namespaced stock identifier" in rendered
     assert "trade_date=exact YYYY-MM-DD trade date" in rendered
@@ -274,10 +278,17 @@ def test_model_generated_correction_executes_once_then_receives_evidence():
     assert result.executed_capability_ids == ["market.stock.quote.read"]
     assert result.evidence_generation_ids
     assert session.requests == [VALID_SECOND_CALL[13:-4]]
-    assert "INVALID_CALL_SHAPE" in str(session.model_inputs[1])
+    correction_messages = session.model_inputs[1]
+    assert any(
+        message.get("role") == "assistant"
+        and message.get("content") == PROSE_SURROUNDED_CALL
+        for message in correction_messages
+    )
+    assert "INVALID_CALL_SHAPE" in str(correction_messages)
     assert "whole_response_must_be_tool_call=True" in str(session.model_inputs[1])
     assert "surrounding_prose_allowed=False" in str(session.model_inputs[1])
     assert "expected_invocation_protocol" in str(session.model_inputs[1])
+    assert "Do not switch capabilities" in str(session.model_inputs[1])
     assert "operation_status=SUCCESS" in str(session.model_inputs[2])
     assert "data_state=EMPTY" in str(session.model_inputs[2])
 
