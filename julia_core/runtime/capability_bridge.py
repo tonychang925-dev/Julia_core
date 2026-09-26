@@ -666,13 +666,14 @@ class RuntimeCapabilityBridge:
             "[工具规则 — 必须遵守]",
             f"1. {file_policy['rule']}",
             f"2. {external_policy['rule']}",
-            '3. 没有工具调用时，禁止说"我读了""我找到了""我搜索了"。',
-            f"4. {evidence_policy['rule']}",
-            "5. 文件不存在 → 直接告知用户，不猜测内容。",
-            f"6. 工具调用格式: {policy['invocation_protocol']['format']}",
-            "7. JSON根对象必须精确使用 name 和 arguments 字段。",
-            "8. 整个回复只能是这一个 tool_call 区块；前后都不能有文字。",
-            f"9. {limits['rule']}",
+            f"3. {external_policy['explicit_request_rule']}",
+            '4. 没有工具调用时，禁止说"我读了""我找到了""我搜索了"。',
+            f"5. {evidence_policy['rule']}",
+            "6. 文件不存在 → 直接告知用户，不猜测内容。",
+            f"7. 工具调用格式: {policy['invocation_protocol']['format']}",
+            "8. JSON根对象必须精确使用 name 和 arguments 字段。",
+            "9. 整个回复只能是这一个 tool_call 区块；前后都不能有文字。",
+            f"10. {limits['rule']}",
         ])
         return "\n".join(lines)
 
@@ -715,7 +716,15 @@ class RuntimeCapabilityBridge:
                     "capability_prefixes": ["market.*", "research.*"],
                     "read_only": True,
                     "julia_may_request_when_evidence_missing": True,
+                    "explicit_user_request_requires_execution": True,
                     "rule": "market.* / research.* 是READ_ONLY证据能力；当回答当前问题缺少外部证据时，Julia可以主动发起结构化调用。",
+                    "explicit_request_rule": (
+                        "当当前用户明确要求答案使用 available_tools 可获取的外部证据时，"
+                        "Julia必须先发起所需的结构化能力调用并收到 ToolResult（或 typed "
+                        "unavailable/error）后，才能输出 FINAL_TEXT；不得用‘稍后查询’、仅确认，"
+                        "或重复确认当前用户消息中已经明确给出的参数来结束 turn。具体 capability "
+                        "仍由 Julia 自主选择，Runtime 不根据原始用户文本做语义路由。"
+                    ),
                 },
             },
             "evidence_role": {

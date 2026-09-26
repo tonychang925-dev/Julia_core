@@ -83,6 +83,8 @@ def _valid_invocation_policy() -> dict:
                 "capability_prefixes": ["market.*", "research.*"],
                 "read_only": True,
                 "julia_may_request_when_evidence_missing": True,
+                "explicit_user_request_requires_execution": True,
+                "explicit_request_rule": "explicit external evidence must execute before final text",
             },
         },
         "evidence_role": {
@@ -422,6 +424,12 @@ def test_c03_required_invocation_policy_failures_are_required(policy_mode):
         ),
         lambda policy: policy["epistemic_rules"]["external_evidence"].update(
             julia_may_request_when_evidence_missing=False
+        ),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            explicit_user_request_requires_execution=False
+        ),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            explicit_request_rule=""
         ),
         lambda policy: policy["evidence_role"].pop(
             "tool_result_is_evidence_not_final_judgment"

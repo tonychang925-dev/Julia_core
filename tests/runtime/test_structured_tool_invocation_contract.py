@@ -137,6 +137,9 @@ def test_initial_context_os_messages_expose_envelope_capability_and_schema():
     assert "whole_response_must_be_tool_call=True" in rendered
     assert "surrounding_prose_allowed=False" in rendered
     assert "multiple_tool_call_fences_allowed=False" in rendered
+    assert "explicit_user_request_requires_execution=True" in rendered
+    assert "不得用‘稍后查询’" in rendered
+    assert "Runtime 不根据原始用户文本做语义路由" in rendered
     assert "ENTIRE assistant response" in rendered
     assert "before or after the block" in rendered
     assert "name=exact capability_id from available_tools" in rendered

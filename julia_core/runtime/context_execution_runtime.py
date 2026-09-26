@@ -375,6 +375,11 @@ class ContextExecutionRuntime:
             return "external evidence read_only must be True"
         if external_rule.get("julia_may_request_when_evidence_missing") is not True:
             return "julia_may_request_when_evidence_missing must be True"
+        if external_rule.get("explicit_user_request_requires_execution") is not True:
+            return "explicit_user_request_requires_execution must be True"
+        explicit_request_rule = external_rule.get("explicit_request_rule")
+        if not isinstance(explicit_request_rule, str) or not explicit_request_rule.strip():
+            return "external evidence explicit_request_rule must be a non-empty string"
         evidence_role = policy["evidence_role"]
         if evidence_role.get("tool_result_is_evidence_not_final_judgment") is not True:
             return "tool_result_is_evidence_not_final_judgment must be True"

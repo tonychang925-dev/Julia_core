@@ -27,6 +27,8 @@ class _Capability:
                     "capability_prefixes": ["market.*", "research.*"],
                     "read_only": True,
                     "julia_may_request_when_evidence_missing": True,
+                    "explicit_user_request_requires_execution": True,
+                    "explicit_request_rule": "explicit external evidence must execute before final text",
                 },
             },
             "evidence_role": {
