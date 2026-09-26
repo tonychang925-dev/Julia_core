@@ -242,6 +242,12 @@ def test_model_generated_correction_executes_once_then_receives_evidence():
 
         def chat(self, messages, cognitive_mode):
             self.model_inputs.append(messages)
+            if cognitive_mode == "evidence_obligation_check":
+                return (
+                    "```evidence_obligation\n"
+                    '{"unresolved_required_evidence":false,"evidence_intents":[]}'
+                    "\n```"
+                )
             return self.responses.pop(0)
 
         def _execute_tool_with_action(self, tool_json, turn_context):
