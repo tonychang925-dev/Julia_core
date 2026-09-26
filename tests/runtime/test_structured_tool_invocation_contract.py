@@ -274,6 +274,7 @@ def test_model_generated_correction_executes_once_then_receives_evidence():
     assert result.executed_capability_ids == ["market.stock.quote.read"]
     assert result.evidence_generation_ids
     assert session.requests == [VALID_SECOND_CALL[13:-4]]
+    assert PROSE_SURROUNDED_CALL in str(session.model_inputs[1])
     assert "INVALID_CALL_SHAPE" in str(session.model_inputs[1])
     assert "whole_response_must_be_tool_call=True" in str(session.model_inputs[1])
     assert "surrounding_prose_allowed=False" in str(session.model_inputs[1])

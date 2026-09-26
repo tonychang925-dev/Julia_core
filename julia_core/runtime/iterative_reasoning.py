@@ -189,7 +189,7 @@ class IterativeReasoningLoop:
                     termination = "cognition_pass_limit"
                     reply = "Cognition pass limit reached before Julia could produce a final answer."
                     break
-                self._project_decode_failure(parsed.failure_reason, pass_index)
+                self._project_decode_failure(parsed.failure_reason, parsed.text, pass_index)
                 continue
 
             tool_call = parsed.tool_call
@@ -258,14 +258,19 @@ class IterativeReasoningLoop:
             and control_frame.get("kind") == "tool_call_budget_exceeded"
         )
 
-    def _project_decode_failure(self, reason: str | None, pass_index: int) -> None:
+    def _project_decode_failure(
+        self,
+        reason: str | None,
+        assistant_response: str,
+        pass_index: int,
+    ) -> None:
         package = self.session.context_os.project_tool_call_decode_failure(
             parent_package=self.parent_package,
             reason=reason or "INVALID_CALL_SHAPE",
             generation_id=self._generation_id(pass_index, "decode_failure"),
         )
         self._register_projection(package)
-        self.messages = self._continuation_messages(package, "")
+        self.messages = self._continuation_messages(package, assistant_response)
 
     def _project_duplicate(self, tool_call: StrictToolCall, pass_index: int) -> None:
         package = self.session.context_os.project_duplicate_capability_call_rejected(
