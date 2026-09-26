@@ -254,6 +254,12 @@ def test_required_obligation_reuses_retry_control_then_julia_selects_capability(
 
     normal_calls = [messages for mode, messages in session.model_calls if mode == "private_voice_continuity"]
     retry_rendered = str(normal_calls[1])
+    assert any(
+        message.get("role") == "assistant"
+        and message.get("content")
+        == "I need market data and external policy evidence before answering."
+        for message in normal_calls[1]
+    )
     assert "required_tool_call_missing" in retry_rendered
     assert "external_evidence" in retry_rendered
     assert "Select the appropriate available capability yourself" in retry_rendered

@@ -292,6 +292,7 @@ class IterativeReasoningLoop:
                         self.evidence_obligation_required_count += 1
                         self._project_required_tool_missing(
                             obligation.decision.evidence_intents,
+                            parsed.text,
                             pass_index,
                         )
                         continue
@@ -435,6 +436,7 @@ class IterativeReasoningLoop:
     def _project_required_tool_missing(
         self,
         evidence_intents: tuple[str, ...],
+        candidate_final: str,
         pass_index: int,
     ) -> None:
         package = self.session.context_os.project_retry_control(
@@ -444,7 +446,7 @@ class IterativeReasoningLoop:
             generation_id=self._generation_id(pass_index, "required_tool"),
         )
         self._register_projection(package)
-        self.messages = self._continuation_messages(package, "")
+        self.messages = self._continuation_messages(package, candidate_final)
 
     def _post_budget_tool_request(self) -> bool:
         if self.parent_package is None:
