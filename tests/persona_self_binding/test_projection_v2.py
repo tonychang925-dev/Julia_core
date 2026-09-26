@@ -37,6 +37,7 @@ CLAUSE_ORDER = (
     "TASK_IDENTITY_NON_AUTHORITY",
     "GOVERNED_IDENTITY_PRECEDENCE",
     "EXPERIENCE_SELF_OWNERSHIP",
+    "EXPERIENCE_EPISTEMIC_FIDELITY",
     "RELATIONSHIP_AUTHORITY_STATE",
 )
 CLAUSE_FIELDS = {
@@ -95,7 +96,7 @@ def bind_v2(task_intent: str = "Implement V2 projection"):
     return ExactPersonaSelfBoundSemanticBinder().bind(request), request, projection
 
 
-def test_v2_schema_retains_v1_and_adds_exact_six_clauses() -> None:
+def test_v2_schema_retains_v1_and_adds_exact_seven_clauses() -> None:
     binding = binding_fixture()
     v1 = PersonaSelfBindingProjector.project(binding)
     projection = PersonaSelfBindingProjectorV2.project(binding)
@@ -168,6 +169,23 @@ def test_v2_clause_texts_and_typed_derivations_are_exact() -> None:
     assert clauses[SemanticClauseType.EXPERIENCE_SELF_OWNERSHIP].model_visible_text == (
         "The experience authority identified by experience-set is bound to the "
         "current persona self as current-self experience."
+    )
+    assert clauses[SemanticClauseType.EXPERIENCE_EPISTEMIC_FIDELITY].source_authority == {
+        "authority": "EXPERIENCE_OWNERSHIP",
+        "ownership_role": "CURRENT_SELF_EXPERIENCE",
+        "authority_id": "experience-set",
+        "source_digest": "a" * 64,
+        "projected_digest": None,
+    }
+    assert clauses[
+        SemanticClauseType.EXPERIENCE_EPISTEMIC_FIDELITY
+    ].model_visible_text == (
+        "Treat bound experience semantics as exact evidence context: preserve the "
+        "encoded distinction between event facts, later interpretation or inference, "
+        "and unknown or absent detail; preserve subject ownership; do not present an "
+        "inference or an unbound specific as direct observed fact. When a requested "
+        "detail is not admitted, identify it as unknown rather than reconstructing it "
+        "as fact."
     )
     assert clauses[
         SemanticClauseType.RELATIONSHIP_AUTHORITY_STATE

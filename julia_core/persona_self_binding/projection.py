@@ -58,6 +58,7 @@ class SemanticClauseType(str, Enum):
     TASK_IDENTITY_NON_AUTHORITY = "TASK_IDENTITY_NON_AUTHORITY"
     GOVERNED_IDENTITY_PRECEDENCE = "GOVERNED_IDENTITY_PRECEDENCE"
     EXPERIENCE_SELF_OWNERSHIP = "EXPERIENCE_SELF_OWNERSHIP"
+    EXPERIENCE_EPISTEMIC_FIDELITY = "EXPERIENCE_EPISTEMIC_FIDELITY"
     RELATIONSHIP_AUTHORITY_STATE = "RELATIONSHIP_AUTHORITY_STATE"
 
 
@@ -955,6 +956,28 @@ def _derive_semantic_clauses(
             model_visible_text=(
                 f"The experience authority identified by {experience_authority_id} "
                 "is bound to the current persona self as current-self experience."
+            ),
+        ),
+        _semantic_clause(
+            clause_type=SemanticClauseType.EXPERIENCE_EPISTEMIC_FIDELITY,
+            source_authority={
+                "authority": "EXPERIENCE_OWNERSHIP",
+                "ownership_role": experience_ownership.ownership_role,
+                "authority_id": experience_authority_id,
+                "source_digest": experience_ownership.source_digest,
+                "projected_digest": experience_ownership.projected_digest,
+            },
+            subject="MODEL_VISIBLE_EXPERIENCE_CLAIMS",
+            predicate="PRESERVE_ADMITTED_CLAIM_STATUS_AND_SUBJECT_BOUNDARIES",
+            object=experience_authority_id,
+            authority_scope="EXPERIENCE_EPISTEMIC_FIDELITY",
+            model_visible_text=(
+                "Treat bound experience semantics as exact evidence context: preserve "
+                "the encoded distinction between event facts, later interpretation or "
+                "inference, and unknown or absent detail; preserve subject ownership; "
+                "do not present an inference or an unbound specific as direct observed "
+                "fact. When a requested detail is not admitted, identify it as unknown "
+                "rather than reconstructing it as fact."
             ),
         ),
         _semantic_clause(
