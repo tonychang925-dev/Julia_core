@@ -714,8 +714,17 @@ class RuntimeCapabilityBridge:
                 "external_evidence": {
                     "capability_prefixes": ["market.*", "research.*"],
                     "read_only": True,
-                    "julia_may_request_when_evidence_missing": True,
-                    "rule": "market.* / research.* 是READ_ONLY证据能力；当回答当前问题缺少外部证据时，Julia可以主动发起结构化调用。",
+                    "evidence_need_authority": "julia_cognition",
+                    "capability_selection_authority": "julia_cognition",
+                    "required_evidence_before_final_judgment": True,
+                    "redundant_read_only_permission_required": False,
+                    "rule": (
+                        "market.* / research.* 是READ_ONLY证据能力；是否需要外部证据由Julia cognition判断，"
+                        "使用哪个可用capability也由Julia cognition选择。若Julia判断当前回答所需外部证据仍缺失，"
+                        "且尚未收到满足该证据需求的ToolResult或typed execution outcome，则必须继续获取证据后再形成final judgment。"
+                        "对于用户已经明确提出、为完成当前请求所需的READ_ONLY证据获取，不要仅为了调用该证据能力再次询问冗余许可。"
+                        "Runtime不得从raw user text推导capability，也不得替Julia选择Market或Research。"
+                    ),
                 },
             },
             "evidence_role": {

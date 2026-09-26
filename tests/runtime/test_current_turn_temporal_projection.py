@@ -26,7 +26,10 @@ class _Capability:
                 "external_evidence": {
                     "capability_prefixes": ["market.*", "research.*"],
                     "read_only": True,
-                    "julia_may_request_when_evidence_missing": True,
+                    "evidence_need_authority": "julia_cognition",
+                    "capability_selection_authority": "julia_cognition",
+                    "required_evidence_before_final_judgment": True,
+                    "redundant_read_only_permission_required": False,
                 },
             },
             "evidence_role": {
