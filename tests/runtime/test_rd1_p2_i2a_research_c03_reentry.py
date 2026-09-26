@@ -17,6 +17,12 @@ class ResearchCognitionInstrumentation:
         self.calls: list[list[dict]] = []
 
     def chat(self, messages: list[dict], *, cognitive_mode: str = "") -> str:
+        if cognitive_mode == "evidence_obligation_check":
+            return (
+                "```evidence_obligation\n"
+                '{"unresolved_required_evidence":false,"evidence_intents":[]}\n'
+                "```"
+            )
         self.calls.append([dict(message) for message in messages])
         if len(self.calls) == 1:
             first_pass_policy = str(messages[0]["content"])
@@ -25,6 +31,9 @@ class ResearchCognitionInstrumentation:
             assert "raw_user_text_routing=False" in first_pass_policy
             assert "file.* 只有在Tony明确要求读取/搜索/列出文件时才可以调用" in first_pass_policy
             assert "market.* / research.* 是READ_ONLY证据能力" in first_pass_policy
+            assert "是否需要外部证据由Julia cognition判断" in first_pass_policy
+            assert "必须继续获取证据后再形成final judgment" in first_pass_policy
+            assert "Runtime不得从raw user text推导capability" in first_pass_policy
             assert "工具结果只是证据，不是最终判断" in first_pass_policy
             assert "max_tool_calls_per_model_response=1" in first_pass_policy
             return f"```tool_call\n{TOOL_JSON}\n```"
@@ -119,6 +128,9 @@ def test_research_evidence_reenters_julia_second_pass_through_c03(monkeypatch, t
         "raw_user_text_routing=False",
         "file.* 只有在Tony明确要求读取/搜索/列出文件时才可以调用",
         "market.* / research.* 是READ_ONLY证据能力",
+        "是否需要外部证据由Julia cognition判断",
+        "必须继续获取证据后再形成final judgment",
+        "Runtime不得从raw user text推导capability",
         "工具结果只是证据，不是最终判断",
         "max_tool_calls_per_model_response=1",
     ):

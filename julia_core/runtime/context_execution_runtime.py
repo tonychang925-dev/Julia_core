@@ -373,8 +373,16 @@ class ContextExecutionRuntime:
             return "external evidence capability_prefixes must include market.* and research.* without file namespaces"
         if external_rule.get("read_only") is not True:
             return "external evidence read_only must be True"
-        if external_rule.get("julia_may_request_when_evidence_missing") is not True:
-            return "julia_may_request_when_evidence_missing must be True"
+        if "julia_may_request_when_evidence_missing" in external_rule:
+            return "julia_may_request_when_evidence_missing is obsolete and forbidden"
+        if external_rule.get("evidence_need_authority") != "julia_cognition":
+            return "external evidence_need_authority must be 'julia_cognition'"
+        if external_rule.get("capability_selection_authority") != "julia_cognition":
+            return "external capability_selection_authority must be 'julia_cognition'"
+        if external_rule.get("required_evidence_before_final_judgment") is not True:
+            return "required_evidence_before_final_judgment must be True"
+        if external_rule.get("redundant_read_only_permission_required") is not False:
+            return "redundant_read_only_permission_required must be False"
         evidence_role = policy["evidence_role"]
         if evidence_role.get("tool_result_is_evidence_not_final_judgment") is not True:
             return "tool_result_is_evidence_not_final_judgment must be True"

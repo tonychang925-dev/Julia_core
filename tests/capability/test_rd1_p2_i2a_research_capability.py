@@ -101,6 +101,31 @@ def test_research_capability_registry_contract_and_permission():
     assert bridge.policy.check("unknown.research.scope").decision is AuthorizationStatus.DENY
 
 
+def test_primary_external_evidence_policy_preserves_julia_authority_and_requires_evidence_before_final():
+    bridge = RuntimeCapabilityBridge()
+    policy = bridge.invocation_policy()
+    external = policy["epistemic_rules"]["external_evidence"]
+
+    assert external["read_only"] is True
+    assert external["evidence_need_authority"] == "julia_cognition"
+    assert external["capability_selection_authority"] == "julia_cognition"
+    assert external["required_evidence_before_final_judgment"] is True
+    assert external["redundant_read_only_permission_required"] is False
+    assert "julia_may_request_when_evidence_missing" not in external
+    assert policy["invocation_protocol"]["raw_user_text_routing"] is False
+
+    rendered = bridge.tool_manifest()
+    for marker in (
+        "是否需要外部证据由Julia cognition判断",
+        "使用哪个可用capability也由Julia cognition选择",
+        "必须继续获取证据后再形成final judgment",
+        "不要仅为了调用该证据能力再次询问冗余许可",
+        "Runtime不得从raw user text推导capability",
+        "不得替Julia选择Market或Research",
+    ):
+        assert marker in rendered
+
+
 def test_missing_research_provider_is_typed_unavailable_without_fallback():
     bridge = RuntimeCapabilityBridge()
     bridge.initialize()

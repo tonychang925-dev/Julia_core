@@ -82,7 +82,10 @@ def _valid_invocation_policy() -> dict:
             "external_evidence": {
                 "capability_prefixes": ["market.*", "research.*"],
                 "read_only": True,
-                "julia_may_request_when_evidence_missing": True,
+                "evidence_need_authority": "julia_cognition",
+                "capability_selection_authority": "julia_cognition",
+                "required_evidence_before_final_judgment": True,
+                "redundant_read_only_permission_required": False,
             },
         },
         "evidence_role": {
@@ -421,7 +424,19 @@ def test_c03_required_invocation_policy_failures_are_required(policy_mode):
             capability_prefixes=["market.*", "research.*", {"file": True}]
         ),
         lambda policy: policy["epistemic_rules"]["external_evidence"].update(
-            julia_may_request_when_evidence_missing=False
+            julia_may_request_when_evidence_missing=True
+        ),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            evidence_need_authority="runtime"
+        ),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            capability_selection_authority="runtime"
+        ),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            required_evidence_before_final_judgment=False
+        ),
+        lambda policy: policy["epistemic_rules"]["external_evidence"].update(
+            redundant_read_only_permission_required=True
         ),
         lambda policy: policy["evidence_role"].pop(
             "tool_result_is_evidence_not_final_judgment"
@@ -510,6 +525,10 @@ def test_large_catalog_cannot_hide_model_visible_invocation_policy(monkeypatch):
     assert rendered.index("structured_call_required=True") < rendered.index("tool.000")
     for marker in (
         "raw_user_text_routing=False",
+        "evidence_need_authority=julia_cognition",
+        "capability_selection_authority=julia_cognition",
+        "required_evidence_before_final_judgment=True",
+        "redundant_read_only_permission_required=False",
         "tool_result_is_evidence_not_final_judgment=True",
         "julia_second_pass_interpretation_required=True",
     ):

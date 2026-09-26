@@ -56,6 +56,12 @@ class MarketAnalysisCognitionInstrumentation:
         self.calls: list[list[dict]] = []
 
     def chat(self, messages: list[dict], *, cognitive_mode: str = "") -> str:
+        if cognitive_mode == "evidence_obligation_check":
+            return (
+                "```evidence_obligation\n"
+                '{"unresolved_required_evidence":false,"evidence_intents":[]}\n'
+                "```"
+            )
         self.calls.append([dict(message) for message in messages])
         if len(self.calls) == 1:
             return f"```tool_call\n{TOOL_JSON}\n```"
