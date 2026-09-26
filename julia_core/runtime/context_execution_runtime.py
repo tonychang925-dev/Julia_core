@@ -796,6 +796,7 @@ class ContextExecutionRuntime:
         parent_package: CognitiveContextPackage,
         reason: str,
         generation_id: str,
+        evidence_intents: Sequence[str] = (),
     ) -> CognitiveContextPackage:
         """P3.3A: structured projection of derived retry/control state.
 
@@ -817,10 +818,24 @@ class ContextExecutionRuntime:
 
         pkg = self._new_projection(parent_package, generation_id, require_generation_id=True)
         pkg.evidence_frame = self._inherited_evidence_frame(parent_package)
+        normalized_intents = tuple(evidence_intents)
+        if any(
+            not isinstance(intent, str) or not intent.strip()
+            for intent in normalized_intents
+        ):
+            raise ValueError("retry control evidence_intents must be non-empty strings")
         pkg.control_frame = {
             "kind": "retry_control",
             "reason": reason,
         }
+        if normalized_intents:
+            pkg.control_frame["evidence_intents"] = list(normalized_intents)
+            pkg.control_frame["continuation_instruction"] = (
+                "Julia has declared that required external evidence remains unresolved. "
+                "Do not finalize yet. Select the appropriate available capability "
+                "yourself, using the validated invocation protocol. Runtime is not "
+                "selecting a capability for you."
+            )
         pkg.situation_frame = {"mode": "retry_control"}
         pkg.add_provenance("control", "capability:retry_control",
                           reason=reason, stage=2)

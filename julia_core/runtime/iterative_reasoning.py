@@ -24,6 +24,27 @@ _EXACT_TOOL_CALL = re.compile(
     r"^```tool_call[ \t]*\n(.*)\n```$",
     re.DOTALL,
 )
+_EXACT_EVIDENCE_OBLIGATION = re.compile(
+    r"^```evidence_obligation[ \t]*\n(.*)\n```$",
+    re.DOTALL,
+)
+_GENERIC_EVIDENCE_INTENT = re.compile(r"^[a-z][a-z0-9_]*$")
+
+_EVIDENCE_OBLIGATION_CHECK_INSTRUCTION = """
+[evidence_obligation_check]
+This is a bounded Julia cognition control check, not a user-facing answer and not a capability-selection step.
+Using the current turn context, available_tools, existing ToolResult/evidence/control state, and the candidate FINAL_TEXT immediately before this instruction, decide whether REQUIRED external evidence remains unresolved.
+Set unresolved_required_evidence=true only when the candidate final must not be returned yet because the current user request or Julia's already-formed reasoning requires external evidence that has not reached a ToolResult or typed unavailable/error outcome. A typed unavailable/error outcome counts as an execution outcome for this obligation check.
+Do not select, name, or recommend a concrete capability. Return exactly one block and no surrounding prose. Use exactly one of these shapes:
+```evidence_obligation
+{"unresolved_required_evidence":false,"evidence_intents":[]}
+```
+or
+```evidence_obligation
+{"unresolved_required_evidence":true,"evidence_intents":["external_evidence"]}
+```
+For true, evidence_intents may use other generic evidence-intent labels, but must never contain a concrete capability_id.
+""".strip()
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,6 +126,90 @@ def parse_strict_model_response(response: str) -> StrictModelResponse:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class EvidenceObligationDecision:
+    unresolved_required_evidence: bool
+    evidence_intents: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceObligationCheckResult:
+    kind: str
+    decision: EvidenceObligationDecision | None = None
+    failure_reason: str | None = None
+
+
+def parse_evidence_obligation_response(response: str) -> EvidenceObligationCheckResult:
+    """Strict parser for the bounded Julia-owned finalization obligation check.
+
+    This contract is deliberately independent from the normal tool-call parser.
+    Runtime consumes only the boolean obligation plus opaque generic intent labels;
+    it does not infer evidence need from user text or Julia prose.
+    """
+    trimmed = str(response).strip()
+    match = _EXACT_EVIDENCE_OBLIGATION.fullmatch(trimmed)
+    if match is None:
+        return EvidenceObligationCheckResult(
+            kind="CONTROL_FAILURE",
+            failure_reason="INVALID_EVIDENCE_OBLIGATION_SHAPE",
+        )
+    try:
+        payload = json.loads(match.group(1).strip())
+    except json.JSONDecodeError:
+        return EvidenceObligationCheckResult(
+            kind="CONTROL_FAILURE",
+            failure_reason="MALFORMED_EVIDENCE_OBLIGATION_JSON",
+        )
+    if not isinstance(payload, dict) or set(payload) != {
+        "unresolved_required_evidence",
+        "evidence_intents",
+    }:
+        return EvidenceObligationCheckResult(
+            kind="CONTROL_FAILURE",
+            failure_reason="INVALID_EVIDENCE_OBLIGATION_SHAPE",
+        )
+    unresolved = payload.get("unresolved_required_evidence")
+    intents = payload.get("evidence_intents")
+    if type(unresolved) is not bool or not isinstance(intents, list):
+        return EvidenceObligationCheckResult(
+            kind="CONTROL_FAILURE",
+            failure_reason="INVALID_EVIDENCE_OBLIGATION_TYPES",
+        )
+    if any(not isinstance(intent, str) or not intent.strip() for intent in intents):
+        return EvidenceObligationCheckResult(
+            kind="CONTROL_FAILURE",
+            failure_reason="INVALID_EVIDENCE_INTENT",
+        )
+    normalized = tuple(intent.strip() for intent in intents)
+    if any(_GENERIC_EVIDENCE_INTENT.fullmatch(intent) is None for intent in normalized):
+        return EvidenceObligationCheckResult(
+            kind="CONTROL_FAILURE",
+            failure_reason="INVALID_EVIDENCE_INTENT",
+        )
+    if len(set(normalized)) != len(normalized):
+        return EvidenceObligationCheckResult(
+            kind="CONTROL_FAILURE",
+            failure_reason="DUPLICATE_EVIDENCE_INTENT",
+        )
+    if unresolved and not normalized:
+        return EvidenceObligationCheckResult(
+            kind="CONTROL_FAILURE",
+            failure_reason="MISSING_REQUIRED_EVIDENCE_INTENT",
+        )
+    if not unresolved and normalized:
+        return EvidenceObligationCheckResult(
+            kind="CONTROL_FAILURE",
+            failure_reason="UNEXPECTED_EVIDENCE_INTENT",
+        )
+    return EvidenceObligationCheckResult(
+        kind="DECISION",
+        decision=EvidenceObligationDecision(
+            unresolved_required_evidence=unresolved,
+            evidence_intents=normalized,
+        ),
+    )
+
+
 @dataclass(slots=True)
 class IterativeTurnResult:
     reply: str
@@ -115,6 +220,8 @@ class IterativeTurnResult:
     executed_capability_ids: list[str] = field(default_factory=list)
     projection_generation_ids: list[str] = field(default_factory=list)
     evidence_generation_ids: list[str] = field(default_factory=list)
+    evidence_obligation_check_count: int = 0
+    evidence_obligation_required_count: int = 0
 
 
 class IterativeReasoningLoop:
@@ -146,6 +253,8 @@ class IterativeReasoningLoop:
         self.executed_capability_ids: list[str] = []
         self.projection_generation_ids: list[str] = []
         self.evidence_generation_ids: list[str] = []
+        self.evidence_obligation_check_count = 0
+        self.evidence_obligation_required_count = 0
         self.unresolved_unavailable = False
 
     def run(self) -> IterativeTurnResult:
@@ -168,6 +277,25 @@ class IterativeReasoningLoop:
                     and control_frame.get("kind") == "tool_call_budget_exceeded"
                 )
                 limitation = budget_limitation or self.unresolved_unavailable
+
+                if not limitation and self._external_evidence_check_applicable():
+                    obligation = self._check_evidence_obligation(parsed.text)
+                    if obligation.kind != "DECISION" or obligation.decision is None:
+                        final_response_kind = "CONTROL_FAILURE"
+                        termination = "evidence_obligation_check_invalid"
+                        reply = (
+                            "Evidence obligation check failed closed before Julia's "
+                            "candidate final response could be accepted."
+                        )
+                        break
+                    if obligation.decision.unresolved_required_evidence:
+                        self.evidence_obligation_required_count += 1
+                        self._project_required_tool_missing(
+                            obligation.decision.evidence_intents,
+                            pass_index,
+                        )
+                        continue
+
                 final_response_kind = "LIMITATION" if limitation else "JUDGMENT"
                 termination = (
                     "completed_with_limitation"
@@ -247,7 +375,76 @@ class IterativeReasoningLoop:
             executed_capability_ids=list(self.executed_capability_ids),
             projection_generation_ids=list(self.projection_generation_ids),
             evidence_generation_ids=list(self.evidence_generation_ids),
+            evidence_obligation_check_count=self.evidence_obligation_check_count,
+            evidence_obligation_required_count=self.evidence_obligation_required_count,
         )
+
+    def _external_evidence_check_applicable(self) -> bool:
+        """Mechanical applicability check from the validated capability contract.
+
+        This does not inspect user text or Julia prose. It only asks whether the
+        current package advertises at least one capability covered by the
+        already-validated external_evidence capability prefixes.
+        """
+        if self.parent_package is None:
+            return False
+        policy = getattr(self.parent_package, "validated_invocation_policy", {})
+        if not isinstance(policy, dict):
+            return False
+        epistemic_rules = policy.get("epistemic_rules")
+        if not isinstance(epistemic_rules, dict):
+            return False
+        external_rule = epistemic_rules.get("external_evidence")
+        if not isinstance(external_rule, dict):
+            return False
+        prefixes = external_rule.get("capability_prefixes")
+        if not isinstance(prefixes, list):
+            return False
+        capability_frame = getattr(self.parent_package, "capability_frame", {})
+        if not isinstance(capability_frame, dict):
+            return False
+        available_tools = capability_frame.get("available_tools")
+        if not isinstance(available_tools, list):
+            return False
+        normalized_prefixes = tuple(
+            prefix[:-1] if isinstance(prefix, str) and prefix.endswith("*") else prefix
+            for prefix in prefixes
+            if isinstance(prefix, str) and prefix
+        )
+        return any(
+            isinstance(tool, dict)
+            and isinstance(tool.get("capability_id"), str)
+            and any(tool["capability_id"].startswith(prefix) for prefix in normalized_prefixes)
+            for tool in available_tools
+        )
+
+    def _check_evidence_obligation(self, candidate_final: str) -> EvidenceObligationCheckResult:
+        messages = list(self.messages)
+        messages.append({"role": "assistant", "content": candidate_final})
+        messages.append({
+            "role": "system",
+            "content": _EVIDENCE_OBLIGATION_CHECK_INSTRUCTION,
+        })
+        self.evidence_obligation_check_count += 1
+        response = self.session.provider.chat(
+            messages,
+            cognitive_mode="evidence_obligation_check",
+        )
+        return parse_evidence_obligation_response(response)
+
+    def _project_required_tool_missing(
+        self,
+        evidence_intents: tuple[str, ...],
+        pass_index: int,
+    ) -> None:
+        package = self.session.context_os.project_retry_control(
+            parent_package=self.parent_package,
+            reason="required_tool_call_missing",
+            evidence_intents=evidence_intents,
+            generation_id=self._generation_id(pass_index, "required_tool"),
+        )
+        self._register_projection(package)
+        self.messages = self._continuation_messages(package, "")
 
     def _post_budget_tool_request(self) -> bool:
         if self.parent_package is None:
