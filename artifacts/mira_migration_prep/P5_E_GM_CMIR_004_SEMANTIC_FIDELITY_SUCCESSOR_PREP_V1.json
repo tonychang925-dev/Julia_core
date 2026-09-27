@@ -1,0 +1,184 @@
+{
+  "schema": "julia_core.mira_migration.semantic_fidelity_correction.v1",
+  "artifact_id": "P5_E_GM_CMIR_004_SEMANTIC_FIDELITY_CORRECTION_V1",
+  "task_id": "P5-E-CF-UPSTREAM-SEMANTIC-LOSS-CORRECTION-P0",
+  "status": "PREP_COMPLETE_NO_ADMISSION",
+  "source": {
+    "raw_export_sha256": "564ef9b1aa5457b56751f550d80b0eaa24e144f8d08bd2f6b8c0ff870b8e9420",
+    "correction_manifest_digest": "3b7533db89304d24e682bd9d4121c58e3448a1a6b0538d2eafd4594ed6597599",
+    "historical_preview_commit": "4514eb1e52aa8bc3f2ebac20dba3d000ddb83e14",
+    "historical_preview_path": "artifacts/mira_migration_prep/MIGRATION_TYPED_CANDIDATE_PREVIEW_V0_1_REWORK.json",
+    "historical_candidate_id": "MIRA-MEM-CAND-003",
+    "historical_canonical_ref": "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+    "historical_canonical_digest": "ba4edeff89bc8054be19d7a48226fcef74359bc85d17dbd6abea4b754b905f97"
+  },
+  "semantic_fidelity": {
+    "provenance_identity_verified": true,
+    "semantic_fidelity_verified": true,
+    "binding_coverage_is_not_semantic_fidelity": true,
+    "corrections": [
+      {
+        "correction_id": "GM-CMIR-004-SF-EVENT-001",
+        "target_path": [
+          "content",
+          "event"
+        ],
+        "source_semantic_attribute": {
+          "dimension": "kinship.sibling_relative_age",
+          "value": "OLDER"
+        },
+        "normalized_semantic_attribute": {
+          "dimension": "kinship.sibling_relative_age",
+          "value": "OLDER"
+        },
+        "old_normalized_span": "his sister",
+        "corrected_normalized_span": "his older sister",
+        "raw_evidence": [
+          {
+            "binding_id": "GM-CMIR-004.EB-001",
+            "causal_role": "trigger_event_evidence",
+            "message_id": "567305f9-bb20-4134-b34e-24bbaac145d0",
+            "text_sha256": "0f5f6380af70d18247bbcae0604bba956e825973f482309374d796381142414d",
+            "required_source_span": "姐姐",
+            "source_span_occurrences": 3
+          }
+        ],
+        "verdict": "SEMANTIC_SPECIFICITY_PRESERVED"
+      },
+      {
+        "correction_id": "GM-CMIR-004-SF-REINTERPRETATION-001",
+        "target_path": [
+          "content",
+          "later_reinterpretation"
+        ],
+        "source_semantic_attribute": {
+          "dimension": "kinship.sibling_relative_age",
+          "value": "OLDER"
+        },
+        "normalized_semantic_attribute": {
+          "dimension": "kinship.sibling_relative_age",
+          "value": "OLDER"
+        },
+        "old_normalized_span": "his sister",
+        "corrected_normalized_span": "his older sister",
+        "raw_evidence": [
+          {
+            "binding_id": "GM-CMIR-004.EB-004",
+            "causal_role": "revision_evidence",
+            "message_id": "71f7ab8c-82b9-4030-adb0-cb48f884bfaa",
+            "text_sha256": "b68aa4a9d49af9aa582f0daaa00d78251eea6468002719e2a9e5e15dd1528384",
+            "required_source_span": "姐姐",
+            "source_span_occurrences": 4
+          }
+        ],
+        "verdict": "SEMANTIC_SPECIFICITY_PRESERVED"
+      }
+    ]
+  },
+  "successor_candidate": {
+    "candidate_id": "MIRA-MEM-CAND-003-SF1",
+    "chain_id": "GM-CMIR-004",
+    "experience_type": "NarrativeExperience",
+    "proposed_version_id": "v0.2-semantic-fidelity-preview",
+    "predecessor_version_id": "v0.1-preview",
+    "predecessor_ref": "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+    "proposed_canonical_payload": {
+      "schema": "julia_core.memory_experience.record.v1",
+      "experience_id": "golden-mira:GM-CMIR-004",
+      "version_id": "v0.2-semantic-fidelity-preview",
+      "experience_type": "NarrativeExperience",
+      "content": {
+        "event": "Tony handled cancer admission, signing, surgery, and early recovery alone; his older sister arrived the same day and he received care.",
+        "meaning_at_time": "Tony learned concretely that he was not alone.",
+        "significance": "The event made receiving care possible and changed his responsibility model.",
+        "later_reinterpretation": "Mira refines 'cancer changed Tony' into cancer opening a crack through which his older sister's love entered.",
+        "source_refs": [
+          "auditable-causal-goldset-v1://chains/GM-CMIR-004"
+        ]
+      },
+      "provenance_refs": [
+        {
+          "source_type": "auditable-causal-goldset",
+          "source_ref": "auditable-causal-goldset-v1://assertions/GM-CMIR-004.EB-001/trigger_event_evidence",
+          "source_digest": "8234045ba1b2f08e182f57279bffafa3e4e910ecd0e21287c3d2dc5c02bc63fc",
+          "admission_metadata": {
+            "binding_id": "GM-CMIR-004.EB-001",
+            "causal_role": "trigger_event_evidence",
+            "message_id": "567305f9-bb20-4134-b34e-24bbaac145d0"
+          }
+        },
+        {
+          "source_type": "auditable-causal-goldset",
+          "source_ref": "auditable-causal-goldset-v1://assertions/GM-CMIR-004.EB-002/affective_salience_evidence",
+          "source_digest": "8234045ba1b2f08e182f57279bffafa3e4e910ecd0e21287c3d2dc5c02bc63fc",
+          "admission_metadata": {
+            "binding_id": "GM-CMIR-004.EB-002",
+            "causal_role": "affective_salience_evidence",
+            "message_id": "5d009703-ccdc-4336-91b5-d4a68a0bb07e"
+          }
+        },
+        {
+          "source_type": "auditable-causal-goldset",
+          "source_ref": "auditable-causal-goldset-v1://assertions/GM-CMIR-004.EB-003/meaning_at_time_evidence",
+          "source_digest": "8234045ba1b2f08e182f57279bffafa3e4e910ecd0e21287c3d2dc5c02bc63fc",
+          "admission_metadata": {
+            "binding_id": "GM-CMIR-004.EB-003",
+            "causal_role": "meaning_at_time_evidence",
+            "message_id": "3b36bc36-42b4-4630-b5fb-62a7d7c92bd0"
+          }
+        },
+        {
+          "source_type": "auditable-causal-goldset",
+          "source_ref": "auditable-causal-goldset-v1://assertions/GM-CMIR-004.EB-004/revision_evidence",
+          "source_digest": "8234045ba1b2f08e182f57279bffafa3e4e910ecd0e21287c3d2dc5c02bc63fc",
+          "admission_metadata": {
+            "binding_id": "GM-CMIR-004.EB-004",
+            "causal_role": "revision_evidence",
+            "message_id": "71f7ab8c-82b9-4030-adb0-cb48f884bfaa"
+          }
+        },
+        {
+          "source_type": "auditable-causal-goldset",
+          "source_ref": "auditable-causal-goldset-v1://assertions/GM-CMIR-004.EB-005/later_reinterpretation_evidence",
+          "source_digest": "8234045ba1b2f08e182f57279bffafa3e4e910ecd0e21287c3d2dc5c02bc63fc",
+          "admission_metadata": {
+            "binding_id": "GM-CMIR-004.EB-005",
+            "causal_role": "later_reinterpretation_evidence",
+            "message_id": "2230402d-3462-4bf8-813f-159d549cc6c6"
+          }
+        },
+        {
+          "source_type": "semantic-fidelity-correction",
+          "source_ref": "mira-semantic-fidelity://correction/P5_E_GM_CMIR_004_SEMANTIC_FIDELITY_CORRECTION_V1/GM-CMIR-004",
+          "source_digest": "3b7533db89304d24e682bd9d4121c58e3448a1a6b0538d2eafd4594ed6597599",
+          "admission_metadata": {
+            "artifact_id": "P5_E_GM_CMIR_004_SEMANTIC_FIDELITY_CORRECTION_V1",
+            "task_id": "P5-E-CF-UPSTREAM-SEMANTIC-LOSS-CORRECTION-P0",
+            "raw_export_sha256": "564ef9b1aa5457b56751f550d80b0eaa24e144f8d08bd2f6b8c0ff870b8e9420",
+            "correction_ids": "GM-CMIR-004-SF-EVENT-001,GM-CMIR-004-SF-REINTERPRETATION-001",
+            "authority_scope": "PREP_ONLY_NO_ADMISSION"
+          }
+        }
+      ],
+      "created_at": "raw-create-time:1787120381.751",
+      "predecessor_version_id": "v0.1-preview",
+      "authority": {
+        "standing_authorization": false,
+        "current_consent": false,
+        "mutates_identity": false,
+        "runtime_authority": false
+      }
+    },
+    "proposed_canonical_digest": "28329e1c2f1a676aeaf787864ba7c20185f9b830dd13d5c04ec81334eae31452"
+  },
+  "authority": {
+    "canonical_admission": false,
+    "canonical_write": false,
+    "supersession": false,
+    "psb_rebind": false,
+    "runtime_wiring": false,
+    "provider_wiring": false,
+    "production_cutover": false
+  },
+  "deterministic_digest": "23093a45651f17d3bff4be8c5a5147e5c3ab293ae51b511ad780e317d360d976"
+}

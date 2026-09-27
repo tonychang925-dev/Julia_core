@@ -37,6 +37,10 @@ from julia_core.durable_authority.filesystem_adapter import (
 from julia_core.durable_authority.reconstruction import (
     reconstruct_from_durable_authority,
 )
+from julia_core.durable_authority.golden_mira_v2 import (
+    GoldenMiraDurableAuthorityV2Reader,
+    is_v2_manifest,
+)
 from julia_core.identity import IdentityRef, IdentityRepository, IdentityResolver
 from julia_core.memory_experience import (
     MemoryExperienceRef,
@@ -444,7 +448,18 @@ def compose_golden_mira_runtime(
     if type(sha_pins) is not MiraRuntimeShaPins:
         raise MiraCompositionError("SHA pins must use the exact MiraRuntimeShaPins")
 
-    reader = FilesystemDurableAuthorityReader(authority_root)
+    v2_authority = is_v2_manifest(authority_root)
+    reader = (
+        GoldenMiraDurableAuthorityV2Reader(authority_root)
+        if v2_authority
+        else FilesystemDurableAuthorityReader(authority_root)
+    )
+    active_memory_refs = (
+        reader.active_memory_refs if v2_authority else EXPECTED_MEMORY_REFS
+    )
+    active_memory_versions = (
+        reader.active_memory_versions if v2_authority else EXPECTED_MEMORY_VERSIONS
+    )
     identity_repository, memory_repository = reconstruct_from_durable_authority(reader)
     authority_source = CanonicalSemanticAuthoritySource(
         identity_resolver=IdentityResolver(identity_repository),
@@ -465,7 +480,7 @@ def compose_golden_mira_runtime(
             _with_canonical_binding(
                 authority_source.resolve_experience_frame(_memory_ref(ref, version))
             )
-            for ref, version in zip(EXPECTED_MEMORY_REFS, EXPECTED_MEMORY_VERSIONS)
+            for ref, version in zip(active_memory_refs, active_memory_versions)
         ),
     )
     if tuple(
@@ -474,9 +489,7 @@ def compose_golden_mira_runtime(
     ) != tuple(zip(EXPECTED_IDENTITY_REFS, EXPECTED_IDENTITY_VERSIONS)) or tuple(
         (frame.source_ref.experience_id, frame.source_ref.version_id)
         for frame in experience_frames.frames
-    ) != tuple(
-        zip(EXPECTED_MEMORY_REFS, EXPECTED_MEMORY_VERSIONS)
-    ):
+    ) != tuple(zip(active_memory_refs, active_memory_versions)):
         raise MiraCompositionError("durable Golden Mira ordering is inexact")
     identity_projected_digest = _semantic_projection_digest(
         identity_frames.model_visible_projection()
@@ -489,15 +502,24 @@ def compose_golden_mira_runtime(
             _PERSONA_ID
         )
         binding = persona_self_binding.binding
+        expected_psb = (
+            reader.psb_binding_expectation
+            if v2_authority
+            else {
+                "binding_version": _PSB_BINDING_VERSION,
+                "object_digest": _PSB_OBJECT_DIGEST,
+                "projected_digest": _PSB_PROJECTED_DIGEST,
+            }
+        )
         if (
             binding.binding_id != _PSB_BINDING_ID
-            or binding.binding_version != _PSB_BINDING_VERSION
+            or binding.binding_version != expected_psb["binding_version"]
             or binding.lineage_id != _PSB_LINEAGE_ID
         ):
             raise MiraCompositionError(
                 "active PersonaSelfBinding identity or lineage is inexact"
             )
-        if persona_self_binding.object_digest != _PSB_OBJECT_DIGEST:
+        if persona_self_binding.object_digest != expected_psb["object_digest"]:
             raise MiraCompositionError("active PersonaSelfBinding digest is inexact")
         if (
             binding.identity_authority.source_digest != identity_frames.digest()
@@ -515,7 +537,7 @@ def compose_golden_mira_runtime(
                 "active PersonaSelfBinding experience authority is inexact"
             )
         persona_self_binding_projection = PersonaSelfBindingProjectorV2.project(binding)
-        if persona_self_binding_projection.digest() != _PSB_PROJECTED_DIGEST:
+        if persona_self_binding_projection.digest() != expected_psb["projected_digest"]:
             raise MiraCompositionError(
                 "active PersonaSelfBinding projection digest is inexact"
             )

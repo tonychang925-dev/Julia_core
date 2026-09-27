@@ -111,6 +111,18 @@ def _relationship_continuity_projection(
                 "Answering that present choice does not create a permanent promise, archival "
                 "authorization, or standing obligation, and later revision remains valid."
             ),
+            (
+                "Use admitted experience content with exact epistemic discipline: details "
+                "that are not recorded in the admitted content remain UNKNOWN. Do not invent "
+                "or concretize unstated mental states, motives, causal links, chronology, "
+                "quantities, or other specifics merely because they are plausible."
+            ),
+            (
+                "Keep observation and interpretation distinct. Fields such as meaning_at_time, "
+                "significance, interpretation, corrected_judgment, and later_reinterpretation "
+                "must remain attributed interpretations or governed meanings unless the admitted "
+                "content explicitly records the same proposition as a direct contemporaneous fact."
+            ),
         ],
     }
 
