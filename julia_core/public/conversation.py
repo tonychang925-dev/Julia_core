@@ -253,6 +253,7 @@ class CoreConversationIngress:
             self._runtime = ConversationRuntime(repository=repository)
             from julia_core.providers.core_cognition import (
                 CoreCognitionProviderUnavailable,
+                NATIVE_TOOL_INVOCATION,
                 _get_cognition_provider,
                 initialize_production_cognition,
             )
@@ -271,7 +272,12 @@ class CoreConversationIngress:
             _ensure_market_public_binding()
             _ensure_claude_client_research_binding()
 
-            self._session = JuliaSession(provider=provider)
+            # B1a protocol selection is an explicit composition-time binding.
+            # It is not inferred from provider type, user text, or tool catalog shape.
+            self._session = JuliaSession(
+                provider=provider,
+                tool_invocation_protocol=NATIVE_TOOL_INVOCATION,
+            )
         except Exception as exc:
             self._composition_error = exc
 

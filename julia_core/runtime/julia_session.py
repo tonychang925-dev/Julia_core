@@ -25,6 +25,11 @@ import time as _time
 import uuid
 from typing import Optional
 
+from julia_core.providers.core_cognition import (
+    LEGACY_TEXT_TOOL_INVOCATION,
+    NATIVE_TOOL_INVOCATION,
+)
+
 
 class TurnContext:
     """CORE-C1.3a: Per-turn execution state.
@@ -75,16 +80,27 @@ class JuliaSession:
     JuliaSession.process() is the cognitive_fn passed to process_turn().
     """
 
-    def __init__(self, provider=None):
+    def __init__(
+        self,
+        provider=None,
+        *,
+        tool_invocation_protocol: str = LEGACY_TEXT_TOOL_INVOCATION,
+    ):
         # Preserve the BASE no-argument Core caller contract. The public
         # ingress supplies an explicitly composed provider; existing Core
         # callers retain their pre-existing provider binding.
         if provider is None:
             from providers.llm.deepseek_provider import get_llm_provider
             provider = get_llm_provider("deepseek")
+        if tool_invocation_protocol not in {
+            LEGACY_TEXT_TOOL_INVOCATION,
+            NATIVE_TOOL_INVOCATION,
+        }:
+            raise ValueError("unsupported Core tool invocation protocol")
         from julia_core.narrative.bootstrap import get_bootstrap
 
         self.provider = provider
+        self.tool_invocation_protocol = tool_invocation_protocol
         self.bootstrap = get_bootstrap()
 
         # Capability Layer
@@ -377,6 +393,27 @@ class JuliaSession:
 
     def _execute_typed_tool(self, tool_json: str):
         return self.capability.execute_tool_typed(tool_json)
+
+    def _execute_capability_with_action(
+        self,
+        capability_id: str,
+        ctx: TurnContext,
+    ) -> None:
+        self.action.start(
+            capability_id,
+            f"执行 {capability_id}",
+            correlation_id=ctx.correlation_id,
+        )
+
+    def _execute_canonical_typed_tool(
+        self,
+        capability_id: str,
+        arguments: dict,
+    ):
+        return self.capability.execute_canonical_tool_typed(
+            capability_id,
+            arguments,
+        )
 
     def _dispatch_typed_outcome(
         self,

@@ -12,6 +12,10 @@ import time
 import pytest
 
 import julia_core.providers.core_cognition as core_cognition
+from julia_core.providers.core_cognition import (
+    NativeToolInvocation,
+    TextResult,
+)
 from julia_core.providers.deepseek import (
     DeepSeekCognitionProvider,
     DeepSeekCognitionProviderError,
@@ -45,6 +49,45 @@ def _success_response(content: str) -> bytes:
     return json.dumps(
         {"choices": [{"message": {"role": "assistant", "content": content}}]}
     ).encode()
+
+
+def _native_response(
+    *,
+    content=None,
+    tool_calls=None,
+    finish_reason="stop",
+) -> bytes:
+    message = {"role": "assistant", "content": content}
+    if tool_calls is not None:
+        message["tool_calls"] = tool_calls
+    return json.dumps({
+        "choices": [{
+            "finish_reason": finish_reason,
+            "message": message,
+        }],
+    }).encode()
+
+
+def _tool_call(name: str, arguments: object) -> dict:
+    return {
+        "id": "provider-id-not-semantic",
+        "type": "function",
+        "function": {
+            "name": name,
+            "arguments": json.dumps(arguments),
+        },
+    }
+
+
+def _available_tools() -> list[dict]:
+    return [{
+        "capability_id": "market.stock_quote_read",
+        "description": "Read one exact stock/date quote",
+        "input_schema": {
+            "stock_id": "exact stock identifier",
+            "trade_date": "exact YYYY-MM-DD trade date",
+        },
+    }]
 
 
 def test_exact_core_messages_are_transported_without_semantic_edits(monkeypatch):
@@ -199,6 +242,168 @@ def test_malformed_and_empty_responses_fail_without_fallback(monkeypatch):
         )
         with pytest.raises(DeepSeekCognitionProviderError):
             provider.chat([{"role": "user", "content": "request"}])
+
+
+def test_native_tool_projection_is_mechanical_and_non_strict(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-only")
+    requests = []
+
+    def fake_urlopen(request, timeout=None):
+        requests.append(request)
+        return FakeHTTPResponse(_native_response(content="plain answer"))
+
+    monkeypatch.setattr(
+        "julia_core.providers.deepseek.urllib.request.urlopen",
+        fake_urlopen,
+    )
+    provider = DeepSeekCognitionProvider()
+    result = provider.chat_with_tools(
+        [{"role": "user", "content": "request"}],
+        _available_tools(),
+    )
+
+    assert isinstance(result, TextResult)
+    assert result.content == "plain answer"
+    payload = json.loads(requests[0].data.decode("utf-8"))
+    assert payload["tool_choice"] == "auto"
+    assert payload["tools"] == [{
+        "type": "function",
+        "function": {
+            "name": "market_2E_stock_5F_quote_5F_read",
+            "description": "Read one exact stock/date quote",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "stock_id": {"description": "exact stock identifier"},
+                    "trade_date": {
+                        "description": "exact YYYY-MM-DD trade date"
+                    },
+                },
+            },
+        },
+    }]
+    serialized = json.dumps(payload["tools"], sort_keys=True)
+    assert '"required"' not in serialized
+    assert '"enum"' not in serialized
+    assert '"pattern"' not in serialized
+
+
+def test_native_tool_name_round_trip_and_fail_closed_constraints(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-only")
+    provider = DeepSeekCognitionProvider()
+    canonical_ids = (
+        "market.analysis.read",
+        "research.web.query",
+        "file_name.with_under_score",
+        "escape._2E_._5F_.literal",
+    )
+    for capability_id in canonical_ids:
+        wire_name = provider._encode_tool_name(capability_id)
+        assert len(wire_name) <= 128
+        assert provider._decode_tool_name(
+            wire_name,
+            canonical_ids,
+        ) == capability_id
+
+    with pytest.raises(DeepSeekCognitionProviderError):
+        provider._decode_tool_name("_BAD_", canonical_ids)
+    with pytest.raises(DeepSeekCognitionProviderError):
+        provider._decode_tool_name(
+            provider._encode_tool_name("unknown.tool"),
+            canonical_ids,
+        )
+    with pytest.raises(DeepSeekCognitionProviderError):
+        provider._encode_tool_name("bad:tool")
+    with pytest.raises(DeepSeekCognitionProviderError):
+        provider._encode_tool_name("a." + ("b" * 127))
+
+
+def test_native_result_text_and_single_tool_call(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-only")
+    provider = DeepSeekCognitionProvider()
+    tools = _available_tools()
+
+    monkeypatch.setattr(
+        "julia_core.providers.deepseek.urllib.request.urlopen",
+        lambda *args, **kwargs: FakeHTTPResponse(
+            _native_response(content="Julia answer")
+        ),
+    )
+    text_result = provider.chat_with_tools(
+        [{"role": "user", "content": "request"}],
+        tools,
+    )
+    assert text_result == TextResult("Julia answer")
+
+    wire_name = provider._encode_tool_name(tools[0]["capability_id"])
+    monkeypatch.setattr(
+        "julia_core.providers.deepseek.urllib.request.urlopen",
+        lambda *args, **kwargs: FakeHTTPResponse(
+            _native_response(
+                content=None,
+                tool_calls=[_tool_call(
+                    wire_name,
+                    {"stock_id": "600519.SH", "trade_date": "2026-07-31"},
+                )],
+                finish_reason="tool_calls",
+            )
+        ),
+    )
+    tool_result = provider.chat_with_tools(
+        [{"role": "user", "content": "request"}],
+        tools,
+    )
+    assert tool_result == NativeToolInvocation(
+        capability_id="market.stock_quote_read",
+        arguments={
+            "stock_id": "600519.SH",
+            "trade_date": "2026-07-31",
+        },
+    )
+
+
+def test_native_result_mixed_multiple_and_malformed_fail_closed(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-only")
+    provider = DeepSeekCognitionProvider()
+    tools = _available_tools()
+    wire_name = provider._encode_tool_name(tools[0]["capability_id"])
+    invalid_payloads = (
+        _native_response(
+            content="I will call a tool",
+            tool_calls=[_tool_call(wire_name, {})],
+            finish_reason="tool_calls",
+        ),
+        _native_response(
+            content=None,
+            tool_calls=[_tool_call(wire_name, {}), _tool_call(wire_name, {})],
+            finish_reason="tool_calls",
+        ),
+        _native_response(
+            content=None,
+            tool_calls=[_tool_call(wire_name, [])],
+            finish_reason="tool_calls",
+        ),
+        _native_response(
+            content=None,
+            tool_calls=[_tool_call(wire_name, {})],
+            finish_reason="stop",
+        ),
+        _native_response(
+            content=None,
+            tool_calls=None,
+            finish_reason="tool_calls",
+        ),
+    )
+    for payload in invalid_payloads:
+        monkeypatch.setattr(
+            "julia_core.providers.deepseek.urllib.request.urlopen",
+            lambda *args, _payload=payload, **kwargs: FakeHTTPResponse(_payload),
+        )
+        with pytest.raises(DeepSeekCognitionProviderError):
+            provider.chat_with_tools(
+                [{"role": "user", "content": "request"}],
+                tools,
+            )
 
 
 def test_provider_source_has_no_semantic_or_cross_component_dependencies():

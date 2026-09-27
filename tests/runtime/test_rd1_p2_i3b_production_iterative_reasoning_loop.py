@@ -15,6 +15,11 @@ from julia_core.capability.models import (
     ToolResult,
     ToolResultStatus,
 )
+from julia_core.providers.core_cognition import (
+    NATIVE_TOOL_INVOCATION,
+    NativeToolInvocation,
+    TextResult,
+)
 from julia_core.runtime.capability_bridge import RuntimeCapabilityBridge, ToolCallDecodeFailure
 from julia_core.runtime.context_execution_runtime import (
     CognitiveContextPackage,
@@ -176,6 +181,71 @@ class LoopSession:
         )
 
 
+def native_parent_package() -> CognitiveContextPackage:
+    package = parent_package()
+    package.capability_frame = {
+        "invocation_policy": package.validated_invocation_policy,
+        "available_tools": [{
+            "capability_id": "market.event.read",
+            "description": "Read one exact market event",
+            "input_schema": {"event_id": "exact event identifier"},
+        }],
+    }
+    return package
+
+
+class NativeLoopSession(LoopSession):
+    def __init__(self, results: list[object], outcomes: list | None = None):
+        super().__init__([], outcomes=outcomes)
+        self.tool_invocation_protocol = NATIVE_TOOL_INVOCATION
+        self.native_results = list(results)
+        self.native_inputs: list[list[dict]] = []
+        self.native_catalogs: list[list[dict]] = []
+        self.chat_calls = 0
+        self.provider = SimpleNamespace(
+            chat=self.chat,
+            chat_with_tools=self.chat_with_tools,
+        )
+
+    def chat(self, messages, cognitive_mode):
+        self.chat_calls += 1
+        raise AssertionError("native main cognition must not fall back to chat()")
+
+    def chat_with_tools(self, messages, available_tools, cognitive_mode):
+        self.native_inputs.append(list(messages))
+        self.native_catalogs.append(list(available_tools))
+        return self.native_results.pop(0)
+
+    def _execute_capability_with_action(self, capability_id, turn_context):
+        self.actions.append(capability_id)
+
+    def _execute_canonical_typed_tool(self, capability_id, arguments):
+        self.requests.append((capability_id, dict(arguments)))
+        if self.outcomes:
+            return self.outcomes.pop(0)
+        return execution(len(self.requests))
+
+
+def run_native_loop(
+    session: NativeLoopSession,
+    execution_limit: int | None = None,
+    state: dict | None = None,
+):
+    turn_context = SimpleNamespace(turn_id="turn", correlation_id="correlation")
+    loop = IterativeReasoningLoop(
+        session=session,
+        text="Ask Julia",
+        turn_context=turn_context,
+        messages=[{"role": "user", "content": "Ask Julia"}],
+        parent_package=native_parent_package(),
+        _capability_execution_limit=execution_limit,
+    )
+    result = loop.run()
+    if state is not None:
+        state["loop"] = loop
+    return result
+
+
 def run_loop(session: LoopSession, execution_limit: int | None = None, state: dict | None = None):
     turn_context = SimpleNamespace(turn_id="turn", correlation_id="correlation")
     loop = IterativeReasoningLoop(
@@ -311,6 +381,254 @@ def test_strict_parser_accepts_only_one_exact_fenced_call():
         parsed = parse_strict_model_response(response)
         assert parsed.kind == "TOOL_CALL_CONTROL_FAILURE"
         assert parsed.tool_call is None
+
+
+def test_available_tools_alone_do_not_enable_native_protocol():
+    session = LoopSession(["Julia final judgment"])
+    turn_context = SimpleNamespace(turn_id="turn", correlation_id="correlation")
+    loop = IterativeReasoningLoop(
+        session=session,
+        text="Ask Julia",
+        turn_context=turn_context,
+        messages=[{"role": "user", "content": "Ask Julia"}],
+        parent_package=native_parent_package(),
+    )
+
+    result = loop.run()
+
+    assert result.final_response_kind == "JUDGMENT"
+    assert result.reply == "Julia final judgment"
+    assert len(session.model_inputs) == 1
+
+
+def test_native_binding_uses_provider_neutral_call_and_c03_reentry():
+    session = NativeLoopSession([
+        NativeToolInvocation(
+            capability_id="market.event.read",
+            arguments={"event_id": "event-1"},
+        ),
+        TextResult("Julia final judgment"),
+    ])
+    state: dict[str, object] = {}
+
+    result = run_native_loop(session, state=state)
+
+    assert result.final_response_kind == "JUDGMENT"
+    assert result.capability_execution_count == 1
+    assert result.executed_capability_ids == ["market.event.read"]
+    assert session.requests == [
+        ("market.event.read", {"event_id": "event-1"})
+    ]
+    assert session.actions == ["market.event.read"]
+    assert session.chat_calls == 0
+    assert len(session.native_inputs) == 2
+    rendered_second_pass = str(session.native_inputs[1])
+    assert "source_1" in rendered_second_pass
+
+
+def test_native_text_result_with_legacy_invocation_fails_closed():
+    session = NativeLoopSession([
+        TextResult(tool_response("market.event.read", {"event_id": "event-1"})),
+    ])
+
+    result = run_native_loop(session)
+
+    assert result.final_response_kind == "CONTROL_FAILURE"
+    assert result.termination == "native_legacy_invocation_rejected"
+    assert result.capability_execution_count == 0
+    assert session.requests == []
+    assert session.actions == []
+    assert session.chat_calls == 0
+
+
+def test_native_binding_with_empty_catalog_still_rejects_legacy_tool_syntax():
+    session = NativeLoopSession([])
+    session.provider = SimpleNamespace(
+        chat=lambda messages, cognitive_mode: tool_response(
+            "market.event.read",
+            {"event_id": "event-1"},
+        ),
+        chat_with_tools=lambda *args, **kwargs: pytest.fail(
+            "empty catalog must not invoke native tools operation"
+        ),
+    )
+    package = parent_package()
+    package.capability_frame = {
+        "invocation_policy": package.validated_invocation_policy,
+        "available_tools": [],
+    }
+    turn_context = SimpleNamespace(turn_id="turn", correlation_id="correlation")
+    loop = IterativeReasoningLoop(
+        session=session,
+        text="Ask Julia",
+        turn_context=turn_context,
+        messages=[{"role": "user", "content": "Ask Julia"}],
+        parent_package=package,
+    )
+
+    result = loop.run()
+
+    assert result.final_response_kind == "CONTROL_FAILURE"
+    assert result.termination == "native_legacy_invocation_rejected"
+    assert session.requests == []
+
+
+def test_native_binding_with_empty_catalog_allows_ordinary_chat():
+    session = NativeLoopSession([])
+
+    def ordinary_chat(messages, cognitive_mode):
+        session.chat_calls += 1
+        return "Julia final judgment"
+
+    session.provider = SimpleNamespace(
+        chat=ordinary_chat,
+        chat_with_tools=lambda *args, **kwargs: pytest.fail(
+            "empty catalog must not invoke native tools operation"
+        ),
+    )
+    package = native_parent_package()
+    package.capability_frame["available_tools"] = []
+
+    turn_context = SimpleNamespace(turn_id="turn", correlation_id="correlation")
+    loop = IterativeReasoningLoop(
+        session=session,
+        text="Ask Julia",
+        turn_context=turn_context,
+        messages=[{"role": "user", "content": "Ask Julia"}],
+        parent_package=package,
+    )
+
+    result = loop.run()
+
+    assert result.final_response_kind == "JUDGMENT"
+    assert result.reply == "Julia final judgment"
+    assert session.chat_calls == 1
+    assert session.native_inputs == []
+
+
+@pytest.mark.parametrize(
+    ("catalog_state", "frame_is_dict"),
+    [
+        ("wrong_type", False),
+        ("missing", True),
+        ("wrong_available_tools_type", True),
+        ("malformed_tool", True),
+    ],
+)
+def test_malformed_native_catalog_fails_closed_without_provider_call(
+    catalog_state: str,
+    frame_is_dict: bool,
+):
+    chat_calls = 0
+    native_calls = 0
+
+    def forbidden_chat(*args, **kwargs):
+        nonlocal chat_calls
+        chat_calls += 1
+        raise AssertionError("malformed catalog must not fall back to chat()")
+
+    def forbidden_chat_with_tools(*args, **kwargs):
+        nonlocal native_calls
+        native_calls += 1
+        raise AssertionError("malformed catalog must not be fabricated")
+
+    session = NativeLoopSession([])
+    session.provider = SimpleNamespace(
+        chat=forbidden_chat,
+        chat_with_tools=forbidden_chat_with_tools,
+    )
+    package = native_parent_package()
+    if catalog_state == "wrong_type":
+        package.capability_frame = []
+    elif catalog_state == "missing":
+        package.capability_frame = {
+            "invocation_policy": package.validated_invocation_policy,
+        }
+    elif catalog_state == "wrong_available_tools_type":
+        package.capability_frame["available_tools"] = "not-a-list"
+    else:
+        package.capability_frame["available_tools"] = [{
+            "capability_id": "market.event.read",
+        }]
+    assert isinstance(package.capability_frame, dict) is frame_is_dict
+
+    turn_context = SimpleNamespace(turn_id="turn", correlation_id="correlation")
+    loop = IterativeReasoningLoop(
+        session=session,
+        text="Ask Julia",
+        turn_context=turn_context,
+        messages=[{"role": "user", "content": "Ask Julia"}],
+        parent_package=package,
+    )
+
+    result = loop.run()
+
+    assert result.final_response_kind == "CONTROL_FAILURE"
+    assert result.termination == "native_catalog_invalid"
+    assert result.capability_execution_count == 0
+    assert chat_calls == 0
+    assert native_calls == 0
+
+
+def test_native_operation_missing_does_not_fall_back_to_chat():
+    chat_calls = []
+
+    def forbidden_chat(*args, **kwargs):
+        chat_calls.append(1)
+        raise AssertionError("legacy chat fallback is forbidden")
+
+    session = NativeLoopSession([])
+    session.provider = SimpleNamespace(chat=forbidden_chat)
+
+    with pytest.raises(AttributeError):
+        run_native_loop(session)
+
+    assert chat_calls == []
+
+
+def test_native_operation_failure_does_not_fall_back_to_chat():
+    chat_calls = []
+
+    def forbidden_chat(*args, **kwargs):
+        chat_calls.append(1)
+        raise AssertionError("legacy chat fallback is forbidden")
+
+    def failing_native(*args, **kwargs):
+        raise RuntimeError("native transport failed")
+
+    session = NativeLoopSession([])
+    session.provider = SimpleNamespace(
+        chat=forbidden_chat,
+        chat_with_tools=failing_native,
+    )
+
+    with pytest.raises(RuntimeError, match="native transport failed"):
+        run_native_loop(session)
+
+    assert chat_calls == []
+
+
+def test_native_duplicate_uses_same_semantic_fingerprint_and_budget():
+    call = NativeToolInvocation(
+        capability_id="market.event.read",
+        arguments={"event_id": "same"},
+    )
+    session = NativeLoopSession([
+        call,
+        call,
+        TextResult("Julia final judgment"),
+    ])
+    state: dict[str, object] = {}
+
+    result = run_native_loop(session, state=state)
+
+    assert result.capability_execution_count == 1
+    assert session.requests == [
+        ("market.event.read", {"event_id": "same"})
+    ]
+    assert state["loop"].parent_package.control_frame["kind"] == (
+        "duplicate_capability_call_rejected"
+    )
 
 
 def test_full_six_tool_chain_accumulates_ordered_evidence():
@@ -561,6 +879,24 @@ def test_decode_failures_are_typed_and_never_none():
         outcome = bridge.execute_tool_typed(payload)
         assert isinstance(outcome, ToolCallDecodeFailure)
         assert outcome.reason == reason
+
+
+def test_canonical_typed_seam_preserves_governed_ingress_and_alias_isolation():
+    bridge = RuntimeCapabilityBridge()
+
+    governed = bridge.execute_canonical_tool_typed(
+        "engineering.code_review",
+        {},
+    )
+    assert governed.capability_id == "engineering.code_review"
+    assert governed.reason == "GOVERNED_INGRESS_REQUIRED"
+
+    legacy_alias = bridge.execute_canonical_tool_typed(
+        "read_file",
+        {"path": "/tmp/example"},
+    )
+    assert legacy_alias.capability_id == "read_file"
+    assert legacy_alias.reason == "UNKNOWN"
 
 
 def test_control_projection_inherits_ledger_without_appending_control():

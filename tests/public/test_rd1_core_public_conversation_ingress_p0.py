@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import inspect
 
+from julia_core.providers.core_cognition import (
+    NATIVE_TOOL_INVOCATION,
+    TextResult,
+)
 from julia_core.public.conversation import (
     CoreConversationConfig,
     CoreConversationIngress,
@@ -13,6 +17,15 @@ from julia_core.public.conversation import (
 
 def _request() -> CoreConversationRequest:
     return CoreConversationRequest("conv-1", "turn-1", "text", "hello")
+
+
+def _clear_evidence_obligation() -> str:
+    fence = chr(96) * 3
+    return (
+        f"{fence}evidence_obligation\n"
+        '{"unresolved_required_evidence":false,"evidence_intents":[]}\n'
+        f"{fence}"
+    )
 
 
 def _use_credential_free_cognition_seam(monkeypatch):
@@ -28,10 +41,12 @@ def test_public_ingress_processes_typed_turn_through_core_runtime(monkeypatch, t
     calls = []
 
     class FakeSession:
-        def __init__(self, provider=None):
+        def __init__(self, provider=None, *, tool_invocation_protocol=None):
             self.provider = provider
+            self.tool_invocation_protocol = tool_invocation_protocol
 
         def process(self, *args):
+            assert self.tool_invocation_protocol == NATIVE_TOOL_INVOCATION
             return "CORE_SENTINEL"
 
     class FakeRuntime:
@@ -90,7 +105,12 @@ def test_real_composition_requires_explicit_test_provider(tmp_path, monkeypatch)
     """TC-RC25-08: test provider injection is explicit and registry-mediated."""
     class TestProvider:
         def chat(self, messages, *, cognitive_mode=""):
+            if cognitive_mode == "evidence_obligation_check":
+                return _clear_evidence_obligation()
             return "TEST_PROVIDER_SENTINEL"
+
+        def chat_with_tools(self, messages, available_tools, *, cognitive_mode=""):
+            return TextResult("TEST_PROVIDER_SENTINEL")
 
     _use_credential_free_cognition_seam(monkeypatch)
     monkeypatch.setattr(
@@ -111,8 +131,14 @@ def test_current_user_turn_is_model_visible_exactly_once(monkeypatch, tmp_path):
 
     class CapturingProvider:
         def chat(self, messages, *, cognitive_mode=""):
+            if cognitive_mode == "evidence_obligation_check":
+                return _clear_evidence_obligation()
             captured.append([dict(message) for message in messages])
             return "CAPTURED"
+
+        def chat_with_tools(self, messages, available_tools, *, cognitive_mode=""):
+            captured.append([dict(message) for message in messages])
+            return TextResult("CAPTURED")
 
     _use_credential_free_cognition_seam(monkeypatch)
     monkeypatch.setattr(
@@ -159,9 +185,18 @@ def test_current_user_turn_is_model_visible_exactly_once(monkeypatch, tmp_path):
 
 def test_real_core_domain_errors_remain_typed(tmp_path, monkeypatch):
     """TC-RC25-06: missing conversation and conflicting turns stay distinct."""
+    class TestProvider:
+        def chat(self, messages, cognitive_mode=""):
+            if cognitive_mode == "evidence_obligation_check":
+                return _clear_evidence_obligation()
+            return "domain answer"
+
+        def chat_with_tools(self, messages, available_tools, cognitive_mode=""):
+            return TextResult("domain answer")
+
     monkeypatch.setattr(
         "julia_core.providers.core_cognition._get_cognition_provider",
-        lambda _name: type("TestProvider", (), {"chat": lambda self, messages, cognitive_mode="": "domain answer"})(),
+        lambda _name: TestProvider(),
     )
     _use_credential_free_cognition_seam(monkeypatch)
     ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))

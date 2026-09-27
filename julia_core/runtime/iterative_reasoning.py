@@ -9,6 +9,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from julia_core.capability.models import ToolResultStatus
+from julia_core.providers.core_cognition import (
+    NATIVE_TOOL_INVOCATION,
+    NativeToolInvocation,
+    TextResult,
+)
 
 
 MAX_COGNITION_PASSES_PER_TURN = 7
@@ -264,11 +269,83 @@ class IterativeReasoningLoop:
 
         for pass_index in range(1, MAX_COGNITION_PASSES_PER_TURN + 1):
             self.cognition_pass_count = pass_index
-            response = self.session.provider.chat(
-                self.messages,
-                cognitive_mode="private_voice_continuity",
-            )
-            parsed = parse_strict_model_response(response)
+            native_call: NativeToolInvocation | None = None
+            native_bound = self._native_invocation_bound()
+            native_tools = self._native_tool_catalog() if native_bound else []
+            if native_tools is None:
+                final_response_kind = "CONTROL_FAILURE"
+                termination = "native_catalog_invalid"
+                reply = "Native invocation catalog was invalid; cognition failed closed."
+                break
+            if native_bound and native_tools:
+                provider_result = self.session.provider.chat_with_tools(
+                    self.messages,
+                    native_tools,
+                    cognitive_mode="private_voice_continuity",
+                )
+                if isinstance(provider_result, NativeToolInvocation):
+                    native_call = provider_result
+                    response = ""
+                    parsed = StrictModelResponse("NATIVE_TOOL_CALL", "")
+                elif isinstance(provider_result, TextResult):
+                    response = provider_result.content
+                    if "```tool_call" in response:
+                        final_response_kind = "CONTROL_FAILURE"
+                        termination = "native_legacy_invocation_rejected"
+                        reply = (
+                            "Native invocation protocol rejected legacy "
+                            "tool-call syntax."
+                        )
+                        break
+                    parsed = StrictModelResponse("FINAL_TEXT", response.strip())
+                else:
+                    raise TypeError(
+                        "native cognition provider returned an invalid result type"
+                    )
+            elif native_bound:
+                response = self.session.provider.chat(
+                    self.messages,
+                    cognitive_mode="private_voice_continuity",
+                )
+                if "```tool_call" in response:
+                    final_response_kind = "CONTROL_FAILURE"
+                    termination = "native_legacy_invocation_rejected"
+                    reply = (
+                        "Native invocation protocol rejected legacy "
+                        "tool-call syntax."
+                    )
+                    break
+                parsed = StrictModelResponse("FINAL_TEXT", response.strip())
+            else:
+                response = self.session.provider.chat(
+                    self.messages,
+                    cognitive_mode="private_voice_continuity",
+                )
+                parsed = parse_strict_model_response(response)
+
+            if native_call is not None:
+                if self._post_budget_tool_request():
+                    final_response_kind = "CONTROL_FAILURE"
+                    termination = "post_limit_tool_request"
+                    reply = (
+                        "Capability execution limit reached; no additional "
+                        "tool was executed."
+                    )
+                    break
+                if pass_index == MAX_COGNITION_PASSES_PER_TURN:
+                    final_response_kind = "CONTROL_FAILURE"
+                    termination = "cognition_pass_limit"
+                    reply = (
+                        "Cognition pass limit reached before Julia could "
+                        "produce a final answer."
+                    )
+                    break
+                self._execute_canonical_call(
+                    native_call,
+                    pass_index,
+                    native=True,
+                )
+                continue
 
             if parsed.kind == "FINAL_TEXT":
                 control_frame = getattr(self.parent_package, "control_frame", {})
@@ -329,38 +406,13 @@ class IterativeReasoningLoop:
                 reply = "Cognition pass limit reached before Julia could produce a final answer."
                 break
 
-            if tool_call.fingerprint in self.seen_fingerprints:
-                self._project_duplicate(tool_call, pass_index)
-                continue
-
-            if self.capability_execution_count >= self.capability_execution_limit:
-                self._project_budget_exceeded(pass_index)
-                continue
-
-            self.seen_fingerprints.add(tool_call.fingerprint)
-            self.session._execute_tool_with_action(tool_call.raw_json, self.turn_context)
-            outcome = self.session._execute_typed_tool(tool_call.raw_json)
-            if getattr(outcome, "capability_call", None) is not None:
-                self.capability_execution_count += 1
-                self.executed_capability_ids.append(tool_call.capability_id)
-                status = outcome.tool_result.status
-                status_value = status.value if hasattr(status, "value") else str(status)
-                self.unresolved_unavailable = status_value == ToolResultStatus.UNAVAILABLE.value
-            package = self.session._dispatch_typed_outcome(
-                outcome,
-                self.turn_context,
-                parent_package=self.parent_package,
-                generation_id=self._generation_id(pass_index, "tool"),
+            self._execute_canonical_call(
+                tool_call,
+                pass_index,
+                native=False,
+                legacy_raw_json=tool_call.raw_json,
+                assistant_response=response,
             )
-            self._register_projection(package)
-            evidence_frame = getattr(package, "evidence_frame", {})
-            if isinstance(evidence_frame, dict) and evidence_frame.get("turn_evidence_ledger"):
-                self.evidence_generation_ids.append(getattr(package, "generation_id", ""))
-            self.session.action.finish(
-                self.session._outcome_action_status(outcome),
-                correlation_id=self.turn_context.correlation_id,
-            )
-            self.messages = self._continuation_messages(package, response)
 
         if final_response_kind == "NONE":
             final_response_kind = "CONTROL_FAILURE"
@@ -378,6 +430,118 @@ class IterativeReasoningLoop:
             evidence_generation_ids=list(self.evidence_generation_ids),
             evidence_obligation_check_count=self.evidence_obligation_check_count,
             evidence_obligation_required_count=self.evidence_obligation_required_count,
+        )
+
+    def _native_invocation_bound(self) -> bool:
+        return (
+            getattr(self.session, "tool_invocation_protocol", None)
+            == NATIVE_TOOL_INVOCATION
+        )
+
+    def _native_tool_catalog(self) -> list[dict] | None:
+        capability_frame = getattr(self.parent_package, "capability_frame", {})
+        if (
+            not isinstance(capability_frame, dict)
+            or "available_tools" not in capability_frame
+        ):
+            return None
+        available_tools = capability_frame["available_tools"]
+        if not isinstance(available_tools, list):
+            return None
+        capability_ids: set[str] = set()
+        for tool in available_tools:
+            if not isinstance(tool, dict) or set(tool) != {
+                "capability_id",
+                "description",
+                "input_schema",
+            }:
+                return None
+            capability_id = tool["capability_id"]
+            description = tool["description"]
+            input_schema = tool["input_schema"]
+            if (
+                not isinstance(capability_id, str)
+                or not capability_id
+                or capability_id in capability_ids
+                or not isinstance(description, str)
+                or not isinstance(input_schema, dict)
+            ):
+                return None
+            capability_ids.add(capability_id)
+            if any(
+                not isinstance(name, str)
+                or not name
+                or not isinstance(argument_description, str)
+                for name, argument_description in input_schema.items()
+            ):
+                return None
+        return available_tools
+
+    def _execute_canonical_call(
+        self,
+        tool_call: StrictToolCall | NativeToolInvocation,
+        pass_index: int,
+        *,
+        native: bool,
+        legacy_raw_json: str | None = None,
+        assistant_response: str = "",
+    ) -> None:
+        if tool_call.fingerprint in self.seen_fingerprints:
+            self._project_duplicate(tool_call, pass_index)
+            return
+
+        if self.capability_execution_count >= self.capability_execution_limit:
+            self._project_budget_exceeded(pass_index)
+            return
+
+        self.seen_fingerprints.add(tool_call.fingerprint)
+        if native:
+            self.session._execute_capability_with_action(
+                tool_call.capability_id,
+                self.turn_context,
+            )
+            outcome = self.session._execute_canonical_typed_tool(
+                tool_call.capability_id,
+                tool_call.arguments,
+            )
+        else:
+            assert legacy_raw_json is not None
+            self.session._execute_tool_with_action(
+                legacy_raw_json,
+                self.turn_context,
+            )
+            outcome = self.session._execute_typed_tool(legacy_raw_json)
+
+        if getattr(outcome, "capability_call", None) is not None:
+            self.capability_execution_count += 1
+            self.executed_capability_ids.append(tool_call.capability_id)
+            status = outcome.tool_result.status
+            status_value = status.value if hasattr(status, "value") else str(status)
+            self.unresolved_unavailable = (
+                status_value == ToolResultStatus.UNAVAILABLE.value
+            )
+        package = self.session._dispatch_typed_outcome(
+            outcome,
+            self.turn_context,
+            parent_package=self.parent_package,
+            generation_id=self._generation_id(pass_index, "tool"),
+        )
+        self._register_projection(package)
+        evidence_frame = getattr(package, "evidence_frame", {})
+        if (
+            isinstance(evidence_frame, dict)
+            and evidence_frame.get("turn_evidence_ledger")
+        ):
+            self.evidence_generation_ids.append(
+                getattr(package, "generation_id", "")
+            )
+        self.session.action.finish(
+            self.session._outcome_action_status(outcome),
+            correlation_id=self.turn_context.correlation_id,
+        )
+        self.messages = self._continuation_messages(
+            package,
+            "" if native else assistant_response,
         )
 
     def _external_evidence_check_applicable(self) -> bool:

@@ -772,13 +772,39 @@ class RuntimeCapabilityBridge:
         except (KeyError, TypeError):
             return ToolCallDecodeFailure("INVALID_CALL_SHAPE")
 
-        # Map legacy tool names to new capability names
+        # Map legacy tool names to canonical capability IDs at the legacy
+        # carrier boundary only. Native transport decodes directly to canonical
+        # capability IDs and never passes through these aliases.
         legacy_to_new = {
             "read_file": "file.read",
             "search_files": "file.search",
             "list_directory": "file.list",
         }
         capability_id = legacy_to_new.get(name, name)
+        return self.execute_canonical_tool_typed(
+            capability_id,
+            args,
+            invocation_name=name,
+        )
+
+    def execute_canonical_tool_typed(
+        self,
+        capability_id: str,
+        arguments: dict,
+        *,
+        invocation_name: str | None = None,
+    ) -> CapabilityExecution | CapabilityPreAuthorizationFailure | ToolCallDecodeFailure:
+        """Execute an already-decoded canonical capability request.
+
+        Carrier-specific decoding must complete before this seam. This method
+        preserves governed ingress, Registry, authorization, Manager execution,
+        typed failure propagation, ToolResult, and Evidence semantics.
+        """
+        self.initialize()
+        if type(capability_id) is not str or not capability_id.strip():
+            return ToolCallDecodeFailure("MISSING_NAME")
+        if type(arguments) is not dict:
+            return ToolCallDecodeFailure("INVALID_CALL_SHAPE")
 
         # PRE-P4 + External Review gate: the generic model tool-call path must
         # NEVER invoke engineering.code_review. External review is manual /
@@ -790,7 +816,6 @@ class RuntimeCapabilityBridge:
                 "GOVERNED_INGRESS_REQUIRED",
             )
 
-        # Deterministic pre-check against the audited immutable registry.
         definition = self.manager.registry.get(capability_id)
         if definition is None:
             return CapabilityPreAuthorizationFailure(capability_id, "UNKNOWN")
@@ -799,10 +824,9 @@ class RuntimeCapabilityBridge:
 
         request = CapabilityRequest(
             capability_name=capability_id,
-            arguments=args,
-            reason=f"LLM tool call: {name}",
+            arguments=arguments,
+            reason=f"LLM tool call: {invocation_name or capability_id}",
         )
-
         return self.async_runtime.run(lambda: self.manager.execute_typed(request))
 
     def close(self) -> None:

@@ -4,13 +4,55 @@ from __future__ import annotations
 
 import os
 import threading
-from typing import Protocol
+from dataclasses import dataclass
+from typing import Any, Protocol
+
+
+LEGACY_TEXT_TOOL_INVOCATION = "legacy_text_v1"
+NATIVE_TOOL_INVOCATION = "native_tools_v1"
+
+
+@dataclass(frozen=True, slots=True)
+class TextResult:
+    content: str
+
+
+@dataclass(frozen=True, slots=True)
+class NativeToolInvocation:
+    capability_id: str
+    arguments: dict[str, Any]
+
+    @property
+    def fingerprint(self) -> tuple[str, str]:
+        import json
+
+        return (
+            self.capability_id,
+            json.dumps(
+                self.arguments,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ),
+        )
 
 
 class CoreCognitionProvider(Protocol):
     """Production cognition provider contract owned by Core."""
 
     def chat(self, messages: list[dict], *, cognitive_mode: str = "") -> str: ...
+
+
+class CapabilityAwareCoreCognitionProvider(CoreCognitionProvider, Protocol):
+    """Additive provider contract for explicitly bound native tool invocation."""
+
+    def chat_with_tools(
+        self,
+        messages: list[dict],
+        available_tools: list[dict],
+        *,
+        cognitive_mode: str = "",
+    ) -> TextResult | NativeToolInvocation: ...
 
 
 _providers: dict[str, CoreCognitionProvider] = {}
@@ -70,4 +112,12 @@ def initialize_production_cognition() -> CoreCognitionProvider:
             raise
 
 
-__all__ = ["CoreCognitionProvider", "CoreCognitionProviderUnavailable"]
+__all__ = [
+    "CapabilityAwareCoreCognitionProvider",
+    "CoreCognitionProvider",
+    "CoreCognitionProviderUnavailable",
+    "LEGACY_TEXT_TOOL_INVOCATION",
+    "NATIVE_TOOL_INVOCATION",
+    "NativeToolInvocation",
+    "TextResult",
+]
