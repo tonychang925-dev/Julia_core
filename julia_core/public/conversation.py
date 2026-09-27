@@ -339,6 +339,29 @@ class CoreConversationIngress:
             raise ValueError("invalid conversation_id")
         return self._runtime.create_conversation(conversation_id, title).conversation_id
 
+    def list_conversations(self, query: str | None = None) -> list:
+        """Expose Core's existing read-only conversation listing."""
+        if self._composition_error is not None:
+            raise CoreConversationConfigurationError("Core composition is unavailable")
+        assert self._runtime is not None
+        if query:
+            return self._runtime.search_conversations(query)
+        return self._runtime.list_conversations()
+
+    def get_conversation(self, conversation_id: str) -> dict | None:
+        """Expose Core's existing read-only conversation detail."""
+        if self._composition_error is not None:
+            raise CoreConversationConfigurationError("Core composition is unavailable")
+        assert self._runtime is not None
+        return self._runtime.get_conversation(conversation_id)
+
+    def get_messages(self, conversation_id: str) -> list[dict]:
+        """Expose Core's existing read-only message tail."""
+        if self._composition_error is not None:
+            raise CoreConversationConfigurationError("Core composition is unavailable")
+        assert self._runtime is not None
+        return self._runtime.get_messages(conversation_id)
+
     @staticmethod
     def _valid_identifier(value: str) -> bool:
         return bool(
