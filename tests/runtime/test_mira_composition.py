@@ -6,6 +6,7 @@ import json
 import shutil
 import socket
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -27,6 +28,7 @@ from julia_core.runtime.mira_composition import (
     MiraCompositionError,
     MiraProviderEnvelopeRequest,
     MiraRuntimeShaPins,
+    _verify_v2_authority_source_sha,
     compose_golden_mira_runtime,
 )
 
@@ -299,6 +301,39 @@ def test_composition_has_no_legacy_julia_dependency() -> None:
     assert not any(
         name in {"requests", "httpx", "urllib", "urllib3", "http.client", "socket"}
         for name in imports
+    )
+
+
+def test_v2_authority_source_sha_must_match_core_pin() -> None:
+    matching_sha = "1" * 40
+    mismatching_sha = "2" * 40
+    pins = MiraRuntimeShaPins(
+        expected_core_sha=matching_sha,
+        observed_core_sha=matching_sha,
+        expected_assistant_sha=matching_sha,
+        observed_assistant_sha=matching_sha,
+    )
+
+    _verify_v2_authority_source_sha(
+        v2_authority=True,
+        reader=SimpleNamespace(source_sha=matching_sha),
+        sha_pins=pins,
+    )
+
+    with pytest.raises(
+        MiraCompositionError,
+        match="v2 durable authority source SHA does not match Core SHA pin",
+    ):
+        _verify_v2_authority_source_sha(
+            v2_authority=True,
+            reader=SimpleNamespace(source_sha=mismatching_sha),
+            sha_pins=pins,
+        )
+
+    _verify_v2_authority_source_sha(
+        v2_authority=False,
+        reader=SimpleNamespace(source_sha=mismatching_sha),
+        sha_pins=pins,
     )
 
 

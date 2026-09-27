@@ -1,0 +1,85 @@
+{
+  "schema": "julia_core.mira_migration.semantic_fidelity_manifest.v1",
+  "artifact_id": "P5_E_GM_CMIR_004_SEMANTIC_FIDELITY_CORRECTION_V1",
+  "task_id": "P5-E-CF-UPSTREAM-SEMANTIC-LOSS-CORRECTION-P0",
+  "status": "PREP_ONLY",
+  "raw_export": {
+    "artifact_id": "MIRA_GOLDEN_CHATGPT_HI_MIRA_CANDIDATE.json",
+    "sha256": "564ef9b1aa5457b56751f550d80b0eaa24e144f8d08bd2f6b8c0ff870b8e9420"
+  },
+  "historical_candidate": {
+    "preview_commit": "4514eb1e52aa8bc3f2ebac20dba3d000ddb83e14",
+    "preview_path": "artifacts/mira_migration_prep/MIGRATION_TYPED_CANDIDATE_PREVIEW_V0_1_REWORK.json",
+    "candidate_id": "MIRA-MEM-CAND-003",
+    "canonical_ref": "memory-experience://golden-mira:GM-CMIR-004/v0.1-preview",
+    "version_id": "v0.1-preview",
+    "canonical_digest": "ba4edeff89bc8054be19d7a48226fcef74359bc85d17dbd6abea4b754b905f97"
+  },
+  "successor": {
+    "candidate_id": "MIRA-MEM-CAND-003-SF1",
+    "proposed_version_id": "v0.2-semantic-fidelity-preview"
+  },
+  "corrections": [
+    {
+      "correction_id": "GM-CMIR-004-SF-EVENT-001",
+      "target_path": [
+        "content",
+        "event"
+      ],
+      "source_semantic_attribute": {
+        "dimension": "kinship.sibling_relative_age",
+        "value": "OLDER"
+      },
+      "normalized_semantic_attribute": {
+        "dimension": "kinship.sibling_relative_age",
+        "value": "OLDER"
+      },
+      "old_normalized_span": "his sister",
+      "corrected_normalized_span": "his older sister",
+      "raw_evidence": [
+        {
+          "binding_id": "GM-CMIR-004.EB-001",
+          "causal_role": "trigger_event_evidence",
+          "message_id": "567305f9-bb20-4134-b34e-24bbaac145d0",
+          "text_sha256": "0f5f6380af70d18247bbcae0604bba956e825973f482309374d796381142414d",
+          "required_source_span": "姐姐"
+        }
+      ]
+    },
+    {
+      "correction_id": "GM-CMIR-004-SF-REINTERPRETATION-001",
+      "target_path": [
+        "content",
+        "later_reinterpretation"
+      ],
+      "source_semantic_attribute": {
+        "dimension": "kinship.sibling_relative_age",
+        "value": "OLDER"
+      },
+      "normalized_semantic_attribute": {
+        "dimension": "kinship.sibling_relative_age",
+        "value": "OLDER"
+      },
+      "old_normalized_span": "his sister",
+      "corrected_normalized_span": "his older sister",
+      "raw_evidence": [
+        {
+          "binding_id": "GM-CMIR-004.EB-004",
+          "causal_role": "revision_evidence",
+          "message_id": "71f7ab8c-82b9-4030-adb0-cb48f884bfaa",
+          "text_sha256": "b68aa4a9d49af9aa582f0daaa00d78251eea6468002719e2a9e5e15dd1528384",
+          "required_source_span": "姐姐"
+        }
+      ]
+    }
+  ],
+  "authority": {
+    "canonical_admission": false,
+    "canonical_write": false,
+    "supersession": false,
+    "psb_rebind": false,
+    "runtime_wiring": false,
+    "provider_wiring": false,
+    "production_cutover": false
+  }
+}
