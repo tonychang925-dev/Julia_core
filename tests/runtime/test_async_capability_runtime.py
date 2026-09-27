@@ -285,12 +285,26 @@ def test_canonical_sync_delivery_has_no_per_call_loop_or_executor():
     assert "ThreadPoolExecutor" not in delivery_source
 
 
-def test_async_capability_runtime_default_execution_timeout_is_30_seconds(monkeypatch):
+def test_default_execution_timeout_exceeds_research_provider_budget(monkeypatch):
+    """The outer gate must exceed the slowest provider's internal budget.
+
+    Encoding the invariant rather than a literal keeps the two from drifting
+    apart again: a default below the provider budget kills the provider from
+    outside, so a call that would have returned is lost.
+    """
     monkeypatch.delenv("JULIA_CAPABILITY_EXECUTION_TIMEOUT_SECONDS", raising=False)
+
+    from dataclasses import fields
+
+    from julia_core.research.claude_client_web import ClaudeClientExecutionConfig
+
+    provider_budget = {
+        f.name: f.default for f in fields(ClaudeClientExecutionConfig)
+    }["timeout_seconds"]
 
     runtime = AsyncCapabilityRuntime()
 
-    assert runtime.execution_timeout_seconds == 30
+    assert runtime.execution_timeout_seconds > provider_budget
 
 
 def test_async_capability_runtime_honors_deployment_execution_timeout(monkeypatch):
