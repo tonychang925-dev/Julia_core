@@ -427,6 +427,13 @@ class GoldenMiraRuntimeComposition:
         raise TypeError("Golden Mira runtime compositions are immutable")
 
 
+def _verify_v2_authority_source_sha(*, v2_authority: bool, reader, sha_pins) -> None:
+    if v2_authority and reader.source_sha != sha_pins.expected_core_sha:
+        raise MiraCompositionError(
+            "v2 durable authority source SHA does not match Core SHA pin"
+        )
+
+
 def compose_golden_mira_runtime(
     *,
     authority_root: Path,
@@ -453,6 +460,11 @@ def compose_golden_mira_runtime(
         GoldenMiraDurableAuthorityV2Reader(authority_root)
         if v2_authority
         else FilesystemDurableAuthorityReader(authority_root)
+    )
+    _verify_v2_authority_source_sha(
+        v2_authority=v2_authority,
+        reader=reader,
+        sha_pins=sha_pins,
     )
     active_memory_refs = (
         reader.active_memory_refs if v2_authority else EXPECTED_MEMORY_REFS
