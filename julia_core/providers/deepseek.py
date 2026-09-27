@@ -260,10 +260,6 @@ class DeepSeekCognitionProvider:
                     raise DeepSeekCognitionProviderError(
                         "DeepSeek returned invalid mixed native content"
                     )
-                if content.strip():
-                    raise DeepSeekCognitionProviderError(
-                        "DeepSeek returned mixed native tool and text content"
-                    )
             call = tool_calls[0]
             if (
                 type(call) is not dict

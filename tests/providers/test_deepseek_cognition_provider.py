@@ -318,7 +318,8 @@ def test_native_tool_name_round_trip_and_fail_closed_constraints(monkeypatch):
         provider._encode_tool_name("a." + ("b" * 127))
 
 
-def test_native_result_text_and_single_tool_call(monkeypatch):
+@pytest.mark.parametrize("content", [None, "", "I will read the market evidence"])
+def test_native_result_text_and_single_tool_call(monkeypatch, content):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-only")
     provider = DeepSeekCognitionProvider()
     tools = _available_tools()
@@ -340,7 +341,7 @@ def test_native_result_text_and_single_tool_call(monkeypatch):
         "julia_core.providers.deepseek.urllib.request.urlopen",
         lambda *args, **kwargs: FakeHTTPResponse(
             _native_response(
-                content=None,
+                content=content,
                 tool_calls=[_tool_call(
                     wire_name,
                     {"stock_id": "600519.SH", "trade_date": "2026-07-31"},
@@ -362,17 +363,32 @@ def test_native_result_text_and_single_tool_call(monkeypatch):
     )
 
 
-def test_native_result_mixed_multiple_and_malformed_fail_closed(monkeypatch):
+def test_native_fence_without_tool_call_remains_text_for_runtime_rejection(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-only")
+    provider = DeepSeekCognitionProvider()
+    legacy_fence = '```tool_call\n{"name":"market.stock_quote_read"}\n```'
+
+    monkeypatch.setattr(
+        "julia_core.providers.deepseek.urllib.request.urlopen",
+        lambda *args, **kwargs: FakeHTTPResponse(
+            _native_response(content=legacy_fence)
+        ),
+    )
+
+    result = provider.chat_with_tools(
+        [{"role": "user", "content": "request"}],
+        _available_tools(),
+    )
+
+    assert result == TextResult(legacy_fence)
+
+
+def test_native_fence_without_tool_call_remains_text_and_multiple_and_malformed_fail_closed(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-only")
     provider = DeepSeekCognitionProvider()
     tools = _available_tools()
     wire_name = provider._encode_tool_name(tools[0]["capability_id"])
     invalid_payloads = (
-        _native_response(
-            content="I will call a tool",
-            tool_calls=[_tool_call(wire_name, {})],
-            finish_reason="tool_calls",
-        ),
         _native_response(
             content=None,
             tool_calls=[_tool_call(wire_name, {}), _tool_call(wire_name, {})],
