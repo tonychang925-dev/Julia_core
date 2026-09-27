@@ -18,6 +18,7 @@ from typing import Any, Sequence
 
 from julia_core.capability.models import CapabilityStatus, Evidence, ToolResult
 from julia_core.capability.policy import AuthorizationDecision, AuthorizationStatus
+from julia_core.providers.core_cognition import NATIVE_TOOL_INVOCATION
 
 
 class ContextNotReady(Exception):
@@ -312,6 +313,23 @@ class ContextExecutionRuntime:
 
     def __init__(self, julia_session=None):
         self._js = julia_session
+
+    def _native_invocation_bound(self) -> bool:
+        return (
+            getattr(self._js, "tool_invocation_protocol", None)
+            == NATIVE_TOOL_INVOCATION
+        )
+
+    def _model_visible_invocation_policy(
+        self, invocation_policy: dict[str, Any]
+    ) -> dict[str, Any]:
+        if not self._native_invocation_bound():
+            return copy.deepcopy(invocation_policy)
+        return {
+            section: copy.deepcopy(value)
+            for section, value in invocation_policy.items()
+            if section != "invocation_protocol"
+        }
 
     @staticmethod
     def _invocation_policy_failure(policy: Any) -> str | None:
@@ -634,8 +652,10 @@ class ContextExecutionRuntime:
                                 required=True,
                             )
                             else:
-                                capability_frame["invocation_policy"] = copy.deepcopy(
-                                    invocation_policy
+                                capability_frame["invocation_policy"] = (
+                                    self._model_visible_invocation_policy(
+                                        invocation_policy
+                                    )
                                 )
                                 pkg.validated_invocation_policy = copy.deepcopy(invocation_policy)
                     capability_frame["available_tools"] = entries
@@ -974,7 +994,9 @@ class ContextExecutionRuntime:
                 parent_package.validated_invocation_policy
             )
             pkg.capability_frame = {
-                "invocation_policy": copy.deepcopy(pkg.validated_invocation_policy)
+                "invocation_policy": self._model_visible_invocation_policy(
+                    pkg.validated_invocation_policy
+                )
             }
             pkg.add_provenance(
                 "capability",
