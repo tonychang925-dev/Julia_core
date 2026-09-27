@@ -734,6 +734,32 @@ class ContextExecutionRuntime:
                           reason="tool execution result (typed)", stage=2)
         return pkg
 
+    @staticmethod
+    def project_native_tool_invocation(
+        package: CognitiveContextPackage,
+        capability_id: str,
+        arguments: dict[str, Any],
+    ) -> None:
+        if not isinstance(package, CognitiveContextPackage):
+            raise TypeError("native invocation projection requires a Context package")
+        if not isinstance(capability_id, str) or not capability_id:
+            raise ValueError("native invocation projection requires a capability_id")
+        if not isinstance(arguments, dict):
+            raise ValueError("native invocation projection requires argument mapping")
+        capability_frame = package.capability_frame
+        if not isinstance(capability_frame, dict):
+            raise TypeError("native invocation projection requires a capability frame")
+        invocations = capability_frame.get("julia_selected_invocations")
+        if invocations is None:
+            invocations = []
+        elif not isinstance(invocations, list):
+            raise TypeError("native invocation lineage must be a list")
+        invocations.append({
+            "capability_id": capability_id,
+            "arguments": copy.deepcopy(arguments),
+        })
+        capability_frame["julia_selected_invocations"] = invocations
+
     def project_authorization_outcome(
         self,
         *,
@@ -1007,6 +1033,13 @@ class ContextExecutionRuntime:
             available_tools = parent_package.capability_frame.get("available_tools")
             if isinstance(available_tools, list):
                 pkg.capability_frame["available_tools"] = copy.deepcopy(available_tools)
+            selected_invocations = parent_package.capability_frame.get(
+                "julia_selected_invocations"
+            )
+            if isinstance(selected_invocations, list):
+                pkg.capability_frame["julia_selected_invocations"] = copy.deepcopy(
+                    selected_invocations
+                )
         return pkg
 
     def _validated_turn_evidence_ledger(

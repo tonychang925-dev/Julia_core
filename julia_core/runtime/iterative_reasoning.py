@@ -526,6 +526,12 @@ class IterativeReasoningLoop:
             parent_package=self.parent_package,
             generation_id=self._generation_id(pass_index, "tool"),
         )
+        if native:
+            self.session.context_os.project_native_tool_invocation(
+                package,
+                tool_call.capability_id,
+                tool_call.arguments,
+            )
         self._register_projection(package)
         evidence_frame = getattr(package, "evidence_frame", {})
         if (

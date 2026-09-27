@@ -198,6 +198,7 @@ class NativeLoopSession(LoopSession):
     def __init__(self, results: list[object], outcomes: list | None = None):
         super().__init__([], outcomes=outcomes)
         self.tool_invocation_protocol = NATIVE_TOOL_INVOCATION
+        self.context_os = ContextExecutionRuntime(self)
         self.native_results = list(results)
         self.native_inputs: list[list[dict]] = []
         self.native_catalogs: list[list[dict]] = []
@@ -424,6 +425,26 @@ def test_native_binding_uses_provider_neutral_call_and_c03_reentry():
     assert len(session.native_inputs) == 2
     rendered_second_pass = str(session.native_inputs[1])
     assert "source_1" in rendered_second_pass
+
+
+def test_native_c03_continuation_preserves_canonical_invocation_without_replay():
+    session = NativeLoopSession([
+        NativeToolInvocation(
+            capability_id="market.stock.quote.read",
+            arguments={"stock_id": "600519.SH", "trade_date": "2026-09-23"},
+        ),
+        TextResult("Julia final judgment"),
+    ])
+
+    result = run_native_loop(session)
+
+    assert result.final_response_kind == "JUDGMENT"
+    rendered_second_pass = str(session.native_inputs[1])
+    assert "market.stock.quote.read" in rendered_second_pass
+    assert "600519.SH" in rendered_second_pass
+    assert "2026-09-23" in rendered_second_pass
+    assert "```tool_call" not in rendered_second_pass
+    assert '"role": "tool"' not in rendered_second_pass
 
 
 def test_native_text_result_with_legacy_invocation_fails_closed():
