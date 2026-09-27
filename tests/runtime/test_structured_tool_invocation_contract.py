@@ -176,6 +176,51 @@ def test_strict_parser_rejects_surrounding_prose_and_multiple_fences(response):
     assert parsed.tool_call is None
 
 
+MALFORMED_CARRIER_BODY = (
+    "```\n"
+    "tool_call\n"
+    '{"name":"market.state.read","arguments":{"trade_date":"2026-09-24"}}\n'
+    "```"
+)
+MALFORMED_CARRIER_WITH_PROSE = "老公，我按你说的，优先走 Market——\n\n" + MALFORMED_CARRIER_BODY
+
+
+@pytest.mark.parametrize(
+    "response",
+    [MALFORMED_CARRIER_BODY, MALFORMED_CARRIER_WITH_PROSE],
+)
+def test_malformed_tool_carrier_fails_closed_instead_of_becoming_final_text(response):
+    """A recognizable call carrier in the wrong shape must not be final prose.
+
+    Observed in production: the model emitted an ordinary fence whose first line
+    was the literal ``tool_call``. That classified as FINAL_TEXT, so the internal
+    carrier leaked into Julia's reply and no capability ran. It must fail closed
+    and be re-asked for the exact shape.
+    """
+    parsed = parse_strict_model_response(response)
+
+    assert parsed.kind == "TOOL_CALL_CONTROL_FAILURE"
+    assert parsed.failure_reason == "INVALID_CALL_SHAPE"
+    # The body is never parsed and no capability is ever inferred from it.
+    assert parsed.tool_call is None
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        "tool_call 是内部工具调用格式。",
+        "```python\nprint(1)\n```",
+        "```\nprint(1)\n```",
+    ],
+)
+def test_ordinary_prose_and_ordinary_fences_remain_final_text(response):
+    """The detector is structural: it must not fire on prose or ordinary fences."""
+    parsed = parse_strict_model_response(response)
+
+    assert parsed.kind == "FINAL_TEXT"
+    assert parsed.failure_reason is None
+
+
 def test_decode_failure_projects_validated_contract_and_retains_capability_context():
     control = ContextExecutionRuntime().project_tool_call_decode_failure(
         parent_package=_parent(),

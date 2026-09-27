@@ -24,6 +24,20 @@ _EXACT_TOOL_CALL = re.compile(
     r"^```tool_call[ \t]*\n(.*)\n```$",
     re.DOTALL,
 )
+# A malformed tool-call carrier: an ordinary fenced block (no info string)
+# whose first non-blank line is the literal token `tool_call`. Models emit this
+# family when they mean to make a structured call but do not produce the exact
+# whole-response ```tool_call form. Treating it as final prose leaks the
+# internal carrier to the user and silently skips the capability, so it must be
+# classified as a control failure instead.
+#
+# Detection is structural only: the body is never parsed and the intended
+# capability is never inferred. A fenced block with an info string, or whose
+# first line is not `tool_call`, is not matched.
+_MALFORMED_TOOL_CARRIER = re.compile(
+    r"^[ \t]*```[ \t]*\r?\n(?:[ \t]*\r?\n)*[ \t]*tool_call[ \t]*\r?$",
+    re.MULTILINE,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +73,15 @@ def parse_strict_model_response(response: str) -> StrictModelResponse:
     trimmed = str(response).strip()
     marker_count = trimmed.count("```tool_call")
     if marker_count == 0:
+        if _MALFORMED_TOOL_CARRIER.search(trimmed):
+            # Structurally recognizable call intent in a malformed carrier must
+            # fail closed, not become the final user-facing answer. The existing
+            # decode-failure projection then asks for the exact shape again.
+            return StrictModelResponse(
+                "TOOL_CALL_CONTROL_FAILURE",
+                trimmed,
+                failure_reason="INVALID_CALL_SHAPE",
+            )
         return StrictModelResponse("FINAL_TEXT", trimmed)
 
     match = _EXACT_TOOL_CALL.fullmatch(trimmed)
