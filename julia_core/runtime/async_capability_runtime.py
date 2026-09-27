@@ -152,10 +152,16 @@ class AsyncCapabilityRuntime:
 
     @staticmethod
     def _resolve_execution_timeout(configured: float | None) -> float:
+        # Layering: this outer gate must exceed the internal budget of the
+        # slowest capability provider. The Research provider owns its own
+        # budget (ClaudeClientExecutionConfig.timeout_seconds, 150s default);
+        # if this gate fires first the provider is killed from outside and a
+        # result it could have returned is lost. A single research.web.query
+        # has been measured at ~64s end to end.
         raw = (
             configured
             if configured is not None
-            else os.environ.get("JULIA_CAPABILITY_EXECUTION_TIMEOUT_SECONDS", "30")
+            else os.environ.get("JULIA_CAPABILITY_EXECUTION_TIMEOUT_SECONDS", "180")
         )
         try:
             value = float(raw)
