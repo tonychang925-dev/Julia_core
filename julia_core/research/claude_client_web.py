@@ -25,8 +25,10 @@ from julia_core.capability.models import (
 
 
 PUBLIC_ENTRYPOINT = "execution_boundary.ts"
+ACQUISITION_ENTRYPOINT = "research/acquisition/acquisition_boundary.ts"
 PUBLIC_PROTOCOL = "CLAUDE_CLIENT_JSONL_REQUEST_PLANE_V1"
 PROVIDER_ID = "claude-client-websearch"
+MAX_ACQUIRED_SOURCES = 2
 _SOURCE_OBSERVATION_CONTRACT_VERSION = "claude.websearch.source-observation.v1"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _PERMISSIVE_NETWORK_POLICY = {
@@ -108,8 +110,11 @@ class ClaudeClientExecutionConfig:
 
     def configuration_error(self) -> str | None:
         entrypoint = self.repository_root / PUBLIC_ENTRYPOINT
+        acquisition_entrypoint = self.repository_root / ACQUISITION_ENTRYPOINT
         if not self.repository_root.is_dir() or not entrypoint.is_file():
             return "Claude_client public execution_boundary.ts is unavailable"
+        if not acquisition_entrypoint.is_file():
+            return "Claude_client public Research acquisition boundary is unavailable"
         if not isinstance(self.launch_secret, str) or len(self.launch_secret) < 16:
             return "Claude_client launch credential is unavailable"
         if not self.source_path.is_file():
@@ -193,6 +198,7 @@ class ClaudeClientWebResearchProvider:
         process: asyncio.subprocess.Process | None = None
         stderr_task: asyncio.Task[None] | None = None
         try:
+            overall_started = time.monotonic()
             environment = os.environ.copy()
             environment.update(
                 {
@@ -271,7 +277,9 @@ class ClaudeClientWebResearchProvider:
 
             if result.get("ok") is not True:
                 return self._provider_failure(result, process.returncode)
-            return self._project_result(result, query, process.returncode)
+            outcome = self._project_result(result, query, process.returncode)
+            remaining = self.config.timeout_seconds - (time.monotonic() - overall_started)
+            return await self._compose_acquired_evidence(outcome, remaining)
         except asyncio.TimeoutError:
             if process is not None:
                 await self._terminate(process)
@@ -542,6 +550,242 @@ class ClaudeClientWebResearchProvider:
             },
             side_effect_state=SideEffectState.NONE,
         )
+
+    async def _compose_acquired_evidence(
+        self,
+        outcome: ProviderExecutionOutcome,
+        remaining_seconds: float,
+    ) -> ProviderExecutionOutcome:
+        structured = outcome.structured_output
+        if not isinstance(structured, dict):
+            return outcome
+        sources = structured.get("sources")
+        if not isinstance(sources, list):
+            return outcome
+        eligible_sources: list[tuple[int, dict[str, Any]]] = []
+        for original_index, source in enumerate(sources):
+            if not isinstance(source, dict):
+                continue
+            source_ref = source.get("ref")
+            raw_url = source.get("url")
+            if not isinstance(source_ref, str) or not isinstance(raw_url, str):
+                continue
+            normalized = urlparse(raw_url)
+            if normalized.scheme != "https" or not normalized.netloc:
+                continue
+            canonical_url = normalized._replace(fragment="").geturl()
+            source["acquisition_url"] = canonical_url
+            eligible_sources.append((original_index, source))
+
+        selected_sources = eligible_sources[:MAX_ACQUIRED_SOURCES]
+        findings: list[dict[str, str]] = []
+        limitations = [
+            limitation
+            for limitation in structured.get("limitations", [])
+            if isinstance(limitation, str)
+        ]
+        deadline = time.monotonic() + max(remaining_seconds, 0.0)
+        acquisition_count = 0
+        acquisition_retry_count = 0
+        acquisition_fallback_count = 0
+
+        for index, source in selected_sources:
+            source_ref = source.get("ref")
+            url = source.get("url")
+            acquisition_url = source.get("acquisition_url")
+            if not isinstance(source_ref, str) or not isinstance(url, str):
+                continue
+            if not isinstance(acquisition_url, str):
+                continue
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                limitations.append(f"source[{index}]=ACQUISITION_BUDGET_EXHAUSTED")
+                continue
+            acquisition_count += 1
+            acquired = await self._run_acquisition(
+                {"source_ref": source_ref, "url": acquisition_url},
+                remaining,
+            )
+            acquisition_retry_count += self._observed_count(acquired.get("retry_count"))
+            acquisition_fallback_count += self._observed_count(acquired.get("fallback_count"))
+            invalid_reason = self._acquisition_invalid_reason(
+                acquired, source_ref, acquisition_url
+            )
+            if invalid_reason is not None:
+                code = (
+                    acquired.get("code")
+                    if isinstance(acquired, dict) and isinstance(acquired.get("code"), str)
+                    else "claude_client_acquisition_invalid"
+                )
+                source["acquisition_status"] = "FAILED"
+                source["acquisition_failure_code"] = code
+                limitations.append(f"source[{index}]={code}:{invalid_reason}")
+                continue
+
+            telemetry = acquired["telemetry"]
+            extracted_text = acquired["extracted_text"]
+            source["acquisition_status"] = "SUCCESS"
+            source["final_url"] = telemetry["final_url"]
+            source["raw_content_digest_sha256"] = telemetry["raw_body_digest_sha256"]
+            source["extracted_content_digest_sha256"] = telemetry[
+                "extracted_content_digest_sha256"
+            ]
+            source["acquired_at"] = telemetry["observed_at"]
+            findings.append({
+                "source_ref": source_ref,
+                "material": extracted_text,
+            })
+
+        if findings:
+            limitations = [
+                limitation
+                for limitation in limitations
+                if limitation != "SOURCE_IDENTITY_ONLY_NO_SOURCE_BOUND_CONTENT"
+            ]
+        else:
+            limitations.append("NO_SOURCE_BOUND_CONTENT_ACQUIRED")
+
+        structured["findings"] = findings
+        structured["limitations"] = limitations
+        provenance = structured.get("provenance")
+        if isinstance(provenance, dict):
+            provenance["acquisition_entrypoint"] = f"bun {ACQUISITION_ENTRYPOINT}"
+            provenance["acquisition_contract_version"] = (
+                "research.controlled-http-acquisition.v2"
+            )
+            provenance["selected_source_count"] = len(selected_sources)
+            provenance["acquired_source_count"] = len(findings)
+            provenance["acquisition_action_count"] = acquisition_count
+            provenance["acquisition_retry_count"] = acquisition_retry_count
+            provenance["acquisition_fallback_count"] = acquisition_fallback_count
+        return outcome
+
+    async def _run_acquisition(
+        self,
+        request: dict[str, str],
+        timeout_seconds: float,
+    ) -> dict[str, Any]:
+        process: asyncio.subprocess.Process | None = None
+        try:
+            process = await asyncio.create_subprocess_exec(
+                self.config.bun_path,
+                ACQUISITION_ENTRYPOINT,
+                cwd=str(self.config.repository_root),
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            payload = (json.dumps(request, separators=(",", ":")) + "\n").encode("utf-8")
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(payload), timeout=timeout_seconds
+            )
+            line = stdout.decode("utf-8", errors="strict").strip()
+            if not line:
+                return {
+                    "ok": False,
+                    "code": "SOURCE_BODY_UNAVAILABLE",
+                    "message": stderr.decode("utf-8", errors="replace").strip()
+                    or "Claude_client acquisition boundary returned no response",
+                }
+            value = json.loads(line)
+            if not isinstance(value, dict):
+                raise ValueError("acquisition boundary response is not an object")
+            return value
+        except asyncio.TimeoutError:
+            if process is not None and process.returncode is None:
+                process.terminate()
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=2.0)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await process.wait()
+            return {
+                "ok": False,
+                "code": "SOURCE_TIMEOUT",
+                "message": "controlled source acquisition timed out",
+            }
+        except asyncio.CancelledError:
+            if process is not None and process.returncode is None:
+                process.terminate()
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=2.0)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await process.wait()
+            raise
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+            if process is not None and process.returncode is None:
+                process.terminate()
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=2.0)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await process.wait()
+            return {
+                "ok": False,
+                "code": "ACQUISITION_NOT_READY",
+                "message": f"acquisition boundary response invalid: {exc}",
+            }
+
+    @staticmethod
+    def _acquisition_invalid_reason(
+        value: dict[str, Any],
+        source_ref: str,
+        url: str,
+    ) -> str | None:
+        if value.get("ok") is not True:
+            message = value.get("message")
+            return message if isinstance(message, str) and message else "acquisition failed"
+        if value.get("retry_count") != 0 or value.get("fallback_count") != 0:
+            return "acquisition retry/fallback invariant failed"
+        telemetry = value.get("telemetry")
+        extracted = value.get("extracted_text")
+        if not isinstance(telemetry, dict) or not isinstance(extracted, str) or not extracted:
+            return "acquisition evidence is unavailable"
+        if telemetry.get("source_ref") != source_ref:
+            return "acquisition source_ref is mismatched"
+        if telemetry.get("requested_url") != url:
+            return "acquisition requested URL is mismatched"
+        final_url = telemetry.get("final_url")
+        observed_at = telemetry.get("observed_at")
+        if not isinstance(final_url, str) or not final_url.startswith("https://"):
+            return "acquisition final URL is invalid"
+        try:
+            final_parsed_url = urlparse(final_url)
+        except ValueError:
+            return "acquisition final URL is invalid"
+        if final_parsed_url.scheme != "https" or not final_parsed_url.netloc:
+            return "acquisition final URL is invalid"
+        if not isinstance(observed_at, str) or not observed_at.endswith("Z"):
+            return "acquisition observation timestamp is invalid"
+        for field in ("raw_body_digest_sha256", "extracted_content_digest_sha256"):
+            digest = telemetry.get(field)
+            if not isinstance(digest, str) or not _SHA256_PATTERN.fullmatch(digest):
+                return f"acquisition {field} is invalid"
+        if not extracted.strip():
+            return "acquisition evidence is unavailable"
+        try:
+            computed_extracted_digest = hashlib.sha256(
+                extracted.encode("utf-8")
+            ).hexdigest()
+        except UnicodeEncodeError:
+            return "acquisition evidence is not valid UTF-8 text"
+        extracted_digest = telemetry.get("extracted_content_digest_sha256")
+        if computed_extracted_digest != extracted_digest:
+            return "acquisition extracted-content digest is mismatched"
+        try:
+            observed_instant = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+        except ValueError:
+            return "acquisition observation timestamp is invalid"
+        if observed_instant.utcoffset() != timezone.utc.utcoffset(observed_instant):
+            return "acquisition observation timestamp is not UTC"
+        return None
+
+    @staticmethod
+    def _observed_count(value: Any) -> int:
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            return 0
+        return value
 
     @staticmethod
     def _truth_limitation(result: dict[str, Any], field: str) -> str:
