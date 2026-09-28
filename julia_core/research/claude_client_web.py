@@ -574,7 +574,7 @@ class ClaudeClientWebResearchProvider:
             if normalized.scheme != "https" or not normalized.netloc:
                 continue
             canonical_url = normalized._replace(fragment="").geturl()
-            source["url"] = canonical_url
+            source["acquisition_url"] = canonical_url
             eligible_sources.append((original_index, source))
 
         selected_sources = eligible_sources[:MAX_ACQUIRED_SOURCES]
@@ -586,11 +586,16 @@ class ClaudeClientWebResearchProvider:
         ]
         deadline = time.monotonic() + max(remaining_seconds, 0.0)
         acquisition_count = 0
+        acquisition_retry_count = 0
+        acquisition_fallback_count = 0
 
         for index, source in selected_sources:
             source_ref = source.get("ref")
             url = source.get("url")
+            acquisition_url = source.get("acquisition_url")
             if not isinstance(source_ref, str) or not isinstance(url, str):
+                continue
+            if not isinstance(acquisition_url, str):
                 continue
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -598,10 +603,14 @@ class ClaudeClientWebResearchProvider:
                 continue
             acquisition_count += 1
             acquired = await self._run_acquisition(
-                {"source_ref": source_ref, "url": url},
+                {"source_ref": source_ref, "url": acquisition_url},
                 remaining,
             )
-            invalid_reason = self._acquisition_invalid_reason(acquired, source_ref, url)
+            acquisition_retry_count += self._observed_count(acquired.get("retry_count"))
+            acquisition_fallback_count += self._observed_count(acquired.get("fallback_count"))
+            invalid_reason = self._acquisition_invalid_reason(
+                acquired, source_ref, acquisition_url
+            )
             if invalid_reason is not None:
                 code = (
                     acquired.get("code")
@@ -647,8 +656,8 @@ class ClaudeClientWebResearchProvider:
             provenance["selected_source_count"] = len(selected_sources)
             provenance["acquired_source_count"] = len(findings)
             provenance["acquisition_action_count"] = acquisition_count
-            provenance["acquisition_retry_count"] = 0
-            provenance["acquisition_fallback_count"] = 0
+            provenance["acquisition_retry_count"] = acquisition_retry_count
+            provenance["acquisition_fallback_count"] = acquisition_fallback_count
         return outcome
 
     async def _run_acquisition(
@@ -695,6 +704,15 @@ class ClaudeClientWebResearchProvider:
                 "code": "SOURCE_TIMEOUT",
                 "message": "controlled source acquisition timed out",
             }
+        except asyncio.CancelledError:
+            if process is not None and process.returncode is None:
+                process.terminate()
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=2.0)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await process.wait()
+            raise
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
             if process is not None and process.returncode is None:
                 process.terminate()
@@ -732,13 +750,42 @@ class ClaudeClientWebResearchProvider:
         observed_at = telemetry.get("observed_at")
         if not isinstance(final_url, str) or not final_url.startswith("https://"):
             return "acquisition final URL is invalid"
+        try:
+            final_parsed_url = urlparse(final_url)
+        except ValueError:
+            return "acquisition final URL is invalid"
+        if final_parsed_url.scheme != "https" or not final_parsed_url.netloc:
+            return "acquisition final URL is invalid"
         if not isinstance(observed_at, str) or not observed_at.endswith("Z"):
             return "acquisition observation timestamp is invalid"
         for field in ("raw_body_digest_sha256", "extracted_content_digest_sha256"):
             digest = telemetry.get(field)
             if not isinstance(digest, str) or not _SHA256_PATTERN.fullmatch(digest):
                 return f"acquisition {field} is invalid"
+        if not extracted.strip():
+            return "acquisition evidence is unavailable"
+        try:
+            computed_extracted_digest = hashlib.sha256(
+                extracted.encode("utf-8")
+            ).hexdigest()
+        except UnicodeEncodeError:
+            return "acquisition evidence is not valid UTF-8 text"
+        extracted_digest = telemetry.get("extracted_content_digest_sha256")
+        if computed_extracted_digest != extracted_digest:
+            return "acquisition extracted-content digest is mismatched"
+        try:
+            observed_instant = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+        except ValueError:
+            return "acquisition observation timestamp is invalid"
+        if observed_instant.utcoffset() != timezone.utc.utcoffset(observed_instant):
+            return "acquisition observation timestamp is not UTC"
         return None
+
+    @staticmethod
+    def _observed_count(value: Any) -> int:
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            return 0
+        return value
 
     @staticmethod
     def _truth_limitation(result: dict[str, Any], field: str) -> str:

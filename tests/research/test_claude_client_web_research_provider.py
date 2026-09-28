@@ -86,6 +86,27 @@ class FakeStderr:
         return b""
 
 
+class FakeAcquisitionProcess:
+    def __init__(self):
+        self.returncode: int | None = None
+        self.terminated = False
+        self.killed = False
+
+    async def communicate(self, payload: bytes) -> tuple[bytes, bytes]:
+        await asyncio.sleep(10)
+        return b"", b""
+
+    async def wait(self) -> int | None:
+        self.returncode = -15 if self.terminated else -9
+        return self.returncode
+
+    def terminate(self) -> None:
+        self.terminated = True
+
+    def kill(self) -> None:
+        self.killed = True
+
+
 class FakeProcess:
     def __init__(self, responses: list[dict], *, hang: bool = False):
         self.responses = list(responses)
@@ -305,17 +326,20 @@ async def test_controlled_acquisition_creates_source_bound_finding(
     provider = ClaudeClientWebResearchProvider(make_config(tmp_path))
 
     async def acquire(request, timeout_seconds):
+        extracted = "Real acquired source material"
         return {
             "ok": True,
             "retry_count": 0,
             "fallback_count": 0,
-            "extracted_text": "Real acquired source material",
+            "extracted_text": extracted,
             "telemetry": {
                 "source_ref": request["source_ref"],
                 "requested_url": request["url"],
                 "final_url": request["url"],
                 "raw_body_digest_sha256": "a" * 64,
-                "extracted_content_digest_sha256": "b" * 64,
+                "extracted_content_digest_sha256": hashlib.sha256(
+                    extracted.encode("utf-8")
+                ).hexdigest(),
                 "observed_at": "2026-09-28T00:00:00Z",
             },
         }
@@ -335,7 +359,9 @@ async def test_controlled_acquisition_creates_source_bound_finding(
     }]
     assert output["sources"][0]["acquisition_status"] == "SUCCESS"
     assert output["sources"][0]["raw_content_digest_sha256"] == "a" * 64
-    assert output["sources"][0]["extracted_content_digest_sha256"] == "b" * 64
+    assert output["sources"][0]["extracted_content_digest_sha256"] == hashlib.sha256(
+        b"Real acquired source material"
+    ).hexdigest()
     assert "SOURCE_IDENTITY_ONLY_NO_SOURCE_BOUND_CONTENT" not in output["limitations"]
     assert output["provenance"]["acquired_source_count"] == 1
     assert output["provenance"]["acquisition_retry_count"] == 0
@@ -346,6 +372,186 @@ async def test_controlled_acquisition_creates_source_bound_finding(
         == "provider_structured_output"
         for evidence in bridge.manager.canonical_evidence
     )
+
+
+@pytest.mark.asyncio
+async def test_acquisition_digest_mismatch_is_visible_limitation(
+    tmp_path, monkeypatch
+):
+    install_process(
+        monkeypatch,
+        execution_responses([{"type": "text", "text": PROVIDER_SYNTHESIS}]),
+    )
+    provider = ClaudeClientWebResearchProvider(make_config(tmp_path))
+
+    async def mismatched_digest(request, timeout_seconds):
+        return {
+            "ok": True,
+            "retry_count": 0,
+            "fallback_count": 0,
+            "extracted_text": "Real acquired source material",
+            "telemetry": {
+                "source_ref": request["source_ref"],
+                "requested_url": request["url"],
+                "final_url": request["url"],
+                "raw_body_digest_sha256": "a" * 64,
+                "extracted_content_digest_sha256": "b" * 64,
+                "observed_at": "2026-09-28T00:00:00Z",
+            },
+        }
+
+    monkeypatch.setattr(provider, "_run_acquisition", mismatched_digest)
+    bridge = RuntimeCapabilityBridge()
+    bridge.register_provider("research", provider)
+    bridge.initialize()
+    execution = bridge.execute_tool_typed(TOOL_JSON)
+
+    output = execution.tool_result.structured_output
+    assert output["findings"] == []
+    assert output["sources"][0]["acquisition_status"] == "FAILED"
+    assert any(
+        "extracted-content digest is mismatched" in limitation
+        for limitation in output["limitations"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_invalid_observation_timestamp_is_rejected(tmp_path, monkeypatch):
+    install_process(
+        monkeypatch,
+        execution_responses([{"type": "text", "text": PROVIDER_SYNTHESIS}]),
+    )
+    provider = ClaudeClientWebResearchProvider(make_config(tmp_path))
+    extracted = "Real acquired source material"
+
+    async def invalid_timestamp(request, timeout_seconds):
+        return {
+            "ok": True,
+            "retry_count": 0,
+            "fallback_count": 0,
+            "extracted_text": extracted,
+            "telemetry": {
+                "source_ref": request["source_ref"],
+                "requested_url": request["url"],
+                "final_url": request["url"],
+                "raw_body_digest_sha256": "a" * 64,
+                "extracted_content_digest_sha256": hashlib.sha256(
+                    extracted.encode("utf-8")
+                ).hexdigest(),
+                "observed_at": "not-a-timeZ",
+            },
+        }
+
+    monkeypatch.setattr(provider, "_run_acquisition", invalid_timestamp)
+    bridge = RuntimeCapabilityBridge()
+    bridge.register_provider("research", provider)
+    bridge.initialize()
+    execution = bridge.execute_tool_typed(TOOL_JSON)
+    output = execution.tool_result.structured_output
+    assert output["findings"] == []
+    assert output["sources"][0]["acquisition_status"] == "FAILED"
+    assert any(
+        "observation timestamp is invalid" in limitation
+        for limitation in output["limitations"]
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("final_url", "reason"),
+    [
+        ("https://", "final URL is invalid"),
+        ("https://#fragment", "final URL is invalid"),
+        ("https://[", "final URL is invalid"),
+        ("http://provider.example/source", "final URL is invalid"),
+    ],
+)
+async def test_malformed_acquisition_final_url_is_rejected(
+    tmp_path, monkeypatch, final_url, reason
+):
+    install_process(
+        monkeypatch,
+        execution_responses([{"type": "text", "text": PROVIDER_SYNTHESIS}]),
+    )
+    provider = ClaudeClientWebResearchProvider(make_config(tmp_path))
+    extracted = "Real acquired source material"
+
+    async def malformed_final_url(request, timeout_seconds):
+        return {
+            "ok": True,
+            "retry_count": 0,
+            "fallback_count": 0,
+            "extracted_text": extracted,
+            "telemetry": {
+                "source_ref": request["source_ref"],
+                "requested_url": request["url"],
+                "final_url": final_url,
+                "raw_body_digest_sha256": "a" * 64,
+                "extracted_content_digest_sha256": hashlib.sha256(
+                    extracted.encode("utf-8")
+                ).hexdigest(),
+                "observed_at": "2026-09-28T00:00:00Z",
+            },
+        }
+
+    monkeypatch.setattr(provider, "_run_acquisition", malformed_final_url)
+    bridge = RuntimeCapabilityBridge()
+    bridge.register_provider("research", provider)
+    bridge.initialize()
+    execution = bridge.execute_tool_typed(TOOL_JSON)
+    output = execution.tool_result.structured_output
+    assert output["findings"] == []
+    assert output["sources"][0]["acquisition_status"] == "FAILED"
+    assert any(reason in limitation for limitation in output["limitations"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("extracted", "reason"),
+    [
+        (" \n\t", "acquisition evidence is unavailable"),
+        ("\ud800", "not valid UTF-8 text"),
+    ],
+)
+async def test_non_publishable_acquisition_text_preserves_search_evidence(
+    tmp_path, monkeypatch, extracted, reason
+):
+    install_process(
+        monkeypatch,
+        execution_responses([{"type": "text", "text": PROVIDER_SYNTHESIS}]),
+    )
+    provider = ClaudeClientWebResearchProvider(make_config(tmp_path))
+
+    async def invalid_text(request, timeout_seconds):
+        try:
+            extracted_digest = hashlib.sha256(extracted.encode("utf-8")).hexdigest()
+        except UnicodeEncodeError:
+            extracted_digest = "b" * 64
+        return {
+            "ok": True,
+            "retry_count": 0,
+            "fallback_count": 0,
+            "extracted_text": extracted,
+            "telemetry": {
+                "source_ref": request["source_ref"],
+                "requested_url": request["url"],
+                "final_url": request["url"],
+                "raw_body_digest_sha256": "a" * 64,
+                "extracted_content_digest_sha256": extracted_digest,
+                "observed_at": "2026-09-28T00:00:00Z",
+            },
+        }
+
+    monkeypatch.setattr(provider, "_run_acquisition", invalid_text)
+    bridge = RuntimeCapabilityBridge()
+    bridge.register_provider("research", provider)
+    bridge.initialize()
+    execution = bridge.execute_tool_typed(TOOL_JSON)
+    output = execution.tool_result.structured_output
+    assert execution.tool_result.status is ToolResultStatus.PARTIAL
+    assert output["findings"] == []
+    assert output["sources"][0]["acquisition_status"] == "FAILED"
+    assert any(reason in limitation for limitation in output["limitations"])
 
 
 @pytest.mark.asyncio
@@ -393,6 +599,115 @@ async def test_acquisition_mismatch_is_visible_limitation_without_erasing_search
         for limitation in output["limitations"]
     )
     assert "NO_SOURCE_BOUND_CONTENT_ACQUIRED" in output["limitations"]
+
+
+@pytest.mark.asyncio
+async def test_nonzero_boundary_retry_fallback_counts_are_preserved_and_rejected(
+    tmp_path, monkeypatch
+):
+    install_process(
+        monkeypatch,
+        execution_responses([{"type": "text", "text": PROVIDER_SYNTHESIS}]),
+    )
+    provider = ClaudeClientWebResearchProvider(make_config(tmp_path))
+    extracted = "Real acquired source material"
+
+    async def nonzero(request, timeout_seconds):
+        return {
+            "ok": True,
+            "retry_count": 2,
+            "fallback_count": 1,
+            "extracted_text": extracted,
+            "telemetry": {
+                "source_ref": request["source_ref"],
+                "requested_url": request["url"],
+                "final_url": request["url"],
+                "raw_body_digest_sha256": "a" * 64,
+                "extracted_content_digest_sha256": hashlib.sha256(
+                    extracted.encode("utf-8")
+                ).hexdigest(),
+                "observed_at": "2026-09-28T00:00:00Z",
+            },
+        }
+
+    monkeypatch.setattr(provider, "_run_acquisition", nonzero)
+    bridge = RuntimeCapabilityBridge()
+    bridge.register_provider("research", provider)
+    bridge.initialize()
+    execution = bridge.execute_tool_typed(TOOL_JSON)
+    output = execution.tool_result.structured_output
+    assert output["findings"] == []
+    assert output["sources"][0]["acquisition_status"] == "FAILED"
+    assert output["provenance"]["acquisition_retry_count"] == 2
+    assert output["provenance"]["acquisition_fallback_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_provider_observed_url_is_preserved_separately_from_transport_url(
+    tmp_path, monkeypatch
+):
+    responses = execution_responses([{"type": "text", "text": PROVIDER_SYNTHESIS}])
+    observed_url = "https://provider.example/robotics-catalysts#provider-observation"
+    responses[2]["source_observation"]["sources"][0]["url"] = observed_url
+    install_process(monkeypatch, responses)
+    provider = ClaudeClientWebResearchProvider(make_config(tmp_path))
+    captured_request: dict | None = None
+    extracted = "Real acquired source material"
+
+    async def acquire(request, timeout_seconds):
+        nonlocal captured_request
+        captured_request = request
+        return {
+            "ok": True,
+            "retry_count": 0,
+            "fallback_count": 0,
+            "extracted_text": extracted,
+            "telemetry": {
+                "source_ref": request["source_ref"],
+                "requested_url": request["url"],
+                "final_url": request["url"],
+                "raw_body_digest_sha256": "a" * 64,
+                "extracted_content_digest_sha256": hashlib.sha256(
+                    extracted.encode("utf-8")
+                ).hexdigest(),
+                "observed_at": "2026-09-28T00:00:00Z",
+            },
+        }
+
+    monkeypatch.setattr(provider, "_run_acquisition", acquire)
+    bridge = RuntimeCapabilityBridge()
+    bridge.register_provider("research", provider)
+    bridge.initialize()
+    execution = bridge.execute_tool_typed(TOOL_JSON)
+    source = execution.tool_result.structured_output["sources"][0]
+    assert source["url"] == observed_url
+    assert source["acquisition_url"] == "https://provider.example/robotics-catalysts"
+    assert captured_request == {
+        "source_ref": "src_provider_bound_identity",
+        "url": "https://provider.example/robotics-catalysts",
+    }
+
+
+@pytest.mark.asyncio
+async def test_acquisition_cancellation_terminates_and_reaps_subprocess(
+    tmp_path, monkeypatch
+):
+    process = FakeAcquisitionProcess()
+
+    async def create_subprocess_exec(*args, **kwargs):
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", create_subprocess_exec)
+    provider = ClaudeClientWebResearchProvider(make_config(tmp_path))
+    task = asyncio.create_task(
+        provider._run_acquisition({"source_ref": "source", "url": "https://x/"}, 5.0)
+    )
+    await asyncio.sleep(0.01)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert process.terminated is True
+    assert process.returncode is not None
 
 
 @pytest.mark.asyncio
