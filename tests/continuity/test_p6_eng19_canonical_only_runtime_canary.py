@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -20,8 +22,22 @@ from tools.continuity.p6_eng19_canonical_only_runtime_canary import (
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
+SCRIPT = REPOSITORY / "tools/continuity/p6_eng19_canonical_only_runtime_canary.py"
 PSB_V2_FIXTURE = REPOSITORY / "tests/fixtures/golden_mira_psb_v2"
 ASSISTANT_SHA = "1" * 40
+
+
+def test_eng19_cli_direct_script_bootstraps_repository_imports() -> None:
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--help"],
+        cwd=REPOSITORY,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert "--authority-root" in result.stdout
+    assert "--assistant-sha" in result.stdout
 
 
 @pytest.fixture()

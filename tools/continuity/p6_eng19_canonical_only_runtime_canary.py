@@ -12,9 +12,14 @@ import argparse
 import hashlib
 import json
 import subprocess
+import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from julia_core.durable_authority.contracts import AuthorityFamily
 from julia_core.durable_authority.golden_mira_v2 import (
