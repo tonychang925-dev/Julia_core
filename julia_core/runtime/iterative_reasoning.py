@@ -25,6 +25,13 @@ _EXACT_TOOL_CALL = re.compile(
     r"^```tool_call[ \t]*\n(.*)\n```$",
     re.DOTALL,
 )
+# One ```tool_call block on its own lines inside surrounding prose. Used only
+# when the reply has exactly one tool_call marker and no other fence, so the
+# call intent is unambiguous; every other shape still fails closed.
+_EMBEDDED_TOOL_CALL = re.compile(
+    r"^```tool_call[ \t]*\r?\n(.*?)\r?\n```[ \t]*$",
+    re.DOTALL | re.MULTILINE,
+)
 # A malformed tool-call carrier: an ordinary fenced block (no info string)
 # whose first non-blank line is the literal token `tool_call`. Models emit this
 # family when they mean to make a structured call but do not produce the exact
@@ -68,6 +75,7 @@ class StrictModelResponse:
     text: str
     tool_call: StrictToolCall | None = None
     failure_reason: str | None = None
+    surrounding_prose: bool = False
 
 
 def parse_strict_model_response(response: str) -> StrictModelResponse:
@@ -86,14 +94,28 @@ def parse_strict_model_response(response: str) -> StrictModelResponse:
         return StrictModelResponse("FINAL_TEXT", trimmed)
 
     match = _EXACT_TOOL_CALL.fullmatch(trimmed)
-    if match is None:
-        return StrictModelResponse(
-            "TOOL_CALL_CONTROL_FAILURE",
-            trimmed,
-            failure_reason="INVALID_CALL_SHAPE",
-        )
+    if match is not None:
+        return _decode_tool_call_block(trimmed, match.group(1), surrounding_prose=False)
 
-    raw_json = match.group(1).strip()
+    # Prose around exactly one tool_call block is unambiguous: execute the
+    # block, never the prose. Anything else (several markers, other fences,
+    # a block not on its own lines) stays a control failure.
+    embedded = _EMBEDDED_TOOL_CALL.search(trimmed)
+    if marker_count == 1 and trimmed.count("```") == 2 and embedded is not None:
+        parsed = _decode_tool_call_block(trimmed, embedded.group(1), surrounding_prose=True)
+        if parsed.kind == "EXACTLY_ONE_STRUCTURED_CALL":
+            return parsed
+    return StrictModelResponse(
+        "TOOL_CALL_CONTROL_FAILURE",
+        trimmed,
+        failure_reason="INVALID_CALL_SHAPE",
+    )
+
+
+def _decode_tool_call_block(
+    trimmed: str, block: str, *, surrounding_prose: bool
+) -> StrictModelResponse:
+    raw_json = block.strip()
     try:
         payload = json.loads(raw_json)
     except json.JSONDecodeError:
@@ -126,6 +148,7 @@ def parse_strict_model_response(response: str) -> StrictModelResponse:
         "EXACTLY_ONE_STRUCTURED_CALL",
         trimmed,
         tool_call=StrictToolCall(name=name, arguments=arguments, raw_json=raw_json),
+        surrounding_prose=surrounding_prose,
     )
 
 
@@ -198,6 +221,8 @@ class IterativeReasoningLoop:
                 "capability_execution_count": self.capability_execution_count,
                 "termination": "",
             }
+            if parsed.surrounding_prose:
+                pass_trace["surrounding_prose"] = True
             self.cognition_pass_trace.append(pass_trace)
 
             if parsed.kind == "FINAL_TEXT":

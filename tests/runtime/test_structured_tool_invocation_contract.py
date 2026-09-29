@@ -164,11 +164,24 @@ def test_strict_parser_keeps_real_malformed_shape_invalid_and_valid_shape_exact(
     }
 
 
+@pytest.mark.parametrize("response", [PROSE_BEFORE_CALL, PROSE_AFTER_CALL])
+def test_strict_parser_decodes_one_block_beside_prose(response):
+    # CARD 2C: exactly one valid block plus prose is unambiguous.
+    parsed = parse_strict_model_response(response)
+
+    assert parsed.kind == "EXACTLY_ONE_STRUCTURED_CALL"
+    assert parsed.surrounding_prose is True
+    assert parsed.tool_call.raw_json == VALID_SECOND_CALL[13:-4]
+
+
 @pytest.mark.parametrize(
     "response",
-    [PROSE_BEFORE_CALL, PROSE_AFTER_CALL, PROSE_BEFORE_CALL + "\n```tool_call\n{}\n```"],
+    [
+        PROSE_BEFORE_CALL + "\n```tool_call\n{}\n```",
+        PROSE_BEFORE_CALL + "\n```json\n{}\n```",
+    ],
 )
-def test_strict_parser_rejects_surrounding_prose_and_multiple_fences(response):
+def test_strict_parser_rejects_prose_with_multiple_fences(response):
     parsed = parse_strict_model_response(response)
 
     assert parsed.kind == "TOOL_CALL_CONTROL_FAILURE"
@@ -273,7 +286,13 @@ def test_model_generated_correction_executes_once_then_receives_evidence():
         def __init__(self):
             self.model_inputs = []
             self.requests = []
-            self.responses = [PROSE_SURROUNDED_CALL, VALID_SECOND_CALL, "No row is available."]
+            # Two fences stay ambiguous after CARD 2C, so the first reply still
+            # needs the model-generated correction this test is about.
+            self.responses = [
+                PROSE_SURROUNDED_CALL + "\n```tool_call\n{}\n```",
+                VALID_SECOND_CALL,
+                "No row is available.",
+            ]
             self.provider = SimpleNamespace(chat=self.chat)
             self.context_os = ContextExecutionRuntime()
             self.action = SimpleNamespace(

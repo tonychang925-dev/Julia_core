@@ -311,8 +311,12 @@ def test_strict_parser_accepts_only_one_exact_fenced_call():
     assert valid.kind == "EXACTLY_ONE_STRUCTURED_CALL"
     assert valid.tool_call.capability_id == "market.event.read"
 
+    # CARD 2C: prose beside exactly one valid block is unambiguous and decodes.
+    with_prose = parse_strict_model_response("prefix\n" + tool_response("market.event.read"))
+    assert with_prose.kind == "EXACTLY_ONE_STRUCTURED_CALL"
+    assert with_prose.surrounding_prose is True
+
     for response in (
-        "prefix\n" + tool_response("market.event.read"),
         tool_response("a") + "\n" + tool_response("b"),
         "```tool_call\n{broken}\n```",
         '```tool_call\n{"arguments":{}}\n```',
