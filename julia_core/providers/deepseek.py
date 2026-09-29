@@ -8,6 +8,9 @@ import urllib.request
 from typing import Any
 
 
+_MISSING = object()
+
+
 class DeepSeekCognitionProviderError(RuntimeError):
     """DeepSeek transport failed; no substitute response is permitted."""
 
@@ -68,11 +71,21 @@ class DeepSeekCognitionProvider:
     def _extract_content(raw_response: bytes) -> str:
         try:
             response: Any = json.loads(raw_response)
-            content = response["choices"][0]["message"]["content"]
-        except (UnicodeDecodeError, json.JSONDecodeError, KeyError, IndexError, TypeError) as error:
+            choice = response["choices"][0]
+            content = choice["message"]["content"]
+            finish_reason = choice.get("finish_reason", _MISSING)
+        except (UnicodeDecodeError, json.JSONDecodeError, KeyError, IndexError, TypeError, AttributeError) as error:
             raise DeepSeekCognitionProviderError(
                 "DeepSeek returned a malformed cognition response"
             ) from error
+        # Only a completion DeepSeek reports as finished is a cognition
+        # response. Truncated, filtered, resource-limited or unknown
+        # completions fail closed: no retry, no partial text, no substitute.
+        if finish_reason != "stop":
+            observed = "<missing>" if finish_reason is _MISSING else repr(finish_reason)
+            raise DeepSeekCognitionProviderError(
+                f"DeepSeek cognition response incomplete: finish_reason={observed}"
+            )
         if type(content) is not str or not content.strip():
             raise DeepSeekCognitionProviderError(
                 "DeepSeek returned an empty cognition response"

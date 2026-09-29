@@ -43,7 +43,14 @@ class FakeHTTPResponse:
 
 def _success_response(content: str) -> bytes:
     return json.dumps(
-        {"choices": [{"message": {"role": "assistant", "content": content}}]}
+        {
+            "choices": [
+                {
+                    "message": {"role": "assistant", "content": content},
+                    "finish_reason": "stop",
+                }
+            ]
+        }
     ).encode()
 
 
