@@ -201,6 +201,12 @@ class IterativeReasoningLoop:
             self.cognition_pass_trace.append(pass_trace)
 
             if parsed.kind == "FINAL_TEXT":
+                if execution_budget["finalization_required"] and not parsed.text:
+                    final_response_kind = "CONTROL_FAILURE"
+                    termination = "finalization_no_text"
+                    reply = "Final cognition pass reserved for finalization; no final text was produced."
+                    pass_trace["termination"] = termination
+                    break
                 control_frame = getattr(self.parent_package, "control_frame", {})
                 budget_limitation = (
                     isinstance(control_frame, dict)
@@ -352,10 +358,12 @@ class IterativeReasoningLoop:
         self.projection_generation_ids.append(getattr(package, "generation_id", ""))
 
     def _continuation_messages(self, package, assistant_response: str) -> list[dict]:
-        messages = package.to_messages(package.active_tail_messages, self.text)
         if assistant_response:
-            messages.insert(-1, {"role": "assistant", "content": assistant_response})
-        return messages
+            package.active_tail_messages = [
+                *package.active_tail_messages,
+                {"role": "assistant", "content": assistant_response},
+            ]
+        return package.to_messages(package.active_tail_messages, self.text)
 
     def _generation_id(self, pass_index: int, suffix: str) -> str:
         turn_id = re.sub(r"[^a-zA-Z0-9_-]", "-", self.turn_context.turn_id or "turn")

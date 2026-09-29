@@ -295,6 +295,15 @@ def test_julia_session_production_loop_runs_full_six_tool_chain(monkeypatch):
     ]
     rendered_final = str(provider.inputs[-1])
     assert all(f"source_{index}" in rendered_final for index in range(1, 7))
+    turn_events = [
+        event
+        for event in event_store.events
+        if event.event_type == "conversation.turn.completed"
+    ]
+    assert len(turn_events) == 1
+    assert turn_events[0].payload["cognition_pass_trace"] == (
+        result.cognition_pass_trace
+    )
 
 
 def test_strict_parser_accepts_only_one_exact_fenced_call():
@@ -540,6 +549,38 @@ def test_pass_seven_duplicate_call_fails_closed_at_finalization():
     assert len(session.model_inputs) == 7
 
 
+def test_pass_seven_empty_final_text_fails_closed():
+    session = LoopSession(
+        [tool_response(name) for name in CHAIN] + ["   \n\t  "]
+    )
+    result = run_loop(session)
+
+    assert result.termination == "finalization_no_text"
+    assert result.final_response_kind == "CONTROL_FAILURE"
+    assert result.cognition_pass_count == MAX_COGNITION_PASSES_PER_TURN
+    assert result.capability_execution_count == 6
+    assert len(session.requests) == 6
+    assert len(session.model_inputs) == 7
+    assert result.cognition_pass_trace[-1]["parsed_response_kind"] == "FINAL_TEXT"
+
+
+def test_pass_seven_unused_capability_budget_still_blocks_execution():
+    malformed_calls = ["```tool_call\n{broken\n```"] * 6
+    session = LoopSession(malformed_calls + [tool_response("another.tool")])
+    result = run_loop(session)
+
+    assert result.termination == "finalization_no_text"
+    assert result.final_response_kind == "CONTROL_FAILURE"
+    assert result.capability_execution_count == 0
+    assert len(session.requests) == 0
+    assert len(session.model_inputs) == 7
+    final_budget = result.cognition_pass_trace[-1]
+    assert final_budget["remaining_capability_executions"] == 6
+    assert final_budget["finalization_required"] is True
+    assert final_budget["tool_execution_available"] is False
+    assert final_budget["parsed_response_kind"] == "EXACTLY_ONE_STRUCTURED_CALL"
+
+
 def _visible_budget(messages: list[dict]) -> dict:
     system_text = str(messages[0]["content"])
     match = re.search(r"execution_budget: \{([^}]*)\}", system_text)
@@ -583,6 +624,11 @@ def test_execution_budget_is_visible_on_every_pass_and_decrements_only_on_execut
         _visible_budget(messages)["tool_execution_available"]
         for messages in session.model_inputs
     ] == [True, True, True, True, True, True, False]
+    first_tool_call = tool_response(CHAIN[0], {"step": 1})
+    second_input = str(session.model_inputs[1])
+    assert {"role": "assistant", "content": first_tool_call} in session.model_inputs[1]
+    assert "source_1" in second_input
+    assert "execution_budget:" in second_input
     assert len(session.requests) == 6
 
 

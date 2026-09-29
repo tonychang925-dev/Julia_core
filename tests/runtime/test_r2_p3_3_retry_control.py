@@ -67,6 +67,9 @@ class _RetryContextOS:
     def __init__(self):
         self.project_retry_control_calls: list[dict[str, Any]] = []
 
+    def project_execution_budget_overlay(self, parent_package, **budget):
+        return _DeltaPackage()
+
     def project_retry_control(self, **kwargs):
         self.project_retry_control_calls.append(kwargs)
         return _DeltaPackage()
