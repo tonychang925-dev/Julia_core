@@ -29,18 +29,7 @@ def _encodable_text(text: str) -> str:
         return text.encode("utf-8", "backslashreplace").decode("utf-8")
 
 
-def _encodable_copy(value: Any) -> Any:
-    """Rendering-only copy whose string keys and leaves are UTF-8 encodable."""
-    if isinstance(value, str):
-        return _encodable_text(value)
-    if isinstance(value, dict):
-        return {
-            (_encodable_text(k) if isinstance(k, str) else k): _encodable_copy(v)
-            for k, v in value.items()
-        }
-    if isinstance(value, (list, tuple)):
-        return [_encodable_copy(v) for v in value]
-    return value
+_RENDER_UNBOUNDED = 10**9
 
 
 class ContextNotReady(Exception):
@@ -139,192 +128,221 @@ class CognitiveContextPackage:
         return messages
 
     def _render_frame(self, name: str, frame: dict) -> str:
-        """Render one frame without dropping an oversized structured value.
+        """Render one frame inside the frame character budget.
 
-        The structured Context OS projection stays complete. Rendering applies a
-        model-visible character budget recursively so a large first value (for
-        example a tool payload) cannot cause the entire evidence item to vanish.
-        The renderer is domain-agnostic: it does not know or prioritize Market,
-        Research, or any provider-specific semantic field.
+        Budget is allocated by need ("water-filling") at every level: each
+        child is measured first, children that fit get what they need, and the
+        remainder goes to the larger ones, so budget is never left idle while a
+        sibling is truncated. Containers at the depth limit are flattened into
+        ``path=value`` leaves instead of collapsing. The structured Context OS
+        projection stays complete; only the rendered view is bounded. The
+        renderer is domain-agnostic: it does not know or prioritize Market,
+        Research, or any provider-specific field.
         """
-        lines = [f"[{name}]"]
-        total = len(lines[0])
+        header = f"[{name}]"
+        if not frame:
+            return header
         budget = self._RENDER_MAX_FRAME_CHARS
-        for key, value in frame.items():
-            prefix = f"{key}: "
-            remaining = budget - total - len(prefix) - 1
-            if remaining <= len(self._RENDER_TRUNC_MARKER):
-                lines.append(self._RENDER_TRUNC_MARKER + f"[frame budget {budget} chars]")
-                break
-            if (
-                key == "turn_evidence_ledger"
-                and isinstance(value, list)
-                and "tool_result" in frame
-            ):
-                rendered = self._render_turn_evidence_ledger(
-                    value, current_tool_result=frame["tool_result"], char_budget=remaining
+        owns_cache = getattr(self, "_render_cache", None) is None
+        if owns_cache:
+            self._render_cache = {}
+        try:
+            children = []
+            for key, value in frame.items():
+                if (
+                    key == "turn_evidence_ledger"
+                    and isinstance(value, list)
+                    and "tool_result" in frame
+                ):
+                    def render(b, v=value, c=frame["tool_result"]):
+                        return self._render_turn_evidence_ledger(
+                            v, current_tool_result=c, char_budget=b
+                        )
+                else:
+                    def render(b, v=value):
+                        return self._render_value(v, depth=0, char_budget=b)
+                children.append(
+                    (f"{_encodable_text(str(key))}: ", render, len(render(_RENDER_UNBOUNDED)))
                 )
-            else:
-                rendered = self._render_value(value, depth=0, char_budget=remaining)
-            line = prefix + rendered
-            lines.append(line)
-            total += len(line) + 1
-            if total >= budget:
-                break
-        return "\n".join(lines)
+            return self._fill_container(
+                header + "\n",
+                "",
+                children,
+                budget,
+                sep="\n",
+                truncation_note=self._RENDER_TRUNC_MARKER + f"[frame budget {budget} chars]",
+            )
+        finally:
+            if owns_cache:
+                self._render_cache = None
 
     _RENDER_MAX_SCALAR = 2000
     _RENDER_MAX_ITEMS = 20
     _RENDER_MAX_DEPTH = 4
-    _RENDER_MAX_FRAME_CHARS = 8000
+    _RENDER_MAX_FRAME_CHARS = 16000
+    _RENDER_MAX_FLAT_LEAVES = 200
+    # A list item below this many chars is noise; fewer readable items beat many fragments.
+    _RENDER_MIN_ITEM_CHARS = 120
     _RENDER_TRUNC_MARKER = "…[truncated]"
 
-    def _render_value(
-        self,
-        value: Any,
-        *,
-        depth: int,
-        char_budget: int | None = None,
-        flatten_exhausted: bool = False,
-    ) -> str:
+    def _render_value(self, value: Any, *, depth: int, char_budget: int | None = None) -> str:
         """Deterministically render a nested value inside an explicit budget.
 
-        Container budgets are shared across their children rather than rendering
-        an unbounded child first and discarding the whole parent afterwards.
-        Mappings retain stable sorted-key order. Truncation changes only the
-        rendered view; the structured Context OS projection remains untouched.
+        The full rendering of every node is measured once (cached per render
+        call) and budgets are allocated by need, so a value that fits is never
+        cut. Mappings keep stable sorted-key order. Truncation is explicit and
+        changes only the rendered view.
         """
         budget = self._RENDER_MAX_FRAME_CHARS if char_budget is None else max(char_budget, 0)
-        marker = self._RENDER_TRUNC_MARKER
+        owns_cache = getattr(self, "_render_cache", None) is None
+        if owns_cache:
+            self._render_cache = {}
+        try:
+            full = self._full_render(value, depth)
+            if len(full) <= budget:
+                return full
+            return self._render_bounded(value, depth, budget)
+        finally:
+            if owns_cache:
+                self._render_cache = None
 
-        def bounded_scalar(text: str, limit: int) -> str:
-            scalar_limit = min(self._RENDER_MAX_SCALAR, max(limit, 0))
-            if len(text) <= scalar_limit:
-                return text
-            if scalar_limit <= len(marker):
-                return marker[:scalar_limit]
-            return text[: scalar_limit - len(marker)] + marker
+    def _full_render(self, value: Any, depth: int) -> str:
+        """Unbounded rendering of ``value``, cached for the current render call."""
+        key = (id(value), depth)
+        hit = self._render_cache.get(key)
+        if hit is not None and hit[0] is value:
+            return hit[1]
+        text = self._render_bounded(value, depth, _RENDER_UNBOUNDED)
+        # Keep a reference to ``value`` so its id cannot be reused during the call.
+        self._render_cache[key] = (value, text)
+        return text
 
-        if isinstance(value, str):
-            return bounded_scalar(value, budget)
-
-        if isinstance(value, (dict, list, tuple)) and depth >= self._RENDER_MAX_DEPTH and flatten_exhausted:
+    def _render_bounded(self, value: Any, depth: int, budget: int) -> str:
+        if isinstance(value, (dict, list, tuple)) and depth >= self._RENDER_MAX_DEPTH:
             return self._render_flattened(value, char_budget=budget)
 
         if isinstance(value, dict):
-            if depth >= self._RENDER_MAX_DEPTH:
-                compact = "{…}" + marker
-                return compact if len(compact) <= budget else compact[:budget]
             items = sorted(value.items(), key=lambda item: str(item[0]))
-            if budget <= 4:
-                return "{}"[:budget]
-            remaining = budget - 4  # "{ " + " }"
-            parts: list[str] = []
-            truncated = False
-            for index, (key, child) in enumerate(items):
-                separator = ", " if parts else ""
-                key_prefix = f"{key}="
-                if remaining <= len(separator) + len(key_prefix):
-                    truncated = True
-                    break
-                remaining_items = max(len(items) - index, 1)
-                fair_share = max(
-                    1,
-                    (remaining - len(separator) - len(key_prefix)) // remaining_items,
+            children = [
+                (
+                    f"{_encodable_text(str(key))}=",
+                    self._child_renderer(child, depth + 1),
+                    len(self._full_render(child, depth + 1)),
                 )
-                child_text = self._render_value(
-                    child,
-                    depth=depth + 1,
-                    char_budget=fair_share,
-                    flatten_exhausted=flatten_exhausted,
-                )
-                part = separator + key_prefix + child_text
-                if len(part) > remaining:
-                    truncated = True
-                    break
-                parts.append(part)
-                remaining -= len(part)
-                if marker in child_text:
-                    truncated = True
-            if len(parts) < len(items):
-                truncated = True
-            body = "".join(parts)
-            if truncated:
-                note = (", " if body else "") + marker
-                if len(note) <= remaining:
-                    body += note
-            return "{ " + body + " }"
+                for key, child in items
+            ]
+            return self._fill_container("{ ", " }", children, budget)
 
         if isinstance(value, (list, tuple)):
-            if depth >= self._RENDER_MAX_DEPTH:
-                compact = "[…]" + marker
-                return compact if len(compact) <= budget else compact[:budget]
-
-            total_items = len(value)
-            visible_items = value[: self._RENDER_MAX_ITEMS]
-            if budget <= 2:
-                return "[]"[:budget]
-
-            remaining = budget - 2
-            omitted_count = total_items - len(visible_items)
-            omission_note = marker + (f"[{omitted_count} more]" if omitted_count else "")
-
-            # Always reserve enough space for an explicit container-level
-            # truncation marker before allocating child budgets. This prevents
-            # a bounded prefix from looking like a complete list when tail
-            # items were omitted or rendering stopped early.
-            note_reserve = min(remaining, len(omission_note) + 2)
-            content_remaining = max(0, remaining - note_reserve)
-
-            parts: list[str] = []
-            stopped_early = False
-            for index, child in enumerate(visible_items):
-                separator = ", " if parts else ""
-                if content_remaining <= len(separator):
-                    stopped_early = True
-                    break
-                remaining_items = max(len(visible_items) - index, 1)
-                fair_share = max(
-                    1,
-                    (content_remaining - len(separator)) // remaining_items,
+            visible = value[: self._RENDER_MAX_ITEMS]
+            omitted = len(value) - len(visible)
+            children = [
+                (
+                    "",
+                    self._child_renderer(child, depth + 1),
+                    len(self._full_render(child, depth + 1)),
                 )
-                child_text = self._render_value(
-                    child,
-                    depth=depth + 1,
-                    char_budget=fair_share,
-                    flatten_exhausted=flatten_exhausted,
-                )
-                part = separator + child_text
-                if len(part) > content_remaining:
-                    stopped_early = True
-                    break
-                parts.append(part)
-                content_remaining -= len(part)
+                for child in visible
+            ]
+            note = self._RENDER_TRUNC_MARKER + f"[{omitted} more]" if omitted else ""
+            return self._fill_container(
+                "[", "]", children, budget, note=note, min_item=self._RENDER_MIN_ITEM_CHARS
+            )
 
-            if len(parts) < len(visible_items):
-                stopped_early = True
+        return self._bounded_text(str(value), min(budget, self._RENDER_MAX_SCALAR))
 
-            body = "".join(parts)
-            if omitted_count or stopped_early:
-                note = (", " if body else "") + omission_note
-                available = remaining - len(body)
-                if len(note) <= available:
-                    body += note
-                else:
-                    # Extreme tiny-budget case: prefer an explicit truncation
-                    # signal over a normal-looking but incomplete prefix.
-                    body = bounded_scalar(omission_note, remaining)
+    def _child_renderer(self, child: Any, depth: int):
+        return lambda b: self._render_value(child, depth=depth, char_budget=b)
 
-            return "[" + body + "]"
+    def _bounded_text(self, text: str, limit: int) -> str:
+        marker = self._RENDER_TRUNC_MARKER
+        text = _encodable_text(text)
+        limit = max(limit, 0)
+        if len(text) <= limit:
+            return text
+        if limit <= len(marker):
+            return marker[:limit]
+        return text[: limit - len(marker)] + marker
 
-        return bounded_scalar(str(value), budget)
+    @staticmethod
+    def _water_fill(needs: list[int], budget: int) -> list[int]:
+        """Need-based allocation: small children get what they need, large share the rest."""
+        allocation = [0] * len(needs)
+        remaining = max(budget, 0)
+        left = len(needs)
+        for index in sorted(range(len(needs)), key=lambda i: (needs[i], i)):
+            give = min(needs[index], remaining // left)
+            allocation[index] = give
+            remaining -= give
+            left -= 1
+        # Hand floor-division slack to still-truncated children in order.
+        for index, need in enumerate(needs):
+            if remaining <= 0:
+                break
+            extra = min(need - allocation[index], remaining)
+            allocation[index] += extra
+            remaining -= extra
+        return allocation
 
-    _RENDER_MAX_FLAT_LEAVES = 200
+    def _fill_container(
+        self,
+        open_: str,
+        close: str,
+        children: list,
+        budget: int,
+        *,
+        sep: str = ", ",
+        note: str = "",
+        truncation_note: str | None = None,
+        min_item: int = 0,
+    ) -> str:
+        """Render ``(label, render, need)`` children within ``budget``.
+
+        ``note`` is a mandatory trailing note (for example omitted list items).
+        When anything is cut or dropped, an explicit truncation note is added.
+        ``min_item`` (sequences only): drop trailing children rather than give
+        any kept child less than ``min(need, min_item)``.
+        """
+        labels = [(sep if index else "") + label for index, (label, _, _) in enumerate(children)]
+        needs = [need for _, _, need in children]
+        note_len = (len(sep) if children else 0) + len(note) if note else 0
+        full_len = len(open_) + len(close) + sum(map(len, labels)) + sum(needs) + note_len
+        if full_len <= budget:
+            body = "".join(
+                label + render(need) for label, (_, render, need) in zip(labels, children)
+            )
+            if note:
+                body += (sep if body else "") + note
+            return open_ + body + close
+
+        final_note = note or (
+            self._RENDER_TRUNC_MARKER if truncation_note is None else truncation_note
+        )
+        available = budget - len(open_) - len(close) - len(sep) - len(final_note)
+        if available < 0:
+            return self._RENDER_TRUNC_MARKER[: max(budget, 0)]
+        count = 0
+        fixed = 0
+        for label in labels:
+            if fixed + len(label) > available:
+                break
+            fixed += len(label)
+            count += 1
+        allocation = self._water_fill(needs[:count], available - fixed)
+        while min_item and count > 1 and any(
+            allocation[index] < min(needs[index], min_item) for index in range(count)
+        ):
+            count -= 1
+            fixed -= len(labels[count])
+            allocation = self._water_fill(needs[:count], available - fixed)
+        body = "".join(
+            labels[index] + children[index][1](allocation[index]) for index in range(count)
+        )
+        return open_ + body + (sep if body else "") + final_note + close
 
     def _render_flattened(self, value: Any, *, char_budget: int) -> str:
         """Render a depth-exhausted container as bounded ``path=value`` leaves."""
-        marker = self._RENDER_TRUNC_MARKER
-        leaves: list[tuple[str, Any]] = []
+        leaves: list[tuple[str, str]] = []
         overflow = False
         stack: list[tuple[str, Any]] = [("", value)]
         while stack:
@@ -332,7 +350,8 @@ class CognitiveContextPackage:
             if isinstance(node, dict) and node:
                 children = sorted(node.items(), key=lambda item: str(item[0]))
                 stack.extend(
-                    (f"{path}.{k}" if path else str(k), v) for k, v in reversed(children)
+                    (f"{path}.{_encodable_text(str(k))}" if path else _encodable_text(str(k)), v)
+                    for k, v in reversed(children)
                 )
             elif isinstance(node, (list, tuple)) and node:
                 stack.extend((f"{path}[{i}]", v) for i, v in reversed(list(enumerate(node))))
@@ -340,36 +359,25 @@ class CognitiveContextPackage:
                 if len(leaves) >= self._RENDER_MAX_FLAT_LEAVES:
                     overflow = True
                     break
-                leaves.append((path, node))
+                text = (
+                    "{}" if isinstance(node, dict)
+                    else "[]" if isinstance(node, (list, tuple))
+                    else _encodable_text(str(node))
+                )
+                leaves.append((path, text))
         open_, close = ("[", "]") if isinstance(value, (list, tuple)) else ("{ ", " }")
-        remaining = char_budget - len(open_) - len(close) - (len(marker) + 2)
-        if remaining <= 0:
-            compact = open_.strip() + "…" + close.strip() + marker
-            return compact[: max(char_budget, 0)]
-        parts: list[str] = []
-        for index, (path, leaf) in enumerate(leaves):
-            separator = ", " if parts else ""
-            key_prefix = f"{path}=" if path else ""
-            share = (remaining - len(separator) - len(key_prefix)) // max(len(leaves) - index, 1)
-            if share <= 0:
-                overflow = True
-                break
-            leaf_text = (
-                "{}" if isinstance(leaf, dict) else "[]" if isinstance(leaf, (list, tuple))
-                else self._render_value(leaf, depth=0, char_budget=share)
+        children = [
+            (
+                f"{path}=" if path else "",
+                (lambda b, t=text: self._bounded_text(t, min(b, self._RENDER_MAX_SCALAR))),
+                min(len(text), self._RENDER_MAX_SCALAR),
             )
-            part = separator + key_prefix + leaf_text
-            if len(part) > remaining:
-                overflow = True
-                break
-            parts.append(part)
-            remaining -= len(part)
-            if marker in leaf_text:
-                overflow = True
-        body = "".join(parts)
-        if overflow:
-            body += (", " if body else "") + marker
-        return open_ + body + close
+            for path, text in leaves
+        ]
+        return self._fill_container(
+            open_, close, children, char_budget,
+            note=self._RENDER_TRUNC_MARKER if overflow else "",
+        )
 
     def _render_turn_evidence_ledger(
         self,
@@ -382,86 +390,58 @@ class CognitiveContextPackage:
 
         The entry whose ``tool_result`` is the frame's current ``tool_result``
         is already rendered above, so it appears here only as a generation_id
-        reference. Every historical entry restarts depth at its
-        ``structured_output`` and flattens depth-exhausted containers, so its
-        concrete values stay visible instead of collapsing to ``{…}``. The
-        whole ledger stays inside ``char_budget`` (the frame's remaining
-        budget). Rendering only: the structured ledger is never modified.
-        Domain-agnostic: only ledger/ToolResult structural keys are used.
+        reference. Historical entries restart depth at their
+        ``structured_output`` and share the budget by need. Rendering only:
+        the structured ledger is never modified. Domain-agnostic: only
+        ledger/ToolResult structural keys are used.
         """
-        marker = self._RENDER_TRUNC_MARKER
-        budget = max(char_budget, 0)
-        if budget <= 2:
-            return "[]"[:budget]
-
-        current_refs: list[str] = []
-        historical: list[dict] = []
-        for entry in ledger:
-            if isinstance(entry, dict) and entry.get("tool_result") == current_tool_result:
-                current_refs.append(str(entry.get("generation_id", "")))
-            else:
-                historical.append(entry)
-
-        parts: list[str] = []
+        children = []
+        current_refs = [
+            str(entry.get("generation_id", ""))
+            for entry in ledger
+            if isinstance(entry, dict) and entry.get("tool_result") == current_tool_result
+        ]
         if current_refs:
-            parts.append(
+            reference = (
                 "{ generation_id=" + ", ".join(current_refs)
                 + ", tool_result=<current tool_result above> }"
             )
-        # Reserve space for a closing truncation note before sharing out budget.
-        remaining = budget - 2 - len(", ".join(parts)) - (len(marker) + 2)
-        stopped_early = remaining <= 0
-        for index, entry in enumerate(historical):
-            separator = ", " if parts else ""
-            share = (remaining - len(separator)) // max(len(historical) - index, 1)
-            if share <= len(marker):
-                stopped_early = True
-                break
-            text = self._render_historical_entry(_encodable_copy(entry), char_budget=share)
-            part = separator + text
-            if len(part) > remaining:
-                stopped_early = True
-                break
-            parts.append(part)
-            remaining -= len(part)
-        body = "".join(parts)
-        if stopped_early:
-            body += (", " if body else "") + marker
-        return "[" + body + "]"
+            children.append(("", lambda b, t=reference: self._bounded_text(t, b), len(reference)))
+        for entry in ledger:
+            if isinstance(entry, dict) and entry.get("tool_result") == current_tool_result:
+                continue
+            def render(b, e=entry):
+                return self._render_historical_entry(e, char_budget=b)
+            children.append(("", render, len(render(_RENDER_UNBOUNDED))))
+        return self._fill_container("[", "]", children, max(char_budget, 0))
 
     def _render_historical_entry(self, entry: Any, *, char_budget: int) -> str:
         """Render one historical ledger entry, giving its payload a fresh depth."""
         if not isinstance(entry, dict) or not isinstance(entry.get("tool_result"), dict):
             return self._render_value(entry, depth=0, char_budget=char_budget)
         tool_result = entry["tool_result"]
-        output = tool_result.get("structured_output")
-        meta = {k: v for k, v in tool_result.items() if k != "structured_output"}
-        head = f"{{ generation_id={entry.get('generation_id', '')}, tool_result="
-        evidence_prefix = ", evidence="
-        tail = " }"
-        remaining = char_budget - len(head) - len(evidence_prefix) - len(tail)
-        if remaining <= 0:
-            return self._render_value(entry, depth=0, char_budget=char_budget)
-        # Identity/status and evidence identity first (each at most a quarter),
-        # then the payload with the rest.
-        meta_text = self._render_value(meta, depth=0, char_budget=remaining // 4)
-        evidence_text = self._render_value(
-            entry.get("evidence", []), depth=0, char_budget=remaining // 4
-        )
-        remaining -= len(meta_text) + len(evidence_text)
-        if output is None or not meta_text.endswith(" }"):
-            return head + meta_text + evidence_prefix + evidence_text + tail
-        payload_prefix = ", structured_output="
-        payload_text = self._render_value(
-            output,
-            depth=0,
-            char_budget=max(remaining - len(payload_prefix), 0),
-            flatten_exhausted=True,
-        )
-        return (
-            head + meta_text[:-2] + payload_prefix + payload_text + " }"
-            + evidence_prefix + evidence_text + tail
-        )
+
+        def part(value: Any, depth: int):
+            renderer = self._child_renderer(value, depth)
+            return renderer, len(self._full_render(value, depth))
+
+        tool_children = []
+        for key, value in sorted(tool_result.items(), key=lambda item: str(item[0])):
+            # The payload restarts depth so its concrete values stay visible.
+            renderer, need = part(value, 0 if key == "structured_output" else 2)
+            tool_children.append((f"{_encodable_text(str(key))}=", renderer, need))
+
+        def render_tool_result(b):
+            return self._fill_container("{ ", " }", tool_children, b)
+
+        generation = _encodable_text(str(entry.get("generation_id", "")))
+        evidence_renderer, evidence_need = part(entry.get("evidence", []), 1)
+        entry_children = [
+            ("generation_id=", lambda b: self._bounded_text(generation, b), len(generation)),
+            ("tool_result=", render_tool_result, len(render_tool_result(_RENDER_UNBOUNDED))),
+            ("evidence=", evidence_renderer, evidence_need),
+        ]
+        return self._fill_container("{ ", " }", entry_children, char_budget)
 
     def add_provenance(self, frame: str, source_ref: str, canonical_ref: str = "",
                        reason: str = "", stage: int = 0, token_estimate: int = 0):
