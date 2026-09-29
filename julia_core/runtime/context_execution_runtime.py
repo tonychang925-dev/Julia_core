@@ -128,32 +128,16 @@ class CognitiveContextPackage:
         total = len(lines[0])
         budget = self._RENDER_MAX_FRAME_CHARS
         render_items = list(frame.items())
-        ledger = frame.get("turn_evidence_ledger")
-        current_tool_result = frame.get("tool_result")
-        if (
-            name == "evidence"
-            and isinstance(ledger, list)
-            and ledger
-            and isinstance(ledger[-1], dict)
-            and ledger[-1].get("tool_result") == current_tool_result
-        ):
-            render_items = [
-                (
-                    "tool_result",
-                    "projected_in_turn_evidence_ledger",
-                )
-                if item[0] == "tool_result"
-                else item
-                for item in render_items
-            ]
-        for key, value in render_items:
+        for index, (key, value) in enumerate(render_items):
             prefix = f"{key}: "
             remaining = budget - total - len(prefix) - 1
+            remaining_items = max(len(render_items) - index, 1)
+            fair_share = max(1, remaining // remaining_items)
             if remaining <= len(self._RENDER_TRUNC_MARKER):
                 suffix = self._RENDER_TRUNC_MARKER + f"[frame budget {budget} chars]"
                 lines.append(suffix[:max(remaining, 0)])
                 break
-            rendered = self._render_value(value, depth=0, char_budget=remaining)
+            rendered = self._render_value(value, depth=0, char_budget=fair_share)
             line = prefix + rendered
             lines.append(line)
             total += len(line) + 1
@@ -236,8 +220,10 @@ class CognitiveContextPackage:
 
         if isinstance(value, (list, tuple)):
             if depth >= self._RENDER_MAX_DEPTH:
-                compact = "[…]" + marker
-                return compact if len(compact) <= budget else compact[:budget]
+                return self._render_flattened_sequence(
+                    value,
+                    char_budget=budget,
+                )
 
             total_items = len(value)
             visible_items = value[: self._RENDER_MAX_ITEMS]
@@ -304,39 +290,104 @@ class CognitiveContextPackage:
         char_budget: int,
     ) -> str:
         """Render depth-exhausted mappings as bounded path/value leaves."""
-        marker = self._RENDER_TRUNC_MARKER
-        budget = max(char_budget, 0)
-        if budget <= 4:
-            return "{}"[:budget]
+        return self._render_flattened_collection(
+            value,
+            opening="{",
+            closing="}",
+            root_sequence=False,
+            char_budget=char_budget,
+        )
 
-        stack: list[tuple[str, Any]] = [
-            (str(key), child)
-            for key, child in sorted(value.items(), key=lambda item: str(item[0]))
-        ]
+    def _render_flattened_sequence(
+        self,
+        value: list[Any] | tuple[Any, ...],
+        *,
+        char_budget: int,
+    ) -> str:
+        """Render depth-exhausted sequences as bounded path/value leaves."""
+        return self._render_flattened_collection(
+            value,
+            opening="[",
+            closing="]",
+            root_sequence=True,
+            char_budget=char_budget,
+        )
+
+    def _flatten_bounded_leaves(
+        self,
+        value: Any,
+        *,
+        root_sequence: bool,
+    ) -> tuple[list[tuple[str, Any]], bool]:
+        if root_sequence:
+            stack: list[tuple[str, Any]] = [
+                (f"[{index}]", child) for index, child in enumerate(value)
+            ]
+        else:
+            stack = [
+                (str(key), child)
+                for key, child in sorted(value.items(), key=lambda item: str(item[0]))
+            ]
         stack.reverse()
         leaves: list[tuple[str, Any]] = []
-        omitted = False
         visited_nodes = 0
         max_visited_nodes = self._RENDER_MAX_ITEMS * 4
+
         while stack:
             visited_nodes += 1
             if visited_nodes > max_visited_nodes:
-                omitted = True
-                break
+                return leaves, True
             path, child = stack.pop()
             if isinstance(child, dict):
                 nested = [
-                    (f"{path}.{key}", nested_child)
+                    (
+                        f"{path}.{key}" if path else str(key),
+                        nested_child,
+                    )
                     for key, nested_child in sorted(
                         child.items(), key=lambda item: str(item[0])
                     )
                 ]
-                stack.extend(reversed(nested))
+            elif isinstance(child, (list, tuple)):
+                nested = [
+                    (
+                        f"{path}[{index}]" if path else f"[{index}]",
+                        nested_child,
+                    )
+                    for index, nested_child in enumerate(child)
+                ]
+            else:
+                leaves.append((path, child))
+                if len(leaves) >= max_visited_nodes:
+                    return leaves, True
                 continue
-            leaves.append((path, child))
-            if len(leaves) >= max_visited_nodes:
-                omitted = True
-                break
+            stack.extend(reversed(nested))
+
+        return leaves, False
+
+    def _render_flattened_collection(
+        self,
+        value: Any,
+        *,
+        opening: str,
+        closing: str,
+        root_sequence: bool,
+        char_budget: int,
+    ) -> str:
+        marker = self._RENDER_TRUNC_MARKER
+        budget = max(char_budget, 0)
+        minimum = len(opening) + len(closing)
+        if budget <= minimum:
+            return (opening + closing)[:budget]
+
+        leaves, omitted = self._flatten_bounded_leaves(
+            value,
+            root_sequence=root_sequence,
+        )
+        if not leaves:
+            if omitted:
+                return marker[:budget]
+            return opening + " " + closing
 
         visible = sorted(
             leaves,
@@ -383,7 +434,7 @@ class CognitiveContextPackage:
                 parts.append(note)
             else:
                 return marker[:budget]
-        return "{ " + "".join(parts) + " }"
+        return opening + " " + "".join(parts) + " " + closing
 
     def add_provenance(self, frame: str, source_ref: str, canonical_ref: str = "",
                        reason: str = "", stage: int = 0, token_estimate: int = 0):

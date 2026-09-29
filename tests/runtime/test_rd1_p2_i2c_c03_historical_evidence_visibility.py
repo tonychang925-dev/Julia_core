@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Sequence
+
 import pytest
 
 from julia_core.capability.models import (
@@ -45,6 +47,105 @@ def _tool_observation(
         provider=provider,
     )
     return tool_result, evidence
+
+
+def _market_observation(generation_id: str) -> tuple[ToolResult, Evidence]:
+    return _tool_observation(
+        generation_id=generation_id,
+        provider="market",
+        material="1251.24",
+    )
+
+
+def _research_observation(generation_id: str) -> tuple[ToolResult, Evidence]:
+    evidence_id = f"evidence-{generation_id}"
+    evidence = Evidence(
+        evidence_id=evidence_id,
+        source_type=EvidenceSourceType.TOOL_OBSERVATION,
+        source_ref="src-1",
+        observed_at="2026-09-29T00:00:00Z",
+        content_ref=f"content-{generation_id}",
+        provenance={
+            "capability_id": "research.web.query",
+            "provider": "research",
+        },
+    )
+    tool_result = ToolResult(
+        capability_call_id=f"call-{generation_id}",
+        status=ToolResultStatus.SUCCESS,
+        structured_output={
+            "findings": [
+                {
+                    "material": "distinct-research-material",
+                    "source_ref": "src-1",
+                }
+            ],
+            "sources": [
+                {
+                    "ref": "src-1",
+                    "url": "https://example.test/source-1",
+                    "title": "Distinct Research Title",
+                }
+            ],
+        },
+        evidence_refs=(evidence_id,),
+        provider="research",
+    )
+    return tool_result, evidence
+
+
+def _project_sequence(
+    observations: Sequence[tuple[ToolResult, Evidence]],
+) -> CognitiveContextPackage:
+    package = CognitiveContextPackage(
+        conversation_id="conversation",
+        turn_id="turn",
+        generation_id="initial",
+    )
+    runtime = ContextExecutionRuntime()
+    for index, (tool_result, evidence) in enumerate(observations):
+        package = runtime.project_tool_result(
+            parent_package=package,
+            tool_result=tool_result,
+            evidence=(evidence,),
+            generation_id=f"generation-{index}",
+        )
+    return package
+
+
+def test_research_only_real_structure_remains_visible():
+    package = _project_sequence([_research_observation("research")])
+
+    rendered = package.to_messages([], "query")[0]["content"]
+
+    assert "distinct-research-material" in rendered
+    assert "src-1" in rendered
+    assert "Distinct Research Title" in rendered
+    assert "https://example.test/source-1" in rendered
+    assert "tool_result: projected_in_turn_evidence_ledger" not in rendered
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_market_and_research_material_remains_visible_in_both_orders(
+    reverse: bool,
+):
+    observations = [
+        _market_observation("market"),
+        _research_observation("research"),
+    ]
+    if reverse:
+        observations.reverse()
+    package = _project_sequence(observations)
+
+    rendered = package.to_messages([], "query")[0]["content"]
+
+    assert "1251.24" in rendered
+    assert "distinct-research-material" in rendered
+    assert "src-1" in rendered
+    assert "Distinct Research Title" in rendered
+    assert "capability_id=research.web.query" in rendered
+    assert "provider=market" in rendered
+    assert "provider=research" in rendered
 
 
 @pytest.mark.parametrize("reverse", [False, True])
@@ -233,6 +334,20 @@ def test_all_historical_entries_survive_multiple_later_tool_results():
 def test_flattened_mapping_terminates_on_nested_cycles():
     cyclic: dict[str, object] = {}
     cyclic["self"] = cyclic
+
+    rendered = CognitiveContextPackage()._render_value(
+        cyclic,
+        depth=CognitiveContextPackage._RENDER_MAX_DEPTH,
+        char_budget=CognitiveContextPackage._RENDER_MAX_FRAME_CHARS,
+    )
+
+    assert "…[truncated]" in rendered
+    assert len(rendered) <= CognitiveContextPackage._RENDER_MAX_FRAME_CHARS
+
+
+def test_flattened_sequence_terminates_on_nested_cycles():
+    cyclic: list[object] = []
+    cyclic.append(cyclic)
 
     rendered = CognitiveContextPackage()._render_value(
         cyclic,
