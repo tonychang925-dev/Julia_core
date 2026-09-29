@@ -106,6 +106,22 @@ class FakeContextOS:
     def __init__(self):
         self.project_tool_result_calls: list[dict[str, Any]] = []
 
+    def project_execution_budget_overlay(self, parent_package, **budget):
+        class BudgetPackage:
+            active_tail_messages: list[dict[str, Any]] = []
+            control_frame = {"execution_budget": budget}
+
+            def to_messages(self, history, user_text):
+                return [
+                    {
+                        "role": "system",
+                        "content": f"[control]\nexecution_budget: {budget}",
+                    },
+                    {"role": "user", "content": user_text},
+                ]
+
+        return BudgetPackage()
+
     def project_tool_result(self, *, parent_package=None, tool_result=None, evidence=(), generation_id=""):
         self.project_tool_result_calls.append({
             "parent_package": parent_package,

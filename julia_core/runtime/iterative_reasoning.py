@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -138,6 +139,7 @@ class IterativeTurnResult:
     executed_capability_ids: list[str] = field(default_factory=list)
     projection_generation_ids: list[str] = field(default_factory=list)
     evidence_generation_ids: list[str] = field(default_factory=list)
+    cognition_pass_trace: list[dict[str, Any]] = field(default_factory=list)
 
 
 class IterativeReasoningLoop:
@@ -169,6 +171,7 @@ class IterativeReasoningLoop:
         self.executed_capability_ids: list[str] = []
         self.projection_generation_ids: list[str] = []
         self.evidence_generation_ids: list[str] = []
+        self.cognition_pass_trace: list[dict[str, Any]] = []
         self.unresolved_unavailable = False
 
     def run(self) -> IterativeTurnResult:
@@ -178,11 +181,24 @@ class IterativeReasoningLoop:
 
         for pass_index in range(1, MAX_COGNITION_PASSES_PER_TURN + 1):
             self.cognition_pass_count = pass_index
+            execution_budget = self._execution_budget(pass_index)
+            budget_package = self.session.context_os.project_execution_budget_overlay(
+                self.parent_package,
+                **execution_budget,
+            )
             response = self.session.provider.chat(
-                self.messages,
+                budget_package.to_messages(budget_package.active_tail_messages, self.text),
                 cognitive_mode="private_voice_continuity",
             )
             parsed = parse_strict_model_response(response)
+            pass_trace = {
+                "pass_index": pass_index,
+                **execution_budget,
+                "parsed_response_kind": parsed.kind,
+                "capability_execution_count": self.capability_execution_count,
+                "termination": "",
+            }
+            self.cognition_pass_trace.append(pass_trace)
 
             if parsed.kind == "FINAL_TEXT":
                 control_frame = getattr(self.parent_package, "control_frame", {})
@@ -198,37 +214,38 @@ class IterativeReasoningLoop:
                     else "completed"
                 )
                 reply = parsed.text
+                pass_trace["termination"] = termination
+                break
+
+            if execution_budget["finalization_required"]:
+                final_response_kind = "CONTROL_FAILURE"
+                termination = "finalization_no_text"
+                reply = "Final cognition pass reserved for finalization; no final text was produced."
+                pass_trace["termination"] = termination
                 break
 
             if self._post_budget_tool_request():
                 final_response_kind = "CONTROL_FAILURE"
                 termination = "post_limit_tool_request"
                 reply = "Capability execution limit reached; no additional tool was executed."
+                pass_trace["termination"] = termination
                 break
 
             if parsed.kind == "TOOL_CALL_CONTROL_FAILURE":
-                if pass_index == MAX_COGNITION_PASSES_PER_TURN:
-                    final_response_kind = "CONTROL_FAILURE"
-                    termination = "cognition_pass_limit"
-                    reply = "Cognition pass limit reached before Julia could produce a final answer."
-                    break
                 self._project_decode_failure(parsed.failure_reason, pass_index)
+                pass_trace["termination"] = "continued"
                 continue
 
             tool_call = parsed.tool_call
             assert tool_call is not None
-            if pass_index == MAX_COGNITION_PASSES_PER_TURN:
-                final_response_kind = "CONTROL_FAILURE"
-                termination = "cognition_pass_limit"
-                reply = "Cognition pass limit reached before Julia could produce a final answer."
-                break
-
             if tool_call.fingerprint in self.seen_fingerprints:
                 self._project_duplicate(tool_call, pass_index)
+                pass_trace["termination"] = "continued"
                 continue
 
             if self.capability_execution_count >= self.capability_execution_limit:
                 self._project_budget_exceeded(pass_index)
+                pass_trace["termination"] = "continued"
                 continue
 
             self.seen_fingerprints.add(tool_call.fingerprint)
@@ -255,6 +272,8 @@ class IterativeReasoningLoop:
                 correlation_id=self.turn_context.correlation_id,
             )
             self.messages = self._continuation_messages(package, response)
+            pass_trace["capability_execution_count"] = self.capability_execution_count
+            pass_trace["termination"] = "continued"
 
         if final_response_kind == "NONE":
             final_response_kind = "CONTROL_FAILURE"
@@ -270,7 +289,26 @@ class IterativeReasoningLoop:
             executed_capability_ids=list(self.executed_capability_ids),
             projection_generation_ids=list(self.projection_generation_ids),
             evidence_generation_ids=list(self.evidence_generation_ids),
+            cognition_pass_trace=deepcopy(self.cognition_pass_trace),
         )
+
+    def _execution_budget(self, pass_index: int) -> dict[str, int | bool]:
+        remaining_cognition_passes = (
+            MAX_COGNITION_PASSES_PER_TURN - pass_index + 1
+        )
+        remaining_capability_executions = max(
+            self.capability_execution_limit - self.capability_execution_count,
+            0,
+        )
+        finalization_required = remaining_cognition_passes == 1
+        return {
+            "remaining_cognition_passes": remaining_cognition_passes,
+            "remaining_capability_executions": remaining_capability_executions,
+            "finalization_required": finalization_required,
+            "tool_execution_available": (
+                not finalization_required and remaining_capability_executions > 0
+            ),
+        }
 
     def _post_budget_tool_request(self) -> bool:
         if self.parent_package is None:

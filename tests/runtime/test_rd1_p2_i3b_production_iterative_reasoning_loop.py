@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -483,7 +484,7 @@ def test_post_limit_tool_request_terminates_without_execution_or_pass():
     assert state["loop"].parent_package.control_frame["kind"] == "tool_call_budget_exceeded"
 
 
-def test_pass_seven_unique_tool_terminates_at_cognition_limit():
+def test_pass_seven_unique_tool_fails_closed_at_finalization():
     responses = [tool_response(name) for name in CHAIN]
     responses.append(tool_response("another.tool"))
     session = LoopSession(responses)
@@ -492,35 +493,147 @@ def test_pass_seven_unique_tool_terminates_at_cognition_limit():
     assert len(session.requests) == 6
     assert len(session.model_inputs) == 7
     assert result.final_response_kind == "CONTROL_FAILURE"
-    assert result.termination == "cognition_pass_limit"
+    assert result.termination == "finalization_no_text"
+    assert result.reply == (
+        "Final cognition pass reserved for finalization; no final text was produced."
+    )
+    assert result.cognition_pass_trace[-1] == {
+        "pass_index": 7,
+        "remaining_cognition_passes": 1,
+        "remaining_capability_executions": 0,
+        "finalization_required": True,
+        "tool_execution_available": False,
+        "parsed_response_kind": "EXACTLY_ONE_STRUCTURED_CALL",
+        "capability_execution_count": 6,
+        "termination": "finalization_no_text",
+    }
 
 
-def test_pass_seven_malformed_call_terminates_at_cognition_limit():
+def test_pass_seven_malformed_call_fails_closed_at_finalization():
     session = LoopSession(
         [tool_response(name) for name in CHAIN] + ["```tool_call\n{broken\n```"]
     )
     result = run_loop(session)
-    assert result.termination == "cognition_pass_limit"
+    assert result.termination == "finalization_no_text"
     assert result.final_response_kind == "CONTROL_FAILURE"
     assert result.reply == (
-        "Cognition pass limit reached before Julia could produce a final answer."
+        "Final cognition pass reserved for finalization; no final text was produced."
     )
     assert result.capability_execution_count == 6
     assert len(session.requests) == 6
     assert len(session.model_inputs) == 7
+    assert result.cognition_pass_trace[-1]["parsed_response_kind"] == (
+        "TOOL_CALL_CONTROL_FAILURE"
+    )
 
 
-def test_pass_seven_duplicate_call_terminates_at_cognition_limit():
+def test_pass_seven_duplicate_call_fails_closed_at_finalization():
     session = LoopSession(
         [tool_response(name) for name in CHAIN]
         + [tool_response(CHAIN[0])]
     )
     result = run_loop(session)
-    assert result.termination == "cognition_pass_limit"
+    assert result.termination == "finalization_no_text"
     assert result.final_response_kind == "CONTROL_FAILURE"
     assert result.capability_execution_count == 6
     assert len(session.requests) == 6
     assert len(session.model_inputs) == 7
+
+
+def _visible_budget(messages: list[dict]) -> dict:
+    system_text = str(messages[0]["content"])
+    match = re.search(r"execution_budget: \{([^}]*)\}", system_text)
+    assert match is not None
+    values: dict[str, object] = {
+        key: value for key, value in re.findall(r"(\w+)=([^,}]+)", match.group(1))
+    }
+    return {
+        key: (
+            value.strip() == "True"
+            if value.strip() in {"True", "False"}
+            else int(value.strip())
+            if value.strip().isdigit()
+            else value.strip()
+        )
+        for key, value in values.items()
+    }
+
+
+def test_execution_budget_is_visible_on_every_pass_and_decrements_only_on_execution():
+    session = LoopSession(
+        [tool_response(name, {"step": index}) for index, name in enumerate(CHAIN, 1)]
+        + ["Julia final judgment"]
+    )
+    result = run_loop(session)
+
+    assert result.cognition_pass_count == MAX_COGNITION_PASSES_PER_TURN
+    assert result.capability_execution_count == MAX_CAPABILITY_EXECUTIONS_PER_TURN
+    assert result.final_response_kind == "JUDGMENT"
+    assert result.termination == "completed"
+    assert len(session.model_inputs) == MAX_COGNITION_PASSES_PER_TURN
+    assert [
+        _visible_budget(messages)["remaining_cognition_passes"]
+        for messages in session.model_inputs
+    ] == [7, 6, 5, 4, 3, 2, 1]
+    assert [
+        _visible_budget(messages)["remaining_capability_executions"]
+        for messages in session.model_inputs
+    ] == [6, 5, 4, 3, 2, 1, 0]
+    assert [
+        _visible_budget(messages)["tool_execution_available"]
+        for messages in session.model_inputs
+    ] == [True, True, True, True, True, True, False]
+    assert len(session.requests) == 6
+
+
+def test_control_projection_does_not_consume_capability_budget():
+    session = LoopSession(
+        ["```tool_call\n{broken\n```", "Julia final judgment"]
+    )
+    result = run_loop(session, execution_limit=1)
+
+    assert result.capability_execution_count == 0
+    assert _visible_budget(session.model_inputs[0])["remaining_capability_executions"] == 1
+    assert _visible_budget(session.model_inputs[1])["remaining_capability_executions"] == 1
+    assert "tool_call_decode_failure" in str(session.model_inputs[1])
+    assert "execution_budget" in str(session.model_inputs[1])
+
+
+def test_existing_controls_survive_execution_budget_overlay():
+    decode_session = LoopSession(
+        ["```tool_call\n{broken\n```", "Julia final judgment"]
+    )
+    run_loop(decode_session)
+    decode_input = str(decode_session.model_inputs[1])
+    assert "kind: tool_call_decode_failure" in decode_input
+    assert "expected_invocation_protocol:" in decode_input
+    assert "execution_budget:" in decode_input
+
+    duplicate_session = LoopSession(
+        [
+            tool_response("market.event.read", {"id": "same"}),
+            tool_response("market.event.read", {"id": "same"}),
+            "Julia final judgment",
+        ]
+    )
+    run_loop(duplicate_session)
+    duplicate_input = str(duplicate_session.model_inputs[2])
+    assert "kind: duplicate_capability_call_rejected" in duplicate_input
+    assert "capability_id: market.event.read" in duplicate_input
+    assert "execution_budget:" in duplicate_input
+
+    budget_session = LoopSession(
+        [
+            tool_response("market.event.read"),
+            tool_response("research.web.query"),
+            "Julia limitation after the capability budget",
+        ]
+    )
+    run_loop(budget_session, execution_limit=1)
+    budget_input = str(budget_session.model_inputs[2])
+    assert "kind: tool_call_budget_exceeded" in budget_input
+    assert "limit: 1" in budget_input
+    assert "execution_budget:" in budget_input
 
 
 def test_control_only_outcome_consumes_cognition_but_not_execution_budget():
