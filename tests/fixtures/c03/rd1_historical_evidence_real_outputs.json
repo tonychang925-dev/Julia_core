@@ -1,0 +1,257 @@
+{
+ "_provenance": {
+  "research_structured_output": "docs/evidence/RD1_P2_I2C_NATURAL_E2E_EVIDENCE_20260929.json trace[event=research.result].structured_output (verbatim)",
+  "market_structured_output": "real READY market.stock.quote.read shape from the PR #188 E2E evidence"
+ },
+ "research_structured_output": {
+  "query": "机器人产业 最新动态 2026年9月 新闻",
+  "findings": [
+   {
+    "source_ref": "src_8ae9e184414c44c79a5c61770519cdcf31319434f81f704529ec12b09ff421b3",
+    "material": "AI+机器人 小场景跑出大订单 具身智能落地走向实处|上海证券报 \n主管主办 | 证监会法定信息披露平台 \n客户端 \n电子报 \n首页 \n快讯 \n时政 \n证券 \n金融 \n公司 \n产经 \n盈视频 \n信披 \n路演 \n投教 \n活动 \n专题 \n关注"
+   },
+   {
+    "source_ref": "src_9d475851b9f59d19b98d2162ab753a7a32d595b380950471628117499c15569c",
+    "material": "浙江人形联合凯傲集团推进智慧工厂建设|物流|机器人_网易订阅"
+   }
+  ],
+  "sources": [
+   {
+    "ref": "src_8ae9e184414c44c79a5c61770519cdcf31319434f81f704529ec12b09ff421b3",
+    "url": "https://paper.cnstock.com/html/2026-09/24/content_2272401.htm",
+    "title": "AI+机器人 小场景跑出大订单 具身智能落地走向实处",
+    "published_at": null,
+    "page_age": null,
+    "provider_observation_ref": {
+     "execution_attempt_id": "exec_attempt_e08b8ca0-e3a2-4b38-b2af-64bcec63535f",
+     "provider_result_path": "$.results[0].content[0]",
+     "provider_tool_use_id": "call_00_5RCLwx3QottcCEjq8FtD1308",
+     "raw_response_boundary": "TRANSPORT_OBSERVED_STDOUT_JSONRPC_FRAME_BYTES",
+     "raw_response_sha256": "d94e2968a5ae12b927e28c785893af105f4aa3d1b5e7bc1aceb7d9354c9ad48f",
+     "raw_response_classification": "EXECUTION_PROVENANCE_ONLY"
+    },
+    "acquisition_url": "https://paper.cnstock.com/html/2026-09/24/content_2272401.htm",
+    "acquisition_status": "SUCCESS",
+    "final_url": "https://paper.cnstock.com/html/2026-09/24/content_2272401.htm",
+    "raw_content_digest_sha256": "96b82b2d98aa4e4c0fdd3d400b39f01931d00b7e9d56f6da8aa2deffb31fbb53",
+    "extracted_content_digest_sha256": "0224eb58b195e4f8b47141b1e44e30e1d4fa5ab6ba7f1cf91846fc369d0eeb91",
+    "acquired_at": "2026-09-29T03:15:24Z"
+   },
+   {
+    "ref": "src_9d475851b9f59d19b98d2162ab753a7a32d595b380950471628117499c15569c",
+    "url": "https://www.163.com/dy/article/L7JNOH7G0552C2FY.html",
+    "title": "浙江人形联合凯傲集团推进智慧工厂建设",
+    "published_at": null,
+    "page_age": null,
+    "provider_observation_ref": {
+     "execution_attempt_id": "exec_attempt_e08b8ca0-e3a2-4b38-b2af-64bcec63535f",
+     "provider_result_path": "$.results[0].content[1]",
+     "provider_tool_use_id": "call_00_5RCLwx3QottcCEjq8FtD1308",
+     "raw_response_boundary": "TRANSPORT_OBSERVED_STDOUT_JSONRPC_FRAME_BYTES",
+     "raw_response_sha256": "d94e2968a5ae12b927e28c785893af105f4aa3d1b5e7bc1aceb7d9354c9ad48f",
+     "raw_response_classification": "EXECUTION_PROVENANCE_ONLY"
+    },
+    "acquisition_url": "https://www.163.com/dy/article/L7JNOH7G0552C2FY.html",
+    "acquisition_status": "SUCCESS",
+    "final_url": "https://www.163.com/dy/article/L7JNOH7G0552C2FY.html",
+    "raw_content_digest_sha256": "0753502dad7d845ce698bc7c3ad78f09669e32f2167711b3094597ee65778fe3",
+    "extracted_content_digest_sha256": "d2cdd5f2179d0fe552394c6cf70e324451eea8e7c7dd1c23823032e655aa901c",
+    "acquired_at": "2026-09-29T03:15:25Z"
+   },
+   {
+    "ref": "src_0d5d8dc0b0009b8da63525c049da627ccb32340a02dae80a8e217dbbf93115a1",
+    "url": "https://www.sohu.com/a/1076949169_120988576?scm=10001.7746_13-119000.0.0-0-0-0-0.0&spm=smpc.channel_354.block3_32_P7Ovbu_1_fd.44.1789561246063Ep9ZOH9_7746",
+    "title": "银河通用董事长尹方鸣：公司机器人已实现超千台规模商业部署",
+    "published_at": null,
+    "page_age": null,
+    "provider_observation_ref": {
+     "execution_attempt_id": "exec_attempt_e08b8ca0-e3a2-4b38-b2af-64bcec63535f",
+     "provider_result_path": "$.results[0].content[2]",
+     "provider_tool_use_id": "call_00_5RCLwx3QottcCEjq8FtD1308",
+     "raw_response_boundary": "TRANSPORT_OBSERVED_STDOUT_JSONRPC_FRAME_BYTES",
+     "raw_response_sha256": "d94e2968a5ae12b927e28c785893af105f4aa3d1b5e7bc1aceb7d9354c9ad48f",
+     "raw_response_classification": "EXECUTION_PROVENANCE_ONLY"
+    },
+    "acquisition_url": "https://www.sohu.com/a/1076949169_120988576?scm=10001.7746_13-119000.0.0-0-0-0-0.0&spm=smpc.channel_354.block3_32_P7Ovbu_1_fd.44.1789561246063Ep9ZOH9_7746"
+   },
+   {
+    "ref": "src_990432e8e0842cd538b57f1a5c1b938c02eb1c7ec8384b4f1e49fcae545b9bff",
+    "url": "https://finance.ifeng.com/c/8wb0aoREHIc",
+    "title": "飞阔科技与美格智能达成战略合作",
+    "published_at": null,
+    "page_age": null,
+    "provider_observation_ref": {
+     "execution_attempt_id": "exec_attempt_e08b8ca0-e3a2-4b38-b2af-64bcec63535f",
+     "provider_result_path": "$.results[0].content[3]",
+     "provider_tool_use_id": "call_00_5RCLwx3QottcCEjq8FtD1308",
+     "raw_response_boundary": "TRANSPORT_OBSERVED_STDOUT_JSONRPC_FRAME_BYTES",
+     "raw_response_sha256": "d94e2968a5ae12b927e28c785893af105f4aa3d1b5e7bc1aceb7d9354c9ad48f",
+     "raw_response_classification": "EXECUTION_PROVENANCE_ONLY"
+    },
+    "acquisition_url": "https://finance.ifeng.com/c/8wb0aoREHIc"
+   },
+   {
+    "ref": "src_23c2bf7bdd3c405cd607271e3e22bd52fa40e0cd7f20b3678b60ee5f03c7351b",
+    "url": "http://finance.people.com.cn/BIG5/n1/2026/0917/c1004-40800601.html",
+    "title": "銀河通用尹方鳴：公司機器人已實現超千台規模商業部署",
+    "published_at": null,
+    "page_age": null,
+    "provider_observation_ref": {
+     "execution_attempt_id": "exec_attempt_e08b8ca0-e3a2-4b38-b2af-64bcec63535f",
+     "provider_result_path": "$.results[0].content[4]",
+     "provider_tool_use_id": "call_00_5RCLwx3QottcCEjq8FtD1308",
+     "raw_response_boundary": "TRANSPORT_OBSERVED_STDOUT_JSONRPC_FRAME_BYTES",
+     "raw_response_sha256": "d94e2968a5ae12b927e28c785893af105f4aa3d1b5e7bc1aceb7d9354c9ad48f",
+     "raw_response_classification": "EXECUTION_PROVENANCE_ONLY"
+    }
+   },
+   {
+    "ref": "src_a12180e21b0cbcf0b1c6e920573db2dde098b7351f366ff79e983c9ed06a3d52",
+    "url": "https://m.gmw.cn/2026-09/17/content_1304564735.htm#1",
+    "title": "第九届中国机器人峰会在杭州开幕 - 第九届中国机器人峰会在杭州开幕",
+    "published_at": null,
+    "page_age": null,
+    "provider_observation_ref": {
+     "execution_attempt_id": "exec_attempt_e08b8ca0-e3a2-4b38-b2af-64bcec63535f",
+     "provider_result_path": "$.results[0].content[5]",
+     "provider_tool_use_id": "call_00_5RCLwx3QottcCEjq8FtD1308",
+     "raw_response_boundary": "TRANSPORT_OBSERVED_STDOUT_JSONRPC_FRAME_BYTES",
+     "raw_response_sha256": "d94e2968a5ae12b927e28c785893af105f4aa3d1b5e7bc1aceb7d9354c9ad48f",
+     "raw_response_classification": "EXECUTION_PROVENANCE_ONLY"
+    },
+    "acquisition_url": "https://m.gmw.cn/2026-09/17/content_1304564735.htm"
+   },
+   {
+    "ref": "src_60b056ebaa1bed22de4db04bc9d0f1861c959f4f66ad6bfe128e81e6da05bbb1",
+    "url": "http://www.news.cn/20260926/327e35cb42584095a3426d9e8c33df32/c.html",
+    "title": "在数贸会，见证具身智能应用打开新空间",
+    "published_at": null,
+    "page_age": null,
+    "provider_observation_ref": {
+     "execution_attempt_id": "exec_attempt_e08b8ca0-e3a2-4b38-b2af-64bcec63535f",
+     "provider_result_path": "$.results[0].content[6]",
+     "provider_tool_use_id": "call_00_5RCLwx3QottcCEjq8FtD1308",
+     "raw_response_boundary": "TRANSPORT_OBSERVED_STDOUT_JSONRPC_FRAME_BYTES",
+     "raw_response_sha256": "d94e2968a5ae12b927e28c785893af105f4aa3d1b5e7bc1aceb7d9354c9ad48f",
+     "raw_response_classification": "EXECUTION_PROVENANCE_ONLY"
+    }
+   },
+   {
+    "ref": "src_fe6394e1cac5b5b57d7e2bbe66a0fdb0d2e5d87b0116809db8be884f929a5371",
+    "url": "https://tv.cctv.com/2026/09/29/VIDEfMSnxtFE0zT6VihPce4v260929.shtml",
+    "title": "[第一时间]全球首台搭载国产化电子架构具身机器人亮相",
+    "published_at": null,
+    "page_age": null,
+    "provider_observation_ref": {
+     "execution_attempt_id": "exec_attempt_e08b8ca0-e3a2-4b38-b2af-64bcec63535f",
+     "provider_result_path": "$.results[0].content[7]",
+     "provider_tool_use_id": "call_00_5RCLwx3QottcCEjq8FtD1308",
+     "raw_response_boundary": "TRANSPORT_OBSERVED_STDOUT_JSONRPC_FRAME_BYTES",
+     "raw_response_sha256": "d94e2968a5ae12b927e28c785893af105f4aa3d1b5e7bc1aceb7d9354c9ad48f",
+     "raw_response_classification": "EXECUTION_PROVENANCE_ONLY"
+    },
+    "acquisition_url": "https://tv.cctv.com/2026/09/29/VIDEfMSnxtFE0zT6VihPce4v260929.shtml"
+   },
+   {
+    "ref": "src_e9eaf45fc0d62d2ca5e9d5bc02eaae74984e20c6c2fa04666684cb06f59c7e01",
+    "url": "https://news.qq.com/rain/a/20260918A04FV200?id=20260918A04FV200&path=a&app=news&suid=&redirect_pc=1",
+    "title": "第九届中国机器人峰会开幕 嘉宾共探具身智能落地之路",
+    "published_at": null,
+    "page_age": null,
+    "provider_observation_ref": {
+     "execution_attempt_id": "exec_attempt_e08b8ca0-e3a2-4b38-b2af-64bcec63535f",
+     "provider_result_path": "$.results[0].content[8]",
+     "provider_tool_use_id": "call_00_5RCLwx3QottcCEjq8FtD1308",
+     "raw_response_boundary": "TRANSPORT_OBSERVED_STDOUT_JSONRPC_FRAME_BYTES",
+     "raw_response_sha256": "d94e2968a5ae12b927e28c785893af105f4aa3d1b5e7bc1aceb7d9354c9ad48f",
+     "raw_response_classification": "EXECUTION_PROVENANCE_ONLY"
+    },
+    "acquisition_url": "https://news.qq.com/rain/a/20260918A04FV200?id=20260918A04FV200&path=a&app=news&suid=&redirect_pc=1"
+   },
+   {
+    "ref": "src_c71a8ece064d6dd88c3ca2a2ef3265416a472fed504a7949e05a3bd75ebd1b69",
+    "url": "https://www.news.cn/photo/20260917/be1b80ca518c498a954beab30db1dcbd/c.html",
+    "title": "第九届中国机器人峰会在杭州开幕",
+    "published_at": null,
+    "page_age": null,
+    "provider_observation_ref": {
+     "execution_attempt_id": "exec_attempt_e08b8ca0-e3a2-4b38-b2af-64bcec63535f",
+     "provider_result_path": "$.results[0].content[9]",
+     "provider_tool_use_id": "call_00_5RCLwx3QottcCEjq8FtD1308",
+     "raw_response_boundary": "TRANSPORT_OBSERVED_STDOUT_JSONRPC_FRAME_BYTES",
+     "raw_response_sha256": "d94e2968a5ae12b927e28c785893af105f4aa3d1b5e7bc1aceb7d9354c9ad48f",
+     "raw_response_classification": "EXECUTION_PROVENANCE_ONLY"
+    },
+    "acquisition_url": "https://www.news.cn/photo/20260917/be1b80ca518c498a954beab30db1dcbd/c.html"
+   }
+  ],
+  "limitations": [
+   "Provider action completion does not prove external-world truth.",
+   "external_result_truth=NOT_PROVEN",
+   "external_freshness_truth=NOT_PROVEN",
+   "search_index_completeness_truth=NOT_PROVEN"
+  ],
+  "provider": "claude-client-websearch",
+  "produced_at": "2026-09-29T03:14:29.639000Z",
+  "provenance": {
+   "public_entrypoint": "bun execution_boundary.ts",
+   "public_protocol": "CLAUDE_CLIENT_JSONL_REQUEST_PLANE_V1",
+   "execution_attempt_id": "exec_attempt_e08b8ca0-e3a2-4b38-b2af-64bcec63535f",
+   "provider_tool_authority_id": "stdio-websearch-authority-6a08b7cf-55a7-495b-935d-c15b009f8a2d",
+   "stdio_provider_session_id": "stdio-session-65138253b490acd7dc6bf99535093cf7",
+   "jsonrpc_request_id": "call-299ce21bead7eaccf4d0ca12",
+   "raw_response_boundary": "TRANSPORT_OBSERVED_STDOUT_JSONRPC_FRAME_BYTES",
+   "raw_response_completeness": "COMPLETE",
+   "raw_response_sha256": "d94e2968a5ae12b927e28c785893af105f4aa3d1b5e7bc1aceb7d9354c9ad48f",
+   "raw_response_classification": "EXECUTION_PROVENANCE_ONLY",
+   "source_observation_contract_version": "claude.websearch.source-observation.v1",
+   "source_identity_status": "PROVIDER_STRUCTURED_SOURCE_IDENTITY_PRESENT",
+   "source_binding": "PROVIDER_RESULTS_FIELD",
+   "source_count": 10,
+   "action_count": 1,
+   "retry_count": 0,
+   "fallback_count": 0,
+   "external_result_truth": "NOT_PROVEN",
+   "external_freshness_truth": "NOT_PROVEN",
+   "search_index_completeness_truth": "NOT_PROVEN",
+   "structured_external_source_url_available": true,
+   "acquisition_entrypoint": "bun research/acquisition/acquisition_boundary.ts",
+   "acquisition_contract_version": "research.controlled-http-acquisition.v2",
+   "selected_source_count": 2,
+   "acquired_source_count": 2,
+   "acquisition_action_count": 2,
+   "acquisition_retry_count": 0,
+   "acquisition_fallback_count": 0
+  }
+ },
+ "market_structured_output": {
+  "boundary_identity_ref": "market.public",
+  "capability_id": "market.stock.quote.read",
+  "contract_version": "0.4.0",
+  "data_state": "READY",
+  "failures": [],
+  "operation_status": "SUCCESS",
+  "payload": {
+   "amount": 3894630.783,
+   "close_price": 1251.24,
+   "high_price": 1271.5,
+   "low_price": 1250.89,
+   "open_price": 1255.03,
+   "pct_chg": -0.2042,
+   "pre_close": 1253.8,
+   "source_name": "tushare",
+   "stock_id": "600519.SH",
+   "trade_date": "2026-09-23",
+   "volume": 30981.22
+  },
+  "provenance": {
+   "provenance_status": "PROVENANCE_INCOMPLETE",
+   "source_refs": [
+    "tushare"
+   ],
+   "public_object_refs": [
+    "600519.SH"
+   ]
+  }
+ }
+}
