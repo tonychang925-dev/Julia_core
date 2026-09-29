@@ -34,16 +34,18 @@ MALFORMED_WITH_PROSE = (
     )
     + "\n```"
 )
+# Still rejected after CARD 2C (two fences), so the retry path is exercised.
+MALFORMED_TWO_BLOCKS = MALFORMED_WITH_PROSE + "\n```tool_call\n{}\n```"
 DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 
 
 def test_malformed_response_is_kept_as_assistant_turn_for_the_retry():
-    session = LoopSession([MALFORMED_WITH_PROSE, "Julia final judgment"])
+    session = LoopSession([MALFORMED_TWO_BLOCKS, "Julia final judgment"])
     result = run_loop(session)
 
     assert result.cognition_pass_trace[0]["parsed_response_kind"] == "TOOL_CALL_CONTROL_FAILURE"
     retry_input = session.model_inputs[1]
-    assert {"role": "assistant", "content": MALFORMED_WITH_PROSE} in retry_input
+    assert {"role": "assistant", "content": MALFORMED_TWO_BLOCKS} in retry_input
     # The decode-failure control frame is still projected as before.
     assert "kind: tool_call_decode_failure" in str(retry_input)
     # The malformed response is not executed.

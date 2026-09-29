@@ -31,6 +31,13 @@ def _encodable_text(text: str) -> str:
 
 _RENDER_UNBOUNDED = 10**9
 
+# Plain-language, per-reason statement that the previous call did not run.
+_DECODE_FAILURE_DETAIL = {
+    "INVALID_CALL_SHAPE": "上一条回复中的调用没有被执行：调用块的格式不符合约定。",
+    "MALFORMED_JSON": "上一条回复中的调用没有被执行：调用块里的 JSON 无法解析。",
+    "MISSING_NAME": "上一条回复中的调用没有被执行：调用块缺少能力名称。",
+}
+
 
 class ContextNotReady(Exception):
     """Raised when a CognitiveContextPackage has unsatisfied required frames.
@@ -1050,6 +1057,8 @@ class ContextExecutionRuntime:
             parent_package=parent_package,
             kind="tool_call_decode_failure",
             reason=reason,
+            previous_call_executed=False,
+            detail=_DECODE_FAILURE_DETAIL[reason],
             expected_invocation_protocol=copy.deepcopy(protocol),
             generation_id=generation_id,
             mode="tool_call_decode_failure",
