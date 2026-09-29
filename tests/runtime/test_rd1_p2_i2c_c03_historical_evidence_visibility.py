@@ -570,7 +570,116 @@ def test_flattened_root_sequence_enumeration_is_bounded():
     )
 
     assert omitted is True
-    assert len(leaves) <= CognitiveContextPackage._RENDER_MAX_ITEMS * 4
+    assert len(leaves) <= CognitiveContextPackage._RENDER_MAX_ITEMS * 8
+
+
+def test_flattened_traversal_reserves_slots_for_nested_siblings():
+    value = {
+        "a_big": {f"key_{index}": str(index) for index in range(100)},
+        "b_branch": {"note": "hello"},
+        "z_branch": {"status": "SUCCESS"},
+    }
+
+    rendered = CognitiveContextPackage()._render_value(
+        value,
+        depth=CognitiveContextPackage._RENDER_MAX_DEPTH,
+        char_budget=CognitiveContextPackage._RENDER_MAX_FRAME_CHARS,
+    )
+
+    assert "b_branch.note=hello" in rendered
+    assert "z_branch.status=SUCCESS" in rendered
+    assert "…[truncated]" in rendered
+
+
+def test_selected_leaves_share_render_budget():
+    value = {
+        **{f"field_{index}": "x" * 5_000 for index in range(4)},
+        "z_status": "SUCCESS",
+    }
+
+    rendered = CognitiveContextPackage()._render_value(
+        value,
+        depth=CognitiveContextPackage._RENDER_MAX_DEPTH,
+        char_budget=CognitiveContextPackage._RENDER_MAX_FRAME_CHARS,
+    )
+
+    assert "z_status=SUCCESS" in rendered
+    assert "…[truncated]" in rendered
+    assert len(rendered) <= CognitiveContextPackage._RENDER_MAX_FRAME_CHARS
+
+
+def test_flattened_explicit_null_and_empty_string_leaves_remain_visible():
+    rendered = CognitiveContextPackage()._render_value(
+        {"status": "SUCCESS", "payload": None, "empty": ""},
+        depth=CognitiveContextPackage._RENDER_MAX_DEPTH,
+        char_budget=CognitiveContextPackage._RENDER_MAX_FRAME_CHARS,
+    )
+
+    assert "status=SUCCESS" in rendered
+    assert "payload=None" in rendered
+    assert "empty=" in rendered
+
+
+def test_first_projection_does_not_reserve_empty_ledger_budget():
+    tool_result, evidence = _tool_observation(
+        generation_id="single",
+        provider="provider",
+        material="material",
+    )
+    tool_result = replace(
+        tool_result,
+        structured_output={
+            "alpha": "A" * 1_600,
+            "beta": "B" * 1_600,
+        },
+    )
+    package = ContextExecutionRuntime().project_tool_result(
+        parent_package=CognitiveContextPackage(
+            conversation_id="conversation",
+            turn_id="turn",
+            generation_id="initial",
+        ),
+        tool_result=tool_result,
+        evidence=(evidence,),
+        generation_id="single",
+    )
+
+    rendered = package.to_messages([], "query")[0]["content"]
+
+    assert "A" * 500 in rendered
+    assert "B" * 500 in rendered
+
+
+def test_short_sequence_items_use_available_budget():
+    rendered = CognitiveContextPackage()._render_value(
+        [f"v{index}" for index in range(20)],
+        depth=0,
+        char_budget=1_000,
+    )
+
+    assert "v0" in rendered
+    assert "v19" in rendered
+    assert "…[truncated]" not in rendered
+
+
+def test_tiny_nonempty_flattened_containers_signal_truncation():
+    package = CognitiveContextPackage()
+
+    mapping = package._render_value(
+        {"field": "value"},
+        depth=package._RENDER_MAX_DEPTH,
+        char_budget=2,
+    )
+    sequence = package._render_value(
+        ["value"],
+        depth=package._RENDER_MAX_DEPTH,
+        char_budget=2,
+    )
+
+    assert mapping.startswith("…")
+    assert sequence.startswith("…")
+    assert mapping != "{}"
+    assert sequence != "[]"
 
 
 def test_flattened_mapping_terminates_on_nested_cycles():

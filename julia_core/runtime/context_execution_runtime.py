@@ -157,6 +157,8 @@ class CognitiveContextPackage:
                 name == "evidence"
                 and key == "tool_result"
                 and "turn_evidence_ledger" in frame
+                and isinstance(ledger, list)
+                and len(ledger) > 1
             ):
                 fair_share = max(1, remaining // 3)
             if remaining <= len(self._RENDER_TRUNC_MARKER):
@@ -270,8 +272,7 @@ class CognitiveContextPackage:
                 return "[]"[:budget]
 
             remaining = budget - 2
-            affordable_items = max(1, remaining // self._RENDER_MIN_CHILD_CHARS)
-            visible_items = value[: min(self._RENDER_MAX_ITEMS, affordable_items)]
+            visible_items = value[: self._RENDER_MAX_ITEMS]
             omitted_count = total_items - len(visible_items)
             omission_note = marker + (f"[{omitted_count} more]" if omitted_count else "")
 
@@ -292,7 +293,10 @@ class CognitiveContextPackage:
                 remaining_items = max(len(visible_items) - index, 1)
                 fair_share = max(
                     1,
-                    (content_remaining - len(separator)) // remaining_items,
+                    max(
+                        self._RENDER_MIN_CHILD_CHARS,
+                        (content_remaining - len(separator)) // remaining_items,
+                    ),
                 )
                 child_text = self._render_value(
                     child,
@@ -360,7 +364,7 @@ class CognitiveContextPackage:
         *,
         root_sequence: bool,
     ) -> tuple[list[tuple[str, Any]], bool]:
-        max_visited_nodes = self._RENDER_MAX_ITEMS * 4
+        max_visited_nodes = self._RENDER_MAX_ITEMS * 8
         if root_sequence:
             initial_children = (
                 (f"[{index}]", child) for index, child in enumerate(value)
@@ -370,55 +374,58 @@ class CognitiveContextPackage:
                 (self._mapping_path("", key), value[key])
                 for key in islice(value, max_visited_nodes + 1)
             )
-        stack, truncated = self._bounded_children(
+        initial, truncated = self._take_bounded_children(
             initial_children,
-            visited_nodes=0,
-            stack_size=0,
-            max_visited_nodes=max_visited_nodes,
+            max_visited_nodes,
         )
-        stack = deque(stack)
+        branches = deque(deque((child,)) for child in initial)
         leaves: list[tuple[str, Any]] = []
         visited_nodes = 0
 
-        while stack:
+        while branches:
             visited_nodes += 1
             if visited_nodes > max_visited_nodes:
                 return leaves, True
-            path, child = stack.popleft()
+            branch = branches.popleft()
+            path, child = branch.popleft()
             if isinstance(child, dict):
                 if not child:
                     leaves.append((path, child))
                     continue
-                nested, children_truncated = self._bounded_mapping_children(
-                    path,
-                    child,
-                    visited_nodes,
-                    len(stack),
-                    max_visited_nodes,
+                available = max_visited_nodes - visited_nodes
+                capacity = max(4, available // (len(branches) + 1))
+                nested, children_truncated = self._take_bounded_children(
+                    (
+                        (self._mapping_path(path, key), nested_child)
+                        for key, nested_child in child.items()
+                    ),
+                    capacity,
                 )
                 truncated = truncated or children_truncated
             elif isinstance(child, (list, tuple)):
                 if not child:
                     leaves.append((path, child))
                     continue
-                nested, children_truncated = self._bounded_children(
+                available = max_visited_nodes - visited_nodes
+                capacity = max(4, available // (len(branches) + 1))
+                nested, children_truncated = self._take_bounded_children(
                     (
                         (f"{path}[{index}]" if path else f"[{index}]", nested_child)
                         for index, nested_child in enumerate(child)
                     ),
-                    visited_nodes,
-                    len(stack),
-                    max_visited_nodes,
+                    capacity,
                 )
                 truncated = truncated or children_truncated
             else:
-                if child is None or child == "":
-                    continue
                 leaves.append((path, child))
                 if len(leaves) >= max_visited_nodes:
                     return leaves, True
+                if branch:
+                    branches.append(branch)
                 continue
-            stack.extend(nested)
+            branch.extend(nested)
+            if branch:
+                branches.append(branch)
 
         return leaves, truncated
 
@@ -427,27 +434,11 @@ class CognitiveContextPackage:
         encoded_key = quote(str(key), safe="").replace(".", "%2E")
         return f"{path}.{encoded_key}" if path else encoded_key
 
-    def _bounded_mapping_children(
-        self,
-        path: str,
-        child: dict[Any, Any],
-        visited_nodes: int,
-        stack_size: int,
-        max_visited_nodes: int,
-    ) -> tuple[list[tuple[str, Any]], bool]:
-        capacity = max(0, max_visited_nodes - visited_nodes - stack_size)
-        keys = list(islice(child, capacity + 1))
-        nested = [(self._mapping_path(path, key), child[key]) for key in keys]
-        return nested[:capacity], len(keys) > capacity
-
     @staticmethod
-    def _bounded_children(
+    def _take_bounded_children(
         children: Iterable[tuple[str, Any]],
-        visited_nodes: int,
-        stack_size: int,
-        max_visited_nodes: int,
+        capacity: int,
     ) -> tuple[list[tuple[str, Any]], bool]:
-        capacity = max(0, max_visited_nodes - visited_nodes - stack_size)
         bounded: list[tuple[str, Any]] = []
         for index, child in enumerate(children):
             if index >= capacity:
@@ -468,6 +459,8 @@ class CognitiveContextPackage:
         budget = max(char_budget, 0)
         minimum = len(opening) + len(closing)
         if budget <= minimum:
+            if value:
+                return marker[:budget]
             return (opening + closing)[:budget]
 
         leaves, omitted = self._flatten_bounded_leaves(
@@ -497,13 +490,22 @@ class CognitiveContextPackage:
             if content_remaining <= len(separator) + len(key_prefix):
                 stopped_early = True
                 break
+            remaining_items = max(len(visible) - index, 1)
+            child_budget = max(
+                1,
+                (
+                    content_remaining
+                    - len(separator)
+                    - len(key_prefix)
+                )
+                // remaining_items,
+            )
+            if isinstance(child, str) and len(child) <= self._RENDER_MIN_CHILD_CHARS:
+                child_budget = max(child_budget, len(child))
             child_text = self._render_value(
                 child,
                 depth=0,
-                char_budget=max(
-                    1,
-                    content_remaining - len(separator) - len(key_prefix),
-                ),
+                char_budget=child_budget,
             )
             part = separator + key_prefix + child_text
             if len(part) > content_remaining:
@@ -527,7 +529,7 @@ class CognitiveContextPackage:
     ) -> list[tuple[str, Any]]:
         groups: dict[str, list[tuple[str, Any]]] = {}
         for leaf in leaves:
-            root = leaf[0].split(".", 1)[0]
+            root = leaf[0].split(".", 1)[0].split("[", 1)[0]
             groups.setdefault(root, []).append(leaf)
         selected: list[tuple[str, Any]] = []
         round_index = 0
