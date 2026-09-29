@@ -12,9 +12,12 @@ from __future__ import annotations
 
 import copy
 import uuid
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Sequence
+from itertools import islice
+from typing import Any, Iterable, Sequence
+from urllib.parse import quote
 
 from julia_core.capability.models import CapabilityStatus, Evidence, ToolResult
 from julia_core.capability.policy import AuthorizationDecision, AuthorizationStatus
@@ -128,11 +131,34 @@ class CognitiveContextPackage:
         total = len(lines[0])
         budget = self._RENDER_MAX_FRAME_CHARS
         render_items = list(frame.items())
+        ledger = frame.get("turn_evidence_ledger")
+        current_tool_result = frame.get("tool_result")
+        latest_matches = (
+            name == "evidence"
+            and isinstance(ledger, list)
+            and bool(ledger)
+            and isinstance(ledger[-1], dict)
+            and isinstance(current_tool_result, dict)
+            and self._same_tool_result_projection(
+                ledger[-1].get("tool_result"), current_tool_result
+            )
+        )
+        if latest_matches:
+            render_items = [
+                (key, ledger[:-1] if key == "turn_evidence_ledger" else value)
+                for key, value in render_items
+            ]
         for index, (key, value) in enumerate(render_items):
             prefix = f"{key}: "
             remaining = budget - total - len(prefix) - 1
             remaining_items = max(len(render_items) - index, 1)
             fair_share = max(1, remaining // remaining_items)
+            if (
+                name == "evidence"
+                and key == "tool_result"
+                and "turn_evidence_ledger" in frame
+            ):
+                fair_share = max(1, remaining // 3)
             if remaining <= len(self._RENDER_TRUNC_MARKER):
                 suffix = self._RENDER_TRUNC_MARKER + f"[frame budget {budget} chars]"
                 lines.append(suffix[:max(remaining, 0)])
@@ -149,14 +175,28 @@ class CognitiveContextPackage:
     _RENDER_MAX_ITEMS = 20
     _RENDER_MAX_DEPTH = 4
     _RENDER_MAX_FRAME_CHARS = 8000
+    _RENDER_MIN_CHILD_CHARS = 192
     _RENDER_TRUNC_MARKER = "…[truncated]"
+
+    @staticmethod
+    def _same_tool_result_projection(left: Any, right: Any) -> bool:
+        if not isinstance(left, dict) or not isinstance(right, dict):
+            return False
+        identity_fields = (
+            "capability_call_id",
+            "status",
+            "evidence_refs",
+            "provider",
+            "side_effect_state",
+        )
+        return all(left.get(field) == right.get(field) for field in identity_fields)
 
     def _render_value(self, value: Any, *, depth: int, char_budget: int | None = None) -> str:
         """Deterministically render a nested value inside an explicit budget.
 
         Container budgets are shared across their children rather than rendering
         an unbounded child first and discarding the whole parent afterwards.
-        Mappings retain stable sorted-key order. Truncation changes only the
+        Mappings retain stable insertion order. Truncation changes only the
         rendered view; the structured Context OS projection remains untouched.
         """
         budget = self._RENDER_MAX_FRAME_CHARS if char_budget is None else max(char_budget, 0)
@@ -174,12 +214,12 @@ class CognitiveContextPackage:
             return bounded_scalar(value, budget)
 
         if isinstance(value, dict):
-            if depth >= self._RENDER_MAX_DEPTH:
+            if depth >= self._RENDER_MAX_DEPTH - 1:
                 return self._render_flattened_mapping(
                     value,
                     char_budget=budget,
                 )
-            items = sorted(value.items(), key=lambda item: str(item[0]))
+            items = list(value.items())
             if budget <= 4:
                 return "{}"[:budget]
             remaining = budget - 4  # "{ " + " }"
@@ -226,11 +266,12 @@ class CognitiveContextPackage:
                 )
 
             total_items = len(value)
-            visible_items = value[: self._RENDER_MAX_ITEMS]
             if budget <= 2:
                 return "[]"[:budget]
 
             remaining = budget - 2
+            affordable_items = max(1, remaining // self._RENDER_MIN_CHILD_CHARS)
+            visible_items = value[: min(self._RENDER_MAX_ITEMS, affordable_items)]
             omitted_count = total_items - len(visible_items)
             omission_note = marker + (f"[{omitted_count} more]" if omitted_count else "")
 
@@ -319,51 +360,100 @@ class CognitiveContextPackage:
         *,
         root_sequence: bool,
     ) -> tuple[list[tuple[str, Any]], bool]:
+        max_visited_nodes = self._RENDER_MAX_ITEMS * 4
         if root_sequence:
-            stack: list[tuple[str, Any]] = [
+            initial_children = (
                 (f"[{index}]", child) for index, child in enumerate(value)
-            ]
+            )
         else:
-            stack = [
-                (str(key), child)
-                for key, child in sorted(value.items(), key=lambda item: str(item[0]))
-            ]
-        stack.reverse()
+            initial_children = (
+                (self._mapping_path("", key), value[key])
+                for key in islice(value, max_visited_nodes + 1)
+            )
+        stack, truncated = self._bounded_children(
+            initial_children,
+            visited_nodes=0,
+            stack_size=0,
+            max_visited_nodes=max_visited_nodes,
+        )
+        stack = deque(stack)
         leaves: list[tuple[str, Any]] = []
         visited_nodes = 0
-        max_visited_nodes = self._RENDER_MAX_ITEMS * 4
 
         while stack:
             visited_nodes += 1
             if visited_nodes > max_visited_nodes:
                 return leaves, True
-            path, child = stack.pop()
+            path, child = stack.popleft()
             if isinstance(child, dict):
-                nested = [
-                    (
-                        f"{path}.{key}" if path else str(key),
-                        nested_child,
-                    )
-                    for key, nested_child in sorted(
-                        child.items(), key=lambda item: str(item[0])
-                    )
-                ]
+                if not child:
+                    leaves.append((path, child))
+                    continue
+                nested, children_truncated = self._bounded_mapping_children(
+                    path,
+                    child,
+                    visited_nodes,
+                    len(stack),
+                    max_visited_nodes,
+                )
+                truncated = truncated or children_truncated
             elif isinstance(child, (list, tuple)):
-                nested = [
+                if not child:
+                    leaves.append((path, child))
+                    continue
+                nested, children_truncated = self._bounded_children(
                     (
-                        f"{path}[{index}]" if path else f"[{index}]",
-                        nested_child,
-                    )
-                    for index, nested_child in enumerate(child)
-                ]
+                        (f"{path}[{index}]" if path else f"[{index}]", nested_child)
+                        for index, nested_child in enumerate(child)
+                    ),
+                    visited_nodes,
+                    len(stack),
+                    max_visited_nodes,
+                )
+                truncated = truncated or children_truncated
             else:
+                if child is None or child == "":
+                    continue
                 leaves.append((path, child))
                 if len(leaves) >= max_visited_nodes:
                     return leaves, True
                 continue
-            stack.extend(reversed(nested))
+            stack.extend(nested)
 
-        return leaves, False
+        return leaves, truncated
+
+    @staticmethod
+    def _mapping_path(path: str, key: Any) -> str:
+        encoded_key = quote(str(key), safe="").replace(".", "%2E")
+        return f"{path}.{encoded_key}" if path else encoded_key
+
+    def _bounded_mapping_children(
+        self,
+        path: str,
+        child: dict[Any, Any],
+        visited_nodes: int,
+        stack_size: int,
+        max_visited_nodes: int,
+    ) -> tuple[list[tuple[str, Any]], bool]:
+        capacity = max(0, max_visited_nodes - visited_nodes - stack_size)
+        keys = list(islice(child, capacity + 1))
+        nested = [(self._mapping_path(path, key), child[key]) for key in keys]
+        return nested[:capacity], len(keys) > capacity
+
+    @staticmethod
+    def _bounded_children(
+        children: Iterable[tuple[str, Any]],
+        visited_nodes: int,
+        stack_size: int,
+        max_visited_nodes: int,
+    ) -> tuple[list[tuple[str, Any]], bool]:
+        capacity = max(0, max_visited_nodes - visited_nodes - stack_size)
+        bounded: list[tuple[str, Any]] = []
+        for index, child in enumerate(children):
+            if index >= capacity:
+                return bounded, True
+            bounded.append(child)
+        return bounded, False
 
     def _render_flattened_collection(
         self,
@@ -389,11 +479,9 @@ class CognitiveContextPackage:
                 return marker[:budget]
             return opening + " " + closing
 
-        visible = sorted(
-            leaves,
-            key=lambda item: (len(str(item[1])), item[0]),
-        )[: self._RENDER_MAX_ITEMS]
+        visible = self._select_structural_leaves(leaves)
         remaining = budget - 4
+        quota_exceeded = len(leaves) > self._RENDER_MAX_ITEMS
         omission_note = marker + (
             f"[{len(leaves) - len(visible)} more]"
             if len(leaves) > len(visible)
@@ -409,16 +497,13 @@ class CognitiveContextPackage:
             if content_remaining <= len(separator) + len(key_prefix):
                 stopped_early = True
                 break
-            remaining_items = max(len(visible) - index, 1)
-            fair_share = max(
-                1,
-                (content_remaining - len(separator) - len(key_prefix))
-                // remaining_items,
-            )
             child_text = self._render_value(
                 child,
                 depth=0,
-                char_budget=fair_share,
+                char_budget=max(
+                    1,
+                    content_remaining - len(separator) - len(key_prefix),
+                ),
             )
             part = separator + key_prefix + child_text
             if len(part) > content_remaining:
@@ -427,7 +512,7 @@ class CognitiveContextPackage:
             parts.append(part)
             content_remaining -= len(part)
 
-        if omitted or stopped_early:
+        if omitted or quota_exceeded or stopped_early:
             note = (", " if parts else "") + marker
             available = remaining - len("".join(parts))
             if len(note) <= available:
@@ -435,6 +520,29 @@ class CognitiveContextPackage:
             else:
                 return marker[:budget]
         return opening + " " + "".join(parts) + " " + closing
+
+    @staticmethod
+    def _select_structural_leaves(
+        leaves: list[tuple[str, Any]],
+    ) -> list[tuple[str, Any]]:
+        groups: dict[str, list[tuple[str, Any]]] = {}
+        for leaf in leaves:
+            root = leaf[0].split(".", 1)[0]
+            groups.setdefault(root, []).append(leaf)
+        selected: list[tuple[str, Any]] = []
+        round_index = 0
+        while len(selected) < CognitiveContextPackage._RENDER_MAX_ITEMS:
+            added = False
+            for group in groups.values():
+                if round_index < len(group):
+                    selected.append(group[round_index])
+                    added = True
+                    if len(selected) == CognitiveContextPackage._RENDER_MAX_ITEMS:
+                        break
+            if not added:
+                break
+            round_index += 1
+        return selected
 
     def add_provenance(self, frame: str, source_ref: str, canonical_ref: str = "",
                        reason: str = "", stage: int = 0, token_estimate: int = 0):
