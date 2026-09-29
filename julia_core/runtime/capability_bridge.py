@@ -698,11 +698,8 @@ class RuntimeCapabilityBridge:
                     "arguments": "object containing only that capability's arguments",
                 },
                 "example": {
-                    "name": "market.stock.quote.read",
-                    "arguments": {
-                        "stock_id": "600519.SH",
-                        "trade_date": "2026-09-23",
-                    },
+                    "name": "<capability_id from available_tools>",
+                    "arguments": {"<argument_name>": "<value>"},
                 },
             },
             "epistemic_rules": {

@@ -238,7 +238,7 @@ class IterativeReasoningLoop:
                 break
 
             if parsed.kind == "TOOL_CALL_CONTROL_FAILURE":
-                self._project_decode_failure(parsed.failure_reason, pass_index)
+                self._project_decode_failure(parsed.failure_reason, pass_index, response)
                 pass_trace["termination"] = "continued"
                 continue
 
@@ -325,14 +325,18 @@ class IterativeReasoningLoop:
             and control_frame.get("kind") == "tool_call_budget_exceeded"
         )
 
-    def _project_decode_failure(self, reason: str | None, pass_index: int) -> None:
+    def _project_decode_failure(
+        self, reason: str | None, pass_index: int, response: str
+    ) -> None:
         package = self.session.context_os.project_tool_call_decode_failure(
             parent_package=self.parent_package,
             reason=reason or "INVALID_CALL_SHAPE",
             generation_id=self._generation_id(pass_index, "decode_failure"),
         )
         self._register_projection(package)
-        self.messages = self._continuation_messages(package, "")
+        # Keep Julia's own malformed response as her assistant turn, exactly as
+        # a successful call is kept, so the retry still sees what she intended.
+        self.messages = self._continuation_messages(package, response)
 
     def _project_duplicate(self, tool_call: StrictToolCall, pass_index: int) -> None:
         package = self.session.context_os.project_duplicate_capability_call_rejected(
