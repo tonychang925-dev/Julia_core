@@ -127,11 +127,31 @@ class CognitiveContextPackage:
         lines = [f"[{name}]"]
         total = len(lines[0])
         budget = self._RENDER_MAX_FRAME_CHARS
-        for key, value in frame.items():
+        render_items = list(frame.items())
+        ledger = frame.get("turn_evidence_ledger")
+        current_tool_result = frame.get("tool_result")
+        if (
+            name == "evidence"
+            and isinstance(ledger, list)
+            and ledger
+            and isinstance(ledger[-1], dict)
+            and ledger[-1].get("tool_result") == current_tool_result
+        ):
+            render_items = [
+                (
+                    "tool_result",
+                    "projected_in_turn_evidence_ledger",
+                )
+                if item[0] == "tool_result"
+                else item
+                for item in render_items
+            ]
+        for key, value in render_items:
             prefix = f"{key}: "
             remaining = budget - total - len(prefix) - 1
             if remaining <= len(self._RENDER_TRUNC_MARKER):
-                lines.append(self._RENDER_TRUNC_MARKER + f"[frame budget {budget} chars]")
+                suffix = self._RENDER_TRUNC_MARKER + f"[frame budget {budget} chars]"
+                lines.append(suffix[:max(remaining, 0)])
                 break
             rendered = self._render_value(value, depth=0, char_budget=remaining)
             line = prefix + rendered
@@ -171,8 +191,10 @@ class CognitiveContextPackage:
 
         if isinstance(value, dict):
             if depth >= self._RENDER_MAX_DEPTH:
-                compact = "{…}" + marker
-                return compact if len(compact) <= budget else compact[:budget]
+                return self._render_flattened_mapping(
+                    value,
+                    char_budget=budget,
+                )
             items = sorted(value.items(), key=lambda item: str(item[0]))
             if budget <= 4:
                 return "{}"[:budget]
@@ -274,6 +296,94 @@ class CognitiveContextPackage:
             return "[" + body + "]"
 
         return bounded_scalar(str(value), budget)
+
+    def _render_flattened_mapping(
+        self,
+        value: dict[Any, Any],
+        *,
+        char_budget: int,
+    ) -> str:
+        """Render depth-exhausted mappings as bounded path/value leaves."""
+        marker = self._RENDER_TRUNC_MARKER
+        budget = max(char_budget, 0)
+        if budget <= 4:
+            return "{}"[:budget]
+
+        stack: list[tuple[str, Any]] = [
+            (str(key), child)
+            for key, child in sorted(value.items(), key=lambda item: str(item[0]))
+        ]
+        stack.reverse()
+        leaves: list[tuple[str, Any]] = []
+        omitted = False
+        visited_nodes = 0
+        max_visited_nodes = self._RENDER_MAX_ITEMS * 4
+        while stack:
+            visited_nodes += 1
+            if visited_nodes > max_visited_nodes:
+                omitted = True
+                break
+            path, child = stack.pop()
+            if isinstance(child, dict):
+                nested = [
+                    (f"{path}.{key}", nested_child)
+                    for key, nested_child in sorted(
+                        child.items(), key=lambda item: str(item[0])
+                    )
+                ]
+                stack.extend(reversed(nested))
+                continue
+            leaves.append((path, child))
+            if len(leaves) >= max_visited_nodes:
+                omitted = True
+                break
+
+        visible = sorted(
+            leaves,
+            key=lambda item: (len(str(item[1])), item[0]),
+        )[: self._RENDER_MAX_ITEMS]
+        remaining = budget - 4
+        omission_note = marker + (
+            f"[{len(leaves) - len(visible)} more]"
+            if len(leaves) > len(visible)
+            else ""
+        )
+        note_reserve = min(remaining, len(omission_note) + 2)
+        content_remaining = max(0, remaining - note_reserve)
+        parts: list[str] = []
+        stopped_early = False
+        for index, (path, child) in enumerate(visible):
+            separator = ", " if parts else ""
+            key_prefix = f"{path}="
+            if content_remaining <= len(separator) + len(key_prefix):
+                stopped_early = True
+                break
+            remaining_items = max(len(visible) - index, 1)
+            fair_share = max(
+                1,
+                (content_remaining - len(separator) - len(key_prefix))
+                // remaining_items,
+            )
+            child_text = self._render_value(
+                child,
+                depth=0,
+                char_budget=fair_share,
+            )
+            part = separator + key_prefix + child_text
+            if len(part) > content_remaining:
+                stopped_early = True
+                break
+            parts.append(part)
+            content_remaining -= len(part)
+
+        if omitted or stopped_early:
+            note = (", " if parts else "") + marker
+            available = remaining - len("".join(parts))
+            if len(note) <= available:
+                parts.append(note)
+            else:
+                return marker[:budget]
+        return "{ " + "".join(parts) + " }"
 
     def add_provenance(self, frame: str, source_ref: str, canonical_ref: str = "",
                        reason: str = "", stage: int = 0, token_estimate: int = 0):
