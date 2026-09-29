@@ -293,11 +293,13 @@ class CognitiveContextPackage:
                 remaining_items = max(len(visible_items) - index, 1)
                 fair_share = max(
                     1,
-                    max(
-                        self._RENDER_MIN_CHILD_CHARS,
-                        (content_remaining - len(separator)) // remaining_items,
-                    ),
+                    (content_remaining - len(separator)) // remaining_items,
                 )
+                if not isinstance(child, str):
+                    fair_share = max(
+                        fair_share,
+                        min(self._RENDER_MIN_CHILD_CHARS, content_remaining),
+                    )
                 child_text = self._render_value(
                     child,
                     depth=depth + 1,
@@ -391,6 +393,8 @@ class CognitiveContextPackage:
             if isinstance(child, dict):
                 if not child:
                     leaves.append((path, child))
+                    if branch:
+                        branches.append(branch)
                     continue
                 available = max_visited_nodes - visited_nodes
                 capacity = max(4, available // (len(branches) + 1))
@@ -405,6 +409,8 @@ class CognitiveContextPackage:
             elif isinstance(child, (list, tuple)):
                 if not child:
                     leaves.append((path, child))
+                    if branch:
+                        branches.append(branch)
                     continue
                 available = max_visited_nodes - visited_nodes
                 capacity = max(4, available // (len(branches) + 1))
@@ -488,8 +494,7 @@ class CognitiveContextPackage:
             separator = ", " if parts else ""
             key_prefix = f"{path}="
             if content_remaining <= len(separator) + len(key_prefix):
-                stopped_early = True
-                break
+                continue
             remaining_items = max(len(visible) - index, 1)
             child_budget = max(
                 1,
@@ -513,6 +518,9 @@ class CognitiveContextPackage:
                 break
             parts.append(part)
             content_remaining -= len(part)
+
+        if len(parts) < len(visible):
+            stopped_early = True
 
         if omitted or quota_exceeded or stopped_early:
             note = (", " if parts else "") + marker

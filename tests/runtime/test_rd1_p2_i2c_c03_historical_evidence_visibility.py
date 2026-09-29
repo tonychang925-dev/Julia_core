@@ -662,6 +662,40 @@ def test_short_sequence_items_use_available_budget():
     assert "…[truncated]" not in rendered
 
 
+def test_long_sequence_children_do_not_consume_short_sibling_budget():
+    rendered = CognitiveContextPackage()._render_value(
+        [*(("x" * 5_000 for _ in range(19))), "SUCCESS"],
+        depth=0,
+        char_budget=1_000,
+    )
+
+    assert "SUCCESS" in rendered
+    assert len(rendered) <= 1_000
+
+
+def test_empty_nested_container_does_not_drop_its_branch_siblings():
+    rendered = CognitiveContextPackage()._render_value(
+        {"group": {"empty": {}, "status": "SUCCESS"}},
+        depth=CognitiveContextPackage._RENDER_MAX_DEPTH,
+        char_budget=CognitiveContextPackage._RENDER_MAX_FRAME_CHARS,
+    )
+
+    assert "group.empty={  }" in rendered
+    assert "group.status=SUCCESS" in rendered
+
+
+def test_oversized_path_does_not_hide_later_selected_leaf():
+    rendered = CognitiveContextPackage()._render_value(
+        {"k" * 1_000: "path-value", "status": "SUCCESS"},
+        depth=CognitiveContextPackage._RENDER_MAX_DEPTH,
+        char_budget=1_000,
+    )
+
+    assert "status=SUCCESS" in rendered
+    assert "…[truncated]" in rendered
+    assert len(rendered) <= 1_000
+
+
 def test_tiny_nonempty_flattened_containers_signal_truncation():
     package = CognitiveContextPackage()
 
