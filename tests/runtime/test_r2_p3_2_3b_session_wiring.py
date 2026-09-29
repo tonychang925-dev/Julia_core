@@ -120,6 +120,9 @@ class _FakeTypedContextOS:
         self.project_capability_resolution_failure_calls: list[dict[str, Any]] = []
         self.project_tool_call_decode_failure_calls: list[dict[str, Any]] = []
 
+    def project_execution_budget_overlay(self, parent_package, **budget):
+        return _DeltaPackage()
+
     def project_tool_result(self, **kwargs):
         self.project_tool_result_calls.append(kwargs)
         return _DeltaPackage()

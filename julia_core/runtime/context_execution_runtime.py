@@ -748,6 +748,42 @@ class ContextExecutionRuntime:
                           reason="authorization-only outcome", stage=2)
         return pkg
 
+    def project_execution_budget_overlay(
+        self,
+        parent_package: CognitiveContextPackage,
+        *,
+        remaining_cognition_passes: int,
+        remaining_capability_executions: int,
+        finalization_required: bool,
+        tool_execution_available: bool,
+    ) -> CognitiveContextPackage:
+        pkg = copy.deepcopy(parent_package)
+        existing_budget = pkg.control_frame.get("execution_budget", {})
+        if not isinstance(existing_budget, dict):
+            existing_budget = {}
+        budget = {
+            **existing_budget,
+            "remaining_cognition_passes": remaining_cognition_passes,
+            "remaining_capability_executions": remaining_capability_executions,
+            "finalization_required": finalization_required,
+            "tool_execution_available": tool_execution_available,
+        }
+        pkg.control_frame = {
+            "execution_budget": budget,
+            **{
+                key: value
+                for key, value in pkg.control_frame.items()
+                if key != "execution_budget"
+            },
+        }
+        pkg.add_provenance(
+            "control",
+            "runtime:execution_budget",
+            reason="pass-scoped execution-budget overlay",
+            stage=1,
+        )
+        return pkg
+
     def project_capability_resolution_failure(
         self,
         *,

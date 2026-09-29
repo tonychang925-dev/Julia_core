@@ -110,6 +110,11 @@ class _ContextOS:
         self.project_tool_result_calls: list[dict[str, Any]] = []
         self.project_capability_resolution_failure_calls: list[dict[str, Any]] = []
 
+    def project_execution_budget_overlay(self, parent_package, **budget):
+        if hasattr(parent_package, "to_messages"):
+            return parent_package
+        return _DeltaPackage("EXECUTION_BUDGET_SENTINEL")
+
     def project_retry_control(self, **kwargs):
         pkg = _DeltaPackage(RETRY_SENTINEL)
         self.project_retry_control_calls.append({**kwargs, "returned": pkg})
