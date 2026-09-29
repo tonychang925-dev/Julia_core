@@ -1,0 +1,685 @@
+{
+ "_provenance": {
+  "source": "/private/tmp/rd1_p2_i2b_e2e/rd1_acceptance/real_market_outputs_20260709.json (sha256 f86807ce...), real persisted provider outputs for trade_date 2026-07-09",
+  "market.state.read": "verbatim",
+  "market.analysis.read": "verbatim except payload.evidence and provenance.evidence_refs trimmed to their first 40 items (was 184); order preserved"
+ },
+ "market.state.read": {
+  "contract_version": "0.4.0",
+  "capability_id": "market.state.read",
+  "request_id": "cap_req_1790654136019848000",
+  "correlation_id": "90e59d7a-2450-4b5e-95ba-cbe9a7b5a9c9",
+  "operation_status": "SUCCESS",
+  "data_state": "READY",
+  "payload": {
+   "trade_date": "2026-07-09",
+   "breadth": {
+    "up_count": 2357,
+    "down_count": 2642,
+    "up_ratio": 0.471,
+    "limit_up_count": 149,
+    "limit_down_count": 25,
+    "turnover_yi": 289258.22
+   },
+   "source": "post_market_recap_snapshot.payload.recap_doc.market_overview_review",
+   "snapshot_version": "daily_review_generate.full_truth_rebuild.fa111eb8"
+  },
+  "provenance": {
+   "produced_at": "2026-09-29T03:55:36.296057+00:00",
+   "market_release_identity": null,
+   "data_cutoff": null,
+   "source_refs": [
+    "post_market_recap_snapshot.payload.recap_doc.market_overview_review"
+   ],
+   "evidence_refs": [],
+   "public_object_refs": [],
+   "capability_call_ref": "market.state.read",
+   "correlation_id": "90e59d7a-2450-4b5e-95ba-cbe9a7b5a9c9",
+   "governance_ref": null,
+   "provenance_status": "PROVENANCE_INCOMPLETE"
+  },
+  "failures": [],
+  "boundary_identity_ref": "market.public",
+  "runtime_observation": null,
+  "produced_at": "2026-09-29T03:55:36.296057+00:00"
+ },
+ "market.analysis.read": {
+  "contract_version": "0.4.0",
+  "capability_id": "market.analysis.read",
+  "request_id": "cap_req_1790654138248376000",
+  "correlation_id": "ceba780b-0e78-4a09-99ae-68196f89adb8",
+  "operation_status": "SUCCESS",
+  "data_state": "READY",
+  "payload": {
+   "schema_version": "market.analysis.v1",
+   "trade_date": "2026-07-09",
+   "as_of": "2026-07-09T15:30:00+08:00",
+   "source": {
+    "snapshot_ref": "post_market_recap_snapshot",
+    "snapshot_identity": "post_market_recap_snapshot:2026-07-09",
+    "snapshot_version": "daily_review_generate.full_truth_rebuild.fa111eb8",
+    "source_snapshot_ids": [],
+    "batch_id": "0750e71214c3",
+    "trace_id": "97b9a5d4cce7",
+    "producer_versions": [
+     {
+      "module": "market_regime_review",
+      "version": "existing"
+     },
+     {
+      "module": "theme_reviews",
+      "version": "existing"
+     },
+     {
+      "module": "seat_money_summary",
+      "version": "existing"
+     },
+     {
+      "module": "watchlists",
+      "version": "existing"
+     },
+     {
+      "module": "post_market_setup_plan",
+      "version": "existing"
+     }
+    ],
+    "source_refs": [
+     "post_market_recap_snapshot:2026-07-09",
+     "daily_review_generate.full_truth_rebuild.fa111eb8",
+     "0750e71214c3",
+     "97b9a5d4cce7"
+    ]
+   },
+   "evidence_snapshot_id": "mes:2026-07-09:ccdbdbef4a76ef43",
+   "source_bundle_id": "mkb:2026-07-09:6696c603df3b75d6",
+   "content_hash": "ccdbdbef4a76ef43361a5506f92b0f3a820fb736aa9caaddffb238215111047a",
+   "evidence": [
+    {
+     "key": "market.broad_market_regime",
+     "value": "bearish_adverse",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:market_regime_review:broad_market_regime",
+      "source_module": "market_regime_review",
+      "source_path": "broad_market_regime",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "market.short_term_sentiment",
+     "value": "retreat",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:market_regime_review:short_term_sentiment",
+      "source_module": "market_regime_review",
+      "source_path": "short_term_sentiment",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "market.mainline_environment",
+     "value": "mainline_tradable",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:market_regime_review:mainline_environment",
+      "source_module": "market_regime_review",
+      "source_path": "mainline_environment",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "calendar.next_trade_date",
+     "value": "2026-07-10",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:post_market_setup_plan:summary.watch_date",
+      "source_module": "post_market_setup_plan",
+      "source_path": "summary.watch_date",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.0.stock_name",
+     "value": "长电科技",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.0.stock_name",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.0.stock_name",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.0.stock_id",
+     "value": "600584.SH",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.0.stock_id",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.0.stock_id",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.0.subject_key",
+     "value": "9015778",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.0.subject_key",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.0.subject_key",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.0.summary",
+     "value": "低空经济 首板事实入池，明日仅观察1进2晋级确认。",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.0.summary",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.0.summary",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.0.watch_date",
+     "value": "2026-07-10",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.0.watch_date",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.0.watch_date",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.0.decision",
+     "value": "observe_only",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.0.decision",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.0.decision",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.0.setup_type",
+     "value": "one_to_two",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.0.setup_type",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.0.setup_type",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.1.stock_name",
+     "value": "东山精密",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.1.stock_name",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.1.stock_name",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.1.stock_id",
+     "value": "002384.SZ",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.1.stock_id",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.1.stock_id",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.1.subject_key",
+     "value": "9018144",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.1.subject_key",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.1.subject_key",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.1.summary",
+     "value": "PCB印制电路板 首板事实入池，明日仅观察1进2晋级确认。",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.1.summary",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.1.summary",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.1.watch_date",
+     "value": "2026-07-10",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.1.watch_date",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.1.watch_date",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.1.decision",
+     "value": "observe_only",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.1.decision",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.1.decision",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.1.setup_type",
+     "value": "one_to_two",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.1.setup_type",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.1.setup_type",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.2.stock_name",
+     "value": "大元泵业",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.2.stock_name",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.2.stock_name",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.2.stock_id",
+     "value": "603757.SH",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.2.stock_id",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.2.stock_id",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.2.subject_key",
+     "value": "9019807",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.2.subject_key",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.2.subject_key",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.2.summary",
+     "value": "商业航天 首板事实入池，明日仅观察1进2晋级确认。",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.2.summary",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.2.summary",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.2.watch_date",
+     "value": "2026-07-10",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.2.watch_date",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.2.watch_date",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.2.decision",
+     "value": "observe_only",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.2.decision",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.2.decision",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.2.setup_type",
+     "value": "one_to_two",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.2.setup_type",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.2.setup_type",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.3.stock_name",
+     "value": "深科达",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.3.stock_name",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.3.stock_name",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.3.stock_id",
+     "value": "688328.SH",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.3.stock_id",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.3.stock_id",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.3.subject_key",
+     "value": "9015778",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.3.subject_key",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.3.subject_key",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.3.summary",
+     "value": "低空经济 首板事实入池，明日仅观察1进2晋级确认。",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.3.summary",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.3.summary",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.3.watch_date",
+     "value": "2026-07-10",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.3.watch_date",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.3.watch_date",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.3.decision",
+     "value": "observe_only",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.3.decision",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.3.decision",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.3.setup_type",
+     "value": "one_to_two",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.3.setup_type",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.3.setup_type",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.4.stock_name",
+     "value": "通富微电",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.4.stock_name",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.4.stock_name",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.4.stock_id",
+     "value": "002156.SZ",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.4.stock_id",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.4.stock_id",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.4.subject_key",
+     "value": "9015778",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.4.subject_key",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.4.subject_key",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.4.summary",
+     "value": "低空经济 首板事实入池，明日仅观察1进2晋级确认。",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.4.summary",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.4.summary",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.4.watch_date",
+     "value": "2026-07-10",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.4.watch_date",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.4.watch_date",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.4.decision",
+     "value": "observe_only",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.4.decision",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.4.decision",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.4.setup_type",
+     "value": "one_to_two",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.4.setup_type",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.4.setup_type",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    },
+    {
+     "key": "watchlist.5.stock_name",
+     "value": "中京电子",
+     "ref": {
+      "ref_id": "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.5.stock_name",
+      "source_module": "watchlists",
+      "source_path": "one_to_two.items.5.stock_name",
+      "source_snapshot_id": "mkb:2026-07-09:6696c603df3b75d6"
+     },
+     "observed_at": "2026-07-09T15:30:00+08:00"
+    }
+   ],
+   "module_coverage": [
+    {
+     "module": "engine_summary",
+     "status": "missing",
+     "row_count": 0,
+     "missing_fields": []
+    },
+    {
+     "module": "market_regime_review",
+     "status": "ready",
+     "row_count": 1,
+     "missing_fields": []
+    },
+    {
+     "module": "daily_recap_essentials",
+     "status": "missing",
+     "row_count": 0,
+     "missing_fields": []
+    },
+    {
+     "module": "mainline_states",
+     "status": "missing",
+     "row_count": 0,
+     "missing_fields": []
+    },
+    {
+     "module": "theme_reviews",
+     "status": "ready",
+     "row_count": 20,
+     "missing_fields": []
+    },
+    {
+     "module": "limit_up_theme_events",
+     "status": "missing",
+     "row_count": 0,
+     "missing_fields": []
+    },
+    {
+     "module": "new_high_summary",
+     "status": "missing",
+     "row_count": 0,
+     "missing_fields": []
+    },
+    {
+     "module": "seat_money_summary",
+     "status": "ready",
+     "row_count": 1,
+     "missing_fields": []
+    },
+    {
+     "module": "watchlists",
+     "status": "ready",
+     "row_count": 1,
+     "missing_fields": []
+    },
+    {
+     "module": "post_market_setup_plan",
+     "status": "ready",
+     "row_count": 1,
+     "missing_fields": []
+    }
+   ],
+   "quality": {
+    "status": "partial",
+    "score": 0.5,
+    "missing_modules": [
+     "engine_summary",
+     "daily_recap_essentials",
+     "mainline_states",
+     "limit_up_theme_events",
+     "new_high_summary"
+    ],
+    "issues": []
+   },
+   "review_maturity": {
+    "available": false,
+    "source_mode": "unavailable",
+    "source": "not_bound",
+    "reason": "review maturity is not present in the canonical recap payload"
+   }
+  },
+  "provenance": {
+   "produced_at": "2026-09-29T03:55:38.501415+00:00",
+   "market_release_identity": null,
+   "data_cutoff": "2026-07-09T15:30:00+08:00",
+   "source_refs": [
+    "post_market_recap_snapshot:2026-07-09",
+    "daily_review_generate.full_truth_rebuild.fa111eb8",
+    "0750e71214c3",
+    "97b9a5d4cce7"
+   ],
+   "evidence_refs": [
+    "ev:mkb:2026-07-09:6696c603df3b75d6:market_regime_review:broad_market_regime",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:market_regime_review:short_term_sentiment",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:market_regime_review:mainline_environment",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:post_market_setup_plan:summary.watch_date",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.0.stock_name",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.0.stock_id",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.0.subject_key",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.0.summary",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.0.watch_date",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.0.decision",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.0.setup_type",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.1.stock_name",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.1.stock_id",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.1.subject_key",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.1.summary",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.1.watch_date",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.1.decision",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.1.setup_type",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.2.stock_name",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.2.stock_id",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.2.subject_key",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.2.summary",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.2.watch_date",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.2.decision",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.2.setup_type",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.3.stock_name",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.3.stock_id",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.3.subject_key",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.3.summary",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.3.watch_date",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.3.decision",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.3.setup_type",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.4.stock_name",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.4.stock_id",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.4.subject_key",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.4.summary",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.4.watch_date",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.4.decision",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.4.setup_type",
+    "ev:mkb:2026-07-09:6696c603df3b75d6:watchlists:one_to_two.items.5.stock_name"
+   ],
+   "public_object_refs": [
+    "mes:2026-07-09:ccdbdbef4a76ef43",
+    "mkb:2026-07-09:6696c603df3b75d6"
+   ],
+   "capability_call_ref": "market.analysis.read",
+   "correlation_id": "ceba780b-0e78-4a09-99ae-68196f89adb8",
+   "governance_ref": null,
+   "provenance_status": "PROVENANCE_INCOMPLETE"
+  },
+  "failures": [],
+  "boundary_identity_ref": "market.public",
+  "runtime_observation": null,
+  "produced_at": "2026-09-29T03:55:38.501415+00:00"
+ }
+}
