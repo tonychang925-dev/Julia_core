@@ -12,12 +12,9 @@ from __future__ import annotations
 
 import copy
 import uuid
-from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
-from itertools import islice
-from typing import Any, Iterable, Sequence
-from urllib.parse import quote
+from typing import Any, Sequence
 
 from julia_core.capability.models import CapabilityStatus, Evidence, ToolResult
 from julia_core.capability.policy import AuthorizationDecision, AuthorizationStatus
@@ -130,42 +127,13 @@ class CognitiveContextPackage:
         lines = [f"[{name}]"]
         total = len(lines[0])
         budget = self._RENDER_MAX_FRAME_CHARS
-        render_items = list(frame.items())
-        ledger = frame.get("turn_evidence_ledger")
-        current_tool_result = frame.get("tool_result")
-        latest_matches = (
-            name == "evidence"
-            and isinstance(ledger, list)
-            and bool(ledger)
-            and isinstance(ledger[-1], dict)
-            and isinstance(current_tool_result, dict)
-            and self._same_tool_result_projection(
-                ledger[-1].get("tool_result"), current_tool_result
-            )
-        )
-        if latest_matches:
-            render_items = [
-                (key, ledger[:-1] if key == "turn_evidence_ledger" else value)
-                for key, value in render_items
-            ]
-        for index, (key, value) in enumerate(render_items):
+        for key, value in frame.items():
             prefix = f"{key}: "
             remaining = budget - total - len(prefix) - 1
-            remaining_items = max(len(render_items) - index, 1)
-            fair_share = max(1, remaining // remaining_items)
-            if (
-                name == "evidence"
-                and key == "tool_result"
-                and "turn_evidence_ledger" in frame
-                and isinstance(ledger, list)
-                and len(ledger) > 1
-            ):
-                fair_share = max(1, remaining // 3)
             if remaining <= len(self._RENDER_TRUNC_MARKER):
-                suffix = self._RENDER_TRUNC_MARKER + f"[frame budget {budget} chars]"
-                lines.append(suffix[:max(remaining, 0)])
+                lines.append(self._RENDER_TRUNC_MARKER + f"[frame budget {budget} chars]")
                 break
-            rendered = self._render_value(value, depth=0, char_budget=fair_share)
+            rendered = self._render_value(value, depth=0, char_budget=remaining)
             line = prefix + rendered
             lines.append(line)
             total += len(line) + 1
@@ -177,28 +145,14 @@ class CognitiveContextPackage:
     _RENDER_MAX_ITEMS = 20
     _RENDER_MAX_DEPTH = 4
     _RENDER_MAX_FRAME_CHARS = 8000
-    _RENDER_MIN_CHILD_CHARS = 192
     _RENDER_TRUNC_MARKER = "…[truncated]"
-
-    @staticmethod
-    def _same_tool_result_projection(left: Any, right: Any) -> bool:
-        if not isinstance(left, dict) or not isinstance(right, dict):
-            return False
-        identity_fields = (
-            "capability_call_id",
-            "status",
-            "evidence_refs",
-            "provider",
-            "side_effect_state",
-        )
-        return all(left.get(field) == right.get(field) for field in identity_fields)
 
     def _render_value(self, value: Any, *, depth: int, char_budget: int | None = None) -> str:
         """Deterministically render a nested value inside an explicit budget.
 
         Container budgets are shared across their children rather than rendering
         an unbounded child first and discarding the whole parent afterwards.
-        Mappings retain stable insertion order. Truncation changes only the
+        Mappings retain stable sorted-key order. Truncation changes only the
         rendered view; the structured Context OS projection remains untouched.
         """
         budget = self._RENDER_MAX_FRAME_CHARS if char_budget is None else max(char_budget, 0)
@@ -216,12 +170,10 @@ class CognitiveContextPackage:
             return bounded_scalar(value, budget)
 
         if isinstance(value, dict):
-            if depth >= self._RENDER_MAX_DEPTH - 1:
-                return self._render_flattened_mapping(
-                    value,
-                    char_budget=budget,
-                )
-            items = list(value.items())
+            if depth >= self._RENDER_MAX_DEPTH:
+                compact = "{…}" + marker
+                return compact if len(compact) <= budget else compact[:budget]
+            items = sorted(value.items(), key=lambda item: str(item[0]))
             if budget <= 4:
                 return "{}"[:budget]
             remaining = budget - 4  # "{ " + " }"
@@ -262,17 +214,15 @@ class CognitiveContextPackage:
 
         if isinstance(value, (list, tuple)):
             if depth >= self._RENDER_MAX_DEPTH:
-                return self._render_flattened_sequence(
-                    value,
-                    char_budget=budget,
-                )
+                compact = "[…]" + marker
+                return compact if len(compact) <= budget else compact[:budget]
 
             total_items = len(value)
+            visible_items = value[: self._RENDER_MAX_ITEMS]
             if budget <= 2:
                 return "[]"[:budget]
 
             remaining = budget - 2
-            visible_items = value[: self._RENDER_MAX_ITEMS]
             omitted_count = total_items - len(visible_items)
             omission_note = marker + (f"[{omitted_count} more]" if omitted_count else "")
 
@@ -295,11 +245,6 @@ class CognitiveContextPackage:
                     1,
                     (content_remaining - len(separator)) // remaining_items,
                 )
-                if not isinstance(child, str):
-                    fair_share = max(
-                        fair_share,
-                        min(self._RENDER_MIN_CHILD_CHARS, content_remaining),
-                    )
                 child_text = self._render_value(
                     child,
                     depth=depth + 1,
@@ -329,230 +274,6 @@ class CognitiveContextPackage:
             return "[" + body + "]"
 
         return bounded_scalar(str(value), budget)
-
-    def _render_flattened_mapping(
-        self,
-        value: dict[Any, Any],
-        *,
-        char_budget: int,
-    ) -> str:
-        """Render depth-exhausted mappings as bounded path/value leaves."""
-        return self._render_flattened_collection(
-            value,
-            opening="{",
-            closing="}",
-            root_sequence=False,
-            char_budget=char_budget,
-        )
-
-    def _render_flattened_sequence(
-        self,
-        value: list[Any] | tuple[Any, ...],
-        *,
-        char_budget: int,
-    ) -> str:
-        """Render depth-exhausted sequences as bounded path/value leaves."""
-        return self._render_flattened_collection(
-            value,
-            opening="[",
-            closing="]",
-            root_sequence=True,
-            char_budget=char_budget,
-        )
-
-    def _flatten_bounded_leaves(
-        self,
-        value: Any,
-        *,
-        root_sequence: bool,
-    ) -> tuple[list[tuple[str, Any]], bool]:
-        max_visited_nodes = self._RENDER_MAX_ITEMS * 8
-        if root_sequence:
-            initial_children = (
-                (f"[{index}]", child) for index, child in enumerate(value)
-            )
-        else:
-            initial_children = (
-                (self._mapping_path("", key), value[key])
-                for key in islice(value, max_visited_nodes + 1)
-            )
-        initial, truncated = self._take_bounded_children(
-            initial_children,
-            max_visited_nodes,
-        )
-        branches = deque(deque((child,)) for child in initial)
-        leaves: list[tuple[str, Any]] = []
-        visited_nodes = 0
-
-        while branches:
-            visited_nodes += 1
-            if visited_nodes > max_visited_nodes:
-                return leaves, True
-            branch = branches.popleft()
-            path, child = branch.popleft()
-            if isinstance(child, dict):
-                if not child:
-                    leaves.append((path, child))
-                    if branch:
-                        branches.append(branch)
-                    continue
-                available = max_visited_nodes - visited_nodes
-                capacity = max(4, available // (len(branches) + 1))
-                nested, children_truncated = self._take_bounded_children(
-                    (
-                        (self._mapping_path(path, key), nested_child)
-                        for key, nested_child in child.items()
-                    ),
-                    capacity,
-                )
-                truncated = truncated or children_truncated
-            elif isinstance(child, (list, tuple)):
-                if not child:
-                    leaves.append((path, child))
-                    if branch:
-                        branches.append(branch)
-                    continue
-                available = max_visited_nodes - visited_nodes
-                capacity = max(4, available // (len(branches) + 1))
-                nested, children_truncated = self._take_bounded_children(
-                    (
-                        (f"{path}[{index}]" if path else f"[{index}]", nested_child)
-                        for index, nested_child in enumerate(child)
-                    ),
-                    capacity,
-                )
-                truncated = truncated or children_truncated
-            else:
-                leaves.append((path, child))
-                if len(leaves) >= max_visited_nodes:
-                    return leaves, True
-                if branch:
-                    branches.append(branch)
-                continue
-            branch.extend(nested)
-            if branch:
-                branches.append(branch)
-
-        return leaves, truncated
-
-    @staticmethod
-    def _mapping_path(path: str, key: Any) -> str:
-        encoded_key = quote(str(key), safe="").replace(".", "%2E")
-        return f"{path}.{encoded_key}" if path else encoded_key
-
-    @staticmethod
-    def _take_bounded_children(
-        children: Iterable[tuple[str, Any]],
-        capacity: int,
-    ) -> tuple[list[tuple[str, Any]], bool]:
-        bounded: list[tuple[str, Any]] = []
-        for index, child in enumerate(children):
-            if index >= capacity:
-                return bounded, True
-            bounded.append(child)
-        return bounded, False
-
-    def _render_flattened_collection(
-        self,
-        value: Any,
-        *,
-        opening: str,
-        closing: str,
-        root_sequence: bool,
-        char_budget: int,
-    ) -> str:
-        marker = self._RENDER_TRUNC_MARKER
-        budget = max(char_budget, 0)
-        minimum = len(opening) + len(closing)
-        if budget <= minimum:
-            if value:
-                return marker[:budget]
-            return (opening + closing)[:budget]
-
-        leaves, omitted = self._flatten_bounded_leaves(
-            value,
-            root_sequence=root_sequence,
-        )
-        if not leaves:
-            if omitted:
-                return marker[:budget]
-            return opening + " " + closing
-
-        visible = self._select_structural_leaves(leaves)
-        remaining = budget - 4
-        quota_exceeded = len(leaves) > self._RENDER_MAX_ITEMS
-        omission_note = marker + (
-            f"[{len(leaves) - len(visible)} more]"
-            if len(leaves) > len(visible)
-            else ""
-        )
-        note_reserve = min(remaining, len(omission_note) + 2)
-        content_remaining = max(0, remaining - note_reserve)
-        parts: list[str] = []
-        stopped_early = False
-        for index, (path, child) in enumerate(visible):
-            separator = ", " if parts else ""
-            key_prefix = f"{path}="
-            if content_remaining <= len(separator) + len(key_prefix):
-                continue
-            remaining_items = max(len(visible) - index, 1)
-            child_budget = max(
-                1,
-                (
-                    content_remaining
-                    - len(separator)
-                    - len(key_prefix)
-                )
-                // remaining_items,
-            )
-            if isinstance(child, str) and len(child) <= self._RENDER_MIN_CHILD_CHARS:
-                child_budget = max(child_budget, len(child))
-            child_text = self._render_value(
-                child,
-                depth=0,
-                char_budget=child_budget,
-            )
-            part = separator + key_prefix + child_text
-            if len(part) > content_remaining:
-                stopped_early = True
-                break
-            parts.append(part)
-            content_remaining -= len(part)
-
-        if len(parts) < len(visible):
-            stopped_early = True
-
-        if omitted or quota_exceeded or stopped_early:
-            note = (", " if parts else "") + marker
-            available = remaining - len("".join(parts))
-            if len(note) <= available:
-                parts.append(note)
-            else:
-                return marker[:budget]
-        return opening + " " + "".join(parts) + " " + closing
-
-    @staticmethod
-    def _select_structural_leaves(
-        leaves: list[tuple[str, Any]],
-    ) -> list[tuple[str, Any]]:
-        groups: dict[str, list[tuple[str, Any]]] = {}
-        for leaf in leaves:
-            root = leaf[0].split(".", 1)[0].split("[", 1)[0]
-            groups.setdefault(root, []).append(leaf)
-        selected: list[tuple[str, Any]] = []
-        round_index = 0
-        while len(selected) < CognitiveContextPackage._RENDER_MAX_ITEMS:
-            added = False
-            for group in groups.values():
-                if round_index < len(group):
-                    selected.append(group[round_index])
-                    added = True
-                    if len(selected) == CognitiveContextPackage._RENDER_MAX_ITEMS:
-                        break
-            if not added:
-                break
-            round_index += 1
-        return selected
 
     def add_provenance(self, frame: str, source_ref: str, canonical_ref: str = "",
                        reason: str = "", stage: int = 0, token_estimate: int = 0):
