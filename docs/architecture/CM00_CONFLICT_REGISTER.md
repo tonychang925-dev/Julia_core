@@ -140,8 +140,16 @@ Production consequence:
 
 Severity:     P1
 
-Disposition:  UNRESOLVED
+Disposition:  RESOLVED (Core public ingress, CARD 5A); Electron main (c44bb7e) local-id path still open → #209
 Target:       CM-Core — Core creates conversation_id, Electron receives it.
+Resolution:   CoreConversationIngress.create_conversation allocates the id through the runtime's
+              existing uuid allocator when none is supplied (None or ""), and the durable record
+              exists before return (CM-I04). Caller-supplied ids still pass _valid_identifier.
+              Relation to 5ce95a1 (2026-08-23): that fix restored uuid allocation after
+              conv_{timestamp}_{id(self)} collided within one second (AT-05/AT-06 leakage); CARD 5A
+              reuses that allocator and adds no id generation. The empty-id regression came from
+              5c50910 (PR #91), which validated caller ids and thereby rejected "" — no test covered it.
+              Electron 1755178 / aabebd1 already send title only and consume the returned id.
 ```
 
 ---

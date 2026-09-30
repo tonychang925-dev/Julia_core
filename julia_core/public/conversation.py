@@ -330,11 +330,23 @@ class CoreConversationIngress:
                 request.conversation_id, request.turn_id, "", "failed", "CORE_CONVERSATION_UNAVAILABLE"
             )
 
-    def create_conversation(self, conversation_id: str, title: str = "New Conversation") -> str:
-        """Explicitly bind/create a conversation; process() never auto-creates."""
+    def create_conversation(self, conversation_id: str | None, title: str = "New Conversation") -> str:
+        """Explicitly bind/create a conversation; process() never auto-creates.
+
+        CM-I04 / CM00-CONFLICT-004: when no id is supplied (``None`` or ``""``)
+        Core allocates the canonical conversation_id through the runtime's own
+        allocator and the durable record exists before this method returns.
+        A caller-supplied id is never trusted: it must pass ``_valid_identifier``.
+        """
         if self._composition_error is not None:
             raise CoreConversationConfigurationError("Core composition is unavailable")
         assert self._runtime is not None
+        if conversation_id is None or conversation_id == "":
+            handle = self._runtime.create_conversation("", title)
+            allocated = handle.conversation_id
+            if not self._valid_identifier(allocated):
+                raise ValueError("Core allocated an invalid conversation_id")
+            return allocated
         if not self._valid_identifier(conversation_id):
             raise ValueError("invalid conversation_id")
         return self._runtime.create_conversation(conversation_id, title).conversation_id
