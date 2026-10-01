@@ -43,7 +43,8 @@ def _dataclass_fields(cls: type[Any]) -> set[str]:
 
 def test_project_tool_result_enters_evidence_frame_not_identity_or_memory_frames():
     """Existing direction guard: tool output is projected as evidence context only."""
-    parent = CognitiveContextPackage(
+    from tests.runtime._card6_base import populated_parent
+    parent = populated_parent(
         conversation_id="conv_c1_r2_3",
         turn_id="turn_c1_r2_3",
         generation_id="gen_before_tool",
@@ -62,10 +63,10 @@ def test_project_tool_result_enters_evidence_frame_not_identity_or_memory_frames
     assert delta.evidence_frame["source"] == "capability_execution"
     assert delta.evidence_frame["tool_result"]["structured_output"]["content"] == "observed fact"
 
-    assert delta.identity_frame == {}
-    assert delta.experience_frame == {}
-    assert delta.diary_frame == {}
-    assert delta.continuity_frame == {}
+    # CARD 6: base frames are inherited from the parent (deep copies), tool output
+    # still lands only in evidence_frame.
+    from tests.runtime._card6_base import assert_inherits_base
+    assert_inherits_base(delta, parent, mode="tool_continuation")
     assert delta.capability_frame == {}
 
 

@@ -18,9 +18,14 @@ from julia_core.runtime.context_execution_runtime import (
 )
 
 
+from tests.runtime._card6_base import assert_inherits_base, populated_parent
+
+_PARENT = populated_parent()
+
+
 def _project(reason: str, capability_id: str = "no.such.capability"):
     return ContextExecutionRuntime().project_capability_resolution_failure(
-        parent_package=CognitiveContextPackage(conversation_id="c", turn_id="t", generation_id="g"),
+        parent_package=_PARENT,
         capability_id=capability_id,
         reason=reason,
         generation_id="g2",
@@ -46,10 +51,8 @@ def test_control_projection_is_not_evidence_and_is_authority_isolated():
     delta = _project("UNKNOWN")
     # Not placed in evidence_frame; no ToolResult / authorization_outcome.
     assert delta.evidence_frame == {}
-    assert delta.identity_frame == {}
-    assert delta.experience_frame == {}
-    assert delta.diary_frame == {}
-    assert delta.continuity_frame == {}
+    # CARD 6: base frames inherited from parent, never mutated by the control turn.
+    assert_inherits_base(delta, _PARENT, mode="capability_resolution_failure")
     assert delta.projection_metadata.get("identity_updated") is not True
     assert delta.projection_metadata.get("memory_updated") is not True
     assert delta.projection_metadata.get("relationship_updated") is not True

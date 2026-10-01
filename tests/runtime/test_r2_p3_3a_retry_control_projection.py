@@ -16,7 +16,8 @@ from julia_core.runtime.context_execution_runtime import (
 
 
 def _parent() -> CognitiveContextPackage:
-    return CognitiveContextPackage(conversation_id="conv", turn_id="turn", generation_id="gen-before")
+    from tests.runtime._card6_base import populated_parent
+    return populated_parent(conversation_id="conv", turn_id="turn", generation_id="gen-before")
 
 
 def _project(reason: str = "required_tool_call_missing", generation_id: str = "gen_retry_1"):
@@ -61,10 +62,9 @@ def test_retry_control_generation_preservation():
 def test_retry_control_no_execution_artifacts():
     delta = _project()
     assert delta.evidence_frame == {}
-    assert delta.identity_frame == {}
-    assert delta.experience_frame == {}
-    assert delta.diary_frame == {}
-    assert delta.continuity_frame == {}
+    # CARD 6: base frames inherited from the parent, not mutated by the retry turn.
+    from tests.runtime._card6_base import assert_inherits_base
+    assert_inherits_base(delta, _parent(), mode="retry_control")
     assert delta.projection_metadata.get("identity_updated") is not True
     assert delta.projection_metadata.get("memory_updated") is not True
 

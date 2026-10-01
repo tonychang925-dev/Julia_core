@@ -857,7 +857,7 @@ class ContextExecutionRuntime:
 
         resolved_evidence = self._resolve_evidence_refs(tool_result, evidence)
 
-        pkg = self._new_projection(
+        pkg = self._derive_projection(
             parent_package,
             generation_id,
             require_generation_id=True,
@@ -876,7 +876,7 @@ class ContextExecutionRuntime:
             "source": "capability_execution",
             "turn_evidence_ledger": inherited_ledger,
         }
-        pkg.situation_frame = {"mode": "tool_continuation"}
+        pkg.situation_frame = self._control_situation(parent_package, "tool_continuation")
         pkg.add_provenance("evidence", "capability:tool_result",
                           reason="tool execution result (typed)", stage=2)
         return pkg
@@ -903,7 +903,7 @@ class ContextExecutionRuntime:
             raise ValueError(
                 "project_authorization_outcome only accepts non-ALLOW AuthorizationDecision"
             )
-        pkg = self._new_projection(
+        pkg = self._derive_projection(
             parent_package,
             generation_id,
             require_generation_id=True,
@@ -918,7 +918,7 @@ class ContextExecutionRuntime:
             "tool_result": None,
             "evidence": [],
         }
-        pkg.situation_frame = {"mode": "authorization_outcome"}
+        pkg.situation_frame = self._control_situation(parent_package, "authorization_outcome")
         pkg.add_provenance("control", "capability:authorization_outcome",
                           reason="authorization-only outcome", stage=2)
         return pkg
@@ -989,14 +989,14 @@ class ContextExecutionRuntime:
         if not generation_id or not generation_id.strip():
             raise ValueError("capability resolution failure projection requires a non-empty generation_id")
 
-        pkg = self._new_projection(parent_package, generation_id, require_generation_id=True)
+        pkg = self._derive_projection(parent_package, generation_id, require_generation_id=True)
         pkg.evidence_frame = self._inherited_evidence_frame(parent_package)
         pkg.control_frame = {
             "kind": "capability_resolution_failure",
             "capability_id": capability_id,
             "reason": reason,
         }
-        pkg.situation_frame = {"mode": "capability_resolution_failure"}
+        pkg.situation_frame = self._control_situation(parent_package, "capability_resolution_failure")
         pkg.add_provenance("control", "capability:resolution_failure",
                           reason=f"{capability_id} {reason}", stage=2)
         return pkg
@@ -1026,13 +1026,13 @@ class ContextExecutionRuntime:
         if not generation_id or not generation_id.strip():
             raise ValueError("retry control projection requires a non-empty generation_id")
 
-        pkg = self._new_projection(parent_package, generation_id, require_generation_id=True)
+        pkg = self._derive_projection(parent_package, generation_id, require_generation_id=True)
         pkg.evidence_frame = self._inherited_evidence_frame(parent_package)
         pkg.control_frame = {
             "kind": "retry_control",
             "reason": reason,
         }
-        pkg.situation_frame = {"mode": "retry_control"}
+        pkg.situation_frame = self._control_situation(parent_package, "retry_control")
         pkg.add_provenance("control", "capability:retry_control",
                           reason=reason, stage=2)
         return pkg
@@ -1116,14 +1116,26 @@ class ContextExecutionRuntime:
         provenance_source: str,
         **control: Any,
     ) -> CognitiveContextPackage:
-        pkg = self._new_projection(parent_package, generation_id, require_generation_id=True)
+        pkg = self._derive_projection(parent_package, generation_id, require_generation_id=True)
         pkg.evidence_frame = self._inherited_evidence_frame(parent_package)
         pkg.control_frame = {"kind": kind, **control}
-        pkg.situation_frame = {"mode": mode}
+        pkg.situation_frame = self._control_situation(parent_package, mode)
         pkg.add_provenance("control", provenance_source, reason=kind, stage=2)
         return pkg
 
-    def _new_projection(
+    @staticmethod
+    def _control_situation(
+        parent_package: CognitiveContextPackage | None,
+        mode: str,
+    ) -> dict[str, Any]:
+        """Parent situation (current date/time, interaction state) with only the
+        control turn's own ``mode`` overridden."""
+        inherited = (
+            copy.deepcopy(parent_package.situation_frame) if parent_package else {}
+        )
+        return {**inherited, "mode": mode}
+
+    def _derive_projection(
         self,
         parent_package: CognitiveContextPackage | None,
         generation_id: str,
@@ -1141,6 +1153,14 @@ class ContextExecutionRuntime:
             return pkg
         pkg.active_tail_messages = copy.deepcopy(parent_package.active_tail_messages)
         pkg.projection_metadata = copy.deepcopy(parent_package.projection_metadata)
+        # CARD 6: a control turn is the same turn's cognition continuing, so it
+        # keeps the parent's persona/memory/relationship/situation blocks (C-03
+        # Stage 0 base). Deep copies: the child never shares mutable state with
+        # the parent. Control/evidence/capability stay the child's own fields.
+        pkg.identity_frame = copy.deepcopy(parent_package.identity_frame)
+        pkg.experience_frame = copy.deepcopy(parent_package.experience_frame)
+        pkg.diary_frame = copy.deepcopy(parent_package.diary_frame)
+        pkg.continuity_frame = copy.deepcopy(parent_package.continuity_frame)
         seen_generation_ids = set(
             pkg.projection_metadata.get("seen_generation_ids", [])
         )
