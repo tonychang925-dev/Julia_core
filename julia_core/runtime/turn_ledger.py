@@ -578,6 +578,64 @@ def check_denied_execution(reply: str, ledger: TurnLedger) -> list[str]:
     return ["executed_but_denied"] if _DENIES_EXECUTION.search(plain) else []
 
 
+# CARD 8 (f)/(g): the user asked for a file operation this turn.
+_FILE_NOUN = r"(?:文件夹|文件|目录|桌面|下载|路径|md|\.md)"
+_FILE_VERB = r"(?:读|列|搜|查|看|打开|找)"
+_FILE_REQUEST = re.compile(
+    rf"{_FILE_VERB}.{{0,12}}{_FILE_NOUN}|{_FILE_NOUN}.{{0,12}}{_FILE_VERB}", re.IGNORECASE
+)
+_HOME_PATH = re.compile(r"(?<![\w/.])~/[^\s]{1,}")
+_FRESH_CLAIM = re.compile(
+    r"读了|读到|刚读|读过|读好了|读完了|已经读|这次是真的|真的(?:刚)?(?:读|查|搜|列)"
+    r"|查到|查完了|搜到|搜完了|列出来了|列了出来|看到了(?:内容|文件)"
+)
+# disclosures that explain why nothing was executed / where the content is from
+_DISCLAIMER = re.compile(
+    r"没有执行|没执行|没有读|没读|没有查|没查|没有搜|没搜|没有调用|没调用|没有跑|没跑|没有列|没列"
+    r"|没有重新|来自之前|来自上一轮|之前的回合|之前那次|上一轮|无法|不能读|读不到|范围|不在允许"
+)
+
+
+def _user_requested_file_operation(user_text: str) -> bool:
+    if not isinstance(user_text, str) or not user_text.strip():
+        return False
+    return bool(
+        _ABSOLUTE_PATH.search(user_text)
+        or _HOME_PATH.search(user_text)
+        or _FILE_REQUEST.search(user_text)
+    )
+
+
+def _plain(reply: str) -> str:
+    return reply.replace("*", "").replace("`", "")
+
+
+def check_requested_claims(reply: str, ledger: TurnLedger, user_text: str) -> list[str]:
+    """(f) ``zero_execution_requested_claim``: the user asked for a file operation,
+    nothing was executed this turn, and the reply claims it was done / fresh
+    without disclosing otherwise. Goes through the normal correction flow."""
+    if ledger.executed or not isinstance(reply, str) or not reply.strip():
+        return []
+    if not _user_requested_file_operation(user_text):
+        return []
+    plain = _plain(reply)
+    if _FRESH_CLAIM.search(plain) and not _DISCLAIMER.search(plain):
+        return ["zero_execution_requested_claim"]
+    return []
+
+
+def check_requested_not_executed(reply: str, ledger: TurnLedger, user_text: str) -> list[str]:
+    """(g) ``requested_but_not_executed``: the user asked for a file operation,
+    nothing was executed, and the reply does not say why. Record only."""
+    if ledger.executed or not isinstance(reply, str) or not reply.strip():
+        return []
+    if not _user_requested_file_operation(user_text):
+        return []
+    if _DISCLAIMER.search(_plain(reply)):
+        return []
+    return ["requested_but_not_executed"]
+
+
 def _lists_many_paths(reply: str) -> bool:
     return len(_ABSOLUTE_PATH.findall(reply)) >= 2
 

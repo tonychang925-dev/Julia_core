@@ -17,6 +17,8 @@ from julia_core.runtime.turn_ledger import (
     TurnLedger,
     check_completion_claims,
     check_denied_execution,
+    check_requested_claims,
+    check_requested_not_executed,
     environment_facts,
     FORMAL_MEMORY_LOCATIONS,
     resolve_hmac_key,
@@ -283,6 +285,17 @@ class IterativeReasoningLoop:
                         outcome="recorded_only",
                     )
                 categories = check_completion_claims(parsed.text, self.ledger)
+                categories += check_requested_claims(parsed.text, self.ledger, self.text)
+                if not categories:
+                    unexecuted = check_requested_not_executed(parsed.text, self.ledger, self.text)
+                    if unexecuted:
+                        # CARD 8 (g): record only; never corrected, never blocked.
+                        self.ledger.record_claim_check(
+                            pass_index=pass_index,
+                            categories=unexecuted,
+                            corrected=False,
+                            outcome="recorded_only",
+                        )
                 if categories:
                     if (
                         self.claim_correction_count < MAX_CLAIM_CORRECTION_PASSES_PER_TURN

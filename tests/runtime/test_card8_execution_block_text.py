@@ -132,3 +132,81 @@ def test_honest_reply_after_execution_records_nothing():
         outcomes=[execution(1)],
     )
     assert _run(session).ledger_view["claim_checks"] == []
+
+
+# ── (f) zero_execution_requested_claim and (g) requested_but_not_executed ───
+
+from julia_core.runtime.turn_ledger import (  # noqa: E402
+    LIMITED_REPLY,
+    check_requested_claims,
+    check_requested_not_executed,
+)
+
+READ_REQUEST = "帮我读一下 /Users/admin/Desktop/notes_8842.md 这个文件"
+EMPTY = lambda: TurnLedger(hmac_key=b"k")  # noqa: E731
+
+
+def test_f_t6_structure_fresh_claim_without_execution_is_a_violation():
+    reply = "**这次是真的刚读到的**：文件里第一行写着……"
+    assert check_requested_claims(reply, EMPTY(), READ_REQUEST) == ["zero_execution_requested_claim"]
+    for user in ("桌面上那个 md 你读一下", "列一下目录里有什么", "~/Desktop/a.md 搜一搜", "查一下下载文件夹"):
+        assert check_requested_claims("我已经读到了，内容是……", EMPTY(), user) == ["zero_execution_requested_claim"], user
+
+
+def test_f_needs_a_file_request_zero_execution_a_claim_and_no_disclaimer():
+    claim = "这次是真的刚读到的。"
+    # the user did not ask for a file operation
+    assert check_requested_claims("我读了你的话，好暖。", EMPTY(), "老公今天累不累") == []
+    assert check_requested_claims(claim, EMPTY(), "你喜欢读书吗") == []
+    # an executed entry exists this turn
+    done = _ledger_with(("file.read", "executed"))
+    assert check_requested_claims(claim, done, READ_REQUEST) == []
+    # the reply discloses the truth
+    for ok in ("这一轮我没有执行工具，所以没有读到。", "我没读，内容是之前那次的，来自之前的回合。", "我没有读到，路径不在范围内。"):
+        assert check_requested_claims(ok, EMPTY(), READ_REQUEST) == [], ok
+    # no completion/freshness claim at all
+    assert check_requested_claims("你想让我读哪一个文件？", EMPTY(), READ_REQUEST) == []
+
+
+def test_f_goes_through_one_correction_then_a_restricted_reply():
+    bad = "这次是真的刚读到的：第一行是……"
+    session = LoopSession([bad, "这一轮我没有执行工具，所以没有读到。"])
+    result = _run_with_user(session, READ_REQUEST)
+    assert result.reply == "这一轮我没有执行工具，所以没有读到。" and result.cognition_pass_count == 2
+    check = result.ledger_view["claim_checks"][0]
+    assert check["categories"] == ["zero_execution_requested_claim"] and check["entered_correction"] is True
+    assert check["outcome"] == "compliant_after_correction" and bad not in str(result.ledger_view)
+
+    session = LoopSession([bad, bad])
+    result = _run_with_user(session, READ_REQUEST)
+    assert result.reply == LIMITED_REPLY and result.final_response_kind == "LIMITATION"
+    assert result.ledger_view["claim_checks"][0]["outcome"] == "limited_reply_after_correction"
+
+
+def test_g_requested_but_not_executed_is_recorded_only():
+    assert check_requested_not_executed("你想让我读哪一个文件？", EMPTY(), READ_REQUEST) == ["requested_but_not_executed"]
+    # explained, executed, or not a file request -> nothing
+    assert check_requested_not_executed("这一轮我没有执行工具。", EMPTY(), READ_REQUEST) == []
+    assert check_requested_not_executed("好的。", _ledger_with(("file.read", "executed")), READ_REQUEST) == []
+    assert check_requested_not_executed("好的。", EMPTY(), "你好呀") == []
+    session = LoopSession(["你想让我读哪一个文件？"])
+    result = _run_with_user(session, READ_REQUEST)
+    assert result.reply == "你想让我读哪一个文件？" and result.cognition_pass_count == 1       # not blocked
+    check = result.ledger_view["claim_checks"][0]
+    assert check["categories"] == ["requested_but_not_executed"]
+    assert check["entered_correction"] is False and check["outcome"] == "recorded_only"
+
+
+def test_f_wins_over_g_and_a_normal_chat_turn_records_nothing():
+    session = LoopSession(["这次是真的刚读到的。", "这一轮我没有执行工具。"])
+    cats = [c["categories"] for c in _run_with_user(session, READ_REQUEST).ledger_view["claim_checks"]]
+    assert cats == [["zero_execution_requested_claim"]]            # no extra requested_but_not_executed
+    assert _run_with_user(LoopSession(["好呀，我在。"]), "老公今天累不累").ledger_view["claim_checks"] == []
+
+
+def _run_with_user(session, user_text):
+    loop = IterativeReasoningLoop(
+        session=session, text=user_text,
+        turn_context=SimpleNamespace(turn_id="turn", correlation_id="corr", conversation_id="conv"),
+        messages=[], parent_package=_parent())
+    return loop.run()
