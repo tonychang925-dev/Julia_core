@@ -166,3 +166,51 @@ def test_actual_model_message_path_renders_temporal_anchor():
     assert "current_turn_timestamp: 2026-09-23T10:15:30.123456+08:00" in system_message["content"]
     assert "current_date: 2026-09-23" in system_message["content"]
     assert "utc_offset: +08:00" in system_message["content"]
+
+
+# ── #232: weekday is computed by code from the same aware timestamp ──────────
+
+@pytest.mark.parametrize(
+    "created_at, date, weekday_zh, weekday_en",
+    [
+        ("2026-10-01T15:44:53.008533+08:00", "2026-10-01", "星期四", "Thursday"),
+        ("2026-09-28T09:00:00+08:00", "2026-09-28", "星期一", "Monday"),
+        ("2026-10-04T23:59:59+08:00", "2026-10-04", "星期日", "Sunday"),
+        # local date differs from the UTC date: weekday follows the timestamp's own offset
+        ("2026-10-01T00:30:00+08:00", "2026-10-01", "星期四", "Thursday"),
+        ("2026-09-30T23:30:00-05:00", "2026-09-30", "星期三", "Wednesday"),
+        ("2026-10-02T01:00:00+14:00", "2026-10-02", "星期五", "Friday"),
+    ],
+)
+def test_weekday_is_projected_from_the_timestamp_own_offset(created_at, date, weekday_zh, weekday_en):
+    package = _prepare([_message(message_id="msg-current-user", created_at=created_at)])
+    frame = package.situation_frame
+    assert frame["current_date"] == date
+    assert frame["weekday"] == weekday_zh
+    assert frame["weekday_en"] == weekday_en
+
+
+@pytest.mark.parametrize("created_at", ["2026-10-01T15:44:53", "2026-10-01 not-a-timestamp"])
+def test_no_weekday_when_timestamp_is_unusable(created_at):
+    package = _prepare([_message(message_id="msg-current-user", created_at=created_at)])
+    assert "weekday" not in package.situation_frame
+    assert "weekday_en" not in package.situation_frame
+    assert "current_date" not in package.situation_frame
+
+
+def test_weekday_is_rendered_and_survives_control_turns():
+    from julia_core.capability.models import ToolResult, ToolResultStatus
+
+    package = _prepare([_message(message_id="msg-current-user", created_at="2026-10-01T15:44:53+08:00")])
+    system = package.to_messages(package.active_tail_messages, "q")[0]["content"]
+    assert "weekday: 星期四" in system
+
+    rt = ContextExecutionRuntime()
+    delta = rt.project_tool_result(
+        parent_package=package,
+        tool_result=ToolResult(capability_call_id="c", status=ToolResultStatus.SUCCESS,
+                               structured_output={"x": 1}, provider="t"),
+        generation_id="g_after_tool",
+    )
+    cont = delta.to_messages(delta.active_tail_messages, "q")[0]["content"]
+    assert "weekday: 星期四" in cont and "current_date: 2026-10-01" in cont
