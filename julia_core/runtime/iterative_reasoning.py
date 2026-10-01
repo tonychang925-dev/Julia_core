@@ -16,7 +16,11 @@ from julia_core.runtime.turn_ledger import (
     LIMITED_REPLY,
     TurnLedger,
     check_completion_claims,
+    check_denied_execution,
+    check_requested_claims,
+    check_requested_not_executed,
     environment_facts,
+    FORMAL_MEMORY_LOCATIONS,
     resolve_hmac_key,
 )
 
@@ -26,12 +30,6 @@ MAX_CAPABILITY_EXECUTIONS_PER_TURN = 6
 MAX_STRUCTURED_TOOL_CALLS_PER_MODEL_RESPONSE = 1
 MAX_CLAIM_CORRECTION_PASSES_PER_TURN = 1
 
-# Formal memory locations shown to Julia in the execution block (#227 will move
-# the allowlist to a deployment-side config; the labels follow it then).
-FORMAL_MEMORY_LOCATIONS = (
-    Path("/Users/admin/.claude-dev/projects/-Users-admin/memory"),
-    Path("/Users/admin/julia_ai_assistant/memory"),
-)
 
 _LEGACY_TOOL_NAMES = {
     "read_file": "file.read",
@@ -224,9 +222,8 @@ class IterativeReasoningLoop:
             hmac_status=hmac_status,
             allowed_roots=tuple(DEFAULT_ALLOWED_ROOTS),
         )
-        self._environment_facts = environment_facts(
-            tuple(DEFAULT_ALLOWED_ROOTS), FORMAL_MEMORY_LOCATIONS
-        )
+        self._environment_facts = environment_facts()
+        self._correction_check_index: int | None = None
 
     def run(self) -> IterativeTurnResult:
         reply = ""
@@ -278,13 +275,34 @@ class IterativeReasoningLoop:
                     reply = "Final cognition pass reserved for finalization; no final text was produced."
                     pass_trace["termination"] = termination
                     break
+                denied = check_denied_execution(parsed.text, self.ledger)
+                if denied:
+                    # CARD 8: record only; never corrected, never blocked.
+                    self.ledger.record_claim_check(
+                        pass_index=pass_index,
+                        categories=denied,
+                        corrected=False,
+                        outcome="recorded_only",
+                    )
                 categories = check_completion_claims(parsed.text, self.ledger)
+                categories += check_requested_claims(parsed.text, self.ledger, self.text)
+                if not categories:
+                    unexecuted = check_requested_not_executed(parsed.text, self.ledger, self.text)
+                    if unexecuted:
+                        # CARD 8 (g): record only; never corrected, never blocked.
+                        self.ledger.record_claim_check(
+                            pass_index=pass_index,
+                            categories=unexecuted,
+                            corrected=False,
+                            outcome="recorded_only",
+                        )
                 if categories:
                     if (
                         self.claim_correction_count < MAX_CLAIM_CORRECTION_PASSES_PER_TURN
                         and not execution_budget["finalization_required"]
                     ):
                         self.claim_correction_count += 1
+                        self._correction_check_index = len(self.ledger.claim_checks)
                         self.ledger.record_claim_check(
                             pass_index=pass_index,
                             categories=categories,
@@ -305,8 +323,8 @@ class IterativeReasoningLoop:
                     reply = LIMITED_REPLY
                     pass_trace["termination"] = termination
                     break
-                if self.claim_correction_count and self.ledger.claim_checks:
-                    self.ledger.claim_checks[-1]["outcome"] = "compliant_after_correction"
+                if self._correction_check_index is not None:
+                    self.ledger.claim_checks[self._correction_check_index]["outcome"] = "compliant_after_correction"
                 control_frame = getattr(self.parent_package, "control_frame", {})
                 budget_limitation = (
                     isinstance(control_frame, dict)
@@ -513,9 +531,10 @@ class IterativeReasoningLoop:
         )
 
     def _finish_claim_check(self, pass_index: int, categories: list[str], outcome: str) -> None:
-        if self.ledger.claim_checks and self.ledger.claim_checks[-1]["outcome"] == "correction_requested":
-            self.ledger.claim_checks[-1]["outcome"] = outcome
-            self.ledger.claim_checks[-1]["categories_after_correction"] = list(categories)
+        index = self._correction_check_index
+        if index is not None and self.ledger.claim_checks[index]["outcome"] == "correction_requested":
+            self.ledger.claim_checks[index]["outcome"] = outcome
+            self.ledger.claim_checks[index]["categories_after_correction"] = list(categories)
         else:
             self.ledger.record_claim_check(
                 pass_index=pass_index, categories=categories, corrected=False, outcome=outcome

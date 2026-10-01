@@ -49,6 +49,19 @@ _PLAIN_ARGUMENT_FIELDS: dict[str, frozenset[str]] = {
 _PLAIN_VALUE_MAX_CHARS = 80
 
 _FILE_PREFIX = "file."
+
+# #227 decision: the four roots Julia may use. The execution block shows the ones
+# the code currently authorizes (Downloads appears once #227 lands).
+DECIDED_FILE_ROOTS = (
+    Path("/Users/admin/Desktop"),
+    Path("/Users/admin/Downloads"),
+    Path("/Users/admin/.claude-dev/projects/-Users-admin/memory"),
+    Path("/Users/admin/julia_ai_assistant/memory"),
+)
+FORMAL_MEMORY_LOCATIONS = (
+    Path("/Users/admin/.claude-dev/projects/-Users-admin/memory"),
+    Path("/Users/admin/julia_ai_assistant/memory"),
+)
 EXECUTION_BLOCK_MAX_CHARS = 4000
 
 _NOT_EXECUTED_PREFIX = "not_executed"
@@ -402,9 +415,23 @@ class TurnLedger:
             lines.append("本回合到目前为止的工具调用（由运行时记录，不是你的转述）：")
             for entry in self.entries:
                 lines.append(self._entry_line(entry))
+        duplicated = sorted({
+            entry.capability_id for entry in self.entries
+            if entry.reason == "DUPLICATE_CALL" and entry.capability_id
+        })
+        for capability_id in duplicated:
+            lines.append(
+                f"- {capability_id} 的这个调用（相同能力和参数）在本回合已被判为重复，"
+                "本回合不要再发起同一调用；改用其它能力，或者基于已有证据直接回答。"
+            )
         lines.append("运行环境事实：")
         lines.extend(f"- {fact}" for fact in environment_facts)
         lines.append("规则：" + HONESTY_RULE)
+        lines.append("重复判定只在本回合内；新的回合可以再次调用同一工具。")
+        lines.append(
+            "Tony 明确要求读取/搜索/列出文件时，直接执行只读 file.*；"
+            "不得以“可能被挡”为由不执行。"
+        )
         lines.append(
             "引用之前回合或记忆里的结果时，必须说明来源；"
             "不要把本回合没有拿到的结果说成刚刚查到的。"
@@ -435,15 +462,27 @@ class TurnLedger:
                 parts.append(f"total={entry.total}")
             if entry.count is not None:
                 parts.append(f"count={entry.count}")
-            return f"- #{entry.seq} {label} 已执行：" + "，".join(parts)
-        return f"- #{entry.seq} {label} 没有执行：原因={entry.reason}"
+            return f"- #{entry.seq} [本回合] {label} 已执行：" + "，".join(parts)
+        return f"- #{entry.seq} [本回合] {label} 没有执行：原因={entry.reason}"
 
 
 def environment_facts(
-    allowed_roots: tuple[Path, ...],
-    memory_locations: tuple[Path, ...],
+    allowed_roots: tuple[Path, ...] | None = None,
+    memory_locations: tuple[Path, ...] | None = None,
 ) -> list[str]:
-    """Code-generated runtime environment facts (never model-inferred)."""
+    """Code-generated runtime environment facts (never model-inferred).
+
+    ``allowed_roots`` defaults to the decided roots (#227) that the current code
+    actually authorizes, so the block never promises access the tools would deny.
+    """
+    from julia_core.capability.providers.local.security import authorize_path
+
+    if allowed_roots is None:
+        allowed_roots = tuple(
+            root for root in DECIDED_FILE_ROOTS if authorize_path(str(root)).allowed
+        )
+    if memory_locations is None:
+        memory_locations = FORMAL_MEMORY_LOCATIONS
     home = Path.home()
     roots = "、".join(_display_root(root.expanduser().resolve(strict=False)) for root in allowed_roots)
     memories = "、".join(_display_root(path) for path in memory_locations)
@@ -452,7 +491,7 @@ def environment_facts(
         "Tony 人在哪里不影响文件系统的位置。",
         f"file.* 允许访问的根目录：{roots}。",
         f"正式 memory 位置：{memories}。",
-        "file.search 只匹配文件名（子串），pattern 不能含路径分隔符；file.list / file.search 的结果可能被截断，以 truncated / total 为准。",
+        "file.search 只匹配文件名（子串），pattern 不能含路径分隔符。",
     ]
 
 
@@ -516,6 +555,85 @@ def check_completion_claims(reply: str, ledger: TurnLedger) -> list[str]:
         if any(entry.truncated for entry in executed) and not _PARTIAL_ACK.search(reply):
             categories.append("truncated_reported_as_complete")
     return categories
+
+
+# CARD 8 (record only): the reply denies an execution the ledger shows happened.
+_DENIES_EXECUTION = re.compile(
+    r"这一轮(?:我)?(?:并)?没有(?:真的|真正|重新|再)?(?:执行|调用|读|查|搜|跑|用)"
+    r"|(?:我)?并?没有(?:真的|真正|重新)(?:执行|调用|读|查|搜|跑)"
+    r"|不是(?:我)?(?:刚|刚刚|这一轮|这次|本轮)(?:读|查|搜|执行|跑|调用)"
+    r"|(?:是|来自|来源是)(?:之前|上一轮|前一轮|早先)(?:那次|的那次|读的|查的|执行的|的结果|的回合|读到的|查到的)"
+)
+
+
+def check_denied_execution(reply: str, ledger: TurnLedger) -> list[str]:
+    """``executed_but_denied`` when this turn's ledger has an executed entry but
+    the reply says nothing was executed / it was an earlier result.
+
+    Record-only (CARD 8): the caller logs the category, never corrects or blocks.
+    """
+    if not isinstance(reply, str) or not reply.strip() or not ledger.executed:
+        return []
+    plain = reply.replace("*", "").replace("`", "")   # markdown must not split a phrase
+    return ["executed_but_denied"] if _DENIES_EXECUTION.search(plain) else []
+
+
+# CARD 8 (f)/(g): the user asked for a file operation this turn.
+_FILE_NOUN = r"(?:文件夹|文件|目录|桌面|下载|路径|md|\.md)"
+_FILE_VERB = r"(?:读|列|搜|查|看|打开|找)"
+_FILE_REQUEST = re.compile(
+    rf"{_FILE_VERB}.{{0,12}}{_FILE_NOUN}|{_FILE_NOUN}.{{0,12}}{_FILE_VERB}", re.IGNORECASE
+)
+_HOME_PATH = re.compile(r"(?<![\w/.])~/[^\s]{1,}")
+_FRESH_CLAIM = re.compile(
+    r"读了|读到|刚读|读过|读好了|读完了|已经读|这次是真的|真的(?:刚)?(?:读|查|搜|列)"
+    r"|查到|查完了|搜到|搜完了|列出来了|列了出来|看到了(?:内容|文件)"
+)
+# disclosures that explain why nothing was executed / where the content is from
+_DISCLAIMER = re.compile(
+    r"没有执行|没执行|没有读|没读|没有查|没查|没有搜|没搜|没有调用|没调用|没有跑|没跑|没有列|没列"
+    r"|没有重新|来自之前|来自上一轮|之前的回合|之前那次|上一轮|无法|不能读|读不到|范围|不在允许"
+)
+
+
+def _user_requested_file_operation(user_text: str) -> bool:
+    if not isinstance(user_text, str) or not user_text.strip():
+        return False
+    return bool(
+        _ABSOLUTE_PATH.search(user_text)
+        or _HOME_PATH.search(user_text)
+        or _FILE_REQUEST.search(user_text)
+    )
+
+
+def _plain(reply: str) -> str:
+    return reply.replace("*", "").replace("`", "")
+
+
+def check_requested_claims(reply: str, ledger: TurnLedger, user_text: str) -> list[str]:
+    """(f) ``zero_execution_requested_claim``: the user asked for a file operation,
+    nothing was executed this turn, and the reply claims it was done / fresh
+    without disclosing otherwise. Goes through the normal correction flow."""
+    if ledger.executed or not isinstance(reply, str) or not reply.strip():
+        return []
+    if not _user_requested_file_operation(user_text):
+        return []
+    plain = _plain(reply)
+    if _FRESH_CLAIM.search(plain) and not _DISCLAIMER.search(plain):
+        return ["zero_execution_requested_claim"]
+    return []
+
+
+def check_requested_not_executed(reply: str, ledger: TurnLedger, user_text: str) -> list[str]:
+    """(g) ``requested_but_not_executed``: the user asked for a file operation,
+    nothing was executed, and the reply does not say why. Record only."""
+    if ledger.executed or not isinstance(reply, str) or not reply.strip():
+        return []
+    if not _user_requested_file_operation(user_text):
+        return []
+    if _DISCLAIMER.search(_plain(reply)):
+        return []
+    return ["requested_but_not_executed"]
 
 
 def _lists_many_paths(reply: str) -> bool:

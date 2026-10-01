@@ -1131,7 +1131,9 @@ class ContextExecutionRuntime:
             arguments=copy.deepcopy(arguments),
             continuation_instruction=(
                 "This exact capability call has already been executed in this turn. "
-                "Do not repeat the same capability+arguments. Inspect the existing "
+                "Duplicate detection applies within this turn only; a later turn may "
+                "call the same capability again. "
+                "Do not repeat the same capability+arguments in this turn. Inspect the existing "
                 "evidence first. If more evidence is still needed, choose a different "
                 "available capability that addresses the remaining evidence need; "
                 "otherwise produce Julia's final judgment."
