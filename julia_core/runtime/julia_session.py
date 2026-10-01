@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import json as _json
 import re
-import threading
 import time as _time
 import uuid
 from typing import Optional
@@ -340,11 +339,12 @@ class JuliaSession:
         # Global relationship profile is read-only during turns
         self._update_conversation_state(text, reply, ctx)
 
-        # Layer 8: Record & consolidate
+        # Layer 8: Record. The legacy periodic reflection (recorder.consolidate)
+        # is intentionally not triggered: its only sink, SessionRecorder._write_diary,
+        # is disabled (AT-15), so every run was a wasted model call (#231). Diary
+        # writes belong to the governed DiaryCandidate path (#230).
         self.recorder.record("Tony", text, topic=ctx.current_topic)
         self.recorder.record("Julia", reply[:300], topic=ctx.current_topic)
-        if ctx.turn_count % 10 == 0:
-            threading.Thread(target=lambda: self.recorder.consolidate(self.provider), daemon=True).start()
 
         # R1: Emit conversation.turn.completed
         ev3 = create_event(
