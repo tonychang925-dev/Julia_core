@@ -99,6 +99,7 @@ def test_denied_execution_detector_needs_an_executed_entry_in_the_ledger():
         "这一轮我没有执行工具，上面是之前那次读到的。",
         "那不是我刚刚读的，是上一轮的结果。",
         "我并没有真的调用 file.read，这些来自之前的回合。",
+        "**这一轮我没有重新执行 `file.read`**，内容的来源是**之前那次**读到的。",     # T5 phrasing
     ):
         assert check_denied_execution(reply, executed) == ["executed_but_denied"], reply
     # honest replies about an executed call are not flagged

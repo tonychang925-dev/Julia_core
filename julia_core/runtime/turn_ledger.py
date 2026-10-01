@@ -559,10 +559,10 @@ def check_completion_claims(reply: str, ledger: TurnLedger) -> list[str]:
 
 # CARD 8 (record only): the reply denies an execution the ledger shows happened.
 _DENIES_EXECUTION = re.compile(
-    r"这一轮(?:我)?(?:并)?没有(?:真的|真正)?(?:执行|调用|读|查|搜|跑|用)"
-    r"|(?:我)?并?没有(?:真的|真正)(?:执行|调用|读|查|搜|跑)"
+    r"这一轮(?:我)?(?:并)?没有(?:真的|真正|重新|再)?(?:执行|调用|读|查|搜|跑|用)"
+    r"|(?:我)?并?没有(?:真的|真正|重新)(?:执行|调用|读|查|搜|跑)"
     r"|不是(?:我)?(?:刚|刚刚|这一轮|这次|本轮)(?:读|查|搜|执行|跑|调用)"
-    r"|(?:是|来自)(?:之前|上一轮|前一轮|早先)(?:那次|的那次|读的|查的|执行的|的结果|的回合)"
+    r"|(?:是|来自|来源是)(?:之前|上一轮|前一轮|早先)(?:那次|的那次|读的|查的|执行的|的结果|的回合|读到的|查到的)"
 )
 
 
@@ -574,7 +574,8 @@ def check_denied_execution(reply: str, ledger: TurnLedger) -> list[str]:
     """
     if not isinstance(reply, str) or not reply.strip() or not ledger.executed:
         return []
-    return ["executed_but_denied"] if _DENIES_EXECUTION.search(reply) else []
+    plain = reply.replace("*", "").replace("`", "")   # markdown must not split a phrase
+    return ["executed_but_denied"] if _DENIES_EXECUTION.search(plain) else []
 
 
 def _lists_many_paths(reply: str) -> bool:
