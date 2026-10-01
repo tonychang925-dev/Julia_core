@@ -7,14 +7,31 @@ import re
 import uuid
 from copy import deepcopy
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from julia_core.capability.models import ToolResultStatus
+from julia_core.capability.providers.local.security import DEFAULT_ALLOWED_ROOTS
+from julia_core.runtime.turn_ledger import (
+    LIMITED_REPLY,
+    TurnLedger,
+    check_completion_claims,
+    environment_facts,
+    load_hmac_key,
+)
 
 
 MAX_COGNITION_PASSES_PER_TURN = 7
 MAX_CAPABILITY_EXECUTIONS_PER_TURN = 6
 MAX_STRUCTURED_TOOL_CALLS_PER_MODEL_RESPONSE = 1
+MAX_CLAIM_CORRECTION_PASSES_PER_TURN = 1
+
+# Formal memory locations shown to Julia in the execution block (#227 will move
+# the allowlist to a deployment-side config; the labels follow it then).
+FORMAL_MEMORY_LOCATIONS = (
+    Path("/Users/admin/.claude-dev/projects/-Users-admin/memory"),
+    Path("/Users/admin/julia_ai_assistant/memory"),
+)
 
 _LEGACY_TOOL_NAMES = {
     "read_file": "file.read",
@@ -163,6 +180,7 @@ class IterativeTurnResult:
     projection_generation_ids: list[str] = field(default_factory=list)
     evidence_generation_ids: list[str] = field(default_factory=list)
     cognition_pass_trace: list[dict[str, Any]] = field(default_factory=list)
+    ledger_view: dict[str, Any] = field(default_factory=dict)
 
 
 class IterativeReasoningLoop:
@@ -196,6 +214,17 @@ class IterativeReasoningLoop:
         self.evidence_generation_ids: list[str] = []
         self.cognition_pass_trace: list[dict[str, Any]] = []
         self.unresolved_unavailable = False
+        self.claim_correction_count = 0
+        self.ledger = TurnLedger(
+            conversation_id=getattr(turn_context, "conversation_id", "") or "",
+            turn_id=getattr(turn_context, "turn_id", "") or "",
+            correlation_id=getattr(turn_context, "correlation_id", "") or "",
+            hmac_key=load_hmac_key(),
+            allowed_roots=tuple(DEFAULT_ALLOWED_ROOTS),
+        )
+        self._environment_facts = environment_facts(
+            tuple(DEFAULT_ALLOWED_ROOTS), FORMAL_MEMORY_LOCATIONS
+        )
 
     def run(self) -> IterativeTurnResult:
         reply = ""
@@ -205,15 +234,30 @@ class IterativeReasoningLoop:
         for pass_index in range(1, MAX_COGNITION_PASSES_PER_TURN + 1):
             self.cognition_pass_count = pass_index
             execution_budget = self._execution_budget(pass_index)
+            # The execution block is regenerated from the ledger before every pass
+            # so Julia always sees what this turn has (not) executed so far.
+            self.parent_package.execution_frame = self.ledger.execution_frame(
+                self._environment_facts
+            )
             budget_package = self.session.context_os.project_execution_budget_overlay(
                 self.parent_package,
                 **execution_budget,
             )
+            model_messages = budget_package.to_messages(
+                budget_package.active_tail_messages, self.text
+            )
             response = self.session.provider.chat(
-                budget_package.to_messages(budget_package.active_tail_messages, self.text),
+                model_messages,
                 cognitive_mode="private_voice_continuity",
             )
             parsed = parse_strict_model_response(response)
+            self.ledger.record_pass(
+                pass_index=pass_index,
+                parsed_response_kind=parsed.kind,
+                surrounding_prose=parsed.surrounding_prose,
+                messages=model_messages,
+                blocks=budget_package.block_metrics(),
+            )
             pass_trace = {
                 "pass_index": pass_index,
                 **execution_budget,
@@ -232,6 +276,35 @@ class IterativeReasoningLoop:
                     reply = "Final cognition pass reserved for finalization; no final text was produced."
                     pass_trace["termination"] = termination
                     break
+                categories = check_completion_claims(parsed.text, self.ledger)
+                if categories:
+                    if (
+                        self.claim_correction_count < MAX_CLAIM_CORRECTION_PASSES_PER_TURN
+                        and not execution_budget["finalization_required"]
+                    ):
+                        self.claim_correction_count += 1
+                        self.ledger.record_claim_check(
+                            pass_index=pass_index,
+                            categories=categories,
+                            corrected=True,
+                            outcome="correction_requested",
+                        )
+                        self._project_claim_correction(categories, pass_index, response)
+                        pass_trace["termination"] = "continued"
+                        continue
+                    outcome = (
+                        "limited_reply_after_correction"
+                        if self.claim_correction_count
+                        else "limited_reply_no_pass_left"
+                    )
+                    self._finish_claim_check(pass_index, categories, outcome)
+                    final_response_kind = "LIMITATION"
+                    termination = "claim_check_limited"
+                    reply = LIMITED_REPLY
+                    pass_trace["termination"] = termination
+                    break
+                if self.claim_correction_count and self.ledger.claim_checks:
+                    self.ledger.claim_checks[-1]["outcome"] = "compliant_after_correction"
                 control_frame = getattr(self.parent_package, "control_frame", {})
                 budget_limitation = (
                     isinstance(control_frame, dict)
@@ -249,6 +322,7 @@ class IterativeReasoningLoop:
                 break
 
             if execution_budget["finalization_required"]:
+                self._ledger_not_executed(parsed, pass_index, "FINALIZATION_TOOL_REQUEST")
                 final_response_kind = "CONTROL_FAILURE"
                 termination = "finalization_no_text"
                 reply = "Final cognition pass reserved for finalization; no final text was produced."
@@ -256,6 +330,7 @@ class IterativeReasoningLoop:
                 break
 
             if self._post_budget_tool_request():
+                self._ledger_not_executed(parsed, pass_index, "POST_LIMIT_TOOL_REQUEST")
                 final_response_kind = "CONTROL_FAILURE"
                 termination = "post_limit_tool_request"
                 reply = "Capability execution limit reached; no additional tool was executed."
@@ -263,6 +338,10 @@ class IterativeReasoningLoop:
                 break
 
             if parsed.kind == "TOOL_CALL_CONTROL_FAILURE":
+                self.ledger.record_not_executed(
+                    pass_index=pass_index,
+                    reason=parsed.failure_reason or "INVALID_CALL_SHAPE",
+                )
                 self._project_decode_failure(parsed.failure_reason, pass_index, response)
                 pass_trace["termination"] = "continued"
                 continue
@@ -270,11 +349,23 @@ class IterativeReasoningLoop:
             tool_call = parsed.tool_call
             assert tool_call is not None
             if tool_call.fingerprint in self.seen_fingerprints:
+                self.ledger.record_not_executed(
+                    pass_index=pass_index,
+                    reason="DUPLICATE_CALL",
+                    capability_id=tool_call.capability_id,
+                    arguments=tool_call.arguments,
+                )
                 self._project_duplicate(tool_call, pass_index)
                 pass_trace["termination"] = "continued"
                 continue
 
             if self.capability_execution_count >= self.capability_execution_limit:
+                self.ledger.record_not_executed(
+                    pass_index=pass_index,
+                    reason="BUDGET_EXCEEDED",
+                    capability_id=tool_call.capability_id,
+                    arguments=tool_call.arguments,
+                )
                 self._project_budget_exceeded(pass_index)
                 pass_trace["termination"] = "continued"
                 continue
@@ -288,6 +379,7 @@ class IterativeReasoningLoop:
                 status = outcome.tool_result.status
                 status_value = status.value if hasattr(status, "value") else str(status)
                 self.unresolved_unavailable = status_value == ToolResultStatus.UNAVAILABLE.value
+            self._ledger_outcome(outcome, tool_call, pass_index)
             package = self.session._dispatch_typed_outcome(
                 outcome,
                 self.turn_context,
@@ -321,6 +413,7 @@ class IterativeReasoningLoop:
             projection_generation_ids=list(self.projection_generation_ids),
             evidence_generation_ids=list(self.evidence_generation_ids),
             cognition_pass_trace=deepcopy(self.cognition_pass_trace),
+            ledger_view=self.ledger.event_view(),
         )
 
     def _execution_budget(self, pass_index: int) -> dict[str, int | bool]:
@@ -381,6 +474,62 @@ class IterativeReasoningLoop:
         )
         self._register_projection(package)
         self.messages = self._continuation_messages(package, "")
+
+    def _ledger_not_executed(self, parsed, pass_index: int, reason: str) -> None:
+        call = getattr(parsed, "tool_call", None)
+        self.ledger.record_not_executed(
+            pass_index=pass_index,
+            reason=reason,
+            capability_id=call.capability_id if call is not None else "",
+            arguments=call.arguments if call is not None else None,
+        )
+
+    def _ledger_outcome(self, outcome, tool_call, pass_index: int) -> None:
+        """Classify one typed capability outcome into the ledger (duck-typed)."""
+        tool_result = getattr(outcome, "tool_result", None)
+        if getattr(outcome, "capability_call", None) is not None and tool_result is not None:
+            self.ledger.record_executed(
+                pass_index=pass_index,
+                capability_id=tool_call.capability_id,
+                arguments=tool_call.arguments,
+                tool_result=tool_result,
+            )
+            return
+        if tool_result is None and hasattr(outcome, "capability_id") and hasattr(outcome, "reason"):
+            reason = f"{str(outcome.reason).upper()}_CAPABILITY"
+        elif tool_result is None and hasattr(outcome, "reason"):
+            reason = str(outcome.reason)  # decode failure reported by the bridge
+        else:
+            decision = getattr(outcome, "authorization_decision", None)
+            value = getattr(getattr(decision, "decision", None), "value", None)
+            reason = f"AUTHORIZATION_{str(value).upper()}" if value else "NOT_EXECUTED"
+        self.ledger.record_not_executed(
+            pass_index=pass_index,
+            reason=reason,
+            capability_id=tool_call.capability_id,
+            arguments=tool_call.arguments,
+        )
+
+    def _finish_claim_check(self, pass_index: int, categories: list[str], outcome: str) -> None:
+        if self.ledger.claim_checks and self.ledger.claim_checks[-1]["outcome"] == "correction_requested":
+            self.ledger.claim_checks[-1]["outcome"] = outcome
+            self.ledger.claim_checks[-1]["categories_after_correction"] = list(categories)
+        else:
+            self.ledger.record_claim_check(
+                pass_index=pass_index, categories=categories, corrected=False, outcome=outcome
+            )
+
+    def _project_claim_correction(
+        self, categories: list[str], pass_index: int, response: str
+    ) -> None:
+        package = self.session.context_os.project_completion_claim_correction(
+            parent_package=self.parent_package,
+            categories=categories,
+            generation_id=self._generation_id(pass_index, "claim_correction"),
+        )
+        self._register_projection(package)
+        # The rejected reply stays visible to Julia only for this correction pass.
+        self.messages = self._continuation_messages(package, response)
 
     def _register_projection(self, package) -> None:
         self.parent_package = package

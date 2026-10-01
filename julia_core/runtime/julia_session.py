@@ -356,6 +356,7 @@ class JuliaSession:
                 "reply_len": len(reply) if reply else 0,
                 "turn": ctx.turn_count,
                 "cognition_pass_trace": iterative_result.cognition_pass_trace,
+                "ledger": iterative_result.ledger_view,
             },
             correlation_id=ctx.correlation_id,
             causation_id=ctx.last_event_id,

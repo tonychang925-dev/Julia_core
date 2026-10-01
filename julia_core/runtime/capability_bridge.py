@@ -36,6 +36,7 @@ from julia_core.capability.models import (
     ToolResultStatus,
 )
 from julia_core.capability.policy import PermissionPolicy
+from julia_core.runtime.turn_ledger import HONESTY_RULE
 from julia_core.capability.registry import CapabilityRegistry
 from julia_core.runtime.async_capability_runtime import AsyncCapabilityRuntime
 
@@ -713,6 +714,9 @@ class RuntimeCapabilityBridge:
                     "read_only": True,
                     "julia_may_request_when_evidence_missing": True,
                     "rule": "market.* / research.* 是READ_ONLY证据能力；当回答当前问题缺少外部证据时，Julia可以主动发起结构化调用。",
+                },
+                "honesty": {
+                    "rule": HONESTY_RULE,
                 },
             },
             "evidence_role": {
