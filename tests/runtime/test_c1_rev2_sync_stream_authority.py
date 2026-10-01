@@ -111,6 +111,9 @@ class FakeContextOS:
             active_tail_messages: list[dict[str, Any]] = []
             control_frame = {"execution_budget": budget}
 
+            def block_metrics(self):
+                return {}  # CARD 7: loop records block metrics from every package
+
             def to_messages(self, history, user_text):
                 return [
                     {
@@ -132,6 +135,9 @@ class FakeContextOS:
 
         class DeltaPackage:
             active_tail_messages: list[dict[str, Any]] = []
+
+            def block_metrics(self):
+                return {}  # CARD 7: loop records block metrics from every package
 
             def to_messages(self, history, user_text):
                 content = ""

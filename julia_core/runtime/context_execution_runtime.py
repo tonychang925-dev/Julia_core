@@ -69,6 +69,9 @@ class CognitiveContextPackage:
     validated_invocation_policy: dict[str, Any] = field(default_factory=dict)
     control_frame: dict[str, Any] = field(default_factory=dict)
     continuity_frame: dict[str, Any] = field(default_factory=dict)
+    # CARD 7 (#225/#233): runtime-generated execution facts for this turn. Small,
+    # never budget-truncated silently (the frame carries its own ``truncated``).
+    execution_frame: dict[str, Any] = field(default_factory=dict)
 
     active_tail_turn_ids: list[str] = field(default_factory=list)
     active_tail_messages: list[dict] = field(default_factory=list)
@@ -111,6 +114,8 @@ class CognitiveContextPackage:
             system_parts.append(self._render_frame("capability", self.capability_frame))
         if self.situation_frame:
             system_parts.append(self._render_frame("situation", self.situation_frame))
+        if self.execution_frame:
+            system_parts.append(self._render_execution_frame(self.execution_frame))
         if self.control_frame:
             system_parts.append(self._render_frame("control", self.control_frame))
         if self.continuity_frame:
@@ -138,7 +143,49 @@ class CognitiveContextPackage:
         messages.append({"role": "user", "content": user_text})
         return messages
 
-    def _render_frame(self, name: str, frame: dict) -> str:
+    @staticmethod
+    def _render_execution_frame(frame: dict) -> str:
+        """Render the execution block verbatim: it is generated small and bounded
+        by the ledger itself, which marks any truncation explicitly."""
+        return "[execution]\n" + str(frame.get("text", ""))
+
+    def block_metrics(self) -> dict[str, dict[str, Any]]:
+        """Per-block rendered length for the execution ledger (no content).
+
+        ``truncated`` is True when the render budget cut the block;
+        ``original_chars`` is the length before that cut.
+        """
+        blocks = (
+            ("identity", self.identity_frame),
+            ("experience", self.experience_frame),
+            ("diary", self.diary_frame),
+            ("evidence", self.evidence_frame),
+            ("capability", self.capability_frame),
+            ("situation", self.situation_frame),
+            ("control", self.control_frame),
+            ("continuity", self.continuity_frame),
+        )
+        metrics: dict[str, dict[str, Any]] = {}
+        for name, frame in blocks:
+            if not frame:
+                continue
+            rendered = self._render_frame(name, frame)
+            full = self._render_frame(name, frame, char_budget=_RENDER_UNBOUNDED)
+            metrics[name] = {
+                "chars": len(rendered),
+                "original_chars": len(full),
+                "truncated": len(rendered) < len(full),
+            }
+        if self.execution_frame:
+            text = self._render_execution_frame(self.execution_frame)
+            metrics["execution"] = {
+                "chars": len(text),
+                "original_chars": len(text),
+                "truncated": bool(self.execution_frame.get("truncated", False)),
+            }
+        return metrics
+
+    def _render_frame(self, name: str, frame: dict, char_budget: int | None = None) -> str:
         """Render one frame inside the frame character budget.
 
         Budget is allocated by need ("water-filling") at every level: each
@@ -153,7 +200,7 @@ class CognitiveContextPackage:
         header = f"[{name}]"
         if not frame:
             return header
-        budget = self._RENDER_MAX_FRAME_CHARS
+        budget = self._RENDER_MAX_FRAME_CHARS if char_budget is None else char_budget
         owns_cache = getattr(self, "_render_cache", None) is None
         if owns_cache:
             self._render_cache = {}
@@ -1092,6 +1139,30 @@ class ContextExecutionRuntime:
             generation_id=generation_id,
             mode="duplicate_capability_call_rejected",
             provenance_source="capability:duplicate_call_rejected",
+        )
+
+    def project_completion_claim_correction(
+        self,
+        *,
+        parent_package: CognitiveContextPackage,
+        categories: list[str],
+        generation_id: str,
+    ) -> CognitiveContextPackage:
+        """CARD 7: one correction pass when a reply contradicts the turn ledger.
+
+        The categories are rule names only (never reply text). The instruction
+        shares its wording with the honesty rule in the capability policy.
+        """
+        from julia_core.runtime.turn_ledger import correction_prompt
+
+        return self._project_turn_control(
+            parent_package=parent_package,
+            kind="completion_claim_correction",
+            categories=list(categories),
+            instruction=correction_prompt(list(categories)),
+            generation_id=generation_id,
+            mode="completion_claim_correction",
+            provenance_source="runtime:completion_claim_check",
         )
 
     def project_tool_budget_exceeded(

@@ -33,6 +33,9 @@ class _DeltaPackage:
         self.sentinel = sentinel
         self.active_tail_messages: list[dict[str, Any]] = []
 
+    def block_metrics(self):
+        return {}  # CARD 7: loop records block metrics from every package
+
     def to_messages(self, history, user_text):
         return [{"role": "system", "content": self.sentinel}, {"role": "user", "content": user_text}]
 

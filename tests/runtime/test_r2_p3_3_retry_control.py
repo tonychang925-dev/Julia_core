@@ -31,6 +31,9 @@ SENTINEL = "SENTINEL_RETRY_CONTROL"
 class _DeltaPackage:
     active_tail_messages: list[dict[str, Any]] = []
 
+    def block_metrics(self):
+        return {}  # CARD 7: loop records block metrics from every package
+
     def to_messages(self, history, user_text):
         return [{"role": "system", "content": SENTINEL}, {"role": "user", "content": user_text}]
 
