@@ -17,7 +17,7 @@ from julia_core.runtime.turn_ledger import (
     TurnLedger,
     check_completion_claims,
     environment_facts,
-    load_hmac_key,
+    resolve_hmac_key,
 )
 
 
@@ -215,11 +215,13 @@ class IterativeReasoningLoop:
         self.cognition_pass_trace: list[dict[str, Any]] = []
         self.unresolved_unavailable = False
         self.claim_correction_count = 0
+        hmac_key, hmac_status = resolve_hmac_key()
         self.ledger = TurnLedger(
             conversation_id=getattr(turn_context, "conversation_id", "") or "",
             turn_id=getattr(turn_context, "turn_id", "") or "",
             correlation_id=getattr(turn_context, "correlation_id", "") or "",
-            hmac_key=load_hmac_key(),
+            hmac_key=hmac_key,
+            hmac_status=hmac_status,
             allowed_roots=tuple(DEFAULT_ALLOWED_ROOTS),
         )
         self._environment_facts = environment_facts(

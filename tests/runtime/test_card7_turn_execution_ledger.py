@@ -17,7 +17,9 @@ from julia_core.runtime.turn_ledger import (
     TurnLedger,
     check_completion_claims,
     correction_prompt,
+    HmacKeyUnavailable,
     load_hmac_key,
+    resolve_hmac_key,
     summarize_arguments,
 )
 from tests.runtime._card6_base import BASE_FRAMES, SITUATION
@@ -76,20 +78,34 @@ def _exec_with(structured_output):
 
 # ── HMAC key + argument summary ──────────────────────────────────────────
 
-def test_hmac_key_fails_closed(tmp_path):
-    assert load_hmac_key(tmp_path / "missing.key") is None
+def test_hmac_key_fails_closed_with_an_explicit_reason(tmp_path):
+    def reason(path):
+        with pytest.raises(HmacKeyUnavailable) as info:
+            load_hmac_key(path)
+        return info.value.reason
+
+    assert reason(tmp_path / "missing.key") == "missing"
     loose = tmp_path / "loose.key"
     loose.write_bytes(b"k")
     os.chmod(loose, 0o644)
-    assert load_hmac_key(loose) is None            # group/other readable
+    assert reason(loose) == "insecure_permissions"      # group/other readable
     empty = tmp_path / "empty.key"
     empty.write_bytes(b"")
     os.chmod(empty, 0o600)
-    assert load_hmac_key(empty) is None
+    assert reason(empty) == "empty"
+    assert reason(tmp_path) in {"insecure_permissions", "unreadable"}   # a directory is not a key
     good = tmp_path / "good.key"
     good.write_bytes(b"secret\n")
     os.chmod(good, 0o600)
     assert load_hmac_key(good) == b"secret"
+    assert resolve_hmac_key(good) == (b"secret", "ok")
+    assert resolve_hmac_key(tmp_path / "missing.key") == (None, "missing")
+
+
+def test_ledger_event_view_reports_why_the_key_is_unavailable():
+    view = TurnLedger(hmac_key=None, hmac_status="insecure_permissions").event_view()
+    assert view["hmac_unavailable"] is True and view["hmac_status"] == "insecure_permissions"
+    assert "hmac_unavailable" not in TurnLedger(hmac_key=b"k", hmac_status="ok").event_view()
 
 
 def test_market_identifiers_plain_everything_else_hashed():
@@ -120,6 +136,10 @@ def test_file_calls_record_root_label_not_the_file_name():
     )
     dump = json.dumps(entry.view(), ensure_ascii=False)
     assert entry.args["root_label"] == "~/Desktop"
+    outside = ledger.record_not_executed(pass_index=1, reason="X", capability_id="file.read", arguments={"path": "/etc/hosts"})
+    assert outside.args["root_label"] == "outside_allowed_roots"
+    unresolved = ledger.record_not_executed(pass_index=1, reason="X", capability_id="file.read", arguments={"path": ""})
+    assert unresolved.args["root_label"] == "unresolved"
     assert SECRET_PATH_PART not in dump and "/Users/admin/Desktop/" not in dump
 
 

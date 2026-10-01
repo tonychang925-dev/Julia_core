@@ -54,24 +54,52 @@ EXECUTION_BLOCK_MAX_CHARS = 4000
 _NOT_EXECUTED_PREFIX = "not_executed"
 
 
-def load_hmac_key(path: str | os.PathLike | None = None) -> bytes | None:
-    """Return the log HMAC key, or ``None`` (fail closed) if it cannot be trusted.
+class HmacKeyUnavailable(Exception):
+    """The log HMAC key cannot be trusted; ``reason`` says why (UNKNOWN != ABSENT)."""
 
-    ``None`` when the file is missing, unreadable, empty, or readable by group /
-    others (the key must be mode 600).
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+def load_hmac_key(path: str | os.PathLike | None = None) -> bytes:
+    """Return the log HMAC key or raise ``HmacKeyUnavailable`` (fail closed).
+
+    Reasons: ``missing`` (file does not exist), ``unreadable`` (could not be
+    read for another reason), ``insecure_permissions`` (readable by group or
+    others; the key must be mode 600), ``empty``.
     """
     candidate = Path(path) if path is not None else Path(
         os.environ.get(HMAC_KEY_PATH_ENV) or DEFAULT_HMAC_KEY_PATH
     )
+    resolved = candidate.expanduser()
     try:
-        resolved = candidate.expanduser()
         mode = resolved.stat().st_mode
-        if stat.S_IMODE(mode) & 0o077:
-            return None
+    except FileNotFoundError as exc:
+        raise HmacKeyUnavailable("missing") from exc
+    except OSError as exc:
+        raise HmacKeyUnavailable("unreadable") from exc
+    if stat.S_IMODE(mode) & 0o077:
+        raise HmacKeyUnavailable("insecure_permissions")
+    try:
         key = resolved.read_bytes().strip()
-    except OSError:
-        return None
-    return key or None
+    except OSError as exc:
+        raise HmacKeyUnavailable("unreadable") from exc
+    if not key:
+        raise HmacKeyUnavailable("empty")
+    return key
+
+
+def resolve_hmac_key(path: str | os.PathLike | None = None) -> tuple[bytes | None, str]:
+    """Key plus an explicit status: ``(key, "ok")`` or ``(None, <reason>)``.
+
+    The reason is recorded in the ledger (``hmac_unavailable``); no hash is ever
+    produced without the key.
+    """
+    try:
+        return load_hmac_key(path), "ok"
+    except HmacKeyUnavailable as exc:
+        return None, exc.reason
 
 
 def _hmac_summary(value: Any, key: bytes | None) -> dict[str, Any]:
@@ -116,24 +144,30 @@ def summarize_arguments(
     return summary
 
 
-def root_label_for_path(path: Any, allowed_roots: tuple[Path, ...]) -> str | None:
-    """Label of the allowed root a path falls under (never the file name)."""
+ROOT_LABEL_OUTSIDE = "outside_allowed_roots"
+ROOT_LABEL_UNRESOLVED = "unresolved"
+
+
+def root_label_for_path(path: Any, allowed_roots: tuple[Path, ...]) -> str:
+    """Label of the allowed root a path falls under (never the file name).
+
+    Explicit outcomes: the root label, ``outside_allowed_roots`` (resolved, no
+    root contains it) or ``unresolved`` (it could not be resolved).
+    """
     if not isinstance(path, str) or not path:
-        return None
+        return ROOT_LABEL_UNRESOLVED
     try:
         candidate = Path(path).expanduser().resolve(strict=False)
     except (OSError, RuntimeError, ValueError):
-        return None
+        return ROOT_LABEL_UNRESOLVED
     for root in allowed_roots:
         try:
             resolved = root.expanduser().resolve(strict=False)
-            candidate.relative_to(resolved)
-        except ValueError:
-            continue
         except (OSError, RuntimeError):
             continue
-        return _display_root(resolved)
-    return None
+        if candidate == resolved or resolved in candidate.parents:
+            return _display_root(resolved)
+    return ROOT_LABEL_OUTSIDE
 
 
 def _display_root(root: Path) -> str:
@@ -223,12 +257,14 @@ class TurnLedger:
         turn_id: str = "",
         correlation_id: str = "",
         hmac_key: bytes | None = None,
+        hmac_status: str = "",
         allowed_roots: tuple[Path, ...] = (),
     ) -> None:
         self.conversation_id = conversation_id
         self.turn_id = turn_id
         self.correlation_id = correlation_id
         self._key = hmac_key
+        self._hmac_status = hmac_status or ("ok" if hmac_key is not None else "missing")
         self._allowed_roots = allowed_roots
         self.entries: list[LedgerEntry] = []
         self.passes: list[dict[str, Any]] = []
@@ -354,6 +390,7 @@ class TurnLedger:
         }
         if self._key is None:
             view["hmac_unavailable"] = True
+            view["hmac_status"] = self._hmac_status
         return view
 
     def execution_frame(self, environment_facts: list[str]) -> dict[str, Any]:
