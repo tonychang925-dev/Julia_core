@@ -31,6 +31,10 @@ def _encodable_text(text: str) -> str:
 
 _RENDER_UNBOUNDED = 10**9
 
+# datetime.weekday(): Monday == 0. Fixed tables, independent of process locale.
+_WEEKDAY_ZH = ("星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日")
+_WEEKDAY_EN = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+
 # Plain-language, per-reason statement that the previous call did not run.
 _DECODE_FAILURE_DETAIL = {
     "INVALID_CALL_SHAPE": "上一条回复中的调用没有被执行：调用块的格式不符合约定。",
@@ -1433,9 +1437,14 @@ class ContextExecutionRuntime:
             )
             return
 
+        # weekday comes from the same aware timestamp as current_date (its own
+        # utc_offset), computed here from fixed tables, never by the model (#232).
+        weekday_index = timestamp.weekday()
         pkg.situation_frame.update({
             "current_turn_timestamp": raw_timestamp,
             "current_date": timestamp.date().isoformat(),
+            "weekday": _WEEKDAY_ZH[weekday_index],
+            "weekday_en": _WEEKDAY_EN[weekday_index],
             "utc_offset": utc_offset,
         })
         pkg.add_provenance(
