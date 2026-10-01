@@ -227,10 +227,12 @@ async def test_a4_success_preserves_observable_content_and_grounded_evidence():
     )
     assert projection.evidence_frame["source"] == "capability_execution"
     assert projection.evidence_frame["evidence"][0]["content_ref"].startswith("tool_result:")
+    # No parent package: nothing to inherit (CARD 6: inheritance is from parent only).
     assert projection.identity_frame == {}
     assert projection.experience_frame == {}
     assert projection.diary_frame == {}
     assert projection.continuity_frame == {}
+    assert projection.situation_frame == {"mode": "tool_continuation"}
 
 
 @pytest.mark.asyncio

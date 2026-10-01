@@ -553,16 +553,16 @@ def test_p3_legacy_string_tool_result_is_rejected_fail_closed():
 
 def test_p3_capability_projection_still_does_not_mutate_identity_or_continuity_authority():
     """G / ADR-037. Preserve T-CX-04 identity, memory, relationship, continuity isolation."""
+    from tests.runtime._card6_base import assert_inherits_base, populated_parent
+    parent = populated_parent(conversation_id="conv", turn_id="turn", generation_id="gen-before")
     delta = ContextExecutionRuntime().project_tool_result(
-        parent_package=CognitiveContextPackage(conversation_id="conv", turn_id="turn", generation_id="gen-before"),
+        parent_package=parent,
         tool_result=_tool_result("call-authority", output={"content": "external observation"}),
         generation_id="gen-after",
     )
 
-    assert delta.identity_frame == {}
-    assert delta.experience_frame == {}
-    assert delta.diary_frame == {}
-    assert delta.continuity_frame == {}
+    # CARD 6: inherited verbatim (deep copies); the control turn never writes them.
+    assert_inherits_base(delta, parent, mode="tool_continuation")
     assert delta.projection_metadata.get("identity_updated") is not True
     assert delta.projection_metadata.get("memory_updated") is not True
     assert delta.projection_metadata.get("relationship_updated") is not True
