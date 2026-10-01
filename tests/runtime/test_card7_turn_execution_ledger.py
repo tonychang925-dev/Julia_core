@@ -384,3 +384,25 @@ def test_turn_completed_event_carries_the_redacted_ledger(monkeypatch):
     assert payload["ledger"]["entries"][0]["args"]["plain"] == {"trade_date": "2026-07-03"}
     assert len(payload["ledger"]["passes"]) == 2 and "cognition_pass_trace" in payload
     assert "Julia final judgment" not in json.dumps(payload["ledger"])
+
+
+# ── review fixes (Mira / Owner) ──────────────────────────────────────────
+
+def test_bare_qianmian_is_not_a_source_statement():
+    """Zero executions: '前面列给你了' + 2 absolute paths must still trigger."""
+    reply = "前面列给你了：/Users/admin/Desktop/memory/a.md 和 /Users/admin/Desktop/memory/b.md。"
+    assert "zero_execution_path_claim" in check_completion_claims(reply, TurnLedger(hmac_key=b"k"))
+    # an explicit source statement is still accepted
+    ok = "上一轮列给你的是：/Users/admin/Desktop/a.md 和 /Users/admin/Desktop/b.md。"
+    assert check_completion_claims(ok, TurnLedger(hmac_key=b"k")) == []
+
+
+def test_bare_bufen_is_not_a_partial_result_acknowledgement():
+    ledger = TurnLedger(hmac_key=b"k")
+    ledger.record_executed(
+        pass_index=1, capability_id="file.list", arguments={"path": "/Users/admin/Desktop"},
+        tool_result=SimpleNamespace(status="success", structured_output={"truncated": True, "total": 54, "count": 30},
+                                    capability_call_id="c1", started_at="", completed_at="", evidence_refs=()))
+    assert "truncated_reported_as_complete" in check_completion_claims("这部分是你的工作文件。", ledger)
+    for ok in ("我只看到一部分。", "只拿到前 30 条。", "总共 54 条，结果被截断了。", "还有 24 more 没列出来。"):
+        assert check_completion_claims(ok, ledger) == [], ok

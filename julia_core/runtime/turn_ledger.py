@@ -431,10 +431,10 @@ _DONE_CLAIM = re.compile(
     r"|(?:搜完了|读完了|查完了|跑完了|读好了|查到了|搜到了|列出来了)"
     r"|(?:[搜读查找列跑看](?:了|过|完|到了?))"
 )
-_PARTIAL_ACK = re.compile(r"一部分|部分|截断|没列全|不全|只看到|只拿到|前\s*\d+|共\s*\d+|总共\s*\d+|more")
+_PARTIAL_ACK = re.compile(r"一部分|只看到|只拿到|没列全|不全|截断|前\s*\d+|共\s*\d+|\d+\s*more")
 _ZERO_EXECUTION_ACK = re.compile(r"没有执行|没执行|没有查|没有调用|没有跑|没有读|没有搜|没有找")
 # Quoting earlier turns / memory is allowed when the source is stated.
-_SOURCE_ACK = re.compile(r"上一轮|前一轮|之前的?(?:回合|对话|那一轮)|前面|记忆里|你刚才说|你说过|历史记录|会话记录")
+_SOURCE_ACK = re.compile(r"上一轮|前一轮|之前的(?:回合|对话)|记忆里|历史记录|会话记录|你刚才说|你说过")
 
 # status words only meaningful as tool outcomes
 _STATUS_WORDS = ("not_found", "invalid_pattern")
