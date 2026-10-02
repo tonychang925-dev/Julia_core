@@ -80,6 +80,29 @@ def test_a_child_started_in_this_session_may_be_killed():
         proc.wait(timeout=10)
 
 
+def test_a_grandchild_group_of_ours_may_be_cleaned_up_but_a_foreign_group_may_not():
+    """Children of children (not registered by Popen tracking) are still ours."""
+    code = (
+        "import subprocess, sys, time\n"
+        "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], start_new_session=True)\n"
+        "print(g.pid, flush=True)\n"
+        "time.sleep(60)\n"
+    )
+    parent = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True)
+    try:
+        grandchild = int(parent.stdout.readline())
+        assert grandchild not in live_guard.registered_pids()      # not registered by this process
+        Guard().evaluate("os.killpg", (grandchild, 15))            # but it descends from us -> allowed
+        os.killpg(grandchild, 15)
+        with pytest.raises(LiveSystemAccessError):
+            Guard().evaluate("os.killpg", (1, 15))                 # a foreign group is refused
+        with pytest.raises(LiveSystemAccessError):
+            Guard().evaluate("os.kill", (os.getppid(), 15))        # our own parent is not our descendant
+    finally:
+        parent.kill()
+        parent.wait(timeout=10)
+
+
 @pytest.mark.parametrize("target", [
     "~/.julia_ops/should_never_exist_probe",
     "~/julia_ai_assistant/memory/conversations/should_never_exist_probe",

@@ -194,7 +194,44 @@ class Guard:
             raise LiveSystemAccessError(f"{event}: unexpected target {target!r}")
         if target in (os.getpid(), os.getpgrp()) or target in self._pids:
             return
+        if self._is_session_descendant(target):
+            return
         raise LiveSystemAccessError(f"{event}: pid/pgid {target} was not started by this test session")
+
+    def _is_session_descendant(self, target: int) -> bool:
+        """True if ``target`` is a process of ours or a process group made of our descendants.
+
+        Second line of defence next to the registered-pid set (children and grandchildren
+        that tests legitimately clean up). A foreign process (launchd, the production
+        brain, a shell of the user) is never a descendant of this pytest process.
+        """
+        try:
+            table = subprocess.run(
+                ["/bin/ps", "-axo", "pid=,ppid=,pgid="], capture_output=True, text=True, timeout=10, check=True
+            ).stdout
+        except (OSError, subprocess.SubprocessError):
+            return False                                   # cannot prove it: refuse (fail closed)
+        parent: dict[int, int] = {}
+        group: dict[int, int] = {}
+        for line in table.splitlines():
+            parts = line.split()
+            if len(parts) == 3 and all(p.isdigit() for p in parts):
+                pid, ppid, pgid = (int(p) for p in parts)
+                parent[pid], group[pid] = ppid, pgid
+        me = os.getpid()
+
+        def descends(pid: int) -> bool:
+            for _ in range(64):                            # bounded walk up the process tree
+                if pid == me:
+                    return True
+                pid = parent.get(pid, 0)
+                if pid <= 1:
+                    return False
+            return False
+
+        members = [pid for pid, pgid in group.items() if pgid == target]
+        candidates = members if members else ([target] if target in parent else [])
+        return bool(candidates) and all(descends(pid) and pid != me for pid in candidates)
 
     def _check_open(self, args: tuple) -> None:
         if len(args) < 3:
