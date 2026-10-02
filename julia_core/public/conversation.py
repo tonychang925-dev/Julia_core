@@ -6,6 +6,8 @@ repositories, cognitive callables, providers, or private runtime objects.
 
 from __future__ import annotations
 
+from typing import Any, Callable
+
 import logging
 import os
 import re
@@ -239,7 +241,18 @@ class CoreConversationResponse:
 class CoreConversationIngress:
     """Single public façade over Core's composed conversation turn path."""
 
-    def __init__(self, config: CoreConversationConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: CoreConversationConfig | None = None,
+        *,
+        provider_factory: Callable[[], Any] | None = None,
+    ) -> None:
+        """``provider_factory`` (keyword-only, default ``None`` = production) injects
+        the cognition provider explicitly. It exists for the isolated test brain
+        (#237): there is no environment switch, and when it is given the production
+        provider and the external Market/Research bindings are not composed.
+        A factory that fails or returns ``None`` is a composition error (fail closed).
+        """
         self._composition_error: Exception | None = None
         self._runtime: ConversationRuntime | None = None
         self._session: JuliaSession | None = None
@@ -251,6 +264,12 @@ class CoreConversationIngress:
                 )
             repository = StorageV2ConversationRepository(data_dir)
             self._runtime = ConversationRuntime(repository=repository)
+            if provider_factory is not None:
+                provider = provider_factory()
+                if provider is None:
+                    raise CoreConversationProviderUnavailable("injected Core provider is unavailable")
+                self._session = JuliaSession(provider=provider)
+                return
             from julia_core.providers.core_cognition import (
                 CoreCognitionProviderUnavailable,
                 _get_cognition_provider,
