@@ -126,6 +126,36 @@ def test_an_orphan_with_ppid_1_that_is_not_registered_is_refused():
         ctypes.CDLL(None).kill(orphan, 15)                         # raw syscall: no audit event, test cleanup only
 
 
+@pytest.mark.parametrize("use_uvloop", [False, True])
+def test_asyncio_children_are_registered_whatever_the_event_loop(use_uvloop):
+    """uvloop spawns children without subprocess.Popen; the registry must still know them."""
+    import asyncio
+
+    if use_uvloop:
+        uvloop = pytest.importorskip("uvloop")
+        policy = uvloop.EventLoopPolicy()
+    else:
+        policy = asyncio.DefaultEventLoopPolicy()
+
+    async def run():
+        process = await asyncio.create_subprocess_exec(
+            sys.executable, "-c", "import time; time.sleep(30)", start_new_session=True
+        )
+        try:
+            assert process.pid in live_guard.registered_pids()
+            assert process.pid in live_guard.registered_pgids()
+            os.killpg(process.pid, 15)                              # ours: allowed
+        finally:
+            await process.wait()
+
+    previous = asyncio.get_event_loop_policy()
+    asyncio.set_event_loop_policy(policy)
+    try:
+        asyncio.run(run())
+    finally:
+        asyncio.set_event_loop_policy(previous)
+
+
 def test_a_child_started_with_start_new_session_registers_its_group():
     proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True)
     try:

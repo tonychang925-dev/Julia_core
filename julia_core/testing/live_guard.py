@@ -270,6 +270,28 @@ def install(guard: Guard | None = None) -> Guard:
 
     subprocess.Popen.__init__ = tracked_init           # type: ignore[method-assign]
     _original_popen_init = original_init
+
+    # asyncio children are not always created through subprocess.Popen (an event-loop policy
+    # such as uvloop spawns them itself, e.g. after uvicorn installed it): register them from
+    # the public coroutine instead, so the registry does not depend on the loop implementation.
+    import asyncio
+    import asyncio.subprocess as asyncio_subprocess
+
+    for name in ("create_subprocess_exec", "create_subprocess_shell"):
+        original = getattr(asyncio_subprocess, name)
+
+        def make(original=original):
+            async def tracked(*a, **kw):
+                process = await original(*a, **kw)
+                active.register_pid(process.pid, new_group=bool(kw.get("start_new_session")))
+                return process
+
+            return tracked
+
+        wrapper = make()
+        setattr(asyncio_subprocess, name, wrapper)
+        if getattr(asyncio, name, None) is original:
+            setattr(asyncio, name, wrapper)
     _installed = active
     return active
 
