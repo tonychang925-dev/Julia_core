@@ -94,27 +94,51 @@ def test_signalling_a_pid_that_does_not_exist_is_harmless_and_allowed():
     Guard().evaluate("os.killpg", (ghost, 15))
 
 
-def test_a_grandchild_group_of_ours_may_be_cleaned_up_but_a_foreign_group_may_not():
-    """Children of children (not registered by Popen tracking) are still ours."""
+def test_an_orphan_with_ppid_1_that_is_not_registered_is_refused():
+    """Simulates the launchd-managed brain: ppid == 1, its own session, NOT in the registry.
+
+    ppid == 1 proves nothing about ownership; only registered pids / groups are ours."""
+    import ctypes
+
     code = (
-        "import subprocess, sys, time\n"
-        "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], start_new_session=True)\n"
-        "print(g.pid, flush=True)\n"
-        "time.sleep(60)\n"
+        "import os, sys, time\n"
+        "if os.fork() == 0:\n"
+        "    os.setsid()\n"
+        "    print(os.getpid(), flush=True)\n"
+        "    time.sleep(60)\n"
+        "else:\n"
+        "    os._exit(0)\n"
     )
-    parent = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True)
+    launcher = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True)
+    orphan = int(launcher.stdout.readline())
+    launcher.wait(timeout=10)
     try:
-        grandchild = int(parent.stdout.readline())
-        assert grandchild not in live_guard.registered_pids()      # not registered by this process
-        Guard().evaluate("os.killpg", (grandchild, 15))            # but it descends from us -> allowed
-        os.killpg(grandchild, 15)
+        assert os.getpgid(orphan) == orphan                        # its own group, not registered by us
+        assert orphan not in live_guard.registered_pids() and orphan not in live_guard.registered_pgids()
+        for event in ("os.kill", "os.killpg"):
+            with pytest.raises(LiveSystemAccessError):
+                Guard().evaluate(event, (orphan, 15))
         with pytest.raises(LiveSystemAccessError):
-            Guard().evaluate("os.killpg", (1, 15))                 # a foreign group is refused
+            os.kill(orphan, 15)                                    # the installed hook refuses it too
         with pytest.raises(LiveSystemAccessError):
-            Guard().evaluate("os.kill", (os.getppid(), 15))        # our own parent is not our descendant
+            os.killpg(orphan, 15)
     finally:
-        parent.kill()
-        parent.wait(timeout=10)
+        ctypes.CDLL(None).kill(orphan, 15)                         # raw syscall: no audit event, test cleanup only
+
+
+def test_a_child_started_with_start_new_session_registers_its_group():
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True)
+    try:
+        assert proc.pid in live_guard.registered_pgids()
+        plain = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])   # same group as us
+        try:
+            assert plain.pid in live_guard.registered_pids() and plain.pid not in live_guard.registered_pgids()
+        finally:
+            plain.kill()
+            plain.wait(timeout=10)
+    finally:
+        os.killpg(proc.pid, 15)
+        proc.wait(timeout=10)
 
 
 @pytest.mark.parametrize("target", [

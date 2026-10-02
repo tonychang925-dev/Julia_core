@@ -110,6 +110,7 @@ class Guard:
         resolved = {_resolve(str(r)) for r in roots} | {os.path.abspath(str(r)) for r in roots}
         self.forbidden_write_roots: tuple[str, ...] = tuple(sorted(resolved))
         self._pids: set[int] = set()
+        self._pgids: set[int] = set()
 
     # ── configuration (append-only) ──────────────────────────────────────
     @classmethod
@@ -133,11 +134,18 @@ class Guard:
         return cls(extra_ports=ports, extra_write_roots=roots)
 
     # ── child tracking ───────────────────────────────────────────────────
-    def register_pid(self, pid: int) -> None:
+    def register_pid(self, pid: int, *, new_group: bool = False) -> None:
+        """Register a child started by this session. ``new_group`` (start_new_session /
+        process_group) means the child leads a process group of its own, so that pgid is ours."""
         self._pids.add(int(pid))
+        if new_group:
+            self._pgids.add(int(pid))
 
     def registered_pids(self) -> frozenset[int]:
         return frozenset(self._pids)
+
+    def registered_pgids(self) -> frozenset[int]:
+        return frozenset(self._pgids)
 
     # ── policy ───────────────────────────────────────────────────────────
     def evaluate(self, event: str, args: tuple) -> None:
@@ -192,48 +200,26 @@ class Guard:
             return                                    # liveness probe
         if not isinstance(target, int):
             raise LiveSystemAccessError(f"{event}: unexpected target {target!r}")
-        if target in (os.getpid(), os.getpgrp()) or target in self._pids:
+        if target in (os.getpid(), os.getpgrp()):
             return
-        if self._is_session_descendant(target):
-            return
+        if event == "os.killpg":
+            if target in self._pgids:
+                return
+            try:
+                os.killpg(target, 0)                           # liveness probe only
+            except ProcessLookupError:
+                return                                         # no such group: harmless
+            except PermissionError:
+                pass                                           # exists, not ours to signal
+        else:
+            if target in self._pids:
+                return
+            try:
+                if os.getpgid(target) in self._pgids:          # a member of a group we created
+                    return
+            except ProcessLookupError:
+                return                                         # nothing exists there: harmless
         raise LiveSystemAccessError(f"{event}: pid/pgid {target} was not started by this test session")
-
-    def _is_session_descendant(self, target: int) -> bool:
-        """True if ``target`` is a process of ours or a process group made of our descendants.
-
-        Second line of defence next to the registered-pid set (children and grandchildren
-        that tests legitimately clean up). A foreign process (launchd, the production
-        brain, a shell of the user) is never a descendant of this pytest process.
-        """
-        try:
-            table = subprocess.run(
-                ["/bin/ps", "-axo", "pid=,ppid=,pgid="], capture_output=True, text=True, timeout=10, check=True
-            ).stdout
-        except (OSError, subprocess.SubprocessError):
-            return False                                   # cannot prove it: refuse (fail closed)
-        parent: dict[int, int] = {}
-        group: dict[int, int] = {}
-        for line in table.splitlines():
-            parts = line.split()
-            if len(parts) == 3 and all(p.isdigit() for p in parts):
-                pid, ppid, pgid = (int(p) for p in parts)
-                parent[pid], group[pid] = ppid, pgid
-        me = os.getpid()
-
-        def descends(pid: int) -> bool:
-            for _ in range(64):                            # bounded walk up the process tree
-                if pid == me:
-                    return True
-                pid = parent.get(pid, 0)
-                if pid <= 1:
-                    return False
-            return False
-
-        members = [pid for pid, pgid in group.items() if pgid == target]
-        candidates = members if members else ([target] if target in parent else [])
-        if not candidates:
-            return True                                    # nothing exists there: the signal harms no one
-        return all(descends(pid) and pid != me for pid in candidates)
 
     def _check_open(self, args: tuple) -> None:
         if len(args) < 3:
@@ -279,7 +265,8 @@ def install(guard: Guard | None = None) -> Guard:
 
     def tracked_init(self, *a, **kw):                  # register children for os.kill checks
         original_init(self, *a, **kw)
-        active.register_pid(self.pid)
+        new_group = bool(kw.get("start_new_session")) or bool(kw.get("process_group") is not None and kw.get("process_group") == 0)
+        active.register_pid(self.pid, new_group=new_group)
 
     subprocess.Popen.__init__ = tracked_init           # type: ignore[method-assign]
     _original_popen_init = original_init
@@ -295,7 +282,11 @@ def registered_pids() -> frozenset[int]:
     return _installed.registered_pids() if _installed is not None else frozenset()
 
 
-def register_pid(pid: int) -> None:
+def register_pid(pid: int, *, new_group: bool = False) -> None:
     if _installed is None:
         raise LiveSystemAccessError("live guard is not installed")
-    _installed.register_pid(pid)
+    _installed.register_pid(pid, new_group=new_group)
+
+
+def registered_pgids() -> frozenset[int]:
+    return _installed.registered_pgids() if _installed is not None else frozenset()
