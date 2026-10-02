@@ -80,6 +80,20 @@ def test_a_child_started_in_this_session_may_be_killed():
         proc.wait(timeout=10)
 
 
+def test_signalling_a_pid_that_does_not_exist_is_harmless_and_allowed():
+    ghost = 4_194_000
+    while True:                                                    # find a pid that is really absent
+        try:
+            os.kill(ghost, 0)
+            ghost += 1
+        except ProcessLookupError:
+            break
+        except PermissionError:
+            ghost += 1
+    Guard().evaluate("os.kill", (ghost, 15))
+    Guard().evaluate("os.killpg", (ghost, 15))
+
+
 def test_a_grandchild_group_of_ours_may_be_cleaned_up_but_a_foreign_group_may_not():
     """Children of children (not registered by Popen tracking) are still ours."""
     code = (

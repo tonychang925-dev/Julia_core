@@ -231,7 +231,9 @@ class Guard:
 
         members = [pid for pid, pgid in group.items() if pgid == target]
         candidates = members if members else ([target] if target in parent else [])
-        return bool(candidates) and all(descends(pid) and pid != me for pid in candidates)
+        if not candidates:
+            return True                                    # nothing exists there: the signal harms no one
+        return all(descends(pid) and pid != me for pid in candidates)
 
     def _check_open(self, args: tuple) -> None:
         if len(args) < 3:
