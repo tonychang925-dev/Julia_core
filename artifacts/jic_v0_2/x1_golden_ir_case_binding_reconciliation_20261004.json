@@ -1,0 +1,204 @@
+{
+  "task": "STEP5_JIC_V02_X1_GOLDEN_IR_RECONCILIATION_P0",
+  "canonical_base_sha": "1e521521dc428ba14eaa965538490ee2b72a8217",
+  "mode": "RESEARCH_ARTIFACT / EXPERIMENT CONTRACT RECONCILIATION ONLY",
+  "model_call": false,
+  "production_change": false,
+  "market_db_write": false,
+  "donor": {
+    "workspace": "/Users/admin/glm-workspace/Julia_core_jic_r1",
+    "branch": "post-rd1/jic-r1-experiment-repair",
+    "head": "bc2bbed54664c203b9620414a19d33f031ce0dd2",
+    "status": "HISTORICAL / LOCAL ONLY / READ-ONLY"
+  },
+  "recovered_input_hashes": {
+    "x1_golden_case_packet_20261004.json": "2ec8954244dd3b1dbdf7f286eb736c4863558b14fbf91dd77e9a90005c78c75e",
+    "x1_review_deltas_20261004.md": "035fed02f122f249a6cc4a06a1f1f52ea0f5b5b709607bf3c64680fcc5452291"
+  },
+  "gic_source_hashes": {
+    "GIC-001": "1e78f4f9c56a84cb7bbdd6858f12124a7dce9e42d7ecdee4a49210bb10792c05",
+    "GIC-002": "aef16502c0a2f39e541dcfeae08a209d8e1f4dbcd26079a11c9acd23261733b0",
+    "GIC-003": "d78fe327feaf6ff599c8bc2c28b876ca98cdf2e450ad733a95fa037e6035b758"
+  },
+  "gic_conformance_matrix": {
+    "GIC-001": {
+      "source_path": "experiments/jic_r1/sources/gic/GIC-001_THEME_LIFECYCLE.md",
+      "stable_cognition_identity": "PASS",
+      "source_provenance": "PASS",
+      "source_version_binding": "PASS",
+      "formation_path": "PASS",
+      "mechanism": "PASS",
+      "competing_hypotheses": "PASS",
+      "applicability_regime_conditions": "PASS",
+      "counterevidence": "PASS",
+      "missing_evidence_semantics": "PASS",
+      "falsifiers": "PASS",
+      "correction_path_history": "PASS",
+      "relations": "PASS",
+      "uncertainty": "PASS",
+      "anti_copy_boundary": "PASS",
+      "market_julia_action_separation": "PASS",
+      "conformance_note": "The source explicitly separates Market facts, cognition interpretation, and trading action; missing evidence remains insufficient rather than negative."
+    },
+    "GIC-002": {
+      "source_path": "experiments/jic_r1/sources/gic/GIC-002_LEADER_DIVERGENCE.md",
+      "stable_cognition_identity": "PASS",
+      "source_provenance": "PASS",
+      "source_version_binding": "PASS",
+      "formation_path": "PASS",
+      "mechanism": "PASS",
+      "competing_hypotheses": "PASS",
+      "applicability_regime_conditions": "PASS",
+      "counterevidence": "PASS",
+      "missing_evidence_semantics": "PASS",
+      "falsifiers": "PASS",
+      "correction_path_history": "PASS",
+      "relations": "PASS",
+      "uncertainty": "PASS",
+      "anti_copy_boundary": "PASS",
+      "market_julia_action_separation": "PASS",
+      "conformance_note": "The source requires an exact leader identity, weakness quality, follower response, regime/liquidity context, cutoff, and provenance before comparative interpretation."
+    },
+    "GIC-003": {
+      "source_path": "experiments/jic_r1/sources/gic/GIC-003_WEAK_TO_STRONG.md",
+      "stable_cognition_identity": "PASS",
+      "source_provenance": "PASS",
+      "source_version_binding": "PASS",
+      "formation_path": "PASS",
+      "mechanism": "PASS",
+      "competing_hypotheses": "PASS",
+      "applicability_regime_conditions": "PASS",
+      "counterevidence": "PASS",
+      "missing_evidence_semantics": "PASS",
+      "falsifiers": "PASS",
+      "correction_path_history": "PASS",
+      "relations": "PASS",
+      "uncertainty": "PASS",
+      "anti_copy_boundary": "PASS",
+      "market_julia_action_separation": "PASS",
+      "conformance_note": "The source requires a prior weakness baseline plus level, auction/open, volume, structural persistence, follower/theme response, regime, cutoff, and provenance."
+    }
+  },
+  "per_case_evidence_sufficiency": {
+    "JIC-X1-20260719-NEWS": {
+      "exact_date_and_cutoff": "PASS",
+      "exact_evidence_refs": "PASS",
+      "source_category": "news",
+      "provenance_path": "PASS: event_subject_map -> news_event -> news_raw",
+      "held_out_future_boundary": "PASS: evidence is date-bounded at 2026-07-19T23:59:59+08:00",
+      "model_visible_evidence": "PARTIAL: two representative event facts are visible; coverage also records 13 events / 11 subjects / only 4 nonempty summaries",
+      "outcome_leakage": "NOT_DETECTED",
+      "missing_observations": ["theme breadth", "leader/follower behavior", "price/relative strength", "turnover/capital", "market regime", "repair or divergence window"],
+      "binding_assessment": "Can evaluate an early GIC-001 stimulus/candidate question only; cannot evaluate leader divergence or weak-to-strong repair."
+    },
+    "JIC-X1-20260930-JYHF": {
+      "exact_date_and_cutoff": "PASS",
+      "exact_evidence_refs": "PASS",
+      "source_category": "jyhf_dom",
+      "provenance_path": "PASS: event_subject_map -> news_event -> same-day subject_history_staging(source_type=jyhf_cdp)",
+      "held_out_future_boundary": "PASS: evidence is date-bounded at 2026-09-30T23:59:59+08:00",
+      "model_visible_evidence": "PARTIAL: two representative JYHF facts are visible; coverage records 27 events / 27 subjects",
+      "outcome_leakage": "NOT_DETECTED, but post-market review wording is a content-timing risk",
+      "missing_observations": ["theme breadth/acceptance", "leader identity and weakness", "follower response", "price/relative strength", "volume/auction", "market regime", "repair window"],
+      "binding_assessment": "Can only pose a source-bounded early stimulus question for GIC-001; heterogeneous JYHF subjects do not support GIC-002 or GIC-003."
+    },
+    "JIC-X1-20261002-NEWS": {
+      "exact_date_and_cutoff": "PASS",
+      "exact_evidence_refs": "PASS",
+      "source_category": "news",
+      "provenance_path": "PASS: event_subject_map -> news_event -> news_raw",
+      "held_out_future_boundary": "PASS: evidence is date-bounded at 2026-10-02T23:59:59+08:00",
+      "model_visible_evidence": "PARTIAL: two representative news facts are visible; coverage records 26 events / 13 subjects / only 4 nonempty summaries",
+      "outcome_leakage": "NOT_DETECTED",
+      "missing_observations": ["coherent theme identity", "theme breadth/acceptance", "leader/follower behavior", "price/relative strength", "volume/auction", "market regime", "repair window"],
+      "binding_assessment": "The heterogeneous news set lacks a source-supported lifecycle object and cannot support GIC-002 or GIC-003."
+    }
+  },
+  "proposed_case_gic_bindings": [
+    {
+      "case_id": "JIC-X1-20260719-NEWS",
+      "gic_id": "GIC-001",
+      "legal_binding": "PARTIALLY_SUPPORTED",
+      "scope": "early stimulus / candidate formation only",
+      "explicit_evidence": ["event_id 215268 mapped to subject 9034824", "event_id 215257 mapped to subject 9064061", "source trace present", "same-day date binding"],
+      "limits": ["no market acceptance/breadth evidence", "no lifecycle transition evidence", "only 4 of 13 summaries nonempty"]
+    },
+    {
+      "case_id": "JIC-X1-20260930-JYHF",
+      "gic_id": "GIC-001",
+      "legal_binding": "PARTIALLY_SUPPORTED",
+      "scope": "source-bounded event stimulus candidate only",
+      "explicit_evidence": ["JYHF product event for subject 9014636", "same-day JYHF provenance for all 27 records", "source category preserved as jyhf_dom"],
+      "limits": ["no market acceptance/breadth evidence", "heterogeneous subjects", "post-market review wording may not establish causal timing"]
+    }
+  ],
+  "rejected_bindings": [
+    {
+      "case_id": "JIC-X1-20260719-NEWS",
+      "gic_id": "GIC-002",
+      "legal_binding": "UNSUPPORTED",
+      "reason": "No exact leader identity/role, weakness quality, drawdown, volume, follower response, regime gate, or divergence window."
+    },
+    {
+      "case_id": "JIC-X1-20260719-NEWS",
+      "gic_id": "GIC-003",
+      "legal_binding": "UNSUPPORTED",
+      "reason": "No prior strong/weak baseline, declared level, auction/open, volume, intraday recovery, structural persistence, follower response, or repair window."
+    },
+    {
+      "case_id": "JIC-X1-20260930-JYHF",
+      "gic_id": "GIC-002",
+      "legal_binding": "UNSUPPORTED",
+      "reason": "JYHF event provenance does not provide leader weakness or follower/market-regime observations; subject count cannot be treated as leader divergence evidence."
+    },
+    {
+      "case_id": "JIC-X1-20260930-JYHF",
+      "gic_id": "GIC-003",
+      "legal_binding": "UNSUPPORTED",
+      "reason": "No prior weakness, level, auction/open, volume, recovery persistence, or next-window repair evidence."
+    },
+    {
+      "case_id": "JIC-X1-20261002-NEWS",
+      "gic_id": "GIC-001",
+      "legal_binding": "UNSUPPORTED",
+      "reason": "The 26 news events cover heterogeneous subjects and do not expose a coherent theme lifecycle object or market acceptance evidence."
+    },
+    {
+      "case_id": "JIC-X1-20261002-NEWS",
+      "gic_id": "GIC-002",
+      "legal_binding": "UNSUPPORTED",
+      "reason": "No leader identity/weakness/follower/regime observation is present."
+    },
+    {
+      "case_id": "JIC-X1-20261002-NEWS",
+      "gic_id": "GIC-003",
+      "legal_binding": "UNSUPPORTED",
+      "reason": "No prior weakness baseline or repair observations are present."
+    }
+  ],
+  "leakage_assessment": {
+    "future_or_outcome_leakage": "NOT_DETECTED in source manifests and cutoffs",
+    "cross_day_substitution": "NONE",
+    "synthetic_observations": "NONE",
+    "historical_result_copy": "NONE",
+    "source_category_rewrite": "NONE; 2026-09-30 remains jyhf_dom",
+    "risk_notes": ["9/30 includes post-market JYHF review language; it must not be treated as pre-market causal evidence", "representative facts are not a substitute for the full event population", "absence of market observations is a missing-evidence state, not a negative fact"]
+  },
+  "unresolved_gaps": [
+    "No recovered case contains the leader baseline and weakness observations required by GIC-002.",
+    "No recovered case contains the prior weakness, declared level, auction/open, volume, persistence, and next-window response required by GIC-003.",
+    "The X1 packet exposes representative events rather than full market observation packets for lifecycle evaluation.",
+    "No case presently supplies a source-pinned market regime and breadth/leader/follower series at the required cutoff.",
+    "A new source-pinned case or an explicitly authorized X1 fixture amendment is required; cross-day substitution is prohibited."
+  ],
+  "x2_readiness": {
+    "verdict": "X1_GOLDEN_IR_BINDING_PARTIAL",
+    "status": "BLOCKED_PENDING_VALID_CASES_FOR_GIC-002_AND_GIC-003",
+    "GIC-001": "PARTIALLY_READY_FOR_LIMITED_STIMULUS_FORMULATION_ONLY",
+    "GIC-002": "NO_VALID_CASE",
+    "GIC-003": "NO_VALID_CASE",
+    "x2_protocol_creation_authorized": false,
+    "real_model_execution_authorized": false
+  },
+  "final_legal_result": "X1_GOLDEN_IR_BINDING_PARTIAL"
+}
