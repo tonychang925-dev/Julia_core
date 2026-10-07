@@ -4,6 +4,7 @@ HR-02: Every replay checkpoint must match frozen golden within tolerance.
 """
 
 import json
+import os
 import pytest
 from pathlib import Path
 
@@ -13,8 +14,17 @@ from julia_core.capability.financial.canonical_replay import (
     CANONICAL_SCORE_DIVISOR,
 )
 
-GOLDEN_DIR = Path("/Users/admin/Desktop/ai_theme_app/golden/2026-07-14")
-WORKBENCH_DIR = Path("/Users/admin/Desktop/ai_theme_app/tmp/analyst_workbench/2026-07-14")
+# #246: no hard-coded workspace path. The golden data lives in ai_theme_app; point these at a copy:
+#   JULIA_GOLDEN_DIR=<.../golden/2026-07-14>  JULIA_WORKBENCH_DIR=<.../analyst_workbench/2026-07-14>
+_golden_env = os.environ.get("JULIA_GOLDEN_DIR", "")
+_workbench_env = os.environ.get("JULIA_WORKBENCH_DIR", "")
+GOLDEN_DIR = Path(_golden_env) if _golden_env else None
+WORKBENCH_DIR = Path(_workbench_env) if _workbench_env else None
+
+pytestmark = pytest.mark.skipif(
+    GOLDEN_DIR is None or WORKBENCH_DIR is None or not GOLDEN_DIR.is_dir() or not WORKBENCH_DIR.is_dir(),
+    reason="needs the 7/14 golden data: set JULIA_GOLDEN_DIR and JULIA_WORKBENCH_DIR (never read from the Desktop)",
+)
 
 
 def _load_golden():

@@ -889,7 +889,7 @@ def test_canonical_market_binding_has_no_private_market_loading_or_transport_fal
         "mcp_server",
         "MCP_TOOLS",
         "sys.path",
-        "/Users/admin/Desktop/ai_theme_app",
+        "Desktop" + "/ai_theme_app",          # #246: built from pieces; the guard test forbids the literal
         "Phase1ReadRepository",
         "theme_service.repositories",
         "MarketPublicFactory",

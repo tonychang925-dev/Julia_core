@@ -40,6 +40,13 @@ TOOL_TO_CAPABILITY: dict[str, str] = {
 
 # ── MCP Tool Adapter ────────────────────────────────────────────────────────
 
+AI_THEME_ROOT_ENV = "JULIA_AI_THEME_ROOT"
+
+
+class AiThemeRootNotConfigured(RuntimeError):
+    """The ai_theme_app root is not (validly) configured; no fallback location is ever used (#246)."""
+
+
 class MCPToolAdapter:
     """Adapts MCP tool calls into Julia Capability results.
 
@@ -96,17 +103,24 @@ class MCPToolAdapter:
         ever imports or references ai_theme_app internals.
         """
         import inspect
+        import logging
+        import os
         import sys
         from pathlib import Path
 
-        # Resolve ai_theme_app path (installed or sibling directory)
-        ai_theme_paths = [
-            "/Users/admin/Desktop/ai_theme_app",
-            str(Path(__file__).resolve().parent.parent.parent.parent.parent.parent / "ai_theme_app"),
-        ]
-        for p in ai_theme_paths:
-            if Path(p).exists() and p not in sys.path:
-                sys.path.insert(0, p)
+        # #246: the ai_theme_app location comes ONLY from explicit configuration.
+        # No default, sibling or Desktop path is ever tried; unknown => fail closed.
+        configured = os.environ.get(AI_THEME_ROOT_ENV, "").strip()
+        if not configured:
+            raise AiThemeRootNotConfigured(
+                f"{AI_THEME_ROOT_ENV} is not set: the in-process ai_theme_app MCP path needs an explicit root"
+            )
+        root = Path(configured)
+        if not root.is_dir():
+            raise AiThemeRootNotConfigured(f"{AI_THEME_ROOT_ENV} does not point to a directory: {configured}")
+        if configured not in sys.path:
+            logging.getLogger(__name__).info("ai_theme_app root added to sys.path from %s: %s", AI_THEME_ROOT_ENV, configured)
+            sys.path.insert(0, configured)
 
         from mcp_server.server import MCP_TOOLS
 

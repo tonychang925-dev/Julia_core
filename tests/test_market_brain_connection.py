@@ -5,15 +5,17 @@ Verifies: Julia Core MCP Client → ai_theme_app MCP Server → DecisionEnvelope
 This is the moment Julia first "sees" the market. Not interprets — sees.
 
 Run from ai_theme_app directory (where mcp_server is importable):
-    cd /Users/admin/Desktop/ai_theme_app
-    PYTHONPATH=.:../julia_core python3 -m pytest ../julia_core/tests/test_market_brain_connection.py -v
+    JULIA_AI_THEME_ROOT=<path to ai_theme_app> PYTHONPATH=$JULIA_AI_THEME_ROOT:<julia_core> python3 -m pytest tests/test_market_brain_connection.py -v
 """
+import os
 import sys
 import asyncio
 import pytest
 
-# Ensure ai_theme_app is on path (for mcp_server imports)
-ai_theme_path = "/Users/admin/Desktop/ai_theme_app"
+# #246: ai_theme_app is located only through explicit configuration; never from a hard-coded path.
+ai_theme_path = os.environ.get("JULIA_AI_THEME_ROOT", "")
+if not ai_theme_path or not os.path.isdir(ai_theme_path):
+    pytest.skip("needs JULIA_AI_THEME_ROOT pointing at an ai_theme_app checkout", allow_module_level=True)
 if ai_theme_path not in sys.path:
     sys.path.insert(0, ai_theme_path)
 

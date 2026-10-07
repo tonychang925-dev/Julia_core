@@ -17,30 +17,38 @@ from julia_core.capability.financial.research.strategy_selector import StrategyS
 from julia_core.capability.financial.research.transition_detector import TransitionDetector, TransitionResult
 
 
+STRATEGY_CARD_DIR_ENV = "STRATEGY_CARD_DIR"
+
+
+class StrategyCardDirNotConfigured(RuntimeError):
+    """The strategy card directory is not (validly) configured; no fallback location is used (#246)."""
+
+
 class RecursiveResearchHandoff:
     """Orchestrates: RC-001 evidence → Transition → Strategy → RC-002."""
 
     def __init__(self, card_dir: str = ""):
-        if card_dir:
-            self.card_dir = Path(card_dir)
-        else:
-            # Resolve from env, then relative to ai_theme_app project root, then fallback
-            env_dir = os.environ.get("STRATEGY_CARD_DIR", "")
-            if env_dir:
-                self.card_dir = Path(env_dir)
-            else:
-                # Try relative to this file's location (julia_core repo root)
-                # handoff.py is at: <workspace>/julia_core/julia_core/capability/financial/research/handoff.py
-                # parents[4] = <workspace>/julia_core (repo root), .parent → <workspace>
-                julia_root = Path(__file__).resolve().parents[4]
-                ai_theme_root = julia_root.parent / "ai_theme_app" / "strategy_knowledge" / "cards"
-                if ai_theme_root.exists():
-                    self.card_dir = ai_theme_root
-                else:
-                    self.card_dir = Path("/Users/admin/Desktop/ai_theme_app/strategy_knowledge/cards")
+        # #246: the strategy-card directory comes ONLY from the explicit argument or STRATEGY_CARD_DIR.
+        # No sibling-checkout or Desktop guess. Resolution is lazy so that a research workflow that
+        # never reaches the handoff can still be built; the first USE without a valid directory fails closed.
+        self._configured = card_dir or os.environ.get(STRATEGY_CARD_DIR_ENV, "")
         self.detector = TransitionDetector()
         self.selector = StrategySelector()
         self.compiler = StrategyResearchCompiler()
+
+    @property
+    def card_dir(self) -> Path:
+        if not self._configured:
+            raise StrategyCardDirNotConfigured(
+                f"{STRATEGY_CARD_DIR_ENV} is not set and no card_dir was given: "
+                "the strategy card directory must be configured explicitly"
+            )
+        path = Path(self._configured)
+        if not path.is_dir():
+            raise StrategyCardDirNotConfigured(
+                f"{STRATEGY_CARD_DIR_ENV}/card_dir does not point to a directory: {self._configured}"
+            )
+        return path
 
     def create_next_plan(
         self,
@@ -66,7 +74,7 @@ class RecursiveResearchHandoff:
             return None
 
         # Step 3: Load card
-        card_path = self.card_dir / f"{selection.primary_card}.json"
+        card_path = self.card_dir / f"{selection.primary_card}.json"   # raises when the directory is not configured
         if not card_path.exists():
             return None
         card = json.loads(card_path.read_text(encoding="utf-8"))
