@@ -311,7 +311,7 @@ def test_market_namespace_collision_fails_canonical_ingress_closed(monkeypatch, 
     )
     response = ingress.process(
         conversation.CoreConversationRequest(
-            "conv-1",
+            "conv_" + "1" * 32,
             "turn-1",
             "text",
             "hello",

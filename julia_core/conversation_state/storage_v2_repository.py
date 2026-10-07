@@ -14,6 +14,7 @@ All conversations and messages recoverable from canonical files alone.
 from __future__ import annotations
 
 import json
+import re
 import os
 import sqlite3
 import threading
@@ -35,6 +36,9 @@ from julia_core.conversation_state.repository import (
 SCHEMA_VERSION = 2
 DEFAULT_SEGMENT_MAX_BYTES = 33_554_432
 DEFAULT_SEGMENT_MAX_MESSAGES = 10_000
+
+
+_SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 
 def _now_iso() -> str:
@@ -103,6 +107,10 @@ class StorageV2ConversationRepository:
             if not conv_dir.is_dir():
                 continue
             conv_id = conv_dir.name
+            try:
+                self._conv_path(conv_id)
+            except ValueError:
+                continue                                   # #243: never adopt a directory with an unsafe name
             meta_path = conv_dir / "meta.json"
             if not meta_path.exists():
                 continue
@@ -157,10 +165,28 @@ class StorageV2ConversationRepository:
 
     # ── canonical filesystem ───────────────────────────────────────────
 
-    def _conv_dir(self, conv_id: str) -> Path:
-        d = self._base / conv_id
+    def _conv_path(self, conv_id: str) -> Path:
+        """Pure path computation (#243): never creates anything, never leaves the base dir.
+
+        Structural safety only (a single safe path component, resolved parent == base);
+        the strict ``conv_<32 hex>`` format is enforced at the public ingress.
+        """
+        if not isinstance(conv_id, str) or not _SAFE_ID.fullmatch(conv_id) or conv_id in (".", ".."):
+            raise ValueError("invalid conversation_id")
+        candidate = self._base / conv_id
+        if candidate.resolve().parent != self._base.resolve():
+            raise ValueError("invalid conversation_id")
+        return candidate
+
+    def _ensure_conv_dir(self, conv_id: str) -> Path:
+        """Write paths only: create the conversation directory."""
+        d = self._conv_path(conv_id)
         d.mkdir(parents=True, exist_ok=True)
         return d
+
+    def _conv_dir(self, conv_id: str) -> Path:
+        # Back-compat name for read callers: no side effects any more.
+        return self._conv_path(conv_id)
 
     def _segment_path(self, conv_id: str, seg: int = 1) -> Path:
         return self._conv_dir(conv_id) / f"transcript-{seg:06d}.jsonl"
@@ -237,6 +263,7 @@ class StorageV2ConversationRepository:
     def _write_canonical_message(self, conv_id: str, msg: dict):
         """Append one complete canonical line. Flush + fsync before returning."""
         line = json.dumps(msg, ensure_ascii=False) + "\n"
+        self._ensure_conv_dir(conv_id)
         seg_path = self._select_segment_for_write(conv_id, line)
         with open(seg_path, "a") as f:
             f.write(line)
@@ -306,6 +333,7 @@ class StorageV2ConversationRepository:
                 "conversation_id": session_id, "title": title,
                 "created_at": now, "updated_at": now, "state": "active",
             }
+            self._ensure_conv_dir(session_id)          # validates first; the only creator besides appends
             self._meta_path(session_id).write_text(json.dumps(meta, indent=2))
             self._cat.execute(
                 "INSERT INTO conversations(id, title, state, created_at, updated_at) VALUES(?,?,?,?,?)",
@@ -316,11 +344,11 @@ class StorageV2ConversationRepository:
 
     def delete(self, session_id: str) -> bool:
         import shutil
+        conv_dir = self._conv_path(session_id)         # validate before touching the catalog; never creates
         with self._lock:
             self._cat.execute("DELETE FROM turn_index WHERE conversation_id=?", (session_id,))
             self._cat.execute("DELETE FROM conversations WHERE id=?", (session_id,))
             self._cat.commit()
-            conv_dir = self._conv_dir(session_id)
             if conv_dir.exists():
                 shutil.rmtree(conv_dir)
             return True

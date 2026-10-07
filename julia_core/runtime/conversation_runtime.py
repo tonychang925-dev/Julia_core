@@ -559,6 +559,14 @@ class ConversationRuntime:
         """Internal: caller must hold per-conversation lock."""
         from julia_core.conversation_state.repository import TurnConflictError
 
+        # AT-04 P0-GAP-2: turn ingestion is not conversation creation authority
+        # (#243: checked BEFORE any transcript read, so an unknown id touches nothing).
+        # Unknown/stale conversation_id must fail closed instead of manufacturing
+        # ghost canonical truth. Explicit create_conversation() remains the only
+        # governed creation path.
+        if self._repository.get(conversation_id) is None:
+            raise ConversationNotFoundError(conversation_id)
+
         # Idempotency: check canonical store for existing turn
         if turn_id:
             existing = self._find_turn_in_store(conversation_id, turn_id)
@@ -570,13 +578,6 @@ class ConversationRuntime:
                 raise TurnConflictError(
                     f"Turn {turn_id}: content differs from persisted"
                 )
-
-        # AT-04 P0-GAP-2: turn ingestion is not conversation creation authority.
-        # Unknown/stale conversation_id must fail closed instead of manufacturing
-        # ghost canonical truth. Explicit create_conversation() remains the only
-        # governed creation path.
-        if self._repository.get(conversation_id) is None:
-            raise ConversationNotFoundError(conversation_id)
 
         now = _time.strftime("%Y-%m-%dT%H:%M:%S")
 
