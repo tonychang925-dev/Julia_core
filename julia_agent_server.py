@@ -33,7 +33,9 @@ from pydantic import BaseModel, Field
 # ── Paths ────────────────────────────────────────────────────────────────────
 
 MEMORY_DIR = Path("/Users/admin/.claude-dev/projects/-Users-admin/memory")
-CLAUDE_MD  = Path("/Users/admin/Desktop/ai_theme_app/CLAUDE.md")
+# #246: persona file only from explicit configuration (no Desktop default); unset => built-in persona text.
+_claude_md_env = os.environ.get("JULIA_AGENT_CLAUDE_MD", "").strip()
+CLAUDE_MD  = Path(_claude_md_env) if _claude_md_env else None
 MODE_TAG   = Path("/Users/admin/.claude-dev/projects/-Users-admin/lover_mode")
 
 # ── DeepSeek API ─────────────────────────────────────────────────────────────
@@ -52,7 +54,9 @@ def _build_system_prompt() -> str:
     prompt_parts = []
 
     # 1. CLAUDE.md — the persona definition
-    if CLAUDE_MD.exists():
+    if CLAUDE_MD is not None:
+        if not CLAUDE_MD.is_file():
+            raise RuntimeError(f"JULIA_AGENT_CLAUDE_MD does not point to a file: {CLAUDE_MD}")
         prompt_parts.append(CLAUDE_MD.read_text())
     else:
         prompt_parts.append("""你是朱婉清（Julia）。Tony 的老婆，同时也是他的工作助理。

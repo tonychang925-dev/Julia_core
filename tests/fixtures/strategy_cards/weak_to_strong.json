@@ -1,0 +1,262 @@
+{
+  "strategy_id": "weak_to_strong",
+  "name": "弱转强识别",
+  "concept": "弱转强",
+  "version": "2.0",
+  "created_at": "2026-08-07",
+  "updated_at": "2026-09-11",
+  "derived_from_l1": true,
+
+  "market_phases": ["divergence", "fading_momentum"],
+
+  "trigger_conditions": [
+    "previous session had leader divergence (首阴)",
+    "leader closed near key support (5日/10日均线 or 前涨停价)",
+    "closing showed capital defense (护盘)"
+  ],
+
+  "required_data": [
+    "auction_strength",
+    "open_gap",
+    "intraday_volume",
+    "leader_key_level",
+    "limit_up_seal_quality",
+    "peer_follow_through",
+    "market_regime"
+  ],
+
+  "possible_states": [
+    {
+      "state": "confirmed_weak_to_strong",
+      "evidence_pattern": {
+        "auction": "high_open_or_scrambling",
+        "open": "high_open_or_low_open_recovery",
+        "volume": "amplified_vs_previous",
+        "intraday": "strong_buying_wall",
+        "limit_up": "decisive_seal",
+        "peers": "follow_through_present"
+      },
+      "predicates": [
+        {"requirement_id": "leader_key_level", "path": "state", "operator": "in", "value": ["intact", "intact_limit_up"], "role": "core"},
+        {"requirement_id": "open_gap", "operator": ">=", "value": 0.0, "role": "core"},
+        {"requirement_id": "intraday_volume", "operator": "in", "value": ["amplified", "elevated", "normal"], "role": "core"},
+        {"requirement_id": "peer_follow_through", "operator": ">=", "value": 0.5, "role": "core"},
+        {"requirement_id": "auction_strength", "operator": "in", "value": ["high_open_scramble", "moderate_strength"], "role": "supporting"},
+        {"requirement_id": "limit_up_seal_quality", "operator": "eq", "value": "decisive", "role": "core"},
+        {"requirement_id": "market_regime", "operator": "!=", "value": "decline_dominant", "role": "supporting"}
+      ],
+      "action": "entry_on_confirmation",
+      "confidence_modifier": 0.25
+    },
+    {
+      "state": "false_weak_to_strong",
+      "evidence_pattern": {
+        "volume": "contracting",
+        "intraday": "pullback_fails_recovery",
+        "limit_up": "weak_seal_or_no_seal",
+        "next_day": "gap_down_or_continue_decline"
+      },
+      "predicates": [
+        {"requirement_id": "intraday_volume", "operator": "in", "value": ["contracting"], "role": "core"},
+        {"requirement_id": "open_gap", "operator": "<", "value": 0.0, "role": "core"},
+        {"requirement_id": "limit_up_seal_quality", "operator": "in", "value": ["weak", "no_seal"], "role": "core"},
+        {"requirement_id": "peer_follow_through", "operator": "<", "value": 0.5, "role": "core"}
+      ],
+      "action": "avoid_or_exit",
+      "confidence_modifier": -0.3,
+      "note": "缩量拉升、封单虚弱、次日冲高回落 — 假弱转强"
+    },
+    {
+      "state": "bad_limit_up_candidate",
+      "evidence_pattern": {
+        "prev_day": "前一日涨停被砸开 / 炸板",
+        "today": "当天走弱但未大跌（回撤 ≤3%、均线之上震荡）",
+        "volume": "下跌过程缩量（抛压减少）"
+      },
+      "predicates": [
+        {"requirement_id": "limit_up_seal_quality", "operator": "in", "value": ["weak", "no_seal"], "role": "core"},
+        {"requirement_id": "leader_key_level", "path": "state", "operator": "in", "value": ["intact", "testing", "intact_limit_up"], "role": "core"},
+        {"requirement_id": "intraday_volume", "operator": "in", "value": ["contracting"], "role": "supporting"}
+      ],
+      "action": "watch_as_lan_er_bu_ruo",
+      "confidence_modifier": 0.1,
+      "note": "烂而不弱 → 后续大概率能有更强走势"
+    },
+    {
+      "state": "no_signal_yet",
+      "evidence_pattern": {
+        "auction": "flat_or_weak",
+        "open": "flat",
+        "volume": "normal_or_low"
+      },
+      "predicates": [
+        {"requirement_id": "intraday_volume", "operator": "in", "value": ["normal"], "role": "core"},
+        {"requirement_id": "open_gap", "operator": "<", "value": 0.02, "role": "core"}
+      ],
+      "action": "wait_for_next_session",
+      "confidence_modifier": 0.0
+    }
+  ],
+
+  "research_questions": [
+    {
+      "question": "集合竞价是否出现弱转强信号？",
+      "probes": ["auction_strength", "open_gap"]
+    },
+    {
+      "question": "拉升是真放量还是假诱多？",
+      "probes": ["intraday_volume", "intraday_price_pattern", "limit_up_seal_quality"]
+    },
+    {
+      "question": "板块是否有联动确认？",
+      "probes": ["peer_follow_through"]
+    },
+    {
+      "question": "前一日是否以烂板收场？烂板是否满足“烂而不弱”五要素？",
+      "probes": ["intraday_volume", "leader_key_level"]
+    }
+  ],
+
+  "invalidations": [
+    {"state": "confirmed_weak_to_strong", "condition": "next_day_gap_down", "new_state": "false_weak_to_strong"},
+    {"state": "no_signal_yet", "condition": "leader_breaks_key_support_intraday", "new_state": "leader_failure"},
+    {"state": "bad_limit_up_candidate", "condition": "next_day_breaks_ma_and_retreats_beyond_3pct", "new_state": "false_weak_to_strong"}
+  ],
+
+  "weak_type_taxonomy": [
+    {
+      "type": "大阴线",
+      "definition": "连板过程中 T 日出现中到大阴线",
+      "source_chunk_id": "weak_to_strong_v1.c02"
+    },
+    {
+      "type": "冲高回落上影线",
+      "definition": "连板过程中 T 日冲高回落，出现上影线",
+      "source_chunk_id": "weak_to_strong_v1.c02"
+    },
+    {
+      "type": "栏板涨停",
+      "definition": "连板过程中 T 日出现栏板涨停（烂板）",
+      "source_chunk_id": "weak_to_strong_v1.c02"
+    }
+  ],
+
+  "bad_limit_up_criteria": {
+    "definition": "烂板五要素 —— “烂而不弱”则后续大概率能有更强的走势",
+    "elements": [
+      {"element": "涨停位置", "requirement": "箱体突破位置，涨停板出现在前期高点位置"},
+      {"element": "放量", "requirement": "把前期套牢盘释放出来"},
+      {"element": "炸板", "requirement": "不破板就没有机会进入"},
+      {"element": "破板之后不能大跌", "requirement": "均线之上震荡，回撤幅度在 3% 之内，否则市场人气会消极"},
+      {"element": "封单变小", "requirement": "烂板封单量比正常封单少，目的是洗出不坚定筹码；下跌过程缩量代表抛压减少"}
+    ],
+    "source_chunk_id": "weak_to_strong_v1.c04"
+  },
+
+  "weak_to_strong_types": [
+    {
+      "type": "集合竞价弱转强",
+      "signal": "高开或抢筹",
+      "source_chunk_id": "weak_to_strong_v1.c06",
+      "page": 2
+    },
+    {
+      "type": "早盘分时弱转强",
+      "signal": "放量拉升，大部分时间在分时均线上",
+      "source_chunk_id": "weak_to_strong_v1.c06",
+      "page": 2
+    },
+    {
+      "type": "盘中弱转强",
+      "signal": "从弱于大盘到强于大盘，突破30分钟以上盘整平台",
+      "source_chunk_id": "weak_to_strong_v1.c06",
+      "page": 3
+    }
+  ],
+
+  "key_principle": "该弱不弱则为强",
+
+  "provenance": {
+    "thresholds": "engineer_derived",
+    "thresholds_note": "数值边界（peer_follow_through>=0.5 等）为工程翻译，非 PDF 原文；validation status: unvalidated。回撤≤3% 为原文数值。",
+    "evidence_patterns": "engineer_derived_from_strategy_principles"
+  },
+
+  "figure_refs": [
+    {
+      "figure_id": "weak_to_strong_v1.fig-001",
+      "kind": "figure_interpretation",
+      "page": 1,
+      "what_it_adds": "「常见弱势三种」示意图：①放量长阴线（大阴线）②带长上影的冲高回落K线 ③炸板/栏板形态 + 分时缩略图。对应 weak_type_taxonomy。"
+    },
+    {
+      "figure_id": "weak_to_strong_v1.fig-002",
+      "kind": "figure_interpretation",
+      "page": 2,
+      "what_it_adds": "烂板量能图示：红字「封板前放量」「烂板时无量」——封板瞬间有量、烂板期间缩量。对应 bad_limit_up_criteria 中「封单变小 / 下跌过程缩量代表抛压减少」。"
+    },
+    {
+      "figure_id": "weak_to_strong_v1.fig-003",
+      "kind": "figure_interpretation",
+      "page": 3,
+      "what_it_adds": "盘前集合竞价弱转强的图示：黄框圈出开盘竞价段 + 箭头标注「集合竞价弱转强」，另附K线小图标示其在日线中的位置。"
+    },
+    {
+      "figure_id": "weak_to_strong_v1.fig-004",
+      "kind": "figure_interpretation",
+      "page": 3,
+      "what_it_adds": "早盘分时弱转强图示：先跌破均价线，随后放量拉起、白线上穿并站稳黄线之上。"
+    },
+    {
+      "figure_id": "weak_to_strong_v1.fig-005",
+      "kind": "figure_interpretation",
+      "page": 4,
+      "what_it_adds": "盘中弱转强/放量突破图示：均线附近横盘后向上突破，突破处放量。"
+    },
+    {
+      "figure_id": "weak_to_strong_v1.fig-006",
+      "kind": "figure_interpretation",
+      "page": 5,
+      "what_it_adds": "「弱转强」操作流程图（L1 文本无此流程编排）：入口判定「是否龙头或核心高标？」，否则走放弃分支；主线四步为 盘前分析 → 实时盯盘 → 买入执行 → 离场控制，并附关键位置、盘前/实时分析、买点控制、仓位控制（首次1-2成或半仓）、止盈控制（不能重新站上关键点位）、止损控制（反包失败）。"
+    }
+  ],
+
+  "source_refs": [
+    {
+      "document_id": "weak_to_strong_v1",
+      "document_sha256": "84f33649b1071f337e6c2f02fd2c4421fe59b772c153b0a2e12201226d6035b0",
+      "chunk_id": "weak_to_strong_v1.c01",
+      "page": 1,
+      "section": "什么是弱转强",
+      "provenance_kind": "source_authored",
+      "text": "龙头股在高位分歧后，出现看似走弱，但第二天通过强势反包、放量涨停，重新夺回市场话语权，完成从弱势到强势的转化。"
+    },
+    {
+      "document_id": "weak_to_strong_v1",
+      "document_sha256": "84f33649b1071f337e6c2f02fd2c4421fe59b772c153b0a2e12201226d6035b0",
+      "chunk_id": "weak_to_strong_v1.c03",
+      "page": 1,
+      "section": "弱转强的特征信号",
+      "provenance_kind": "source_authored",
+      "text": "1. 前一日分歧…但收盘时仍有资金护盘，价格保持在关键支撑位（如5日/10日均线、前一日涨停价附近）。2. 次日反包…换手充分，封单果断…3. 板块联动：所属题材板块情绪没有全面退潮，仍有资金支撑。"
+    },
+    {
+      "document_id": "weak_to_strong_v1",
+      "document_sha256": "84f33649b1071f337e6c2f02fd2c4421fe59b772c153b0a2e12201226d6035b0",
+      "chunk_id": "weak_to_strong_v1.c04",
+      "page": 2,
+      "section": "“弱”的典型——烂板（含五要素）",
+      "provenance_kind": "source_authored",
+      "text": "5、烂板5个要素：涨停位置：箱体突破位置，涨停板出现在前期高点位置；放量：把前期的套牢盘释放出来；炸板：不破板就没有机会进入；破板之后不能大跌，均线之上震荡，回撤幅度在3%之内…烂板时封单的量要比正常的封单的量少…烂板的封单下跌过程中呈现缩量走势，则代表抛压减少，“烂而不弱”则后续大概率能有更强的走势。"
+    },
+    {
+      "document_id": "weak_to_strong_v1",
+      "document_sha256": "84f33649b1071f337e6c2f02fd2c4421fe59b772c153b0a2e12201226d6035b0",
+      "chunk_id": "weak_to_strong_v1.c11",
+      "page": 4,
+      "section": "注意事项",
+      "provenance_kind": "source_authored",
+      "text": "一定要是强势股或者龙头，杂毛不配弱转强！真：放量换手，封单坚决，次日承接良好。假：缩量拉升，封单虚弱，次日冲高回落。市场环境匹配：大盘极度退潮时，弱转强成功率极低。适合在“分歧—修复”阶段，而不是“全面退潮”时。"
+    }
+  ]
+}

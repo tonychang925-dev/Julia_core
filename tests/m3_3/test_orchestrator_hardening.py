@@ -8,6 +8,7 @@ rejects invalid input.
 
 import asyncio
 import pytest
+from pathlib import Path
 
 from julia_core.capability.financial.research.orchestrator import (
     CognitiveLoopConfig,
@@ -26,6 +27,21 @@ from julia_core.capability.financial.research.models import (
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
+
+FROZEN_CARDS = Path(__file__).resolve().parents[1] / "fixtures" / "strategy_cards"
+
+
+def _strategy_card_dir():
+    """#246: strategy cards come from the frozen test snapshot (tests/fixtures/strategy_cards), never the Desktop."""
+    return FROZEN_CARDS
+
+
+@pytest.fixture(autouse=True)
+def _frozen_strategy_cards(monkeypatch):
+    """The research handoff needs an explicit card directory; tests (and only tests) point it at the snapshot."""
+    monkeypatch.setenv("STRATEGY_CARD_DIR", str(FROZEN_CARDS))
+
 
 def _make_config(**kwargs) -> CognitiveLoopConfig:
     defaults = {"max_rounds": 1, "query_budget": 10, "as_of": "2026-07-14T15:30:00+08:00"}
@@ -619,7 +635,7 @@ def test_capability_requests_use_runtime_cutoff_not_trade_date():
     from pathlib import Path
 
     compiler = StrategyResearchCompiler()
-    card_path = Path("/Users/admin/Desktop/ai_theme_app/strategy_knowledge/cards/leader_divergence.json")
+    card_path = _strategy_card_dir() / "leader_divergence.json"
     card = json.loads(card_path.read_text())
 
     runtime_as_of = "2026-07-14T13:30:00+08:00"
@@ -655,7 +671,7 @@ def test_rc002_preserves_same_cutoff_as_rc001():
 
     compiler = StrategyResearchCompiler()
 
-    card_base = Path("/Users/admin/Desktop/ai_theme_app/strategy_knowledge/cards")
+    card_base = _strategy_card_dir()
     card1 = json.loads((card_base / "leader_divergence.json").read_text())
     plan1 = compiler.compile(card1, subject)
 

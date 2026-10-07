@@ -114,8 +114,9 @@ def test_adapter_configured_root_is_used_and_only_that_root(clean_env, monkeypat
 def test_handoff_unconfigured_card_dir_fails_closed(clean_env):
     from julia_core.capability.financial.research.handoff import RecursiveResearchHandoff
 
+    handoff = RecursiveResearchHandoff()          # building it is fine; the first USE fails closed
     with pytest.raises(RuntimeError, match="STRATEGY_CARD_DIR"):
-        RecursiveResearchHandoff()
+        handoff.card_dir
 
 
 def test_handoff_missing_card_dir_fails_closed(clean_env, monkeypatch, tmp_path):
@@ -123,9 +124,9 @@ def test_handoff_missing_card_dir_fails_closed(clean_env, monkeypatch, tmp_path)
 
     monkeypatch.setenv("STRATEGY_CARD_DIR", str(tmp_path / "missing"))
     with pytest.raises(RuntimeError, match="STRATEGY_CARD_DIR"):
-        RecursiveResearchHandoff()
+        RecursiveResearchHandoff().card_dir
     with pytest.raises(RuntimeError):
-        RecursiveResearchHandoff(card_dir=str(tmp_path / "also-missing"))
+        RecursiveResearchHandoff(card_dir=str(tmp_path / "also-missing")).card_dir
 
 
 def test_handoff_env_and_explicit_argument_are_honoured(clean_env, monkeypatch, tmp_path):
@@ -161,3 +162,41 @@ def test_agent_server_has_no_desktop_claude_md_dependency(monkeypatch, tmp_path)
     importlib.reload(server)
     with pytest.raises(RuntimeError, match="JULIA_AGENT_CLAUDE_MD"):
         server._build_system_prompt()
+
+
+# ── frozen strategy-card snapshot (test-only) ──────────────────────────────
+
+FIXTURE_DIR = ROOT / "tests" / "fixtures" / "strategy_cards"
+
+
+def test_production_code_never_references_test_fixtures():
+    offenders = []
+    for path in (ROOT / "julia_core").rglob("*.py"):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for needle in ("tests/fixtures", "fixtures/strategy_cards", "tests.fixtures"):
+            if needle in text:
+                offenders.append(f"{path.relative_to(ROOT)}: {needle}")
+    for path in ROOT.glob("*.py"):
+        if "tests/fixtures" in path.read_text(encoding="utf-8", errors="replace"):
+            offenders.append(f"{path.name}: tests/fixtures")
+    assert offenders == [], "\n".join(offenders)
+
+
+def test_strategy_card_snapshot_is_frozen_documented_and_sourced():
+    import hashlib
+
+    readme = (FIXTURE_DIR / "README.md").read_text(encoding="utf-8")
+    assert "测试冻结快照，非正本；正本以 ai_theme_app 为准，更新须另开卡" in readme
+    sums = {}
+    for line in (FIXTURE_DIR / "SHA256SUMS").read_text().splitlines():
+        digest, name = line.split(None, 1)
+        sums[name.strip().lstrip("*")] = digest
+    cards = sorted(p.name for p in FIXTURE_DIR.glob("*.json"))
+    assert cards and cards == sorted(sums), "every card needs exactly one SHA256SUMS entry"
+    for name in cards:
+        assert hashlib.sha256((FIXTURE_DIR / name).read_bytes()).hexdigest() == sums[name], f"{name} was modified"
+    sources = (FIXTURE_DIR / "SOURCES.tsv").read_text(encoding="utf-8").splitlines()[1:]
+    rows = {row.split("\t")[0]: row.split("\t") for row in sources}
+    assert sorted(rows) == cards
+    for name, (_f, source_path, commit, digest) in rows.items():
+        assert source_path == f"strategy_knowledge/cards/{name}" and commit.startswith("e1f1b9ad") and digest == sums[name]
