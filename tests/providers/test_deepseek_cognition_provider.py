@@ -113,7 +113,7 @@ def test_missing_credential_public_ingress_fails_closed(monkeypatch, tmp_path):
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     response = CoreConversationIngress(
         CoreConversationConfig(tmp_path / "conversations")
-    ).process(CoreConversationRequest("conv", "turn", "text", "hello"))
+    ).process(CoreConversationRequest("conv_" + "1" * 32, "turn", "text", "hello"))
 
     assert response.status == "failed"
     assert response.error_code == "CORE_PROVIDER_UNAVAILABLE"

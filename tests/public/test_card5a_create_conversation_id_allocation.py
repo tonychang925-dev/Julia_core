@@ -175,14 +175,18 @@ def test_invalid_explicit_ids_are_still_rejected(tmp_path, monkeypatch, bad):
     assert not (tmp_path / "x").exists()
 
 
+# #243: an explicit id must now be a canonical conv_<32 hex> (free-form ids are rejected)
+EXPLICIT_OK = "conv_" + "e" * 32
+
+
 def test_explicit_valid_id_behaviour_is_unchanged(tmp_path, monkeypatch):
     ingress, base = _ingress(tmp_path, monkeypatch)
-    assert ingress.create_conversation("rd1-explicit.1_ok", "Explicit") == "rd1-explicit.1_ok"
-    assert _meta(base, "rd1-explicit.1_ok")["title"] == "Explicit"
+    assert ingress.create_conversation(EXPLICIT_OK, "Explicit") == EXPLICIT_OK
+    assert _meta(base, EXPLICIT_OK)["title"] == "Explicit"
     # idempotent: same id returns the same conversation and does not duplicate it
-    assert ingress.create_conversation("rd1-explicit.1_ok", "Other title") == "rd1-explicit.1_ok"
+    assert ingress.create_conversation(EXPLICIT_OK, "Other title") == EXPLICIT_OK
     assert len([p for p in base.iterdir() if p.is_dir()]) == 1
-    assert _meta(base, "rd1-explicit.1_ok")["title"] == "Explicit"
+    assert _meta(base, EXPLICIT_OK)["title"] == "Explicit"
 
 
 @pytest.mark.parametrize("conversation_id", ["", None, "explicit-1"])

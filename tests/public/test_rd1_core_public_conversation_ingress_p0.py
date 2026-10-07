@@ -11,8 +11,13 @@ from julia_core.public.conversation import (
 )
 
 
+# #243: public ingress accepts only canonical conv_<32 hex> ids
+CONF_ID = "conv_" + "c" * 32
+ONCE_ID = "conv_" + "a" * 32
+
+
 def _request() -> CoreConversationRequest:
-    return CoreConversationRequest("conv-1", "turn-1", "text", "hello")
+    return CoreConversationRequest("conv_" + "1" * 32, "turn-1", "text", "hello")
 
 
 def _use_credential_free_cognition_seam(monkeypatch):
@@ -98,8 +103,8 @@ def test_real_composition_requires_explicit_test_provider(tmp_path, monkeypatch)
         lambda _name: TestProvider(),
     )
     ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
-    ingress.create_conversation("configured")
-    response = ingress.process(CoreConversationRequest("configured", "turn", "text", "hello"))
+    ingress.create_conversation(CONF_ID)
+    response = ingress.process(CoreConversationRequest(CONF_ID, "turn", "text", "hello"))
     assert response.status == "completed"
     assert response.assistant_content == "TEST_PROVIDER_SENTINEL"
 
@@ -121,18 +126,18 @@ def test_current_user_turn_is_model_visible_exactly_once(monkeypatch, tmp_path):
     )
 
     ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
-    ingress.create_conversation("current-turn-once")
+    ingress.create_conversation(ONCE_ID)
 
     previous = "上一轮问题"
     previous_response = ingress.process(
-        CoreConversationRequest("current-turn-once", "turn-previous", "text", previous)
+        CoreConversationRequest(ONCE_ID, "turn-previous", "text", previous)
     )
     assert previous_response.status == "completed"
     captured.clear()
 
     query = "2026-07-09 市场为什么会分化？"
     response = ingress.process(
-        CoreConversationRequest("current-turn-once", "turn-current", "text", query)
+        CoreConversationRequest(ONCE_ID, "turn-current", "text", query)
     )
 
     assert response.status == "completed"
@@ -167,9 +172,9 @@ def test_real_core_domain_errors_remain_typed(tmp_path, monkeypatch):
     ingress = CoreConversationIngress(CoreConversationConfig(tmp_path / "conversations"))
     missing = ingress.process(_request())
     assert missing.error_code == "CONVERSATION_NOT_FOUND"
-    ingress.create_conversation("conv-1")
+    ingress.create_conversation("conv_" + "1" * 32)
     first = ingress.process(_request())
-    conflict = ingress.process(CoreConversationRequest("conv-1", "turn-1", "text", "different"))
+    conflict = ingress.process(CoreConversationRequest("conv_" + "1" * 32, "turn-1", "text", "different"))
     assert first.status == "completed"
     assert conflict.error_code == "TURN_CONFLICT"
 
@@ -185,4 +190,4 @@ def test_public_surface_does_not_expose_cognition_or_repository_injection():
 def test_public_response_is_typed_and_private_object_free():
     """TC-RC25-04: public response contains scalar transport-safe fields only."""
     response_fields = set(CoreConversationIngress().process(_request()).__dataclass_fields__)
-    assert response_fields == {"conversation_id", "turn_id", "assistant_content", "status", "error_code"}
+    assert response_fields == {"conversation_id", "turn_id", "assistant_content", "status", "error_code", "persisted"}

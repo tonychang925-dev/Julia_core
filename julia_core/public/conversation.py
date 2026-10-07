@@ -236,6 +236,26 @@ class CoreConversationResponse:
     assistant_content: str
     status: str
     error_code: str | None = None
+    # True when this attempt left a durable canonical turn (completed OR a stored failed turn);
+    # False when it was rejected before/without a write (invalid id, not found, conflict, unavailable).
+    persisted: bool = False
+
+
+CONVERSATION_ID_PATTERN = re.compile(r"conv_[0-9a-f]{32}")
+
+
+def is_valid_conversation_id(value: object) -> bool:
+    """Strict canonical conversation id (#243): a ``str`` of exactly ``conv_`` + 32 lowercase hex.
+
+    No stripping, no type conversion: ``None``/``"None"``/``"null"``/paths are all invalid.
+    """
+    return isinstance(value, str) and CONVERSATION_ID_PATTERN.fullmatch(value) is not None
+
+
+class CoreConversationInvalidId(ValueError):
+    """The conversation id is not a canonical ``conv_<32 hex>`` (error_code INVALID_CONVERSATION_ID)."""
+
+    error_code = "INVALID_CONVERSATION_ID"
 
 
 class CoreConversationIngress:
@@ -331,6 +351,7 @@ class CoreConversationIngress:
                 assistant_content=result.assistant_content,
                 status=result.status,
                 error_code=error_code,
+                persisted=True,          # runtime returned: the user turn (and any failed assistant turn) is stored
             )
         except ConversationNotFoundError:
             return CoreConversationResponse(
@@ -366,8 +387,8 @@ class CoreConversationIngress:
             if not self._valid_identifier(allocated):
                 raise ValueError("Core allocated an invalid conversation_id")
             return allocated
-        if not self._valid_identifier(conversation_id):
-            raise ValueError("invalid conversation_id")
+        if not is_valid_conversation_id(conversation_id):
+            raise CoreConversationInvalidId("invalid conversation_id")
         return self._runtime.create_conversation(conversation_id, title).conversation_id
 
     def list_conversations(self, query: str | None = None) -> list:
@@ -383,6 +404,8 @@ class CoreConversationIngress:
         """Expose Core's existing read-only conversation detail."""
         if self._composition_error is not None:
             raise CoreConversationConfigurationError("Core composition is unavailable")
+        if not is_valid_conversation_id(conversation_id):
+            raise CoreConversationInvalidId("invalid conversation_id")
         assert self._runtime is not None
         return self._runtime.get_conversation(conversation_id)
 
@@ -390,6 +413,8 @@ class CoreConversationIngress:
         """Expose Core's existing read-only message tail."""
         if self._composition_error is not None:
             raise CoreConversationConfigurationError("Core composition is unavailable")
+        if not is_valid_conversation_id(conversation_id):
+            raise CoreConversationInvalidId("invalid conversation_id")
         assert self._runtime is not None
         return self._runtime.get_messages(conversation_id)
 
@@ -403,8 +428,8 @@ class CoreConversationIngress:
 
     @classmethod
     def _validate_request(cls, request: CoreConversationRequest) -> str | None:
-        if not cls._valid_identifier(request.conversation_id):
-            return "INVALID_REQUEST"
+        if not is_valid_conversation_id(request.conversation_id):
+            return "INVALID_CONVERSATION_ID"
         if not cls._valid_identifier(request.turn_id):
             return "INVALID_REQUEST"
         if request.modality not in {"text", "voice"}:
@@ -423,8 +448,11 @@ class CoreConversationProviderUnavailable(RuntimeError):
 
 
 __all__ = [
+    "CONVERSATION_ID_PATTERN",
     "CoreConversationConfig",
+    "CoreConversationInvalidId",
     "CoreConversationIngress",
     "CoreConversationRequest",
     "CoreConversationResponse",
+    "is_valid_conversation_id",
 ]
