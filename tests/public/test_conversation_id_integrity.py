@@ -104,3 +104,26 @@ def test_allocated_and_supplied_conforming_ids_still_work(ingress):
     result = ingress.process(_req(cid))
     assert result.status == "completed" and result.assistant_content == "stub reply"
     assert len(ingress.get_messages(cid)) == 2
+
+
+class _FailingProvider:
+    def chat(self, messages, cognitive_mode=""):
+        raise RuntimeError("provider down")
+
+
+def test_failed_cognition_turn_reports_persisted_true_and_other_failures_false(tmp_path, monkeypatch):
+    import julia_core.events.store as es
+
+    monkeypatch.setattr(es, "_store", es.EventStore(storage_dir=str(tmp_path / "events")))
+    ing = CoreConversationIngress(CoreConversationConfig(tmp_path / "data"), provider_factory=lambda: _FailingProvider())
+    cid = ing.create_conversation(None)
+    failed = ing.process(_req(cid, "t-fail"))
+    assert failed.status == "failed" and failed.persisted is True           # user + failed assistant stored
+    assert ing.process(_req(cid, "t-fail")).persisted is True                # idempotent replay of the same failed turn
+    assert ing.process(_req("None")).persisted is False                      # rejected before any write
+    assert ing.process(_req(UNKNOWN_VALID)).persisted is False
+    conflict = ing.process(CoreConversationRequest(cid, "t-fail", "text", "different content"))
+    assert conflict.error_code == "TURN_CONFLICT" and conflict.persisted is False
+    ok = CoreConversationIngress(CoreConversationConfig(tmp_path / "data2"), provider_factory=lambda: _Provider())
+    ok_cid = ok.create_conversation(None)
+    assert ok.process(_req(ok_cid)).persisted is True                        # completed turns are persisted too
